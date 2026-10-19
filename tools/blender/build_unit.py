@@ -506,6 +506,36 @@ def build_skin_body(spec, target=620, subdiv=1):
         groups[b].add([v.index], 1.0, "REPLACE")
     return obj
 
+
+# ---------------------------------------------------------------- union + junction
+CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
+            "arm.L": "armL", "forearm.L": "armL", "arm.R": "armR", "forearm.R": "armR",
+            "thigh.L": "legL", "shin.L": "legL", "foot.L": "legL",
+            "thigh.R": "legR", "shin.R": "legR", "foot.R": "legR"}
+
+
+def union_parts(parts, meta, per_chain=False):
+    """Boolean-union the plates into one connected shell so the junctions stop showing
+    as steps and teeth, then bevel the new intersection edges. Keeps the hard-surface
+    read (unlike a remesh) and keeps per-part materials through the material indices."""
+    groups = {}
+    for obj, bone in parts:
+        key = CHAIN_OF.get(bone, bone) if per_chain else "all"
+        groups.setdefault(key, []).append(obj)
+    merged = []
+    for key, objs in groups.items():
+        base = objs[0]
+        bpy.context.view_layer.objects.active = base
+        for obj in objs[1:]:
+            mod = base.modifiers.new("Bool", "BOOLEAN")
+            mod.operation = "UNION"
+            mod.solver = "EXACT"
+            mod.object = obj
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            bpy.data.objects.remove(obj, do_unlink=True)
+        merged.append(base)
+    return merged
+
 # ---------------------------------------------------------------- painted atlas
 def painted_image(name, rgb, size=64):
     """Three tiles side by side: shadow, mid and lit. Each tile is the palette colour with
@@ -884,6 +914,46 @@ def main():
         lo = Vector((min(c[i] for c in corners) for i in range(3)))
         hi = Vector((max(c[i] for c in corners) for i in range(3)))
         meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
+    if "union" in rest:
+        merged = union_parts(parts, meta, per_chain=True)
+        if len(merged) > 1:
+            bpy.ops.object.select_all(action="DESELECT")
+            for o in merged:
+                o.select_set(True)
+            bpy.context.view_layer.objects.active = merged[0]
+            bpy.ops.object.join()
+        body_u = merged[0]
+        parts = [(body_u, parts[0][1])]
+        body_u.vertex_groups.clear()
+        for bone, *_ in meta:
+            if bone not in body_u.vertex_groups:
+                body_u.vertex_groups.new(name=bone)
+        for v in body_u.data.vertices:
+            best, bd = meta[0], 1e9
+            for m in meta:
+                d = sum((v.co[i] - m[2][i]) ** 2 for i in range(3))
+                if d < bd:
+                    best, bd = m, d
+            body_u.vertex_groups[best[0]].add([v.index], 1.0, "REPLACE")
+        if "nobev" not in rest:
+            bev = body_u.modifiers.new("Junction", "BEVEL")
+            bev.width = 0.006
+            bev.segments = 1
+            bev.limit_method = "ANGLE"
+            bev.angle_limit = math.radians(35)
+            bpy.ops.object.modifier_apply(modifier=bev.name)
+        plan = body_u.modifiers.new("Planar", "DECIMATE")
+        plan.decimate_type = "DISSOLVE"
+        plan.angle_limit = math.radians(6)
+        bpy.ops.object.modifier_apply(modifier=plan.name)
+        faces = len(body_u.data.polygons)
+        budget = int(rest[4]) if len(rest) > 4 and rest[4].isdigit() else 700
+        if faces > budget // 2:
+            dec = body_u.modifiers.new("Dec", "DECIMATE")
+            dec.decimate_type = "COLLAPSE"
+            dec.ratio = max(0.02, (budget // 2) / float(faces))
+            bpy.ops.object.modifier_apply(modifier=dec.name)
+        print(f"union: {len(body_u.data.polygons)} faces after boolean + bevel + decimate")
     for obj, _ in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0][0]
