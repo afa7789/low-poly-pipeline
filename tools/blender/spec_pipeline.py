@@ -72,6 +72,13 @@ FORM RULES, non-negotiable - these are what keep the model from reading as Minec
 19. Separate placed parts are allowed - classic WC3 uses them (ghoul claws, back spikes) - as long as each one overlaps the body mass and the union reads as one silhouette.
 20. One 256 to 512 pixel atlas per unit (1024 only for a hero). Model the large forms the atlas will describe, nothing finer.
 
+CHUNKIFY - the Blizzard house style (Samwise Didier, WC3 art direction):
+21. Exaggerate what carries identity: oversized hands, oversized shoulders, oversized weapon. A limb is never thinner than a sixth of the torso width.
+22. Everything is thick. No zero-thickness plane: a plate or a cape is a slab with volume, and its corners are cut so primitive lighting catches the edge.
+23. Reserve one big flat zone for team colour, about 10 to 15 percent of the visible surface (pauldron, shield, banner). Never put it on the face or on a small part.
+24. Angle the main prop outward from the body, so the silhouette stays readable when units overlap in a fight.
+25. The unit must be identifiable as one black shape from the RTS camera (high, top-down, about 35 degrees), not only from the front.
+
 Parts are rigid-bound: each part follows the bone you name. Rig reference: the head bone runs 2.16 to 2.72 up, the arms hang from 2.02 to 0.90, the legs from 1.18 to 0.10. If the creature is not a biped, bind its mass to spine/pelvis and its limbs to the closest bones.
 
 The silhouette must read at 32x32 pixels: big shapes first, small trims last. Return ONLY the JSON object, no prose, no code fences."""

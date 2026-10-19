@@ -249,3 +249,21 @@ Consequence for this pipeline: **the missing stage is the atlas, not more geomet
 does not weld its parts. Chamfering was rejected for the same reason. The next stage is a 256–512 px
 hand-painted-style atlas per unit (AI-generated and box-projected, or baked from vertex colours),
 and the silhouette test is a solid-colour render at gameplay distance.
+
+
+### The Blizzard house style (Samwise Didier, quoted in the WC3 retrospective)
+
+- **14,000 polygons on screen for the whole scene** — terrain, buildings, effects and every active
+  unit; an individual character is usually **under 300 to 700**.
+- **"Chunkifying"**: smooth curves replaced by pronounced angles, massive weapons, bloated hands and
+  shoulders, exaggerated proportions so an Orc Grunt reads apart from a Tauren at RTS distance.
+  Parchment was modelled thick like cardboard with accentuated corners, so primitive lighting
+  catches the edge — the same rule applies to every plate and cape.
+- **The texture carries the depth**: shadows, highlights, gradients and AO were painted by hand in
+  Photoshop; rivets and creases were painted, never modelled, because the engine had no normal maps
+  or dynamic AO.
+- **Colour organisation**: every unit reserves one zone for the player's team colour, and major
+  props are angled outward so the profile survives when units overlap.
+
+Our engine has a per-model `tint` (RGB multiplier) but no per-material tint, so the team-colour zone
+needs a decision: a fourth material slot named `team`, or the tint applied to the whole model.
