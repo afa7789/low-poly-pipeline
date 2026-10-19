@@ -32,7 +32,7 @@ MATERIALS = {
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
-BONES = [
+_BIPED = [
     ("root", None, (0, 0, 0), (0, 0.3, 0)),
     ("pelvis", "root", (0, 1.20, 0), (0, 1.50, 0)),
     ("spine", "pelvis", (0, 1.50, 0), (0, 2.16, 0)),
@@ -48,6 +48,21 @@ BONES = [
     ("shin.R", "thigh.R", (-0.28, 0.56, 0), (-0.28, 0.10, 0)),
     ("foot.R", "shin.R", (-0.28, 0.10, 0), (-0.28, 0.06, 0.55)),
 ]
+BONES = list(_BIPED)
+
+
+def load_family(name):
+    """Swap the rig family before building: a spec can ask for spider, quadruped..."""
+    import importlib
+    try:
+        fam = importlib.import_module("rig_families")
+    except ModuleNotFoundError:
+        import sys as _sys
+        _sys.path.append(str(pathlib.Path(__file__).resolve().parent))
+        fam = importlib.import_module("rig_families")
+    global BONES
+    BONES = list(fam.FAMILIES.get(name, fam.BIPED))
+    return name
 
 # ---------------------------------------------------------------- specs
 # bone, kind, dims, at, material, opts
@@ -119,9 +134,7 @@ def chamfer_cube(dims, at, rot, width):
     obj = bpy.data.objects.new("chamfer", me)
     bpy.context.collection.objects.link(obj)
     obj.location = bp(at)
-    rots = opts.get("rot", rot)
-    if isinstance(rots, (int, float)):
-        rots = (0, 0, rots)
+    rots = rot if isinstance(rot, (tuple, list)) else (0, 0, rot)
     rx, ry, rz = (math.radians(v) for v in rots)
     obj.rotation_euler = (rx, -rz, ry)  # spec right/up/forward -> Blender x/z/y
     return obj
@@ -269,7 +282,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     if kind == "box":
         size = bd(dims)
         if chamfer:
-            obj = chamfer_cube(size, at, rz, 0.02)
+            obj = chamfer_cube(size, at, (rx, ry, rz), 0.02)
             obj.name = f"{bone}_{idx}"
             obj.data.materials.append(material(mat_name))
             return obj
@@ -294,6 +307,65 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
 
 
 
+
+
+# ---------------------------------------------------------------- skeleton-first spec
+BONE_MAP = {name: (head, tail) for name, parent, head, tail in BONES}
+
+
+def resolve_skeleton(spec):
+    """A spec that names a bone and a radius, nothing else. Placement, length and
+    overlap come from the rig, so the first build is already connected - the LLM
+    cannot put a limb in the wrong place because it never writes a coordinate."""
+    parts = []
+
+    def mid_len(head, tail):
+        mid = tuple((head[i] + tail[i]) / 2 for i in range(3))
+        length = sum((tail[i] - head[i]) ** 2 for i in range(3)) ** 0.5
+        return mid, length
+
+    for seg in spec.get("segments", []):
+        bone = seg["bone"]
+        head, tail = BONE_MAP[bone]
+        mid, length = mid_len(head, tail)
+        L = length * float(seg.get("extend", 1.15))
+        kind = seg.get("kind", "prism")
+        if kind in ("prism", "dome"):
+            r0, r1 = seg.get("radius", (0.12, 0.10))
+            dims = (r0, r1, L) if kind == "prism" else (r0, L)
+        else:
+            dims = tuple(seg["dims"])
+        opts = {k: v for k, v in seg.items() if k in ("sides", "axis", "rot", "top")}
+        parts.append([bone, kind, list(dims), list(mid), seg.get("material", "iron"), opts])
+
+    for ex in spec.get("extras", []):
+        bone = ex["bone"]
+        head, tail = BONE_MAP[bone]
+        off = ex.get("offset", (0, 0, 0))
+        at = tuple(head[i] + off[i] for i in range(3))
+        opts = {k: v for k, v in ex.items() if k in ("sides", "axis", "rot", "top")}
+        parts.append([bone, ex.get("kind", "box"), list(ex["dims"]), list(at),
+                      ex.get("material", "iron"), opts])
+    return parts
+
+
+def validate_skeleton(spec, budget=700):
+    """Hard invariants a first build must satisfy. Prints one line per rule."""
+    parts = resolve_skeleton(spec)
+    est = sum(BASE_TRIS.get(p[1], 12) for p in parts) + sum(
+        12 if p[5].get("sides", 8) > 6 else 0 for p in parts if p[1] == "prism")
+    bones_covered = {p[0] for p in parts}
+    required = {"pelvis", "spine", "head", "arm.L", "forearm.L", "thigh.L", "shin.L", "foot.L"}
+    missing = required - bones_covered
+    zs = [p[3][1] for p in parts]
+    xs = [abs(p[3][0]) for p in parts]
+    shoulder = max(xs) * 2
+    height = max(zs) + 0.3
+    print(f"  parts {len(parts)} | tris ~{est} (budget {budget}) | bones {len(bones_covered)}")
+    print(f"  shoulder/height {shoulder / height:.2f} (sheet 0.62) | "
+          f"head at {max(z for z in zs):.2f} of {height:.2f}")
+    print(f"  missing bones: {sorted(missing) or 'none'}")
+    return not missing and est <= budget
 
 # ---------------------------------------------------------------- painted atlas
 def painted_image(name, rgb, size=64):
@@ -568,8 +640,10 @@ def load_spec(target):
     """Either a built-in id (SPECS) or a path to {"parts": [...]} JSON."""
     p = pathlib.Path(target)
     if p.suffix == ".json":
-        parts = json.loads(p.read_text())["parts"]
-        return p.stem, [tuple(x) for x in parts]
+        doc = json.loads(p.read_text())
+        if "segments" in doc:          # skeleton-first spec: placement comes from the rig
+            return p.stem, doc
+        return p.stem, [tuple(x) for x in doc["parts"]]
     if target not in SPECS:
         sys.exit(f"no spec for {target}")
     return target, SPECS[target]
@@ -578,6 +652,12 @@ def load_spec(target):
 def main():
     target, out = sys.argv[sys.argv.index("--") + 1:][:2]
     unit, spec = load_spec(target)
+    if isinstance(spec, dict) and spec.get("rig"):
+        print("rig family:", load_family(spec["rig"]))
+    if isinstance(spec, dict):          # skeleton-first spec: rig decides placement
+        print("skeleton report:")
+        validate_skeleton(spec, 700)
+        spec = resolve_skeleton(spec)
     wipe()
     arm = build_armature()
 
