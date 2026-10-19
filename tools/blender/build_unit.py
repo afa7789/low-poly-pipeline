@@ -279,6 +279,142 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     return obj
 
 
+
+
+# ---------------------------------------------------------------- painted atlas
+def painted_image(name, rgb, size=128):
+    """A WC3-style tile: flat palette colour with the light painted in - a vertical
+    gradient (dark at the feet, bright at the shoulders), a soft crease band and
+    low-frequency mottling. No normal map, no AO pass: paint carries the depth."""
+    img = bpy.data.images.new(f"tex_{name}", width=size, height=size, alpha=False)
+    px = [0.0] * (size * size * 4)
+    for y in range(size):
+        v = y / (size - 1.0)
+        light = 0.78 + 0.42 * v                      # bottom dark, top lit
+        crease = 1.0 - 0.18 * math.exp(-((v - 0.42) ** 2) / 0.0016)
+        for x in range(size):
+            u = x / (size - 1.0)
+            mottle = 1.0 + 0.05 * math.sin(u * 21.0 + v * 13.0) * math.sin(v * 7.0)
+            k = light * crease * mottle
+            i = (y * size + x) * 4
+            px[i] = min(1.0, rgb[0] * k)
+            px[i + 1] = min(1.0, rgb[1] * k)
+            px[i + 2] = min(1.0, rgb[2] * k)
+            px[i + 3] = 1.0
+    img.pixels = px
+    return img
+
+
+def texturize(body, outdir=None, size=128):
+    """Give the three palette materials a painted tile and world-space UVs, so the
+    lighting runs vertically in world space like a hand-painted WC3 texture."""
+    mesh = body.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    if mesh.uv_layers.active is None:
+        mesh.uv_layers.active = mesh.uv_layers[0]
+    uvs = mesh.uv_layers.active.data
+    for poly in mesh.polygons:
+        n = poly.normal
+        axis = max(range(3), key=lambda i: abs(n[i]))
+        for li in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[li].vertex_index].co
+            if axis == 2:      # horizontal faces: no height gradient available
+                u, v = co.x * 0.5, co.y * 0.5
+            else:              # sides: V follows world height, so the light runs up the body
+                u, v = (co.x + co.y) * 0.5, co.z * 0.5
+            uvs[li].uv = (u, v)
+
+    images = {}
+    for slot in body.material_slots:
+        mat = slot.material
+        base = mat.name.split(".")[0]
+        if base in images:
+            slot.material = images[base]["material"]
+            continue
+        rgb = MATERIALS[base][:3]
+        img = painted_image(base, rgb, size)
+        if outdir:
+            img.filepath_raw = str(outdir / f"{base}.png")
+            img.file_format = "PNG"
+            img.save()
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        bsdf = nodes["Principled BSDF"]
+        tex_node = nodes.new("ShaderNodeTexImage")
+        tex_node.image = img
+        links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        images[base] = {"material": mat, "image": img}
+    return len(images)
+
+# ---------------------------------------------------------------- fusion
+def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
+    """Turn a stack of primitives into ONE continuous shell, the way a WC3 model reads.
+
+    Voxel remesh welds the overlapping parts into a single surface; decimate brings the
+    count back to the budget; then every face and vertex is re-labelled from the part it
+    came from, so the colour blocking and the bone binding survive the merge.
+
+    parts_meta: [(bone, material_name, centre, half_extents)] in Blender space.
+    """
+    bpy.context.view_layer.objects.active = body
+    body.data.remesh_voxel_size = voxel
+    bpy.ops.object.voxel_remesh()
+
+    faces = len(body.data.polygons)
+    if faces:
+        dec = body.modifiers.new("Decimate", "DECIMATE")
+        dec.decimate_type = "COLLAPSE"
+        dec.ratio = min(1.0, max(0.05, target / float(faces)))
+        bpy.ops.object.modifier_apply(modifier=dec.name)
+
+    # re-label: nearest part wins the face material and the vertex group
+    mesh = body.data
+    slots = {}
+    for name, _ in [(m, None) for m in [p[1] for p in parts_meta]]:
+        pass
+    for i, (bone, mat_name, centre, half) in enumerate(parts_meta):
+        if mat_name not in slots:
+            slots[mat_name] = len(slots)
+    body.data.materials.clear()
+    for mat_name in slots:
+        body.data.materials.append(material(mat_name))
+    groups = {}
+    for bone, *_ in parts_meta:
+        if bone not in groups:
+            groups[bone] = body.vertex_groups.new(name=bone)
+
+    def nearest(co):
+        best, best_d = 0, 1e9
+        for i, (bone, mat_name, centre, half) in enumerate(parts_meta):
+            d = 0.0
+            for a in range(3):
+                delta = abs(co[a] - centre[a]) - half[a]
+                if delta > 0:
+                    d += delta * delta
+            if d < best_d:
+                best, best_d = i, d
+        return parts_meta[best]
+
+    for poly in mesh.polygons:
+        bone, mat_name, _, _ = nearest(poly.center)
+        poly.material_index = slots[mat_name]
+        poly.use_smooth = True
+
+    for v in mesh.vertices:
+        bone, _, _, _ = nearest(v.co)
+        groups[bone].add([v.index], 1.0, "REPLACE")
+
+    thr = math.radians(angle)
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    for e in bm.edges:
+        e.smooth = not (len(e.link_faces) == 2 and e.calc_face_angle(0.0) > thr)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+    return len(mesh.polygons)
+
 # ---------------------------------------------------------------- animation
 # Blocking follows the blender-animation skill: key poses first (stepped), a
 # breakdown between them, spline only at the end. Contacts and impacts get
@@ -391,6 +527,13 @@ def main():
     bpy.ops.object.select_all(action="DESELECT")
     for obj, bone in parts:
         obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+    meta = []
+    for obj, bone in parts:
+        mat_name = obj.data.materials[0].name.split(".")[0]
+        corners = [Vector(c) for c in obj.bound_box]
+        lo = Vector((min(c[i] for c in corners) for i in range(3)))
+        hi = Vector((max(c[i] for c in corners) for i in range(3)))
+        meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
     for obj, _ in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0][0]
@@ -398,10 +541,14 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
-    # WC3 read, in order: chamfer the right angles, then smooth by angle (the
-    # equivalent of a smoothing group: flat faces stay flat, chamfers blend).
-    # Without the chamfer, smooth shading alone does nothing on two-faced edges.
-    soften(body)
+    if rest and len(rest) > 5 and rest[5] == "tex":
+        n = texturize(body, pathlib.Path(rest[2]).parent if False else None)
+        print(f"texture: {n} painted tiles + world-space UVs")
+    if rest and rest[3] == "fuse":
+        faces = fuse(body, meta, target=int(rest[4]) if len(rest) > 4 else 650)
+        print(f"fused: {faces} faces after remesh + decimate")
+    else:
+        soften(body)
     print("shading:", shading_report(body))
 
     body.parent = arm

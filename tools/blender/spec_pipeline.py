@@ -182,6 +182,7 @@ def main():
     ap.add_argument("--tag", default="argon")
     ap.add_argument("--height", type=float, default=2.0)
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
+    ap.add_argument("--tex", action="store_true", help="bake the painted atlas tiles")
     ap.add_argument("--out", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/draft4")
     args = ap.parse_args()
 
@@ -200,8 +201,9 @@ def main():
     sheet.unlink(missing_ok=True)
 
     glb = args.out / "glb" / f"{args.tag}-{args.id}.glb"
+    extra = [str(lo + hi), "nofuse", str(hi), "tex"] if args.tex else []
     build = subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"),
-                            "--", str(spec_path), str(glb)], capture_output=True, text=True)
+                            "--", str(spec_path), str(glb)] + extra, capture_output=True, text=True)
     if not glb.exists():
         print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
         return 1
@@ -210,12 +212,13 @@ def main():
 
     tris, mats, skins, anims = glb_stats(glb)
     mp4 = pathlib.Path(f"/tmp/{args.tag}-{args.id}.mp4")
-    subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable.py"),
-                    "--", str(glb), str(mp4)], capture_output=True, text=True)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(mp4),
-                    "-vf", "fps=12,scale=380:-1:flags=neighbor", "-loop", "0",
+    frames = pathlib.Path(f"/tmp/orbit-{args.tag}-{args.id}")
+    subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable_color.py"),
+                    "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(frames / "orbit-%03d.png"),
+                    "-vf", "fps=12,scale=420:-1:flags=lanczos", "-loop", "0",
                     str(args.out / args.tag / f"{args.id}.gif")], check=False)
-    mp4.unlink(missing_ok=True)
+    subprocess.run(["rm", "-rf", str(frames)], check=False)
 
     ok = lo <= tris <= hi and len(mats) == 3 and skins == 1 and anims == 4 and smear_pct <= 0.5
     print(f"{args.id}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\tanims {anims}\t"

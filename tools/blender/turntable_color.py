@@ -47,7 +47,9 @@ def main():
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = scene.render.resolution_y = size
     scene.display.shading.light = "STUDIO"
-    scene.display.shading.color_type = "MATERIAL"
+    has_tex = any(n.type == "TEX_IMAGE" for m in bpy.data.materials if m.use_nodes
+                  for n in m.node_tree.nodes)
+    scene.display.shading.color_type = "TEXTURE" if has_tex else "MATERIAL"
     scene.display.shading.show_object_outline = True
     scene.display.shading.object_outline_color = (0.06, 0.06, 0.06)
     scene.display.shading.studio_light = "rim.sl"
