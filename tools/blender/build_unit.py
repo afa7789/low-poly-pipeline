@@ -367,6 +367,139 @@ def validate_skeleton(spec, budget=700):
     print(f"  missing bones: {sorted(missing) or 'none'}")
     return not missing and est <= budget
 
+
+def make_actions(arm):
+    """Four clips per unit: key poses stepped, a hand-made breakdown, then spline."""
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    for pb in arm.pose.bones:
+        pb.rotation_mode = "XYZ"
+    arm.animation_data_create()
+    anim = load_toolkit("blender-animation", "bx_anim")
+    for name, poses, cyclic, contacts, lags in ACTIONS:
+        act = bpy.data.actions.new(name)
+        arm.animation_data.action = act
+        frames = sorted(poses)
+        for frame in frames:
+            bpy.context.scene.frame_set(frame)
+            for bone, (rx, ry, rz, ly) in poses[frame].items():
+                if bone not in arm.pose.bones:
+                    continue
+                pb = arm.pose.bones[bone]
+                pb.rotation_euler = (D(rx), D(ry), D(rz))
+                pb.location = (0, 0, ly)
+                pb.keyframe_insert("rotation_euler", frame=frame)
+                pb.keyframe_insert("location", frame=frame)
+        for a, b in zip(frames, frames[1:]):
+            if b - a >= 6:
+                anim.breakdown(arm, a + (b - a) // 2, a, b, factor=0.5,
+                               bones=[x for x in poses[a] if x in arm.pose.bones])
+        anim.set_interpolation(arm, interpolation="BEZIER", handle="AUTO_CLAMPED")
+        act.use_fake_user = True
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.scene.frame_set(1)
+
+
+# ---------------------------------------------------------------- skin body
+def build_skin_body(spec, target=620, subdiv=1):
+    """One continuous skin around the skeleton, not a stack of primitives.
+
+    A vertex chain is laid on the bones (a vertex per joint), the Skin modifier grows
+    a quad shell around it with the radius of each segment, one subdivision rounds the
+    joints and a decimate brings it back to the budget. This is the "skin around a
+    skeleton" that WC3 and PS1 bodies are: one surface, no visible part seams.
+    """
+    rad = {}
+    verts, index, edges = [], {}, []
+
+    def vid(p):
+        key = tuple(round(c, 4) for c in p)
+        if key not in index:
+            index[key] = len(verts)
+            verts.append(bp(p))
+        return index[key]
+
+    for seg in spec.get("segments", []):
+        bone = seg["bone"]
+        head, tail = BONE_MAP[bone]
+        r0, r1 = seg.get("radius", (0.14, 0.12))
+        h, tl = vid(head), vid(tail)
+        edges.append((h, tl))
+        rad.setdefault(h, []).append(r0)
+        rad.setdefault(tl, []).append(r1)
+
+    # the Skin modifier grows one continuous surface only when every chain is part
+    # of the same graph: bridge each limb root to the torso, then mark the root.
+    joints = {b: BONE_MAP[b] for b, *_ in [(seg["bone"],) for seg in spec.get("segments", [])] if b in BONE_MAP}
+    anchor = vid(BONE_MAP["spine"][1]) if "spine" in BONE_MAP else None
+    for limb in ("arm.L", "arm.R", "thigh.L", "thigh.R"):
+        if limb in BONE_MAP and anchor is not None:
+            edges.append((vid(BONE_MAP[limb][0]), anchor))
+    if "forearm.L" in BONE_MAP:
+        pass
+
+    me = bpy.data.meshes.new("skinbody")
+    me.from_pydata(verts, edges, [])
+    me.update()
+    obj = bpy.data.objects.new("skinbody", me)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+
+    skin_mod = obj.modifiers.new("Skin", "SKIN")
+    skin_mod.use_smooth_shade = True
+    layer = me.skin_vertices[0].data
+    root_idx = vid(BONE_MAP["pelvis"][0]) if "pelvis" in BONE_MAP else 0
+    layer[root_idx].use_root = True
+    for i in range(len(me.vertices)):
+        r = sum(rad.get(i, [0.12])) / len(rad.get(i, [0.12]))
+        layer[i].radius = (r, r)
+    bpy.ops.object.modifier_apply(modifier=skin_mod.name)
+
+    if subdiv:
+        sub = obj.modifiers.new("Sub", "SUBSURF")
+        sub.levels = sub.render_levels = subdiv
+        bpy.ops.object.modifier_apply(modifier=sub.name)
+    faces = len(obj.data.polygons)
+    if faces > target:
+        dec = obj.modifiers.new("Dec", "DECIMATE")
+        dec.decimate_type = "COLLAPSE"
+        dec.ratio = max(0.05, target / float(faces))
+        bpy.ops.object.modifier_apply(modifier=dec.name)
+
+    # material and rigid weights by nearest bone segment, so the shell keeps the
+    # palette blocking and still deforms rigidly at the joints
+    segs = [(seg["bone"], seg.get("material", "iron"), BONE_MAP[seg["bone"]])
+            for seg in spec.get("segments", [])]
+    mats = {}
+    for _, m, _ in segs:
+        if m not in mats:
+            mats[m] = len(mats)
+    obj.data.materials.clear()
+    for m in mats:
+        obj.data.materials.append(material(m))
+    groups = {b: obj.vertex_groups.new(name=b) for b, _, _ in segs}
+
+    def nearest(co):
+        best, bd = segs[0], 1e9
+        for bone, m, (h, tl) in segs:
+            hb, tb = Vector(bp(h)), Vector(bp(tl))
+            ab, ap = tb - hb, co - hb
+            t = max(0.0, min(1.0, ab.dot(ap) / max(ab.length_squared, 1e-9)))
+            d = (hb + ab * t - co).length
+            if d < bd:
+                best, bd = (bone, m), d
+        return best
+
+    for poly in obj.data.polygons:
+        _, m = nearest(poly.center)
+        poly.material_index = mats[m]
+        poly.use_smooth = True
+    for v in obj.data.vertices:
+        b, _ = nearest(v.co)
+        groups[b].add([v.index], 1.0, "REPLACE")
+    return obj
+
 # ---------------------------------------------------------------- painted atlas
 def painted_image(name, rgb, size=64):
     """Three tiles side by side: shadow, mid and lit. Each tile is the palette colour with
@@ -651,9 +784,36 @@ def load_spec(target):
 
 def main():
     target, out = sys.argv[sys.argv.index("--") + 1:][:2]
+    rest = sys.argv[sys.argv.index("--") + 1:]
+    for arg in rest:
+        if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
+            for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
+                MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     unit, spec = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):
         print("rig family:", load_family(spec["rig"]))
+    if isinstance(spec, dict) and spec.get("mode") == "skin":
+        body = build_skin_body(spec, target=620)
+        print(f"skin body: {len(body.data.polygons)} faces")
+        arm = build_armature()
+        body.parent = arm
+        body.modifiers.new("Armature", "ARMATURE").object = arm
+        make_actions(arm)
+        if "tex" in rest:
+            meta = []
+            for seg in spec.get("segments", []):
+                h, tl = BONE_MAP[seg["bone"]]
+                r0, r1 = seg.get("radius", (0.14, 0.12))
+                mid = tuple((h[i] + tl[i]) / 2 for i in range(3))
+                meta.append((seg["bone"], seg.get("material", "iron"),
+                             bp(mid), (max(r0, r1),) * 3))
+            print("texture:", texturize(body, meta), "tiles")
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_yup=True,
+                                  export_animations=True, export_animation_mode="ACTIONS",
+                                  export_apply=False, export_skins=True, export_morph=False)
+        print(f"built {unit}: skin mode, {len(body.data.polygons)} faces -> {out}")
+        return
     if isinstance(spec, dict):          # skeleton-first spec: rig decides placement
         print("skeleton report:")
         validate_skeleton(spec, 700)
@@ -664,12 +824,8 @@ def main():
     # chamfer is opt-in: measured on n01X it inflated the plates and read worse than
     # the crisp blockout, because the WC3 roundness comes from painted shading, not
     # from geometry at this budget. Pass a triple budget as the third argument to enable.
-    rest = sys.argv[sys.argv.index("--") + 1:]
-    for arg in rest:
-        if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
-            for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
-                MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     chamfers = plan_chamfers(spec, int(rest[2])) if len(rest) > 2 else set()
+
     parts = []
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
         parts.append((build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
@@ -711,36 +867,7 @@ def main():
     body.parent = arm
     body.modifiers.new("Armature", "ARMATURE").object = arm
 
-    # animation: key poses stepped, breakdown, then spline
-    bpy.ops.object.select_all(action="DESELECT")
-    bpy.context.view_layer.objects.active = arm
-    bpy.ops.object.mode_set(mode="POSE")
-    for pb in arm.pose.bones:
-        pb.rotation_mode = "XYZ"
-    arm.animation_data_create()
-
-    anim = load_toolkit("blender-animation", "bx_anim")
-    for name, poses, cyclic, contacts, lags in ACTIONS:
-        act = bpy.data.actions.new(name)
-        arm.animation_data.action = act
-        frames = sorted(poses)
-        for frame in frames:
-            bpy.context.scene.frame_set(frame)
-            for bone, (rx, ry, rz, ly) in poses[frame].items():
-                pb = arm.pose.bones[bone]
-                pb.rotation_euler = (D(rx), D(ry), D(rz))
-                pb.location = (0, 0, ly)
-                pb.keyframe_insert("rotation_euler", frame=frame)
-                pb.keyframe_insert("location", frame=frame)
-        # mid-keys between the poses so the motion has a breakdown, not a
-        # straight interpolation; contacts stay VECTOR, holds stay flat
-        for a, b in zip(frames, frames[1:]):
-            if b - a >= 6:
-                anim.breakdown(arm, a + (b - a) // 2, a, b, factor=0.5,
-                               bones=list(poses[a]), keytype="BREAKDOWN")
-        anim.set_interpolation(arm, interpolation="BEZIER", handle="AUTO_CLAMPED")
-        act.use_fake_user = True
-    bpy.ops.object.mode_set(mode="OBJECT")
+    make_actions(arm)
     bpy.context.scene.frame_set(1)
 
     bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_yup=True,
