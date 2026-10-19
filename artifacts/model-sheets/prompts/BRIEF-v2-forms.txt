@@ -1,0 +1,25 @@
+BRIEF = """You are a technical artist building a low-poly game unit in the style of classic Warcraft III. The attached image is a 5-view turnaround of ONE unit: a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: proportions, the shape of every mass, where the coloured parts are, how the limbs and props are built.
+
+Write a Blender part spec as a JSON object: {{"parts": [[bone, kind, dims, at, material, opts], ...]}}
+
+Kinds and dims, exactly:
+- "prism": a tapered n-gon tube - THE limb and torso primitive. dims = (radius_bottom, radius_top, height). opts {{"sides": 6 or 8, "axis": "up" | "fwd"}}. Use a smaller radius_top so the limb tapers away from the body.
+- "dome": a closed dome for shoulders, helmet crown, knee and elbow caps. dims = (radius, height). opts {{"sides": 8, "top": 0.2 to 0.4}}.
+- "box": ONLY for flat plates, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
+- "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd"}}.
+- "wheel": a torus rim. dims = (major_radius, tube_radius).
+- at = (x, y, z) in metres: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The unit stands on y = 0, about {height} m tall.
+- material: "iron", "brass" or "flame" - use the sheet's real colour masses.
+
+FORM RULES, non-negotiable - these are what keep the model from reading as Minecraft:
+1. No limb is a box. Thighs, shins, upper arms, forearms, necks and torso are prisms with 6 or 8 sides and a taper along their length.
+2. The torso is wider at the shoulders than at the waist (a prism, or two stacked prisms). It is never a cuboid.
+3. Shoulders, helmet crown, knee caps and elbows are domes, not blocks.
+4. Boxes may be at most a third of the parts, and only as flat plates, boots, shields or weapon heads.
+5. Nothing is axis-aligned: arms sit 10 to 20 degrees out from the body and slightly bent at the elbow; feet turn 8 to 12 degrees outward.
+6. The silhouette is asymmetric: one arm carries the main prop, the other stays free or carries a smaller one.
+7. Use 22 to 28 parts, and end near {budget} triangles (prism about 28, dome about 28, box 12, cyl 44). Nothing below y = 0.
+
+Parts are rigid-bound: each part follows the bone you name. Rig reference: the head bone runs 2.16 to 2.72 up, the arms hang from 2.02 to 0.90, the legs from 1.18 to 0.10. If the creature is not a biped, bind its mass to spine/pelvis and its limbs to the closest bones.
+
+The silhouette must read at 32x32 pixels: big shapes first, small trims last. Return ONLY the JSON object, no prose, no code fences."""

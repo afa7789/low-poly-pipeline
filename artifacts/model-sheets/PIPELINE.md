@@ -21,7 +21,7 @@ statement before running the remaining 162 units.
 ```bash
 cd artifacts/model-sheets
 python3 unit_facts.py n01N                 # facts for the prompt, no API call
-python3 generate.py draft2/prompts/unit-n01N.txt --out draft2 --name n01N
+python3 generate.py prompts/n01N/unit.txt --id n01N --out refs/n01N
 ```
 
 `generate.py` posts `{"model", "prompt", "aspect_ratio": "1:1", "resolution": "2K", "n": 1}` to
@@ -107,20 +107,40 @@ artifacts/model-sheets/
   PIPELINE.md            this file
   unit_facts.py          card + compendium + palette facts for one id (no API call)
   generate.py            prompt file -> jpg via ppq
-  draft1/                first model comparison, kept as-is
-  draft2/                the accepted set
-    <id>.jpg             one sheet per unit
-    <id>-hard.jpg        hard-edged, props in place (same pose as <id>.jpg) ...... §16
-    <id>-hard-clean.jpg  hard-edged, empty-handed A-pose, no props ............... §16
-    <id>-props.jpg       props detached at body scale (only units with props) .... §16
-    <id>-hard-rts.jpg    hard sheet from the 45/45 gameplay camera ............... §16
-    <id>-refsheet.png    all of the above on one contact sheet (human only) ...... §16
-    prompts/             00-template-{unit,building,unit-hard,unit-hard-clean,props,
-                         rts,rts-hard}.txt + unit-<id>[-hard|-hard-clean|-props].txt
-    audit/               weapon-role-audit.md, unit-chains.md
-    glb/                 build_unit.py output: <id>.glb + the six render frames
+  refs/                  concept art, keyed by unit id (versioned)
+    <id>/
+      sheet.jpg          approved 5-view sheet ............................ §16
+      sheet-hard.jpg     hard-edged, props in place ....................... §16
+      sheet-hard-clean.jpg  hard-edged, empty-handed A-pose, no props .... §16
+      sheet-props.jpg    props detached at body scale (props units only) .. §16
+      sheet-rts.jpg      RTS gameplay view of the approved sheet .......... §14
+      sheet-hard-rts.jpg hard sheet from the 45/45 gameplay camera ....... §16
+      refsheet.png       all of the above on one contact sheet (human) .... §16
+      concepts/          early concept arts / model comparisons (n01X)
+  prompts/               art prompts, keyed by unit id (one folder per id)
+    <id>/
+      unit.txt           approved sheet prompt
+      unit-hard.txt      hard-edged prompt ............................... §16
+      unit-hard-clean.txt  A-pose, no-props prompt ....................... §16
+      unit-props.txt     detached-props prompt (props units only) ........ §16
+    building-<id>.txt    building prompts (no per-id folder)
+    BRIEF*.txt           spec-author brief templates carried from drafting
+  runs/draft/            build runs, keyed by unit id then run (versioned)
+    <id>/<run>/          run = draft name (v1, v2, argon, opus55, v-ref ...)
+      spec.json          part spec from the spec author
+      model.glb          built mesh
+      compare.png        concept vs model overlay (versioned)
+      turntable.gif      rotating preview (versioned)
+      review.md          gate verdict + per-run metadata
+      sil/               silhouette masks + silhouette.json (scratch)
+      views/             per-view model renders (scratch)
 ```
 
+The draft name is the run: `runs/draft/<id>/<run>/`. Concept art and prompts live beside the
+runs under `refs/<id>/` and `prompts/<id>/`; both are keyed by unit id, not by run, because the
+art is reused across runs. `compare.png`, `turntable.gif`, `refsheet.png`, `silhouette.json`
+and `review.md` are committed; `sil/`, `views/`, `passes/`, `argon/` are scratch (see
+`artifacts/model-sheets/.gitignore`).
 ## 5. 3D — Blender stage
 
 Blender 5.2.2 is installed (`/opt/homebrew/bin/blender`); everything below runs headless.
@@ -609,16 +629,16 @@ placement one.
 ```bash
 cd artifacts/model-sheets
 # hard, props in place (style transfer: same sheet, faceted)
-python3 generate.py draft2/prompts/unit-hfoo-hard.txt --image draft2/hfoo.jpg --out draft2
+python3 generate.py prompts/hfoo/unit-hfoo-hard.txt --id hfoo --image refs/hfoo/sheet.jpg --out refs/hfoo
 # hard, empty-handed A-pose, no props
-python3 generate.py draft2/prompts/unit-hfoo-hard-clean.txt --image draft2/hfoo.jpg --out draft2
+python3 generate.py prompts/hfoo/unit-hfoo-hard-clean.txt --id hfoo --image refs/hfoo/sheet.jpg --out refs/hfoo
 # props detached, same scale
-python3 generate.py draft2/prompts/unit-hfoo-props.txt --image draft2/hfoo.jpg --out draft2
+python3 generate.py prompts/hfoo/unit-hfoo-props.txt --id hfoo --image refs/hfoo/sheet.jpg --out refs/hfoo
 # the hard RTS view is drawn automatically by spec_pipeline.py --hard; by hand:
-python3 generate.py draft2/prompts/00-template-rts-hard.txt \
-    --image draft2/hfoo-hard.jpg --out draft2 --name hfoo-hard-rts --resolution 1K
+python3 generate.py prompts/hfoo/00-template-rts-hard.txt \
+    --id hfoo --image refs/hfoo/sheet-hard.jpg --out refs/hfoo --name sheet-hard-rts --resolution 1K
 # one contact sheet for a human
-python3 tools/blender/ref_sheet.py draft2/hfoo.jpg draft2/hfoo-refsheet.png
+python3 tools/blender/ref_sheet.py refs/hfoo/sheet.jpg refs/hfoo/refsheet.png
 ```
 
 `00-template-unit-hard.txt` is a pure style transfer: it asks for the identical sheet —
@@ -641,17 +661,20 @@ with-props sheet is just the faceted approved sheet.
 
 ### 16.1 The approved sheet is still the gate
 
+> Superseded for the spec author's input by §16.5: the hard sheet is now image 1 and the
+> approved sheet stays out of the prompt; the approved sheet is still the gate.
+
 `--sheet` stays `<id>.jpg`. It is what `measure()`, `sheet_colours()` and the silhouette gate
 read, and it is the design contract. Pass the hard sheets **alongside** it:
 
 ```bash
 python3 tools/blender/spec_pipeline.py --id hfoo --race Human --name Footman \
-  --sheet artifacts/model-sheets/draft2/hfoo.jpg \
-  --hard  artifacts/model-sheets/draft2/hfoo-hard.jpg \
-  --hard-clean artifacts/model-sheets/draft2/hfoo-hard-clean.jpg \
-  --props artifacts/model-sheets/draft2/hfoo-props.jpg \
+  --sheet artifacts/model-sheets/refs/hfoo/sheet.jpg \
+  --hard  artifacts/model-sheets/refs/hfoo/sheet-hard.jpg \
+  --hard-clean artifacts/model-sheets/refs/hfoo/sheet-hard-clean.jpg \
+  --props artifacts/model-sheets/refs/hfoo/sheet-props.jpg \
   --model google/gemini-4-argon --tag argon --kind mass \
-  --out artifacts/model-sheets/draft16
+  --run v1 --out artifacts/model-sheets/runs/draft/hfoo/v1
 ```
 
 `--hard`, `--hard-clean` and `--props` are resized to 1024 px and appended as images 2, 3 and
@@ -715,3 +738,29 @@ parts (shell plates, snag, root claw, piston fists, chest disc).
 The two buildings in `draft2` (`h05X`, `h09B`) were left alone: the A-pose and the props rules
 do not apply to a building, and their elevation sheets are already drawn as flat blockouts.
 A `building-hard` variant would be a separate template if it is ever wanted.
+
+### 16.5 Roles: the hard sheet builds, the approved sheet judges (2026-10-20)
+
+| image | who reads it | for what |
+|---|---|---|
+| `refs/<id>/hard.jpg` | spec author, **image 1** | the faces to build; `measure()` and `sheet_colours()` read it too, so the numbers match the picture |
+| `refs/<id>/hard-clean.jpg`, `props.jpg` | spec author, extra images | limb positions; props whole and at scale (skipped when the file does not exist) |
+| `refs/<id>/sheet.jpg` | silhouette gate + human review | the design contract: the verdict, `compare.png` |
+
+- Refinement passes measure against the hard sheet (an outline a low-poly model can reach);
+  the verdict measures against the approved sheet, so a hard redraw that drifted cannot
+  pass its own error. `runs/<id>/<run>/silhouette.json` holds both (`approved`, `hard`) plus
+  the drift; `review.md` lists them.
+- **Drift check before anything is built** (`silhouette.sheet_drift`): IoU of the hard sheet
+  against the approved one on front/left/back; below `DRIFT_MIN` 0.90 the run prints
+  "regenerate refs/<id>/hard.jpg" and goes on (never fatal). Calibrated on the 7 units:
+  0.90-0.98, with n01N left 0.76 and n01I left 0.88 under the line. The RTS pair is reported
+  only: two independent draws differ in camera (0.49-0.89), not in design.
+- No hard sheet: the approved sheet is image 1, as before. `--with-sheet` also sends the
+  approved sheet as an extra image (the "both" variant), for an A/B against the default -
+  unmeasured so far; the expectation is that a near-duplicate image with different edges
+  makes the spec author average the two.
+- `rts_path()` is `<stem>-rts.jpg` next to the sheet (`sheet.jpg -> sheet-rts.jpg`,
+  `sheet-hard.jpg -> sheet-hard-rts.jpg`). `ensure_rts()` reads the RTS templates from
+  `TEMPLATES` in spec_pipeline.py (`prompts/_templates/`).
+

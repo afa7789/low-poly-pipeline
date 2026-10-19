@@ -307,16 +307,56 @@ REF_NOTES = {
     "props": "is the same unit's props drawn detached at body scale. Model those props too, "
              "with the shapes and sizes drawn there, and attach them where image 1 shows them "
              "on the body.",
+    "approved": "is the approved design that image 1 was redrawn from, with curves instead of "
+                "facets. It is the contract for proportions and colour: where the two disagree "
+                "on the size or place of a part, follow this one; build the shapes from image 1.",
 }
+HARD_FIRST = ("Image 1 is the faceted (hard) redraw of the approved design: every mass is "
+              "already drawn as the flat polygons to build, props in place. Read each block's "
+              "faces from it.")
 
 
-def with_refs(brief, refs):
+def with_refs(brief, refs, hard_first=False):
     """Append one line per extra reference image, numbered the way the brief already
-    numbers images (the sheet is image 1)."""
-    if not refs:
+    numbers images (image 1 is the construction sheet: the hard one when it exists)."""
+    lines = [HARD_FIRST] if hard_first else []
+    lines += [f"Image {i} {REF_NOTES[kind]}" for i, (kind, _) in enumerate(refs, start=2)]
+    if not lines:
         return brief
-    lines = [f"Image {i} {REF_NOTES[kind]}" for i, (kind, _) in enumerate(refs, start=2)]
     return brief + "\nREFERENCE IMAGES\n" + "\n".join(lines) + "\n"
+
+
+def prompt_images(args, work):
+    """(image 1, [(kind, path)] extra references, temp files) for the spec author.
+    The hard sheet is image 1 when it exists - the shapes are built from it - and the
+    approved sheet stays out of the prompt (it is the judge) unless --with-sheet asks
+    for it. Missing files are skipped: not every unit has props."""
+    def small(src, name):
+        p = work / f".{name}-{args.tag}-{args.id}.jpg"   # per run: parallel runs
+        subprocess.run(["magick", str(src), "-resize", "1024x1024", "-quality", "88", str(p)],
+                       check=True)
+        return p
+    first = small(args.build, "sheet")
+    wanted = [("hard-clean", args.hard_clean), ("props", args.props)]
+    if args.build != args.hard and args.hard:
+        wanted.insert(0, ("hard", args.hard))           # no hard sheet: old order
+    if args.with_sheet and args.build != args.sheet:
+        wanted.insert(0, ("approved", args.sheet))
+    refs = [(kind, small(src, f"ref-{kind}")) for kind, src in wanted if src and src.exists()]
+    return first, refs, [first] + [p for _, p in refs]
+
+
+def check_drift(args, layout):
+    """Hard vs approved silhouettes, before anything is built: a hard sheet that moved
+    away from the design is regenerated, not modelled. Reported, never fatal."""
+    if args.build == args.sheet:
+        return {}
+    from silhouette import DRIFT_MIN, DRIFT_VIEWS, sheet_drift
+    drift = sheet_drift(args.sheet, args.build, layout)
+    low = [v for v in DRIFT_VIEWS if drift.get(v, 1.0) < DRIFT_MIN]
+    print(f"drift hard vs approved: {drift}"
+          + (f"  - LOW on {low}: regenerate refs/{args.id}/hard.jpg" if low else "  ok"))
+    return drift
 
 
 def ask(model, brief, images):
@@ -484,7 +524,7 @@ def numbered(spec):
 def repair(spec, args, brief, work, panels):
     """Pass 0: the preflight's failing rules go back to the model as a patch request.
     A repair is kept only when it still builds; the passes run either way."""
-    scores, problem = trial(spec, args.sheet, args.kind, work, "pass0")
+    scores, problem = trial(spec, args.build, args.kind, work, "pass0")
     best = "pass0"  # the trial whose renders show the spec held
     for k in range(1, REPAIRS + 1):
         if problem is None:
@@ -499,7 +539,7 @@ def repair(spec, args, brief, work, panels):
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             print(f"repair {k}: rejected reply: {err}")
             continue
-        cur, cur_problem = trial({**spec, "parts": cand}, args.sheet, args.kind, work, f"repair{k}")
+        cur, cur_problem = trial({**spec, "parts": cand}, args.build, args.kind, work, f"repair{k}")
         if cur is not None:
             spec, scores, problem, best = {**spec, "parts": cand}, cur, cur_problem, f"repair{k}"
     return spec, scores, problem, best
@@ -519,7 +559,7 @@ def run_passes(spec, args, brief, views):
     if not set(views) <= AXES.keys():
         raise SystemExit(f"--passes takes views from {sorted(AXES)}, got {views}")
     work = args.out / "passes" / f"{args.tag}-{args.id}"
-    panels = split(args.sheet, work / "panels", args.id, layout_of(args.kind))
+    panels = split(args.build, work / "panels", args.id, layout_of(args.kind))
     spec, scores, problem, best = repair(spec, args, brief, work, panels)
     if scores is None:
         print("passes: no GLB came out of the sheet spec; skipping refinement")
@@ -536,7 +576,7 @@ def run_passes(spec, args, brief, views):
         try:
             cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images),
                                     palette=spec.get("palette"), extra=extra_names(spec))
-            cur, cur_problem = trial({**spec, "parts": cand}, args.sheet, args.kind, work, f"pass{n}")
+            cur, cur_problem = trial({**spec, "parts": cand}, args.build, args.kind, work, f"pass{n}")
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             cand, why, cur, cur_problem = None, f"rejected reply: {err}", None, None
         # a pass may not break a preflight that held
@@ -550,18 +590,31 @@ def run_passes(spec, args, brief, views):
     return spec
 
 
+def silhouette_vs(args, glb, layout, sheet, name):
+    """(gate passed, per-view report) of the model against one sheet."""
+    sil_dir = args.out / "sil" / name
+    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout)
+    print(f"vs {name}:\n{sil.stdout.strip()}")
+    return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
+
+
 def review(args, glb, layout):
-    """Silhouette gate, then the colour views and the compare, with top/bottom and the
-    RTS view shot from the cameras the silhouette matched. True when the gate passes."""
-    sil_ok, report = True, {}
+    """The verdict is the approved sheet's silhouette gate - the design contract, what
+    the human reviewer compares against too. The model is also measured against the
+    hard sheet it was built from (did it follow its input?), and both land in the run's
+    silhouette.json with the hard-vs-approved drift. Then the colour views and the
+    compare, shot from the cameras the approved silhouette matched."""
+    sil_ok, report, summary = True, {}, {"drift": args.drift}
     if not args.no_silhouette:
-        sil_dir = args.out / "sil" / args.tag
-        sil = tool("silhouette.py", args.sheet, glb, sil_dir, "--layout", layout)
-        print(sil.stdout.strip())
-        sil_ok = sil.returncode == 0
-        report = json.loads((sil_dir / "silhouette.json").read_text())
+        sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
+        summary["approved"] = {k: r["iou"] for k, r in report.items()}
+        if args.build != args.sheet:
+            _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
+            summary["hard"] = {k: r["iou"] for k, r in hard.items()}
+        (args.out / "silhouette.json").write_text(json.dumps(summary, indent=2))
+    args.summary = summary
     view_dir = args.out / "views" / args.tag
-    compare = args.out / args.tag / f"{args.id}-compare.png"
+    compare = args.out / "compare.png"
     tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
     tool("make_compare.py", args.sheet, view_dir, glb.stem, compare, "--layout", layout)
     return sil_ok
@@ -574,11 +627,11 @@ def make_brief(args, lo, hi):
     limb_note, rig_note = rig_text(args.rig)
     dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
                      surfaces=", ".join(SURFACES),
-                     colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.sheet)))
+                     colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
-                           measured=measured_text(args.rig, measure(args.sheet)))
+                           measured=measured_text(args.rig, measure(args.build)))
 
 
 def ensure_rts(sheet, building=False):
@@ -590,12 +643,11 @@ def ensure_rts(sheet, building=False):
         return True
     sheets = ROOT / "artifacts/model-sheets"
     if building:
-        template = sheets / "draft2/prompts/00-template-rts-building.txt"
+        template = TEMPLATES / "00-template-rts-building.txt"
     else:
         # a hard sheet keeps its facets in the gameplay camera: same angle, same blockout
-        hard = "-hard" in sheet.stem
-        template = sheets / "draft2/prompts" / ("00-template-rts-hard.txt" if hard
-                                                else "00-template-rts.txt")
+        hard = "hard" in sheet.stem
+        template = TEMPLATES / ("00-template-rts-hard.txt" if hard else "00-template-rts.txt")
     gen = subprocess.run([sys.executable, str(sheets / "generate.py"), str(template),
                           "--image", str(sheet), "--out", str(sheet.parent),
                           "--name", rts_path(sheet).stem, "--resolution", "1K"],
@@ -604,25 +656,66 @@ def ensure_rts(sheet, building=False):
     return rts_path(sheet).exists()
 
 
+MSHEETS = ROOT / "artifacts/model-sheets"
+REFS = MSHEETS / "refs"
+PROMPTS = MSHEETS / "prompts"
+TEMPLATES = PROMPTS / "_templates"   # shared recipes; prompts/<id>/ holds the filled ones
+RUNS = MSHEETS / "runs" / "draft"
+
+
+def iou_rows(summary):
+    """review.md rows: front/left/back IoU against each sheet, and the drift."""
+    def row(label, d):
+        return f"| {label} | " + " / ".join(f"{d.get(v, 0):.3f}" for v in ("front", "left", "back")) + " |\n"
+    out = ""
+    for key, label in (("approved", "IoU vs approved f/l/b"), ("hard", "IoU vs hard f/l/b"),
+                       ("drift", "drift hard vs approved f/l/b")):
+        if summary.get(key):
+            out += row(label, summary[key])
+    return out
+
+
+def resolve_paths(args):
+    """Fill the refs/<id>/ defaults and pick the run dir runs/<id>/<run> (next free vN)."""
+    args.sheet = args.sheet or REFS / args.id / "sheet.jpg"
+    args.hard = args.hard or (REFS / args.id / "hard.jpg")
+    args.hard_clean = args.hard_clean or (REFS / args.id / "hard-clean.jpg")
+    args.props = args.props or (REFS / args.id / "props.jpg")
+    args.prompt = args.prompt or (PROMPTS / args.id / "unit.txt")
+    if args.out is not None:
+        return
+    rundir = RUNS / args.id
+    if not args.run:
+        n = 1
+        while (rundir / f"v{n}").exists():
+            n += 1
+        args.run = f"v{n}"
+    args.out = rundir / args.run
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
     ap.add_argument("--race", required=True)
     ap.add_argument("--name", required=True)
     ap.add_argument("--role", default="game unit")
-    ap.add_argument("--sheet", required=True, type=pathlib.Path)
+    ap.add_argument("--run", default=None,
+                    help="run/iteration name under runs/<id>/ (default: next vN not taken)")
+    ap.add_argument("--sheet", type=pathlib.Path, default=None,
+                    help="approved sheet; default refs/<id>/sheet.jpg")
     ap.add_argument("--hard", type=pathlib.Path, default=None,
-                    help="hard-edged faceted sheet of the same unit, props in place "
-                         "(artifacts/model-sheets/draft2/<id>-hard.jpg), sent as an extra "
-                         "reference; it never replaces --sheet or the silhouette gate")
+                    help="hard-edged faceted sheet, props in place; default refs/<id>/hard.jpg. "
+                         "Sent as an extra reference; never replaces --sheet or the gate")
     ap.add_argument("--hard-clean", type=pathlib.Path, default=None,
-                    help="the same unit faceted with the props removed and the arms in an "
-                         "empty-handed A-pose (<id>-hard-clean.jpg)")
+                    help="same unit faceted, props removed, empty-handed A-pose; default "
+                         "refs/<id>/hard-clean.jpg")
     ap.add_argument("--props", type=pathlib.Path, default=None,
-                    help="the same unit's props drawn detached (<id>-props.jpg), sent as the "
-                         "last reference so the props are modelled from clear shapes")
+                    help="props drawn detached; default refs/<id>/props.jpg")
+    ap.add_argument("--with-sheet", action="store_true",
+                    help="also send the approved sheet to the spec author (A/B against the "
+                         "default, where the hard sheet alone is image 1)")
     ap.add_argument("--model", default="google/gemini-4-argon")
-    ap.add_argument("--tag", default="argon")
+    ap.add_argument("--tag", default="argon", help="spec-author label, recorded in review.md")
     ap.add_argument("--rig", default=None, choices=sorted(RF.FAMILIES),
                     help="skeleton family (rig_families.py); default biped, or building "
                          "for --kind building/large")
@@ -634,12 +727,17 @@ def main():
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")
+    ap.add_argument("--prompt", type=pathlib.Path, default=None,
+                    help="prompt file; default prompts/<id>/unit.txt")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
     ap.add_argument("--passes", default="",
                     help="comma-separated views to refine after the sheet pass, e.g. left,back,front")
-    ap.add_argument("--out", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/draft4")
+    ap.add_argument("--out", type=pathlib.Path, default=None,
+                    help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
+
+    resolve_paths(args)
 
     lo, hi = BUDGETS[args.kind]
     layout = layout_of(args.kind)
@@ -652,20 +750,13 @@ def main():
             if ref:
                 ensure_rts(ref, building=args.kind in ("building", "large"))
 
-    work = args.out / ".." / ".."
-    sheet = work / f".sheet-{args.id}.jpg"   # per unit: parallel runs
-    subprocess.run(["magick", str(args.sheet), "-resize", "1024x1024", "-quality", "88", str(sheet)], check=True)
-    refs, tmp = [], [sheet]
-    for kind, src in (("hard", args.hard), ("hard-clean", args.hard_clean),
-                      ("props", args.props)):
-        if src:
-            p = work / f".ref-{kind}-{args.id}.jpg"
-            subprocess.run(["magick", str(src), "-resize", "1024x1024", "-quality", "88", str(p)],
-                           check=True)
-            refs.append((kind, p))
-            tmp.append(p)
+    # construction sheet: the hard redraw when there is one; the approved sheet judges
+    args.build = args.hard if args.hard and args.hard.exists() else args.sheet
+    args.drift = check_drift(args, layout)
+    sheet, refs, tmp = prompt_images(args, args.out / ".." / "..")
+    args.refs = refs
     set_rig(args.rig)
-    brief = with_refs(make_brief(args, lo, hi), refs)
+    brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet)
     # --spec resumes from an approved spec: only the refinement passes call the model
     spec = (parse_spec(args.spec.read_text()) if args.spec
             else parse_spec(ask(args.model, brief, [sheet] + [p for _, p in refs])))
@@ -674,7 +765,7 @@ def main():
         p.unlink(missing_ok=True)
     if args.passes:
         spec = run_passes(spec, args, brief, args.passes.split(","))
-    spec_path = args.out / "specs" / f"{args.tag}-{args.id}.json"
+    spec_path = args.out / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2))
 
     # The spec is cheap to reject; the build is not. Preflight now runs before Blender.
@@ -684,7 +775,7 @@ def main():
     if pre.returncode:
         print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
 
-    glb = args.out / "glb" / f"{args.tag}-{args.id}.glb"
+    glb = args.out / "model.glb"
     # the first number is what chamfers may spend up to: the budget ceiling, the same
     # one the gate checks (lo + hi let a box-heavy building chamfer itself to 1100+ tris)
     extra = [] if args.flat else [str(hi), "nofuse", str(hi), "tex"]
@@ -702,15 +793,31 @@ def main():
                     "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(frames / "orbit-%03d.png"),
                     "-vf", "fps=12,scale=420:-1:flags=lanczos", "-loop", "0",
-                    str(args.out / args.tag / f"{args.id}.gif")], check=False)
+                    str(args.out / "turntable.gif")], check=False)
     subprocess.run(["rm", "-rf", str(frames)], check=False)
 
     sil_ok = review(args, glb, layout)
     ok = (not pre.returncode and lo <= tris <= hi and 3 <= len(mats) <= 5 and skins == 1
           and anims == (0 if args.rig in RF.STATIC else 4)
           and smear_pct <= 0.5 and sil_ok)
-    print(f"{args.id}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\tanims {anims}\t"
-          f"smear {smear_pct}%\tpreflight {'FAIL' if pre.returncode else 'PASS'}\tsilhouette {'PASS' if sil_ok else 'FAIL'}\t{'PASS' if ok else 'CHECK'}")
+    verdict = "PASS" if ok else "CHECK"
+    (args.out / "review.md").write_text(
+        f"# {args.id} \u2014 run {args.run} ({args.tag})\n\n"
+        f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
+        f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
+        f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
+        f"| gate | value |\n|---|---|\n"
+        f"| preflight | {'FAIL' if pre.returncode else 'PASS'} |\n"
+        f"| tris | {tris}/{lo}-{hi} |\n| materials | {len(mats)} |\n| skins | {skins} |\n"
+        f"| anims | {anims} |\n| smear | {smear_pct}% |\n"
+        f"| silhouette (vs approved: the gate) | {'PASS' if sil_ok else 'FAIL'} |\n"
+        f"{iou_rows(args.summary)}\n"
+        f"verdict: **{verdict}**\n\n"
+        f"artifacts: spec.json, model.glb, compare.png (vs the approved sheet), turntable.gif, "
+        f"silhouette.json\n")
+    print(f"{args.id}\t{args.run}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\t"
+          f"anims {anims}\tsmear {smear_pct} %\tpreflight {'FAIL' if pre.returncode else 'PASS'}\t"
+          f"silhouette {'PASS' if sil_ok else 'FAIL'}\t{verdict}")
     return 0 if ok else 1
 
 

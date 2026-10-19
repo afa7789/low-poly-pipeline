@@ -1,0 +1,19 @@
+You are a technical artist. The attached image is a 5-view turnaround sheet of ONE low-poly game unit: a mechanical golem, "Iron Golem" (id n01X), from a dieselpunk dark-fantasy RTS. Study the sheet carefully: proportions, the shape of every block, where the brass parts are, how the arms and legs are built.
+
+Write a Blender part spec for that exact character as a JSON object: {"parts": [[bone, kind, dims, at, material, opts], ...]}
+
+Schema, exactly:
+- bone: one of root, pelvis, spine, head, arm.L, forearm.L, arm.R, forearm.R, thigh.L, shin.L, foot.L, thigh.R, shin.R, foot.R
+- kind: "box" | "cyl" | "wheel"
+- dims: box = (width_x, height_y, depth_z) in metres; cyl = (radius, depth); wheel = (major_radius, tube_radius)
+- at = (x, y, z) in metres in the unit's own space: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The figure stands on y=0 and is about 2.70 m tall.
+- material: "iron" (grey boiler plate), "brass" (the tan/ochre parts), "flame" (the single small yellow lit slit)
+- opts: {} normally; {"axis": "up"} or {"axis": "fwd"} for cylinders (default fwd = the disc faces the camera); {"rot": degrees} rotates a part around the forward axis (use it for the wheel spokes).
+
+Budget: the mesh must stay near 500-650 triangles. A box is 12 tris, a 12-sided cylinder about 44, a wheel (10x4 torus) about 80. Use 30-45 parts total. Nothing may intersect the ground plane below y=0.
+
+Rig, for reference (the head bone runs 2.16 to 2.72 up, the arms hang from y=2.02 to 0.90, the legs from 1.18 to 0.10). Parts are rigid-bound: each part follows the bone you name, so name the bone that should carry it.
+
+Rules that matter: every limb needs a real volume (no paper-thin parts); the silhouette must read at 32x32 pixels; match the sheet's big shapes first and its small trims last.
+
+Return ONLY the JSON object, no prose, no code fences.

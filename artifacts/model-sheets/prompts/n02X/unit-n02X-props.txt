@@ -1,0 +1,11 @@
+The attached image is the approved 5-view turnaround of ONE game unit. From that unit, draw ONLY its prop, detached and on its own, and nothing else: no figure, no body, no head, no arms, no legs, no hands, and nothing worn on a body.
+
+Clean 2D prop sheet on one solid light-grey background (#CCCCCC), drawn as hard-surface flat design art with the same flat colours and the same heavy outline as the attached sheet — a faceted blockout for a modeller, not a photo, not a 3D render, not a polished illustration. One drawing centred on the page: a thick drill-pipe club with a brass disc at the tip. The club is complete and whole, drawn alone, nowhere near the edges.
+
+The club is drawn at the scale it has on the attached figure: it reaches from the hand down past the knee and keeps that length, so it can be measured against the body. It is drawn straight and unsupported, as if laid flat on the page: along the horizontal, seen from its side, with the brass disc at the far right end and the grip at the left.
+
+Every form is angular and faceted: flat planes meeting at hard straight edges, convex volumes only, no smooth round curve anywhere, no rounded corners, no bevels, no fillets, no spheres. The club is one thick square bar of constant section, with a hexagonal grip block at the left end, one square collar ring where the head begins, a stepped square head block and one eight-sided brass disc fixed flat on the end face.
+
+Nothing thinner than a tenth of the club's largest width: the shaft stays a solid square bar along its whole length, never a thin rod, and the collar is a flat plate rather than a ring. Proportions run chunky and cartoony rather than slender, and anything that would vanish at 32x32 pixels is thickened until it survives.
+
+One flat tone per facet, no texture, no grunge, no gradients, no gloss, no cast shadow. The prop is the only content on the page; no text, no labels, no frame lines and no shadow on the background.

@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Human Footman (id hfoo) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: the steel dome helmet with its wide flat circular brim and small square front badge; the olive tunic with the short shoulder mantle over it; the long sleeves ending in a round cuff; the wide dark belt with its rectangular buckle plate; the olive knee-length trousers; the tall black boots with the cuff at the top; the pale plain face with no eyes under the brim; the olive, steel, black and umber colours. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no shoulder pad, no shin guard, no extra strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera, the helmet brim an octagon, both arms straight and angled 45 degrees off the torso with clear daylight at the armpit, both block hands empty and open beside the hips, the empty belt where the lantern used to hang.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side; the whole silhouette collapses into one column of straight segments — the flat brim plate, the chest slab, the open block hand hanging forward of the thigh, the flat bare back where the pack used to be.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera; the bare flat back of the tunic, the brim above the shoulders, both empty hands at the sides.
+
+Panel 4, bottom left: top-down view from directly above: only the octagonal crown of the helmet and its brim, the two shoulder tops, the two open hands clear of the hips and the two boot toes.
+
+Panel 5, bottom right: bottom-up view from directly below: only the two flat boot soles and the two open palm blocks.
+
+Pose: classic modeller's A-pose, empty-handed, symmetric and static. The arms are straight and held 45 degrees away from the torso, so the elbow sits as far from the ribcage as the shoulder is wide and there is clear daylight between the whole arm and the body. Both hands are open flat blocks — the same block hands as the attached figure, one square palm and one thumb block, no fingers, no separated digits, no knuckle lines — turned with the palms toward the body. The legs are straight and planted one and a half shoulder-widths apart, both feet pointing forward. Nothing is held in either hand; the fingerless block hand is empty.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The helmet dome becomes an eight-sided truncated cone under an octagonal brim plate, with the square badge on one flat face; the shoulder mantle becomes two flat trapezoid plates over a hexagonal torso; the torso becomes a hexagonal prism wider at the shoulders over a trapezoid waist; each upper arm and forearm is a five-sided prism ending in a square cuff plate; each hand is a box with one thumb block; each thigh and shin is a five-sided prism; each boot is a wedge frustum, widest at the sole, under a flat cuff plate. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — head, torso, two arms, two legs — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (a long steel trench pike with a flat spear head, a blocky field pack with a bedroll and side pouches, a small belt lantern) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: staff olive on the large masses, rifle steel on the helmet and small metal, one warm accent (insignia blue) in the lantern that is not drawn here. Face: hidden under the steel brim, one pale plain wedge with no eyes.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

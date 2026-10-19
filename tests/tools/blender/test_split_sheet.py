@@ -10,7 +10,13 @@ sys.path.insert(0, str(ROOT / "tools/blender"))
 
 import split_sheet as SS  # noqa: E402
 
-SHEET = ROOT / "artifacts/model-sheets/draft2/n01X.jpg"
+SHEET = ROOT / "artifacts/model-sheets/refs/n01X/sheet.jpg"
+
+
+class Rts(unittest.TestCase):
+    def test_refs_layout_names(self):
+        self.assertEqual(SS.rts_path(pathlib.Path("refs/x/sheet.jpg")).name, "sheet-rts.jpg")
+        self.assertEqual(SS.rts_path(pathlib.Path("refs/x/sheet-hard.jpg")).name, "sheet-hard-rts.jpg")
 
 
 class Scaled(unittest.TestCase):

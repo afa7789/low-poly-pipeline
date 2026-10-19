@@ -44,8 +44,26 @@ def foreground(path, size):
 
 
 def rts_path(sheet):
-    """The gameplay-camera concept drawn from this sheet by generate.py --image."""
+    """The gameplay-camera concept drawn from this sheet by generate.py --image:
+    refs/<id>/sheet.jpg -> sheet-rts.jpg, sheet-hard.jpg -> sheet-hard-rts.jpg."""
     return sheet.with_name(f"{sheet.stem}-rts.jpg")
+
+
+DRIFT_VIEWS = ("front", "left", "back")
+DRIFT_MIN = 0.90   # 7 units measured: 0.90-0.98, n01N left 0.76 and n01I left 0.88 below
+
+
+def sheet_drift(approved, redraw, layout="unit"):
+    """Silhouette IoU of a redrawn sheet (the hard variant) against the approved one,
+    per panel, plus the RTS views when both exist. Only DRIFT_VIEWS gate: the RTS images
+    are two independent draws and differ in camera, not in design."""
+    a = {k: normalize(v) for k, v in concept_panels(approved, layout=layout).items()}
+    b = {k: normalize(v) for k, v in concept_panels(redraw, layout=layout).items()}
+    out = {k: round(iou(a[k], b[k]), 4) for k in a if k in b}
+    if rts_path(approved).exists() and rts_path(redraw).exists():
+        out["rts"] = round(iou(normalize(foreground(rts_path(approved), 768)),
+                               normalize(foreground(rts_path(redraw), 768))), 4)
+    return out
 
 
 def gaps(mask, axis, lo, hi):
@@ -300,6 +318,11 @@ def main():
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")
 
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
+    missing = [g for g in GATES if g not in report]
+    if missing:
+        # no render (missing GLB, failed Blender) must not read as a pass
+        print(f"\nno measurement for gated views {missing}: FAIL")
+        return 1
     print(f"\n{len(GATES) - bad}/{len(GATES)} view gates pass")
     return 1 if bad else 0
 

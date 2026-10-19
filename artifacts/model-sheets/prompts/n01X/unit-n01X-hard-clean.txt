@@ -1,0 +1,25 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Mech Iron Golem (id n01X) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same machine — the same design — and change only two things: every form becomes hard-edged and faceted, and the machine stands in an open A-pose with both piston fists free. This unit carries no detached props: the piston fists and the chest disc are part of its body.
+
+Keep the design exactly as attached: the brass valve wheel where a head should be, with no glass; the well-pump torso; the two thick piston legs; the oversized piston fists; the big brass disc on the chest; the boiler-iron, well-brass and pilot-flame colours. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no extra gauge, no extra hose, no shoulder stack that is not already drawn on the attached machine.
+
+Panel 1, top left: front view facing the machine, both arms straight and angled 45 degrees off the torso with clear daylight at the armpit, both piston fists open and flat-ended beside the hips, the brass wheel edge reading as an octagon.
+
+Panel 2, top middle: left profile view of the same machine, seen exactly from its left side; the whole silhouette collapses into one column of straight segments — the wheel edge-on as a thin flat disc, the pump housing, the piston fist hanging forward of the thigh.
+
+Panel 3, top right: back view of the same machine; the flat back plate and both shoulder blocks, the wheel above them.
+
+Panel 4, bottom left: top-down view from directly above: the octagonal wheel with its flat spokes, the two shoulder blocks, the two fists and the two feet.
+
+Panel 5, bottom right: bottom-up view from directly below: only the two flat foot plates and the two flat fist ends.
+
+Pose: a static modeller's pose, symmetric and free. The arms are straight and held 45 degrees away from the torso, so the elbow sits as far from the ribcage as the shoulder is wide and there is clear daylight between the whole arm and the body. Both piston fists are flat-ended blocks with no fingers, open and empty. The legs are straight and planted one and a half shoulder-widths apart, both feet pointing forward.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The valve wheel becomes an eight-sided flat disc with three square spokes and one hexagonal hub; the pump housing becomes a hexagonal prism; the chest disc becomes an eight-sided flat plate; each shoulder is a five-sided block; each arm is a six-sided prism ending in a square wrist plate; each fist is a box with a flat front face; each leg is a six-sided prism as thick as the shoulder block is wide, a solid column from hip to foot that never narrows at the knee; each foot is a wedge frustum, widest at the sole. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — wheel, torso, two arms, two legs — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole machine must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every piston rod, spoke or bracket is thickened into a solid block, and no rod tapers away to a point. Proportions run chunky and cartoony rather than slender.
+
+Colour is unchanged from the attached sheet: boiler iron on the large masses, well brass on the wheel, disc and small metal, one warm accent (pilot-flame yellow) in the chest slit. Face: none at all — the head is a brass valve wheel with no glass.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

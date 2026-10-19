@@ -162,6 +162,25 @@ class Rig(unittest.TestCase):
         self.assertIn("eight-legged", SP.rig_text("spider")[1])
 
 
+class HardFirst(unittest.TestCase):
+    def test_hard_first_note_leads_the_references(self):
+        text = SP.with_refs("BRIEF", [("props", None)], hard_first=True)
+        self.assertLess(text.index("Image 1 is the faceted"), text.index("Image 2 is the same unit's props"))
+
+    def test_no_refs_no_note_leaves_the_brief(self):
+        self.assertEqual(SP.with_refs("BRIEF", []), "BRIEF")
+
+    def test_approved_ref_says_it_is_the_contract(self):
+        self.assertIn("contract", SP.with_refs("B", [("approved", None)]))
+
+    def test_iou_rows_list_each_sheet(self):
+        rows = SP.iou_rows({"approved": {"front": 0.8, "left": 0.7, "back": 0.6},
+                            "hard": {"front": 0.9}, "drift": {}})
+        self.assertIn("IoU vs approved f/l/b | 0.800 / 0.700 / 0.600", rows)
+        self.assertIn("IoU vs hard", rows)
+        self.assertNotIn("drift", rows)
+
+
 class Accepted(unittest.TestCase):
     PREV = {"front": 0.70, "left": 0.65, "back": 0.60, "top": 0.5, "bottom": 0.4}
 

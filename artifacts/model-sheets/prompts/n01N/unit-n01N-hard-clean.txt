@@ -1,0 +1,25 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nature Giant Spider (id n01N) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same creature — the same design — and change only two things: every form becomes hard-edged and faceted, and the body is posed clear of the ground with all eight legs free. This unit carries no detached props.
+
+Keep the design exactly as attached: the elongated segmented bark body carried high on long root legs, the thorn blocks at the leg joints, the two branch-thick chelicerae at the front, the orange plate over the green abdomen shell, the four small bright green eye points, the root spinneret at the rear. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no extra legs, no extra plate, no spine that is not already drawn on the attached creature.
+
+Panel 1, top left: front view facing the camera, the two chelicerae as hard wedge prisms below the head, four leg pairs planted either side in straight segments, clear daylight under the body.
+
+Panel 2, top middle: left profile view of the same creature, seen exactly from its left side; the whole silhouette reads as one long faceted shell carried on straight angled legs, the spinneret a short truncated cone at the rear.
+
+Panel 3, top right: back view of the same creature; the rear of the faceted abdomen, the spinneret below it and the four leg pairs either side.
+
+Panel 4, bottom left: top-down view from directly above: the flat-topped faceted abdomen with the orange plate centred on it, the eight legs splayed around it, the four green eye points at the front.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat segmented belly plates and the eight leg tips.
+
+Pose: a static modeller's pose, symmetric and free. The eight legs are splayed evenly in a full circle around the body, straight and unweighted, so every leg reads apart from its neighbours; the body is carried level and high with clear daylight under the belly; the two chelicerae are closed and point straight down; nothing is carried and nothing hangs from the legs.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The abdomen becomes a six-sided prism wrapped in three flat trapezoid bands with one flat orange plate on top; the thorax becomes a hexagonal block; each leg is a five-sided prism with one square thorn block at every joint; each chelicera is a solid rectangular wedge; the spinneret is a short four-sided truncated cone; each eye is a flat hexagonal dot on the head face. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — head, thorax, abdomen, eight legs — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no bark texture, no grunge, no gradients, no gloss, no cast shadows. The whole creature must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every thorn, joint or leg tip is thickened into a solid block, and no leg tapers away to a point. Proportions run chunky and cartoony rather than slender.
+
+Colour is unchanged from the attached sheet: live bark brown on the legs and belly, moss green on the shell, one warm accent (sweet-rust orange) on the abdomen plate. Face: none — four green eye points and two chelicerae.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

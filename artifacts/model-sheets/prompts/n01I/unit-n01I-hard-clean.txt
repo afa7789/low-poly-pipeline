@@ -1,0 +1,25 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Corrupted Ent (id n01I) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same creature — the same design — and change only one thing: every form becomes hard-edged and faceted. This unit carries no detached props: the back snag and the root claw are part of its body and stay attached.
+
+Keep the design exactly as attached: the low hooked stump silhouette, the short leaning trunk, the one broken vertical snag rising from the back, the one dragging root claw at the rear, the oversized single cavity-eye with the necromancer-green glow, the two stub arms with three-finger root hands, the thick trunk legs, the putrid bark over black heartwood. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no canopy, no extra branch, no extra claw that is not already drawn on the attached creature.
+
+Panel 1, top left: front view facing the camera, the cavity-eye a recessed hexagonal opening in the head, both stub arms straight and angled 45 degrees off the trunk with clear daylight at the shoulder, both root hands open.
+
+Panel 2, top middle: left profile view of the same creature, seen exactly from its left side; the leaning faceted trunk, the back snag as one flat blade, the dragging root claw behind.
+
+Panel 3, top right: back view of the same creature; the flat back plate, the snag rising straight, both hands at the sides.
+
+Panel 4, bottom left: top-down view from directly above: the flat top of the head, the snag wedge, the two shoulder stubs and the two feet.
+
+Panel 5, bottom right: bottom-up view from directly below: the two flat foot soles, the root claw and the two open hands.
+
+Pose: a static modeller's pose, symmetric and free. The two stub arms are straight and held 45 degrees away from the trunk, so there is clear daylight between arm and body; the root hands are open flat blocks with three thick finger plates, no knuckles, and they hold nothing. The two legs are straight and planted a shoulder-width apart, both feet forward.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The trunk becomes a leaning hexagonal prism; the head becomes a six-sided block with one recessed hexagonal cavity for the eye; the back snag becomes a four-sided blade wedge with a broken flat top; each arm is a five-sided prism; each hand is three flat finger plates on a square palm block; each leg is a six-sided prism; each foot is a wedge frustum; the root claw is two flat plates. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — head, trunk, two arms, two legs, the snag — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no bark texture, no grunge, no gradients, no gloss, no cast shadows. The whole creature must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every root, thorn or snag is thickened into a solid block, and no branch tapers away to a point. Proportions run chunky and cartoony rather than slender.
+
+Colour is unchanged from the attached sheet: putrid bark olive on the large masses, black sap in the recesses, one accent (necromancer green) in the cavity-eye. Face: none — one cavity with a green glow and no features.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.
