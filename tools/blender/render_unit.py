@@ -49,7 +49,7 @@ def setup_scene():
 def bounds():
     """World-space centre and extent of the imported body, so every view frames it."""
     lo, hi = mathutils.Vector((1e9,) * 3), mathutils.Vector((-1e9,) * 3)
-    for obj in bpy.data.objects:
+    for obj in bpy.context.scene.objects:
         if obj.type != "MESH":
             continue
         for corner in obj.bound_box:
@@ -62,7 +62,7 @@ def fix_orientation():
     """The imported glTF comes in Y-up; the ortho cameras below assume Z-up."""
     _, ext = bounds()
     if ext.y > ext.z * 1.5:
-        for obj in [o for o in bpy.data.objects if o.parent is None]:
+        for obj in [o for o in bpy.context.scene.objects if o.parent is None]:
             obj.rotation_euler.x += math.radians(90)
         bpy.context.view_layer.update()
 
@@ -93,7 +93,7 @@ def main():
         frame(name, offset, rot)
 
     # rig proof: the walk action, mid-stride, from the left
-    arm = next((o for o in bpy.data.objects if o.type == "ARMATURE"), None)
+    arm = next((o for o in bpy.context.scene.objects if o.type == "ARMATURE"), None)
     walk = next((a for a in bpy.data.actions if "walk" in a.name.lower()), None)
     if arm and walk:
         arm.animation_data_create()
