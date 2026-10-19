@@ -91,9 +91,45 @@ artifacts/model-sheets/
     <id>.jpg             one sheet per unit
     prompts/             00-template-{unit,building}.txt + unit-<id>.txt + building-<id>.txt
     audit/               weapon-role-audit.md, unit-chains.md
+    glb/                 build_unit.py output: <id>.glb + the six render frames
 ```
 
-## 5. Outstanding review work
+## 5. 3D — Blender stage
+
+Blender 5.2.2 is installed (`/opt/homebrew/bin/blender`); everything below runs headless.
+
+```bash
+blender -b -P tools/blender/build_unit.py  -- n01X artifacts/model-sheets/draft2/glb/n01X.glb
+blender -b -P tools/blender/render_unit.py -- artifacts/model-sheets/draft2/glb/n01X.glb artifacts/model-sheets/draft2/glb
+```
+
+`build_unit.py` holds a `SPECS` dict per unit: parts are boxes / cylinders / valve wheels in a
+`(right, up, forward)` convention, each bound to one bone of the shared 14-bone humanoid rig.
+`bp()`/`bd()` convert to Blender's Z-up axes — **without that conversion the model exports lying
+on its back**, because glTF up is +Y while Blender up is +Z. Pieces are joined into one mesh with
+three material slots, rigid-skinned (one bone per piece, weight 1) and given four actions:
+`idle`, `walk`, `attack`, `death`.
+
+`render_unit.py` renders front / left / back / top / bottom plus one mid-stride walk frame with the
+workbench engine on a #CCCCCC world, so the frames compare directly against the AI sheets.
+
+Engine contract the export must satisfy (`src/render/ModelManifest.hpp`, `tools/model_chart.cpp`,
+`scripts/fetch_models.mjs`):
+
+| requirement | value in `n01X.glb` |
+|---|---|
+| one skin, joints in `skins[0]` order, ≤255 joints | 1 skin, 14 joints |
+| `animations[]` order defines `clip_idle/walk/attack/death` | `attack, death, idle, walk` → walk 3, attack 0, death 1, idle 2 |
+| renderer scales by `max(h, 0.8w, 0.8d)` | proportions only; authored height 2.7 |
+| facing corrected by `yaw_deg` in the TSV | authored facing glTF +Z |
+| mesh count / materials | 1 mesh, 3 primitives, 3 materials |
+| triangle budget | 332 tris (card budget for the golem family: 500–650) |
+
+Outstanding wiring, not done yet: copy the GLB to `assets/models/<id>.glb`, add its `.rig` and
+`.joints` (produced by `scripts/fetch_models.mjs`, which currently expects a download URL), add the
+`data/models.tsv` row, and render it through `model_chart` for the in-engine check.
+
+## 6. Outstanding review work
 
 - `audit/weapon-role-audit.md` — 5 melee units whose props name a ranged weapon (`hfoo` fixed in
   the prompt; `n03G` rifle at range 60, `h06U` carbine at range 100 are errors **in the design
