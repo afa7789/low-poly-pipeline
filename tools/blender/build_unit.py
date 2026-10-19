@@ -203,7 +203,7 @@ def build_armature():
     return arm
 
 
-BASE_TRIS = {"box": 12, "cyl": 44, "wheel": 80}
+BASE_TRIS = {"box": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
 
@@ -222,10 +222,36 @@ def plan_chamfers(spec, budget):
     return chosen
 
 
+def prism(dims, at, rot, sides=8, axis="up"):
+    """A tapered n-gon tube: the WC3 limb primitive. dims = (r_bottom, r_top, height).
+    Eight sides read as round at 32 px and cost 28 tris (16 side + 12 cap)."""
+    r0, r1, height = dims
+    me = bpy.data.meshes.new("prism")
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=sides,
+                          radius1=r0, radius2=r1, depth=height)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("prism", me)
+    bpy.context.collection.objects.link(obj)
+    obj.location = bp(at)
+    obj.rotation_euler = (D(90), 0, 0) if axis == "fwd" else (0, 0, rot)
+    return obj
+
+
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     rot_z = D(opts.get("rot", 0.0))
     axis = opts.get("axis", "fwd")
     loc = bp(at)
+    if kind in ("prism", "dome"):
+        sides = int(opts.get("sides", 8))
+        if kind == "dome":
+            # a closed dome: taper hard to a small top cap instead of a sphere
+            dims = (dims[0], dims[0] * float(opts.get("top", 0.35)), dims[1])
+        obj = prism(dims, at, rot_z, sides=sides, axis=opts.get("axis", "up"))
+        obj.name = f"{bone}_{idx}"
+        obj.data.materials.append(material(mat_name))
+        return obj
     if kind == "box":
         size = bd(dims)
         if chamfer:
