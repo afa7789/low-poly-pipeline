@@ -282,21 +282,25 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
 
 
 # ---------------------------------------------------------------- painted atlas
-def painted_image(name, rgb, size=128):
-    """A WC3-style tile: flat palette colour with the light painted in - a vertical
-    gradient (dark at the feet, bright at the shoulders), a soft crease band and
-    low-frequency mottling. No normal map, no AO pass: paint carries the depth."""
-    img = bpy.data.images.new(f"tex_{name}", width=size, height=size, alpha=False)
-    px = [0.0] * (size * size * 4)
-    for y in range(size):
-        v = y / (size - 1.0)
-        light = 0.78 + 0.42 * v                      # bottom dark, top lit
-        crease = 1.0 - 0.18 * math.exp(-((v - 0.42) ** 2) / 0.0016)
-        for x in range(size):
-            u = x / (size - 1.0)
-            mottle = 1.0 + 0.05 * math.sin(u * 21.0 + v * 13.0) * math.sin(v * 7.0)
+def painted_image(name, rgb, size=64):
+    """Three tiles side by side: shadow, mid and lit. Each tile is the palette colour with
+    the light painted in (vertical gradient, a crease, low-frequency mottle). Faces are
+    mapped into one tile by height band, which is the cheap version of WC3's painted
+    panels: value changes between parts without a single extra polygon."""
+    width, height = size * 3, size
+    img = bpy.data.images.new(f"tex_{name}", width=width, height=height, alpha=False)
+    px = [0.0] * (width * height * 4)
+    tones = (0.55, 0.85, 1.18)
+    for x in range(width):
+        tile = x // size
+        u = (x % size) / (size - 1.0)
+        for y in range(height):
+            v = y / (height - 1.0)
+            light = (0.82 + 0.30 * v) * tones[tile]
+            crease = 1.0 - 0.16 * math.exp(-((v - 0.40) ** 2) / 0.0016)
+            mottle = 1.0 + 0.045 * math.sin(u * 19.0 + v * 11.0) * math.sin(v * 7.0 + tile)
             k = light * crease * mottle
-            i = (y * size + x) * 4
+            i = (y * width + x) * 4
             px[i] = min(1.0, rgb[0] * k)
             px[i + 1] = min(1.0, rgb[1] * k)
             px[i + 2] = min(1.0, rgb[2] * k)
@@ -314,15 +318,22 @@ def texturize(body, outdir=None, size=128):
     if mesh.uv_layers.active is None:
         mesh.uv_layers.active = mesh.uv_layers[0]
     uvs = mesh.uv_layers.active.data
+    zs = [v.co.z for v in mesh.vertices] or [0.0, 1.0]
+    z0, z1 = min(zs), max(zs)
+    span = max(1e-4, z1 - z0)
     for poly in mesh.polygons:
         n = poly.normal
         axis = max(range(3), key=lambda i: abs(n[i]))
+        band = min(2, int(3.0 * (poly.center.z - z0) / span))  # dark low, lit high
         for li in poly.loop_indices:
             co = mesh.vertices[mesh.loops[li].vertex_index].co
-            if axis == 2:      # horizontal faces: no height gradient available
-                u, v = co.x * 0.5, co.y * 0.5
-            else:              # sides: V follows world height, so the light runs up the body
-                u, v = (co.x + co.y) * 0.5, co.z * 0.5
+            if axis == 2:
+                lu, lv = co.x * 0.5, co.y * 0.5
+            else:
+                lu, lv = (co.x + co.y) * 0.5, co.z * 0.5
+            # wrap the planar coords into the band's tile with a margin against bleeding
+            u = (band + 0.06 + 0.88 * (lu % 1.0)) / 3.0
+            v = 0.06 + 0.88 * (lv % 1.0)
             uvs[li].uv = (u, v)
 
     images = {}
