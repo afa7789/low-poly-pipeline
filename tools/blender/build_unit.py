@@ -25,8 +25,8 @@ from mathutils import Vector
 
 # ---------------------------------------------------------------- materials
 MATERIALS = {
-    "iron": (0.259, 0.282, 0.302, 1.0),   # #42484D boiler iron
-    "brass": (0.549, 0.420, 0.200, 1.0),  # #8C6B33 well brass
+    "iron": (0.431, 0.486, 0.549, 1.0),   # #6E7C8C steel mid
+    "brass": (0.784, 0.573, 0.180, 1.0),  # #C8922E gold mid
     "flame": (1.000, 0.902, 0.000, 1.0),  # #FFE600 pilot flame
 }
 
@@ -309,81 +309,94 @@ def painted_image(name, rgb, size=64):
     return img
 
 
-def texturize(body, outdir=None, size=128):
-    """Give the three palette materials a painted tile and world-space UVs, so the
-    lighting runs vertically in world space like a hand-painted WC3 texture."""
+def texturize(body, meta, size=256):
+    """Per-part atlas: a 4x4 grid per material, one tile per body slot (pelvis, spine,
+    head, arm, forearm, thigh, shin, foot), each painted with a trim band, a crease and
+    mottling. Every face is mapped into the tile of the part it belongs to, so the paint
+    separates panels the way a WC3 atlas does - with no extra polygons."""
     mesh = body.data
     if not mesh.uv_layers:
         mesh.uv_layers.new(name="UVMap")
     if mesh.uv_layers.active is None:
         mesh.uv_layers.active = mesh.uv_layers[0]
     uvs = mesh.uv_layers.active.data
+
+    SLOTS = {"pelvis": 0, "spine": 1, "head": 2, "arm.L": 3, "arm.R": 3,
+             "forearm.L": 4, "forearm.R": 4, "thigh.L": 5, "thigh.R": 5,
+             "shin.L": 6, "shin.R": 6, "foot.L": 7, "foot.R": 7, "root": 0}
+
+    def nearest_part(co):
+        best, best_d = meta[0], 1e9
+        for bone, mat_name, centre, half in meta:
+            d = 0.0
+            for a in range(3):
+                delta = abs(co[a] - centre[a]) - half[a]
+                if delta > 0:
+                    d += delta * delta
+            d += 0.02 * ((co[0] - centre[0]) ** 2 + (co[1] - centre[1]) ** 2 + (co[2] - centre[2]) ** 2)
+            if d < best_d:
+                best, best_d = (bone, mat_name, centre, half), d
+        return best
+
     zs = [v.co.z for v in mesh.vertices] or [0.0, 1.0]
     z0, z1 = min(zs), max(zs)
     span = max(1e-4, z1 - z0)
+
     for poly in mesh.polygons:
+        bone, mat_name, _, _ = nearest_part(poly.center)
+        slot = SLOTS.get(bone, 1)
+        tile_x, tile_y = slot % 4, slot // 4
         n = poly.normal
         axis = max(range(3), key=lambda i: abs(n[i]))
-        band = min(2, int(3.0 * (poly.center.z - z0) / span))  # dark low, lit high
+        band = min(1, int(2.0 * (poly.center.z - z0) / span))
         for li in poly.loop_indices:
             co = mesh.vertices[mesh.loops[li].vertex_index].co
             if axis == 2:
-                lu, lv = co.x * 0.5, co.y * 0.5
+                lu, lv = co.x * 0.6, co.y * 0.6
             else:
-                lu, lv = (co.x + co.y) * 0.5, co.z * 0.5
-            # wrap the planar coords into the band's tile with a margin against bleeding
-            u = (band + 0.06 + 0.88 * (lu % 1.0)) / 3.0
-            v = 0.06 + 0.88 * (lv % 1.0)
+                lu, lv = (co.x + co.y) * 0.6, co.z * 0.6
+            u = (tile_x + 0.04 + 0.92 * (lu % 1.0)) / 4.0
+            v = (tile_y + 0.04 + 0.92 * (lv % 1.0)) / 4.0
             uvs[li].uv = (u, v)
 
     images = {}
     for slot in body.material_slots:
-        mat = slot.material
-        base = mat.name.split(".")[0]
+        base = slot.material.name.split(".")[0]
         if base in images:
             slot.material = images[base]["material"]
             continue
         rgb = MATERIALS[base][:3]
-        img = painted_image(base, rgb, size)
-        if outdir:
-            img.filepath_raw = str(outdir / f"{base}.png")
-            img.file_format = "PNG"
-            img.save()
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
-        bsdf = nodes["Principled BSDF"]
+        img = bpy.data.images.new(f"tex_{base}", width=size, height=size, alpha=False)
+        px = [0.0] * (size * size * 4)
+        cell = size // 4
+        for x in range(size):
+            tx, u = (x // cell), (x % cell) / (cell - 1.0)
+            for y in range(size):
+                ty = y // cell
+                v = (y % cell) / (cell - 1.0)
+                # WC3 read: one key light from above, 4:1 from shadow to highlight,
+                # a narrow bright band as the trim, a dark crease low on the tile.
+                ramp = 0.42 + 1.25 * (v ** 1.15)
+                trim = 1.35 if 0.62 < v < 0.70 else 1.0
+                crease = 1.0 - 0.30 * math.exp(-((v - 0.22) ** 2) / 0.0022)
+                mottle = 1.0 + 0.07 * math.sin(u * 17 + tx) * math.sin(v * 9 + ty)
+                k = ramp * trim * crease * mottle
+                i = (y * size + x) * 4
+                px[i] = min(1.0, rgb[0] * k)
+                px[i + 1] = min(1.0, rgb[1] * k)
+                px[i + 2] = min(1.0, rgb[2] * k)
+                px[i + 3] = 1.0
+        img.pixels = px
+        nodes = slot.material.node_tree.nodes
         tex_node = nodes.new("ShaderNodeTexImage")
         tex_node.image = img
-        links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
-        images[base] = {"material": mat, "image": img}
+        bsdf = nodes["Principled BSDF"]
+        # glTF multiplies baseColorFactor by the texture: leave the factor white or the
+        # palette colour is applied twice and the model goes black.
+        bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        slot.material.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        images[base] = {"material": slot.material, "image": img}
     return len(images)
-
-
-# ---------------------------------------------------------------- morph
-def morph(body, target=650, subdiv=1, weld=0.012):
-    """Round the cage instead of stacking straight primitives: weld the seams, run one
-    Catmull-Clark level (which pulls every corner inward), then decimate back to the
-    triangle budget. This is what turns a blockout into a shaped low-poly body."""
-    bpy.context.view_layer.objects.active = body
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.remove_doubles(threshold=weld)
-    bpy.ops.object.mode_set(mode="OBJECT")
-
-    if subdiv:
-        sub = body.modifiers.new("Subd", "SUBSURF")
-        sub.levels = sub.render_levels = subdiv
-        sub.use_limit_surface = True
-        bpy.ops.object.modifier_apply(modifier=sub.name)
-
-    faces = len(body.data.polygons)
-    if faces > target:
-        dec = body.modifiers.new("Decimate", "DECIMATE")
-        dec.decimate_type = "COLLAPSE"
-        dec.ratio = max(0.05, target / float(faces))
-        bpy.ops.object.modifier_apply(modifier=dec.name)
-    soften(body)
-    return len(body.data.polygons)
 
 # ---------------------------------------------------------------- fusion
 def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
@@ -558,6 +571,10 @@ def main():
     # the crisp blockout, because the WC3 roundness comes from painted shading, not
     # from geometry at this budget. Pass a triple budget as the third argument to enable.
     rest = sys.argv[sys.argv.index("--") + 1:]
+    for arg in rest:
+        if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
+            for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
+                MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     chamfers = plan_chamfers(spec, int(rest[2])) if len(rest) > 2 else set()
     parts = []
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
@@ -587,7 +604,7 @@ def main():
         faces = morph(body, target=int(rest[4]) if len(rest) > 4 else 650)
         print(f"morph: {faces} faces after subdiv + decimate")
     if rest and len(rest) > 5 and rest[5] == "tex":
-        n = texturize(body, pathlib.Path(rest[2]).parent if False else None)
+        n = texturize(body, meta)
         print(f"texture: {n} painted tiles + world-space UVs")
     if rest and rest[3] == "fuse":
         faces = fuse(body, meta, target=int(rest[4]) if len(rest) > 4 else 650,

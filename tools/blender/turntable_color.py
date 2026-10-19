@@ -44,7 +44,28 @@ def main():
     centre, extent = (lo + hi) / 2, hi - lo
 
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_WORKBENCH"
+    try:
+        scene.render.engine = "BLENDER_EEVEE_NEXT"
+    except TypeError:
+        scene.render.engine = "BLENDER_EEVEE"
+    scene.eevee.taa_render_samples = 16
+    sun = bpy.data.lights.new("key", "SUN")
+    sun.energy = 3.2
+    sun.angle = math.radians(25)
+    sun_obj = bpy.data.objects.new("key", sun)
+    sun_obj.rotation_euler = (math.radians(55), 0, math.radians(-35))
+    bpy.context.collection.objects.link(sun_obj)
+    fill = bpy.data.lights.new("fill", "SUN")
+    fill.energy = 1.1
+    fill_obj = bpy.data.objects.new("fill", fill)
+    fill_obj.rotation_euler = (math.radians(70), 0, math.radians(140))
+    bpy.context.collection.objects.link(fill_obj)
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("world")
+    scene.world.use_nodes = True
+    bg = scene.world.node_tree.nodes["Background"]
+    bg.inputs[0].default_value = (0.62, 0.63, 0.65, 1.0)
+    bg.inputs[1].default_value = 0.9
     scene.render.resolution_x = scene.render.resolution_y = size
     scene.display.shading.light = "STUDIO"
     has_tex = any(n.type == "TEX_IMAGE" for m in bpy.data.materials if m.use_nodes
