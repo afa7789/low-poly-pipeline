@@ -65,6 +65,12 @@ FORM RULES, non-negotiable - these are what keep the model from reading as Minec
 12. Feet are planted flat on y = 0, wider than the shin, and centred under the body (blender-rigging model_check).
 13. The front silhouette must still read as one black shape at 32 x 32 pixels; if a part only works with colour, it is decoration, not form.
 14. Keep flat faces planar and quad-based; no n-gon with a hole, no geometry that only exists to add a bevel.
+15. DETAIL LIVES IN THE TEXTURE, NOT THE GEOMETRY (lowpoly-style skill): no micro-bevels, no weighted normals, no subdivision. Surface is flat-shaded or auto-smooth at 60 degrees or more.
+16. No face that does not change the silhouette; merge coplanar faces. If a feature would only read in colour, leave it to the atlas.
+17. Hands are mitts - no fingers. Feet are wedges. Fur, cloth, spikes and fangs are flat cards, never modelled strands.
+18. Mirror what can be mirrored (arm and leg parts are duplicated across x); asymmetry comes from props, not from different limbs.
+19. Separate placed parts are allowed - classic WC3 uses them (ghoul claws, back spikes) - as long as each one overlaps the body mass and the union reads as one silhouette.
+20. One 256 to 512 pixel atlas per unit (1024 only for a hero). Model the large forms the atlas will describe, nothing finer.
 
 Parts are rigid-bound: each part follows the bone you name. Rig reference: the head bone runs 2.16 to 2.72 up, the arms hang from 2.02 to 0.90, the legs from 1.18 to 0.10. If the creature is not a biped, bind its mass to spine/pelvis and its limbs to the closest bones.
 

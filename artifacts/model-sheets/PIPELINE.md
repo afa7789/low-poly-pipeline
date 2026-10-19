@@ -218,3 +218,34 @@ the animation; those stay with the parent.
 - `audit/unit-chains.md` — 71 unit chains, 17 three-step. Generate base first, upgrade second, so
   the rank line has something to be compared against.
 - 156 units still have no prompt file.
+
+
+## 11. What classic WC3 actually does (measured + sourced)
+
+Measured from the models in `~/Documents` with `tools/blender/mdx_inspect.py`:
+
+| model | vertices | triangles | geosets | texture |
+|---|---|---|---|---|
+| Footman (custom, RoC style) | 154 | 141 | 1 | `Textures\Footman.blp` |
+| Ballista (RoC) | 431 | 301 | 1 | `Textures\Ballista.blp` |
+| Knight (custom, RoC style) | 38 | 26 | 1 | `Textures\Knight.blp` |
+
+So the classic budget is **140–300 tris**, one geoset, one small .blp per unit. The detail
+(gold trim, rivets, folds, metal highlights) is painted, not modelled.
+
+Confirmed by a WC3 modeller (r/wc3 thread) and the `lowpoly-style` skill:
+
+- "very low poly count, go for triangles … there's no shading, just a base texture" — the mesh
+  carries no vertex shading; the atlas carries the light and shadow.
+- parts **are** placed separately (ghoul claws, back spikes) and rigid-bound; they do not need to
+  be one welded shell.
+- fangs, fur and cloth are **planes with alpha**, not geometry; hands have no fingers.
+- texture 64–256 px is normal; anything duplicable is mirrored to save atlas space.
+- `lowpoly-style`: "texture carries detail, not geometry", no micro-bevels (0 or 1 segment max),
+  flat shading or auto-smooth ≥60°, merge coplanar faces, vertex colours preferred for variation.
+
+Consequence for this pipeline: **the missing stage is the atlas, not more geometry.** A voxel-remesh
+"fuse" pass was prototyped (`build_unit.py ... fuse`) and rejected — it produced 2,030 tris and WC3
+does not weld its parts. Chamfering was rejected for the same reason. The next stage is a 256–512 px
+hand-painted-style atlas per unit (AI-generated and box-projected, or baked from vertex colours),
+and the silhouette test is a solid-colour render at gameplay distance.
