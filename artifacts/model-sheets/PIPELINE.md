@@ -99,8 +99,11 @@ artifacts/model-sheets/
 Blender 5.2.2 is installed (`/opt/homebrew/bin/blender`); everything below runs headless.
 
 ```bash
+# built-in spec by id, or any external {"parts": [...]} JSON
 blender -b -P tools/blender/build_unit.py  -- n01X artifacts/model-sheets/draft2/glb/n01X.glb
-blender -b -P tools/blender/render_unit.py -- artifacts/model-sheets/draft2/glb/n01X.glb artifacts/model-sheets/draft2/glb
+blender -b -P tools/blender/build_unit.py  -- draft3/specs/n01X-5.5.json draft3/n01X-5.5.glb
+blender -b -P tools/blender/render_unit.py -- draft3/n01X-5.5.glb /tmp/views
+blender -b -P tools/blender/render_anim.py -- draft3/n01X-5.5.glb /tmp/anim walk 20 320
 ```
 
 `build_unit.py` holds a `SPECS` dict per unit: parts are boxes / cylinders / valve wheels in a
@@ -123,13 +126,45 @@ Engine contract the export must satisfy (`src/render/ModelManifest.hpp`, `tools/
 | renderer scales by `max(h, 0.8w, 0.8d)` | proportions only; authored height 2.7 |
 | facing corrected by `yaw_deg` in the TSV | authored facing glTF +Z |
 | mesh count / materials | 1 mesh, 3 primitives, 3 materials |
-| triangle budget | 332 tris (card budget for the golem family: 500–650) |
+| triangle budget | 612 tris built-in spec; 608 with the opus-5.5 spec (card budget 500–650) |
 
 Outstanding wiring, not done yet: copy the GLB to `assets/models/<id>.glb`, add its `.rig` and
 `.joints` (produced by `scripts/fetch_models.mjs`, which currently expects a download URL), add the
 `data/models.tsv` row, and render it through `model_chart` for the in-engine check.
 
-## 6. Outstanding review work
+## 6. Spec authors — which model writes the parts
+
+The mesh is built by `build_unit.py` from a JSON part spec, so a stronger model can author the
+spec while the pipeline stays deterministic. Tested 2026-10-19 on `n01X`, same brief
+(`draft3/specs/BRIEF.txt`), same sheet, same builder and gates.
+
+**Verdict: `claude-opus-5.5` for the hero units, `google/gemini-4-argon` for the bulk.**
+
+| model | US$/M in · out | cost/unit | parts | tris | mats | smear | JSON | verdict |
+|---|---|---|---|---|---|---|---|---|
+| `claude-opus-5.5` | 4.22 · 21.10 | $0.0482 | 37 | **608 ✓** | 3 ✓ | **0.06%** | clean | **best artefact**, inside the tri budget |
+| `google/gemini-4-argon` | 1 · 5 | **$0.0114** | 40 | 676 | 3 ✓ | 0.10% | clean | **best value**, +4% over budget |
+| `openai/gpt-5.4` | 2.64 · 15.83 | $0.0352 | 41 | 1044 | 2 (no flame) | 1.44% | clean | loses the accent, 60% over |
+| `anthropic/claude-opus-4.8` | 5.28 · 26.38 | $0.0602 | 38 | 716 | 3 | 0.98% | invalid (bare bone names) | thin figure, floating feet |
+| `google/gemini-3.1-pro-preview` | 1 · 6 | $0.0134 | — | — | — | — | truncated | failed |
+| `grok-4.6` | 2.11 · 6.33 | $0.0159 | — | — | — | — | empty | failed |
+| `moonshotai/kimi-k3` | 3.17 · 15.83 | $0.0361 | — | — | — | — | empty | failed |
+| `deepseek/deepseek-v4-pro-0813` | 0.70 · 2.09 | $0.0052 | — | — | — | — | — | no image input (404) |
+
+Costs are list price × the measured payload (1,703 in / 1,943 out tokens); the gateway reported
+`cost: 0` for most calls, so reconcile against the ppq statement before a batch run.
+
+Operational rules learned:
+
+- The vision endpoint rejects images over 5 MB: resize the sheet to 1024 px (134 KB) first.
+- Validate the spec, never trust it: bone / kind / material in the allowed sets, `parts` arity 6,
+  no part below `y = 0`. Repairable sloppiness includes bare identifiers (`[root, ...]`).
+- Empty responses are common on strong models (grok, kimi): treat empty as a failure, not a retry
+  prompt.
+- Two models can draw well and still fail the gates (gpt-5.4 lost the flame accent and doubled the
+  budget); the gates, not the render, decide.
+
+## 7. Outstanding review work
 
 - `audit/weapon-role-audit.md` — 5 melee units whose props name a ranged weapon (`hfoo` fixed in
   the prompt; `n03G` rifle at range 60, `h06U` carbine at range 100 are errors **in the design
