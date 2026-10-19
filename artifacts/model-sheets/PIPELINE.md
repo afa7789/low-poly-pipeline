@@ -110,7 +110,7 @@ blender -b -P tools/blender/render_anim.py -- draft3/n01X-5.5.glb /tmp/anim walk
 `(right, up, forward)` convention, each bound to one bone of the shared 14-bone humanoid rig.
 `bp()`/`bd()` convert to Blender's Z-up axes — **without that conversion the model exports lying
 on its back**, because glTF up is +Y while Blender up is +Z. Pieces are joined into one mesh with
-three material slots, rigid-skinned (one bone per piece, weight 1) and given four actions:
+material slots (3-5 from the warm palette), rigid-skinned (one bone per piece, weight 1) and given four actions:
 `idle`, `walk`, `attack`, `death`.
 
 `render_unit.py` renders front / left / back / top / bottom plus one mid-stride walk frame with the
@@ -125,7 +125,7 @@ Engine contract the export must satisfy (`src/render/ModelManifest.hpp`, `tools/
 | `animations[]` order defines `clip_idle/walk/attack/death` | `attack, death, idle, walk` → walk 3, attack 0, death 1, idle 2 |
 | renderer scales by `max(h, 0.8w, 0.8d)` | proportions only; authored height 2.7 |
 | facing corrected by `yaw_deg` in the TSV | authored facing glTF +Z |
-| mesh count / materials | 1 mesh, 3 primitives, 3 materials |
+| mesh count / materials | 1 mesh, N primitives, 3-5 palette materials |
 | triangle budget | 612 tris built-in spec; 608 with the opus-5.5 spec (card budget 500–650) |
 
 Outstanding wiring, not done yet: copy the GLB to `assets/models/<id>.glb`, add its `.rig` and
@@ -188,7 +188,7 @@ class, scaled by importance. `check_gates.py --kind <class>` enforces it.
 | standard building | **600–800** | production, tower, utility buildings |
 | town hall / large structure | **2000–3000** | castle, main hall, wonders |
 
-A row also fails when the model is not one skin with three materials and four clips. Measured on
+A row also fails when the model is not one skin with 3-5 palette materials and four clips. Measured on
 `draft4` (6 units × 2 spec authors): **12 of 12 inside 400–700**, 452–664 tris, all 3 materials,
 1 skin, 4 clips.
 
@@ -332,7 +332,7 @@ overlap       FAIL  detached: forearm.L, forearm.R, foot.L, foot.R
 ### 12.4 Gates, in the order that they save the most time
 
 1. `preflight.py` — proportions, coverage, overlap, budget. Costs 0.1 s.
-2. `check_gates.py` — tris by class, 3 materials, 1 skin, 4 clips, on the built GLB.
+2. `check_gates.py` — tris by class, 3-5 materials, 1 skin, 4 clips, on the built GLB.
 3. **Five-view comparison against the sheet, never a 3/4 render.** Measured: the same model
    scores 5.5 on a three-quarter view and 4.0 on the five-view comparison, because the profile
    collapse is invisible from 3/4. The comparison is `render_unit.py` + a 3+2 montage with the
@@ -349,3 +349,108 @@ inventing a gradient, which is what the classic WC3 texture does.
 
 Hard-surface beats skin for machines, measured on the same unit: stacked parts 7.0, skeleton-placed
 parts 5.5, skin body 1.5, skin-plus-plates 3.5. Do not re-litigate that.
+
+## 13. Pipeline v2 — measured on draft11 (2026-10-19)
+
+The v9 review (4.5/10, saved in `draft9/claude-review/review-claude.md`) split the gap
+as 50% geometry/pose, 30% proportion, 20% surface and named what the pipeline could
+not express. Draft11 applies the pipeline-side fixes, not per-unit hand edits.
+
+### 13.1 Spec DSL v2
+
+| addition | shape | why |
+|---|---|---|
+| `frustum` | box with `top: [sx, sz]` and `shift: [dx, dz]` | wedge boots, trapezoid pelvis, stepped fists; 12 tris |
+| `ring` | flat annulus, `spokes`, `hub`, `axis: up/fwd/side`, `tilt`, `spin` | the valve-wheel halo; 10 sides + 3 spokes + hub = 144 tris |
+| `from` / `to` | any box/prism/frustum: builder solves midpoint, length (`fit`) and orientation | limb angles are code, not an LLM-supplied coordinate |
+| `spin`, `scale` | prism axial rotation and elliptical scale | octagonal chest, non-circular torso |
+| warm palette | `iron #8A8780`, `darkiron #5A4A3A`, `brass #B08A4A`, `lamp #FFD24A` | concept has four colour zones, not three; the old blue steel was wrong |
+| linear colour | sRGB palette converted before Blender/glTF | fixes the chalk-white renders; glTF baseColorFactor is linear |
+
+`rest_pose` is supported (`{bone: [rx, ry, rz]}` rotates the bone rest around its head)
+but draft11 authors the splay with `from`/`to` instead.
+
+### 13.2 New gates
+
+`preflight.py` now has 13 rules: budget, 3-5 palette slots, bone coverage, shoulder
+span 0.55-0.70 H, fist span 0.78-0.95 H, stance 0.45-0.62 H, foot mass, shin width,
+head top (0.25 H over shoulders when the head carries a wheel), wheel axis/tilt,
+ornament tri share <=22%, ground, overlap. It runs before Blender in
+`spec_pipeline.py`.
+
+`silhouette.py` keys the concept sheet background, splits the 3+2 panels on the empty
+bands, renders five ortho masks from the GLB, normalizes both by body height and
+reports IoU, width-profile L1 and 32x32 IoU. Gates: front >=0.75, left >=0.65.
+Top and bottom are reported but not gated: the concept's bottom panel is a low-angle
+perspective and even the "top" panel is not a true ortho, so those two IoUs are noise
+(width-profile L1 1.3 at the end versus 0.04 on front). `silhouette.py --measure`
+prints the code-derived landmark table that is now injected into the spec prompt.
+
+`render_unit.py` adds a 55-degree WC3 gameplay render and uses the Standard view
+transform with the linear palette. `make_compare.py` builds the scale-normalized
+review sheet (concept/model at the same body height, plus a 32 px row); the old
+compare sheet scaled each half as a whole and hid the proportion error.
+
+### 13.3 Draft11 result — n01X
+
+```
+preflight 13/13 PASS
+GLB       696 tris · 4 materials · 1 skin · 4 clips   PASS
+silhouette front 0.771 · left 0.694   (gates 0.75 / 0.65)
+          32px   front 0.788
+measured  shoulder 0.635 H · fist 0.863 H · stance 0.506 H
+          body depth 0.222 H · foot length 0.228 H
+```
+
+Baseline v9 silhouette was front 0.551 / left 0.627 / top 0.715 (top passed because
+the body dominates the mask; the spec rule `wheel_axis` is what blocks the edge-on
+wheel). Draft4 `opus55-n01X.glb`, the best earlier artefact, measures 0.774 / 0.787 /
+0.693, so the new gate is calibrated around a model that was already accepted.
+
+What raised front IoU from 0.551 to 0.771, in order: wheel lying near-horizontal
+(axis up, tilt 25) with three spokes; torso top raised and neck shortened; chest
+narrowed to its real 0.31 H body width (the first pass filled the silhouette with a
+0.55 H chest and oversize fists, which passed the gate but was the wrong mass split);
+upper arms tucked under the pads and bowing out to the fists; fists moved down to
+knee height; boots enlarged to 0.22 H tall, 0.23 H long; stance widened to 0.51 H.
+
+The silhouette gate is a shape check, not a mass check: front IoU 0.755 coexisted
+with a torso almost twice the concept width, and the first correction moved the
+excess into the pads and pelvis without moving IoU. Final pass re-measured those
+parts against the concept: pads 0.40 x 0.50 x 0.36 m, belt 0.27 H, forearm 0.176 H,
+fist 0.176 H, legs straightened, palette darkened to the sampled #6E6C68 / #4E4034 /
+#A5814A. Front IoU held at 0.771, left moved 0.721 -> 0.694 (still passing) and the
+32 px front rose to 0.788. That is why the next gate must be per-material-class IoU
+plus per-part width/depth landmarks; the atlas waits for that.
+
+The Claude follow-up reviews are `draft11/claude-review/review-claude-v11.md`
+(5.0 on the first pass), `draft11/review-final/review-final.md` (5.5 after the
+torso fix) and `draft11/review-final/review-final-check.md` (6.0 after the part-size
+and palette corrections, +1.5 over v9).
+
+The closing check names the next pipeline step, and it is not the atlas: a **closed-loop
+part-box gate**. Render each part with a flat ID colour, segment the concept by
+material class plus landmark bands, compare each part's centre and W/H/D against the
+concept at +/-15%, and feed the failing numbers back into the spec prompt. That is the
+only way to stop mass migration between parts (the reason front IoU stayed at 0.771
+while the torso was halved). The current silhouette and preflight gates can pass
+floating pads and a wide pelvis because both only see envelopes. Build that gate
+before any UV/atlas work; a 512 atlas on this geometry is worth about +0.5 (6.0 ->
+6.5), while the part gate plus lint is worth about +1.5 and keeps its value when the
+atlas lands.
+
+### 13.4 Commands
+
+```bash
+# spec -> preflight -> GLB -> gates -> render -> compare -> silhouette -> GIF
+python3 tools/blender/spec_pipeline.py --id n01X --race Mech --name "Iron Golem" \
+  --sheet artifacts/model-sheets/draft2/n01X.jpg \
+  --model google/gemini-4-argon --tag argon --height 2.7 --kind mass \
+  --out artifacts/model-sheets/draft12
+
+# independent gates on an existing GLB
+python3 tools/blender/preflight.py  artifacts/model-sheets/draft11/spec-n01X-v11.json mass
+python3 tools/blender/check_gates.py artifacts/model-sheets/draft11 --kind mass
+python3 tools/blender/silhouette.py artifacts/model-sheets/draft2/n01X.jpg \
+  artifacts/model-sheets/draft11/n01X-v11.glb artifacts/model-sheets/draft11/sil
+```
