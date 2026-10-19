@@ -67,6 +67,101 @@ class ParseSpec(unittest.TestCase):
             SP.parse_spec(json.dumps({"parts": [bad]}))
 
 
+class Palette(unittest.TestCase):
+    PALETTE = {"hide": {"surface": "leather", "color": "#6B4423"},
+               "eye": {"surface": "glow", "color": "#FFD24A"}}
+
+    def test_palette_slots_are_materials(self):
+        part = ["head", "box", [0.2, 0.2, 0.2], [0, 2.4, 0], "hide", {}]
+        spec = SP.parse_spec(json.dumps({"palette": self.PALETTE, "parts": [part]}))
+        self.assertEqual(spec["palette"], self.PALETTE)
+        with self.assertRaises(ValueError):          # undeclared slot
+            SP.parse_spec(json.dumps({"parts": [part]}))
+
+    def test_unknown_surface_or_bad_colour_is_rejected(self):
+        for entry in ({"surface": "velvet", "color": "#112233"},
+                      {"surface": "cloth", "color": "red"}):
+            with self.assertRaises(ValueError):
+                SP.parse_spec(json.dumps({"palette": {"x": entry}, "parts": PARTS}))
+
+    def test_alpha_must_be_an_opacity(self):
+        glass = {"surface": "glass", "color": "#AACCDD", "alpha": 0.4}
+        part = ["head", "box", [0.2, 0.2, 0.2], [0, 2.4, 0], "lens", {}]
+        spec = SP.parse_spec(json.dumps({"palette": {"lens": glass}, "parts": [part]}))
+        self.assertEqual(spec["palette"]["lens"]["alpha"], 0.4)
+        for bad in (0.0, 1.5, "half"):
+            with self.assertRaises(ValueError):
+                SP.parse_spec(json.dumps({"palette": {"lens": {**glass, "alpha": bad}},
+                                          "parts": [part]}))
+
+    def test_decal_names_are_checked(self):
+        head = ["head", "box", [0.2, 0.2, 0.2], [0, 2.4, 0], "iron", {"decal": "eyes2"}]
+        self.assertEqual(SP.parse_spec(json.dumps({"parts": [head]}))["parts"][0][5]["decal"], "eyes2")
+        head[5] = {"decal": "mouth"}
+        with self.assertRaises(ValueError):
+            SP.parse_spec(json.dumps({"parts": [head]}))
+
+    def test_legacy_specs_need_no_palette(self):
+        self.assertNotIn("palette", SP.parse_spec(json.dumps({"parts": PARTS})))
+
+    def test_patch_may_use_palette_slots(self):
+        new = ["head", "box", [0.3, 0.2, 0.2], [0, 2.4, 0], "eye", {}]
+        parts, _ = SP.apply_patch(PARTS, reply({"set": {"1": new}}), palette=self.PALETTE)
+        self.assertEqual(parts[1][4], "eye")
+
+    def test_refinement_prompt_shows_the_fixed_palette(self):
+        text = SP.numbered({"palette": self.PALETTE, "parts": PARTS})
+        self.assertIn("use only these slot names", text)
+        self.assertIn("  0: ", text)
+
+
+class Rig(unittest.TestCase):
+    def tearDown(self):
+        SP.set_rig("biped")
+
+    def test_spider_bones_parse_and_bare_names_are_quoted(self):
+        SP.set_rig("spider")
+        spec = SP.parse_spec('{"parts": [[leg3.upper, "prism", [0.05, 0.04, 0.5], '
+                             '[0.2, 0.5, 0.2], "iron", {}]]}')
+        self.assertEqual(spec["parts"][0][0], "leg3.upper")
+
+    def test_biped_bone_is_outside_the_spider(self):
+        SP.set_rig("spider")
+        with self.assertRaises(ValueError):
+            SP.parse_spec(json.dumps({"parts": [PARTS[0]]}))
+
+    def test_biped_aliases_only_apply_to_bipeds(self):
+        part = ["chest", "box", [0.1, 0.1, 0.1], [0, 1.8, 0], "iron", {}]
+        self.assertEqual(SP.parse_spec(json.dumps({"parts": [part]}))["parts"][0][0], "spine")
+        SP.set_rig("quadruped")
+        with self.assertRaises(ValueError):
+            SP.parse_spec(json.dumps({"parts": [part]}))
+
+    def test_extra_bones_join_the_rig(self):
+        SP.set_rig("vehicle")
+        part = ["mast", "cyl", [0.05, 1.0], [0, 1.0, 0], "iron", {}]
+        bones = [["mast", "hull", [0, 0.5, 0], [0, 1.5, 0]]]
+        spec = SP.parse_spec(json.dumps({"bones": bones, "parts": [part]}))
+        self.assertEqual(spec["bones"], bones)
+        self.assertIn("extra bones", SP.numbered(spec))
+        with self.assertRaises(ValueError):          # parent unknown to the vehicle
+            SP.parse_spec(json.dumps({"bones": [["mast", "spine", [0, 0, 0], [0, 1, 0]]],
+                                      "parts": [part]}))
+        with self.assertRaises(ValueError):          # bone used but not declared
+            SP.parse_spec(json.dumps({"parts": [part]}))
+
+    def test_every_family_has_brief_text(self):
+        for fam in SP.RF.FAMILIES:
+            self.assertIn("bones", SP.rig_text(fam)[1], fam)
+
+    def test_non_biped_brief_drops_biped_landmarks(self):
+        m = {"front_width_profile": [0.5] * 21, "left_width_profile": [0.3] * 21}
+        text = SP.measured_text("spider", m)
+        self.assertIn("Side silhouette", text)
+        self.assertNotIn("shoulder span", text)
+        self.assertIn("eight-legged", SP.rig_text("spider")[1])
+
+
 class Accepted(unittest.TestCase):
     PREV = {"front": 0.70, "left": 0.65, "back": 0.60, "top": 0.5, "bottom": 0.4}
 

@@ -64,9 +64,11 @@ def gaps(mask, axis, lo, hi):
     return found
 
 
-def concept_panels(path, size=768):
+def concept_panels(path, size=768, layout="unit"):
     """Key the flat background, split the 3+2 template on its empty bands, and
-    return one boolean mask per panel in reading order."""
+    return one boolean mask per panel in reading order, named by the sheet layout
+    (views.LAYOUTS: a unit's bottom row is top/bottom, a building's right/roof)."""
+    from views import LAYOUTS
     fg = foreground(path, size)
 
     runs = gaps(fg, 1, 0, size)
@@ -83,13 +85,9 @@ def concept_panels(path, size=768):
                    key=lambda r: r[1] - r[0], reverse=True)[:1]
     cut_b = (bot_x[0][0] + bot_x[0][1]) // 2 if bot_x else size // 2
 
-    cells = [
-        ("front", 0, cuts[0], 0, split),
-        ("left", cuts[0], cuts[1], 0, split),
-        ("back", cuts[1], size, 0, split),
-        ("top", 0, cut_b, split, size),
-        ("bottom", cut_b, size, split, size),
-    ]
+    bounds = [(0, cuts[0], 0, split), (cuts[0], cuts[1], 0, split), (cuts[1], size, 0, split),
+              (0, cut_b, split, size), (cut_b, size, split, size)]
+    cells = [(name, *box) for name, box in zip(LAYOUTS[layout], bounds)]
     panels = {}
     for name, x0, x1, y0, y1 in cells:
         cell = fg[y0:y1, x0:x1]
@@ -129,6 +127,7 @@ def measure(sheet, size=768):
         "body_depth": round(max(ls[8:16]) * k, 3),
         "foot_length": round(max(ls[18:]) * k, 3),
         "front_width_profile": [round(v, 3) for v in fs],
+        "left_width_profile": [round(v * k, 3) for v in ls],
     }
 
 
@@ -136,12 +135,35 @@ def read_mask(path):
     return read_rgba(path, 512)[..., 3] > 16
 
 
+def sheet_colours(path, k=6, size=768, seed=0):
+    """The sheet's flat tones, code-measured: k-means over the figure pixels of the
+    front, left and back panels. Ink outlines (near black) are dropped. Returns
+    [(hex, share)] by share, so the spec author picks colours instead of guessing."""
+    rgb = read_rgba(path, size)[..., :3].reshape(-1, 3).astype(float) / 255.0
+    panels = concept_panels(path, size)
+    mask = (panels["front"] | panels["left"] | panels["back"]).reshape(-1)
+    px = rgb[mask]
+    px = px[px.max(axis=1) > 0.12]
+    rng = np.random.default_rng(seed)
+    px = px[rng.choice(len(px), min(len(px), 20000), replace=False)]
+    luma = px @ np.array([0.299, 0.587, 0.114])
+    centres = px[np.argsort(luma)[np.linspace(0, len(px) - 1, k).astype(int)]]
+    for _ in range(12):
+        label = np.argmin(((px[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1)
+        centres = np.array([px[label == i].mean(axis=0) if (label == i).any() else centres[i]
+                            for i in range(k)])
+    share = np.bincount(label, minlength=k) / len(px)
+    found = [("#" + "".join(f"{round(c * 255):02X}" for c in centres[i]), round(float(share[i]), 3))
+             for i in np.argsort(-share) if share[i] >= 0.02]
+    return found
+
+
 def model_panels(render_dir, stem):
-    """view -> {camera: mask}. Top and bottom carry every rendered tilt, the RTS view
-    every (elevation, azimuth), the rest tilt 0."""
-    from views import RTS, TILTED, TILTS
+    """view -> {camera: mask} for every rendered view. Top and bottom carry every
+    rendered tilt, the RTS view every (elevation, azimuth), the rest tilt 0."""
+    from views import RTS, TILTED, TILTS, VIEWS
     panels = {}
-    for name in ("front", "left", "back", "top", "bottom"):
+    for name in [v for v in VIEWS if (render_dir / f"{stem}-sil-{v}.png").exists()]:
         panels[name] = {0: read_mask(render_dir / f"{stem}-sil-{name}.png")}
         if name in TILTED:
             for t in TILTS:
@@ -190,8 +212,10 @@ def normalize(mask, target_h=CANVAS_H, canvas_w=CANVAS_W):
 def variants(mask, name):
     """Left-right mirror only. Top and bottom used to try an upside-down flip too, but a
     flipped back-side tilt then out-scored the real front-side camera; the tilt sweep
-    covers the angle, and the renders share the sheet's orientation (front at the bottom)."""
-    return [mask, np.fliplr(mask)]
+    covers the angle, and the renders share the sheet's orientation (front at the bottom).
+    The RTS view is never mirrored: the azimuth sweep already covers both sides, and a
+    mirrored match renders the model from the opposite side of the concept."""
+    return [mask] if name == "rts" else [mask, np.fliplr(mask)]
 
 
 def iou(a, b):
@@ -240,6 +264,7 @@ def main():
     ap.add_argument("outdir", type=pathlib.Path)
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--measure", action="store_true", help="print sheet proportions and exit")
+    ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     args = ap.parse_args()
     if args.measure:
         print(json.dumps(measure(args.sheet), indent=2))
@@ -252,7 +277,7 @@ def main():
                         "--", str(args.glb), str(renders)], check=True,
                        capture_output=True, text=True)
 
-    concept = {k: normalize(v) for k, v in concept_panels(args.sheet).items()}
+    concept = {k: normalize(v) for k, v in concept_panels(args.sheet, layout=args.layout).items()}
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     model = model_panels(renders, args.glb.stem)

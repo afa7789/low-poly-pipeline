@@ -35,6 +35,21 @@ MATERIALS = {
 }
 # Keep the old spelling as a read-only alias so older specs still load.
 MATERIALS["lamp"] = MATERIALS["flame"]
+# material -> painted surface (surfaces.py). The n01X slots above are all "metal",
+# so specs written before the palette existed paint exactly as they did.
+SURFACE = {}
+ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
+
+
+def register_palette(palette):
+    """A spec's {"slot": {"surface": "skin", "color": "#C08A5E"}}: colour sampled from
+    the unit's own sheet, surface from the library. Overrides the n01X defaults."""
+    for name, entry in (palette or {}).items():
+        hexv = entry["color"].lstrip("#")
+        MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+        SURFACE[name] = entry.get("surface", "metal")
+        if float(entry.get("alpha", 1.0)) < 1.0:
+            ALPHA[name] = float(entry["alpha"])
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
@@ -55,20 +70,33 @@ _BIPED = [
     ("foot.R", "shin.R", (-0.28, 0.10, 0), (-0.28, 0.06, 0.55)),
 ]
 BONES = list(_BIPED)
+FAMILY = "biped"
 
 
-def load_family(name):
-    """Swap the rig family before building: a spec can ask for spider, quadruped..."""
+def sibling(module):
+    """A module from this folder, importable whether or not Blender put it on sys.path."""
     import importlib
     try:
-        fam = importlib.import_module("rig_families")
+        return importlib.import_module(module)
     except ModuleNotFoundError:
         import sys as _sys
         _sys.path.append(str(pathlib.Path(__file__).resolve().parent))
-        fam = importlib.import_module("rig_families")
-    global BONES
-    BONES = list(fam.FAMILIES.get(name, fam.BIPED))
-    return name
+        return importlib.import_module(module)
+
+
+def families():
+    return sibling("rig_families")
+
+
+def load_family(name, extras=None):
+    """Swap the rig family before building: a spec can ask for spider, quadruped...,
+    plus its own prop bones (rig_families.with_extras)."""
+    fam = families()
+    global BONES, BONE_MAP, FAMILY
+    FAMILY = name if name in fam.FAMILIES else "biped"
+    BONES = fam.with_extras(FAMILY, extras)
+    BONE_MAP = {bone: (head, tail) for bone, _, head, tail in BONES}
+    return FAMILY
 
 # ---------------------------------------------------------------- specs
 # bone, kind, dims, at, material, opts
@@ -218,7 +246,12 @@ def material(name):
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = srgb(MATERIALS[name])
     bsdf.inputs["Roughness"].default_value = 0.85
-    if name in ("flame", "lamp"):
+    if name in ALPHA:
+        # opacity lives in the material, not the atlas: the glTF exporter writes it as
+        # baseColorFactor alpha with alphaMode BLEND, and the atlas stays opaque RGB
+        bsdf.inputs["Alpha"].default_value = ALPHA[name]
+        mat.surface_render_method = "BLENDED"
+    if name in ("flame", "lamp") or SURFACE.get(name) == "glow":
         bsdf.inputs["Emission Color"].default_value = srgb(MATERIALS[name])
         bsdf.inputs["Emission Strength"].default_value = 1.0
     _MAT_CACHE[name] = mat
@@ -546,6 +579,30 @@ def validate_skeleton(spec, budget=700):
     return not missing and est <= budget
 
 
+def merge_clips(base, extra):
+    """Clip lists merged by name: frames are united and bone poses overlaid, so a
+    harpy keeps the biped's walk and adds its wing flap."""
+    extra = {name: poses for name, poses, *_ in extra}
+    out = []
+    for name, poses, cyclic, contacts, lags in base:
+        merged = {f: dict(pose) for f, pose in poses.items()}
+        for f, pose in extra.get(name, {}).items():
+            merged.setdefault(f, {}).update(pose)
+        out.append((name, merged, cyclic, contacts, lags))
+    return out
+
+
+def clip_set(family):
+    """Biped: the hand-keyed tables. Families with biped limbs: those tables plus the
+    clips derived from their other bones. Everything else: the derived clips."""
+    fam = families()
+    if family == "biped":
+        return ACTIONS
+    if fam.has_biped_limbs(family):
+        return merge_clips(ACTIONS, fam.actions(family))
+    return fam.actions(family)
+
+
 def make_actions(arm):
     """Four clips per unit: key poses stepped, a hand-made breakdown, then spline."""
     bpy.ops.object.select_all(action="DESELECT")
@@ -555,7 +612,8 @@ def make_actions(arm):
         pb.rotation_mode = "XYZ"
     arm.animation_data_create()
     anim = load_toolkit("blender-animation", "bx_anim")
-    for name, poses, cyclic, contacts, lags in ACTIONS:
+    clips = clip_set(FAMILY)
+    for name, poses, cyclic, contacts, lags in clips:
         act = bpy.data.actions.new(name)
         arm.animation_data.action = act
         frames = sorted(poses)
@@ -742,84 +800,78 @@ def painted_image(name, rgb, size=64):
     return img
 
 
-def texturize(body, meta, size=256):
-    """Per-part atlas: a 4x4 grid per material, one tile per body slot (pelvis, spine,
-    head, arm, forearm, thigh, shin, foot), each painted with a trim band, a crease and
-    mottling. Every face is mapped into the tile of the part it belongs to, so the paint
-    separates panels the way a WC3 atlas does - with no extra polygons."""
+DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
+
+
+def decal_uv(centre_w, normal_w, co):
+    """(cell, u, v) when this face (world centre and normal) is the front of a decal
+    part, else None. The front is projected over the part's box, so the decal lands
+    where it was placed."""
+    if normal_w.y > -0.5:                          # front faces look down -Y in Blender
+        return None
+    for i, (centre, half, _, _) in enumerate(DECALS):
+        if all(abs(centre_w[a] - centre[a]) <= half[a] * 1.02 + 1e-4 for a in range(3)):
+            return (8 + i, (co.x - centre.x + half.x) / max(2 * half.x, 1e-6),
+                    (co.z - centre.z + half.z) / max(2 * half.z, 1e-6))
+    return None
+
+
+TEX_SLOTS = {"pelvis": 0, "spine": 1, "head": 2, "arm.L": 3, "arm.R": 3,
+             "forearm.L": 4, "forearm.R": 4, "thigh.L": 5, "thigh.R": 5,
+             "shin.L": 6, "shin.R": 6, "foot.L": 7, "foot.R": 7, "root": 0}
+
+
+def nearest_part(meta, co):
+    """The (bone, material, centre, half) part whose box is closest to `co`."""
+    best, best_d = meta[0], 1e9
+    for bone, mat_name, centre, half in meta:
+        d = sum(max(0.0, abs(co[a] - centre[a]) - half[a]) ** 2 for a in range(3))
+        d += 0.02 * sum((co[a] - centre[a]) ** 2 for a in range(3))
+        if d < best_d:
+            best, best_d = (bone, mat_name, centre, half), d
+    return best
+
+
+def atlas_uvs(body, meta, block, cols, rows):
+    """World-planar UVs per face, into the body-slot cell of its material's block.
+    Bipeds use TEX_SLOTS; other rig families spread their bones over the same 8 cells."""
     mesh = body.data
     if not mesh.uv_layers:
         mesh.uv_layers.new(name="UVMap")
     if mesh.uv_layers.active is None:
         mesh.uv_layers.active = mesh.uv_layers[0]
     uvs = mesh.uv_layers.active.data
-
-    SLOTS = {"pelvis": 0, "spine": 1, "head": 2, "arm.L": 3, "arm.R": 3,
-             "forearm.L": 4, "forearm.R": 4, "thigh.L": 5, "thigh.R": 5,
-             "shin.L": 6, "shin.R": 6, "foot.L": 7, "foot.R": 7, "root": 0}
-
-    def nearest_part(co):
-        best, best_d = meta[0], 1e9
-        for bone, mat_name, centre, half in meta:
-            d = 0.0
-            for a in range(3):
-                delta = abs(co[a] - centre[a]) - half[a]
-                if delta > 0:
-                    d += delta * delta
-            d += 0.02 * ((co[0] - centre[0]) ** 2 + (co[1] - centre[1]) ** 2 + (co[2] - centre[2]) ** 2)
-            if d < best_d:
-                best, best_d = (bone, mat_name, centre, half), d
-        return best
-
-    zs = [v.co.z for v in mesh.vertices] or [0.0, 1.0]
-    z0, z1 = min(zs), max(zs)
-    span = max(1e-4, z1 - z0)
-
+    order = {name: i % 8 for i, (name, *_) in enumerate(BONES)}
+    slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
+    world, turn = body.matrix_world, body.matrix_world.to_3x3()   # meta is in world space
     for poly in mesh.polygons:
-        bone, mat_name, _, _ = nearest_part(poly.center)
-        slot = SLOTS.get(bone, 1)
-        tile_x, tile_y = slot % 4, slot // 4
-        n = poly.normal
-        axis = max(range(3), key=lambda i: abs(n[i]))
-        band = min(1, int(2.0 * (poly.center.z - z0) / span))
+        centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
+        bone = nearest_part(meta, centre_w)[0]
+        cell = TEX_SLOTS.get(bone, order.get(bone, 1))
+        bx, by = block[slot_base[poly.material_index]]
+        tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
+        axis = max(range(3), key=lambda i: abs(poly.normal[i]))
         for li in poly.loop_indices:
             co = mesh.vertices[mesh.loops[li].vertex_index].co
-            if axis == 2:
-                lu, lv = co.x * 0.6, co.y * 0.6
-            else:
-                lu, lv = (co.x + co.y) * 0.6, co.z * 0.6
-            u = (tile_x + 0.04 + 0.92 * (lu % 1.0)) / 4.0
-            v = (tile_y + 0.04 + 0.92 * (lv % 1.0)) / 4.0
-            uvs[li].uv = (u, v)
+            lu, lv = (co.x * 0.6, co.y * 0.6) if axis == 2 else ((co.x + co.y) * 0.6, co.z * 0.6)
+            dec = decal_uv(centre_w, normal_w, world @ co)
+            if dec:
+                cell, du, dv = dec
+                tx, ty = bx * 4 + cell % 4, by * 4 + cell // 4
+                uvs[li].uv = ((tx + 0.04 + 0.92 * du) / (4.0 * cols), (ty + 0.04 + 0.92 * dv) / (4.0 * rows))
+                continue
+            uvs[li].uv = ((tile_x + 0.04 + 0.92 * (lu % 1.0)) / (4.0 * cols),
+                          (tile_y + 0.04 + 0.92 * (lv % 1.0)) / (4.0 * rows))
 
-    images = {}
+
+def bind_atlas(body, img):
+    """Every material samples the atlas; duplicates of a palette slot are merged."""
+    seen = {}
     for slot in body.material_slots:
         base = slot.material.name.split(".")[0]
-        if base in images:
-            slot.material = images[base]["material"]
+        if base in seen:
+            slot.material = seen[base]
             continue
-        rgb = MATERIALS[base][:3]
-        img = bpy.data.images.new(f"tex_{base}", width=size, height=size, alpha=False)
-        px = [0.0] * (size * size * 4)
-        cell = size // 4
-        for x in range(size):
-            tx, u = (x // cell), (x % cell) / (cell - 1.0)
-            for y in range(size):
-                ty = y // cell
-                v = (y % cell) / (cell - 1.0)
-                # WC3 read: one key light from above, 4:1 from shadow to highlight,
-                # a narrow bright band as the trim, a dark crease low on the tile.
-                ramp = 0.30 + 0.85 * (v ** 1.1)
-                trim = 1.35 if 0.62 < v < 0.70 else 1.0
-                crease = 1.0 - 0.30 * math.exp(-((v - 0.22) ** 2) / 0.0022)
-                mottle = 1.0 + 0.07 * math.sin(u * 17 + tx) * math.sin(v * 9 + ty)
-                k = ramp * trim * crease * mottle
-                i = (y * size + x) * 4
-                px[i] = min(1.0, rgb[0] * k)
-                px[i + 1] = min(1.0, rgb[1] * k)
-                px[i + 2] = min(1.0, rgb[2] * k)
-                px[i + 3] = 1.0
-        img.pixels = px
         nodes = slot.material.node_tree.nodes
         tex_node = nodes.new("ShaderNodeTexImage")
         tex_node.image = img
@@ -828,7 +880,46 @@ def texturize(body, meta, size=256):
         # palette colour is applied twice and the model goes black.
         bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
         slot.material.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
-        images[base] = {"material": slot.material, "image": img}
+        seen[base] = slot.material
+
+
+def paint_decals(pixels, SF, x0, y0, size):
+    """Paint each decal into its spare cell (8 + i) of one material block."""
+    cell = size // 4
+    for i, (_, _, kind, colour) in enumerate(DECALS):
+        rgb = None
+        if colour:
+            hexv = colour.lstrip("#")
+            rgb = tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
+        paint, alpha = SF.decal(kind, rgb, cell)
+        cx, cy = x0 + ((8 + i) % 4) * cell, y0 + ((8 + i) // 4) * cell
+        region = pixels[cy:cy + cell, cx:cx + cell, :3]
+        region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
+
+
+def texturize(body, meta, size=256):
+    """One painted atlas per unit. Each material slot gets a size x size block of the
+    atlas, painted by its surface (surfaces.py: metal plates, skin, cloth, scales...)
+    as a 4x4 grid of cells, one per body slot; every face is mapped into the cell of
+    the part it belongs to, so the paint separates panels the way a WC3 atlas does -
+    with no extra polygons. The materials stay separate (gates count them) but all
+    sample the same image, so the GLB carries one texture."""
+    import numpy as np
+    SF = sibling("surfaces")
+    bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
+    cols, rows = SF.atlas_layout(len(bases))
+    block = {b: (i % cols, i // cols) for i, b in enumerate(bases)}
+    atlas_uvs(body, meta, block, cols, rows)
+    pixels = np.ones((rows * size, cols * size, 4))
+    for base, (bx, by) in block.items():
+        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = SF.paint(
+            SURFACE.get(base, "metal"), MATERIALS[base][:3], size)
+        paint_decals(pixels, SF, bx * size, by * size, size)
+    img = bpy.data.images.new("tex_atlas", width=cols * size, height=rows * size, alpha=False)
+    img.pixels.foreach_set(pixels.astype(np.float32).ravel())
+    bind_atlas(body, img)
+    return len(bases)
+
 
 ATLAS_SLOTS = {"pelvis": 2, "spine": 1, "head": 0,
                "arm.L": 3, "arm.R": 3, "forearm.L": 4, "forearm.R": 4,
@@ -1059,12 +1150,45 @@ def load_spec(target):
     if p.suffix == ".json":
         doc = json.loads(p.read_text())
         pose = doc.get("rest_pose")
+        if doc.get("rig") or doc.get("bones"):
+            print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones")))
+        register_palette(doc.get("palette"))
         if "segments" in doc:          # skeleton-first spec: placement comes from the rig
             return p.stem, doc, pose
         return p.stem, [tuple(x) for x in doc["parts"]], pose
     if target not in SPECS:
         sys.exit(f"no spec for {target}")
     return target, SPECS[target], None
+
+
+def build_spec_parts(spec, chamfers):
+    """(object, bone) per spec row; a row with opts "decal" marks its object so
+    texturize paints that decal on the part's front face."""
+    parts = []
+    for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
+        obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
+                         idx in chamfers)
+        if (opts or {}).get("decal"):
+            obj["decal"] = opts["decal"]
+            obj["decal_color"] = opts.get("decal_color", "")
+        parts.append((obj, bone))
+    return parts
+
+
+def parts_meta(parts):
+    """(bone, material, centre, half) per part, before the join; records the decals.
+    bound_box is in the object's local space: take the corners to world space, or every
+    centre comes out at the part's own origin."""
+    meta = []
+    for obj, bone in parts:
+        mat_name = obj.data.materials[0].name.split(".")[0]
+        corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+        lo = Vector((min(c[i] for c in corners) for i in range(3)))
+        hi = Vector((max(c[i] for c in corners) for i in range(3)))
+        meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
+        if obj.get("decal") and len(DECALS) < 8:
+            DECALS.append(((lo + hi) / 2, (hi - lo) / 2, obj["decal"], obj["decal_color"]))
+    return meta
 
 
 def main():
@@ -1150,23 +1274,14 @@ def main():
     # from geometry at this budget. Pass a triple budget as the third argument to enable.
     chamfers = plan_chamfers(spec, int(cli[0])) if cli else set()
 
-    parts = []
-    for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
-        parts.append((build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
-                                 idx in chamfers), bone))
+    parts = build_spec_parts(spec, chamfers)
 
     # rigid skin (one bone per piece, weight 1), then one joined mesh so the
     # engine draws a single mesh with three material slots
     bpy.ops.object.select_all(action="DESELECT")
     for obj, bone in parts:
         obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
-    meta = []
-    for obj, bone in parts:
-        mat_name = obj.data.materials[0].name.split(".")[0]
-        corners = [Vector(c) for c in obj.bound_box]
-        lo = Vector((min(c[i] for c in corners) for i in range(3)))
-        hi = Vector((max(c[i] for c in corners) for i in range(3)))
-        meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
+    meta = parts_meta(parts)
     if "union" in cli:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears

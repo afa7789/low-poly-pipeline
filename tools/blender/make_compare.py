@@ -51,20 +51,23 @@ def main():
     ap.add_argument("views", type=pathlib.Path)
     ap.add_argument("stem")
     ap.add_argument("out", type=pathlib.Path)
+    ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     args = ap.parse_args()
 
     tmp = args.out.parent / ".compare-tmp"
     tmp.mkdir(parents=True, exist_ok=True)
-    cpan = S.concept_panels(args.sheet, 768)
+    from views import LAYOUTS
+    names = LAYOUTS[args.layout]
+    cpan = S.concept_panels(args.sheet, 768, args.layout)
     sheet_w = int(subprocess.run(["magick", "identify", "-format", "%w", str(args.sheet)],
                                  check=True, capture_output=True, text=True).stdout)
     sscale = sheet_w / 768
-    for name in ("front", "left", "back", "top", "bottom", "wc3"):
+    for name in (*names, "wc3"):
         rgb = S.read_rgba(args.views / f"{args.stem}-{name}.png", 512)[..., :3].astype(np.int16)
         bg = np.median(np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]), axis=0)
         crop_to_panel(args.views / f"{args.stem}-{name}.png",
                       bbox(np.abs(rgb - bg).sum(axis=2) > 24), 1.0, f"{tmp}/model-{name}.png")
-    for name in ("front", "left", "back", "top", "bottom"):
+    for name in names:
         crop_to_panel(args.sheet, bbox(cpan[name]), sscale, f"{tmp}/concept-{name}.png")
     rts = S.rts_path(args.sheet)
     if rts.exists():  # the gameplay camera, paired with the model's wc3 render
@@ -87,15 +90,15 @@ def main():
         magick("-size", f"{CELL[0]}x{CELL[1]}", "xc:#c8c8c8", f"{tmp}/empty.png")
 
     rows = [
-        row([f"concept-front", f"concept-left", f"concept-back"]),
-        row([f"model-front", f"model-left", f"model-back"]),
-        row([f"concept-top", f"concept-bottom", "concept-wc3" if rts.exists() else None]),
-        row([f"model-top", f"model-bottom", f"model-wc3" if (args.views / f"{args.stem}-wc3.png").exists() else None]),
+        row(["concept-front", "concept-left", "concept-back"]),
+        row(["model-front", "model-left", "model-back"]),
+        row([f"concept-{names[3]}", f"concept-{names[4]}", "concept-wc3" if rts.exists() else None]),
+        row([f"model-{names[3]}", f"model-{names[4]}", "model-wc3" if (args.views / f"{args.stem}-wc3.png").exists() else None]),
     ]
 
     # 32 px gameplay row: concept/model pairs, front -> bottom.
     px = []
-    for name in ("front", "left", "back", "top", "bottom"):
+    for name in names:
         for side in ("concept", "model"):
             magick(f"{tmp}/{side}-{name}.png", "-filter", "point", "-resize", f"{PX[0]}x{PX[1]}",
                    f"{tmp}/px-{side}-{name}.png")

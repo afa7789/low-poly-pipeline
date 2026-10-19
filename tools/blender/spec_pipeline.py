@@ -28,17 +28,19 @@ import sys
 import urllib.error
 import urllib.request
 
+import rig_families as RF
+from surfaces import DECALS, SURFACES
+from views import layout_of
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILLS = pathlib.Path.home() / ".config" / "opencode" / "skills"
-BONES = {"root", "pelvis", "spine", "head", "arm.L", "forearm.L", "arm.R", "forearm.R",
-         "thigh.L", "shin.L", "foot.L", "thigh.R", "shin.R", "foot.R"}
+RIG = "biped"                    # the family every bone name is checked against
+BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
-MATS = {"iron", "darkiron", "brass", "flame", "lamp"}
-BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
+MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
+from preflight import BUDGETS  # noqa: E402  (one table for the pipeline and the gate)
 
-BRIEF = """You are a technical artist building a low-poly game unit in the style of classic Warcraft III. The attached image is a 5-view turnaround of ONE unit: a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: proportions, the shape of every mass, where the coloured parts are, how the limbs and props are built.
-
-Write a Blender part spec as a JSON object: {{"parts": [[bone, kind, dims, at, material, opts], ...]}}
+DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
 Kinds and dims, exactly:
 - "prism": a tapered n-gon tube - THE limb and torso primitive. dims = (radius_bottom, radius_top, height). opts {{"sides": 6 or 8, "axis": "up" | "fwd"}}. Use a smaller radius_top so the limb tapers away from the body.
@@ -49,13 +51,41 @@ Kinds and dims, exactly:
 - "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd"}}.
 - "wheel": a torus rim. dims = (major_radius, tube_radius).
 - at = (x, y, z) in metres: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The unit stands on y = 0, about {height} m tall.
-- LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. Use this for every upper arm, forearm, thigh, shin and foot direction.
-- material: "iron" (warm grey), "darkiron" (brown waist/straps), "brass" (tan panels), "lamp" (yellow light), or "flame" (old alias). Use 3-5 slots; the sheet's colour zones are the contract.
+- LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. {limb_note}
+- material: the name of one palette slot. Declare 3 to 5 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
+Sheet colours (code-measured, share of the figure; near-black ink outlines removed): {colours}.
+- PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes) or {{"decal": "eyes8"}} (spider eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face.
 
-MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey these, do not
-re-guess them): shoulder span {shoulder_span} H, fist-to-fist span {fist_span} H,
-foot-to-foot stance {stance} H, chest body depth {body_depth} H, foot length {foot_length} H.
-Front silhouette width profile, top to bottom, in 5% steps: {width_profile}.
+"""
+
+BUILDING_BRIEF = """You are a technical artist building a low-poly game building in the style of classic Warcraft III. The attached image is a five-view elevation sheet of ONE building: the top row is the front, left and back elevations, the bottom row the right elevation and the roof plan. It is a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: footprint, wall heights, roof line, where each prop sits and where the colour zones are.
+
+{dsl}{measured}
+
+RIG TABLE - the building does not move; bind every part to body unless it is a prop that moves on its own:
+
+{bones}
+
+FORM RULES, non-negotiable:
+1. The footprint is what the roof plan shows: take its width from the front elevation and its depth from the left elevation.
+2. Walls are thick slabs (box or frustum), never a zero-thickness plane; corners are chamfered so primitive lighting catches the edge.
+3. The roof is its own mass and must read from the RTS camera at 45 degrees: the overhang, ridge or flat cap exactly as drawn.
+4. A knee-high base of mud or stone (a box about 0.08 H tall) runs under the walls so the building sits in the ground.
+5. Props at their largest, crudest shape: stacks, tanks, cranes, rails, pumps. The door is a dark recessed box. At most 12 props.
+6. The door and the one lit lamp face the front (+z).
+7. One flat team-colour zone - a banner or a painted stencil band - covers 10 to 15 percent of the visible surface, never on a small part.
+8. Nothing below y = 0; every part touches another part; nothing floats.
+9. Use 15 to 30 parts and end near {budget} triangles (box 12, frustum 12, prism about 28, cyl 44). Boxes are the right primitive for a building.
+10. The front silhouette must still read as one black shape at 32 x 32 pixels; detail lives in the texture, not the geometry.
+
+{rig_note}
+
+Return ONLY the JSON object, no prose, no code fences."""
+
+
+BRIEF = """You are a technical artist building a low-poly game unit in the style of classic Warcraft III. The attached image is a 5-view turnaround of ONE unit: a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: proportions, the shape of every mass, where the coloured parts are, how the limbs and props are built.
+
+{dsl}{measured}
 
 RIG TABLE - place every part ON these segments. The "at" of a part must be the segment
 MIDPOINT, and its length (prism height / cyl depth / box height) must be 105 to 115 percent of
@@ -93,26 +123,110 @@ CHUNKIFY - the Blizzard house style (Samwise Didier, WC3 art direction):
 24. Angle the main prop outward from the body, so the silhouette stays readable when units overlap in a fight.
 25. The unit must be identifiable as one black shape from the RTS camera (high, top-down, about 35 degrees), not only from the front.
 
-Parts are rigid-bound: each part follows the bone you name. Rig reference: the head bone runs 2.16 to 2.72 up, the arms hang from 2.02 to 0.90, the legs from 1.18 to 0.10. If the creature is not a biped, bind its mass to spine/pelvis and its limbs to the closest bones.
+{rig_note}
 
 The silhouette must read at 32x32 pixels: big shapes first, small trims last. Return ONLY the JSON object, no prose, no code fences."""
 
 
-BONES_TABLE = [
-    ("root", (0, 0, 0), (0, 0.3, 0)), ("pelvis", (0, 1.20, 0), (0, 1.50, 0)),
-    ("spine", (0, 1.50, 0), (0, 2.16, 0)), ("head", (0, 2.16, 0), (0, 2.72, 0)),
-    ("arm.L", (0.78, 2.02, 0), (0.78, 1.40, 0)), ("forearm.L", (0.78, 1.40, 0), (0.78, 0.90, 0)),
-    ("arm.R", (-0.78, 2.02, 0), (-0.78, 1.40, 0)), ("forearm.R", (-0.78, 1.40, 0), (-0.78, 0.90, 0)),
-    ("thigh.L", (0.28, 1.18, 0), (0.28, 0.56, 0)), ("shin.L", (0.28, 0.56, 0), (0.28, 0.10, 0)),
-    ("foot.L", (0.28, 0.10, 0), (0.28, 0.06, 0.55)),
-    ("thigh.R", (-0.28, 1.18, 0), (-0.28, 0.56, 0)), ("shin.R", (-0.28, 0.56, 0), (-0.28, 0.10, 0)),
-    ("foot.R", (-0.28, 0.10, 0), (-0.28, 0.06, 0.55)),
-]
+# Body-plan text of the brief, per rig family. The biped entry is the wording the n01X
+# drafts were tuned on; the others describe their own bones and drop the biped landmarks.
+RIG_TEXT = {
+    "biped": ("Use this for every upper arm, forearm, thigh, shin and foot direction.",
+              "Parts are rigid-bound: each part follows the bone you name. Rig reference: the "
+              "head bone runs 2.16 to 2.72 up, the arms hang from 2.02 to 0.90, the legs from "
+              "1.18 to 0.10. If the creature is not a biped, bind its mass to spine/pelvis and "
+              "its limbs to the closest bones."),
+    "quadruped": "a four-legged beast: torso mass on spine.1 (rear) and spine.2 (front), the "
+                 "head on head, legs leg1..leg4 (upper, lower) numbered from the front-left "
+                 "clockwise, an optional tail on tail.1-tail.2",
+    "spider": "an eight-legged arthropod: abdomen and thorax mass on body, head and fangs on "
+              "head, legs leg1..leg8 (upper, lower) radiating around the body, thin, angled "
+              "and touching the ground at y = 0",
+    "serpent": "a limbless body: the head on head, the body a chain of tapering segments "
+               "spine.1..spine.8 lying low behind it",
+    "vehicle": "a machine: hull mass on hull, turret or cab on head, wheels on wheel1..wheel4 "
+               "(kind wheel, axis side); tracks, skids and plating bind to hull",
+    "drake": "a four-legged dragon: body on spine.1 and spine.2, neck.1-neck.2 and head with an "
+             "optional jaw, tail.1-tail.3, wings wing1 (left, +x) and wing2 (right) each with an "
+             "upper and lower spar, legs leg1..leg4",
+    "harpy": "a winged biped: the biped bones plus wing1 and wing2 (upper, lower) on the back",
+    "wyrm": "a winged serpent: head, spine.1..spine.6 and wing1/wing2 (upper, lower) near the head",
+    "mounted": "a rider on a four-legged mount: the quadruped bones plus a smaller seated rider "
+               "(rider.spine, rider.head, rider.arm.L/R, rider.forearm.L/R)",
+    "mounted_flyer": "a rider on a dragon: the drake bones plus the rider.* bones",
+    "naga": "a torso on a snake tail: spine, head, arm.L/R and forearm.L/R standing on "
+            "tail.1..tail.6, which lies on the ground behind",
+    "centaur": "a torso on a four-legged body: spine.1, spine.2, legs leg1..leg4, an upright "
+               "spine.3 carrying head, arm.L/R and forearm.L/R",
+    "wraith": "a body with no legs that floats: base (skirt, pool or plume) under spine, head, "
+              "arm.L/R and forearm.L/R",
+    "pod": "a floating pod: body, stalk.1-stalk.2 rising from it and tendril1..tendril3 "
+           "(.1, .2) hanging below",
+    "shard": "a rigid abstract flyer: body, wing1/wing2 (upper, lower) spars, plate.1-plate.3 "
+             "and tail.1",
+    "tracked": "a tracked machine: hull, turret or cab on head, track.L and track.R, optional "
+               "arm.L/arm.R tools",
+    "walker": "a mech on two legs with no arms: pelvis, thigh/shin/foot L and R, a turret on "
+              "head carrying barrel.L and barrel.R",
+    "aircraft": "a flying machine: gasbag or fuselage on hull, gondola below it, prop and rudder",
+    "sled": "a legless body that bends: spine.1..spine.4 lying on the ground, and head",
+    "hydra": "a legless body with three necks: spine.1..spine.4 and neck1..neck3 (.1-.3), each "
+             "neck ending in its own head",
+    "crew": "a weapon worked by a crew fused into it: cradle, barrel, and the crew's legs "
+            "thigh/shin L and R",
+    "crawler": "a four-legged scuttler: body, head and leg1..leg4 (upper, lower) around it",
+    "crustacean": "a crustacean: body, head, leg1..leg6 (upper, lower), claw.L/R with pincer.L/R, "
+                  "tail.1-tail.3",
+    "bird": "a two-legged flyer with no arms (bird or wyvern): spine.1, spine.2, neck.1-neck.2, "
+            "head, leg1/leg2 (upper, lower), wing1/wing2 (upper, lower), tail.1-tail.3",
+    "bird_rider": "a rider on a bird or wyvern: the bird bones plus the rider.* bones",
+    "ray": "a flying ray: a flat body, wing1/wing2 (upper, lower) and a stinger tail "
+           "tail.1-tail.4",
+    "building": "a building: every part binds to body; it never moves",
+}
+EXTRA_BONES = ("If the card names a prop that moves on its own - a mast, a second head, a "
+               "counterweight, a launcher arm - you may add up to 3 extra bones at the top "
+               "level: \"bones\": [[name, parent, head, tail]], parent an existing bone, head "
+               "and tail in metres. Never add a bone for a part that only rides along.")
+
+
+def rig_text(family):
+    """(limb_note, rig_note) of the brief for this family."""
+    if family == "biped":
+        limb, rig = RIG_TEXT["biped"]
+        return limb, f"{rig} {EXTRA_BONES}"
+    return ("Use this for every leg segment, neck, tail and any angled part.",
+            f"Parts are rigid-bound: each part follows the bone you name. This unit is "
+            f"{RIG_TEXT[family]}. Rules that mention arms, hands, elbows, knees or feet apply "
+            f"only to the limbs this body has. {EXTRA_BONES}")
+
+
+def measured_text(family, m):
+    """Code-derived proportions of the sheet, as the brief states them."""
+    profile = ", ".join(f"{v:.2f}" for v in m["front_width_profile"])
+    if family != "biped":
+        side = ", ".join(f"{v:.2f}" for v in m["left_width_profile"])
+        return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey "
+                "these, do not re-guess them):\nFront silhouette width profile, top to bottom, "
+                f"in 5% steps: {profile}.\nSide silhouette width profile, top to bottom, in 5% "
+                f"steps: {side}.")
+    return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey these, "
+            "do not\nre-guess them): "
+            f"shoulder span {m['shoulder_span']} H, fist-to-fist span {m['fist_span']} H,\n"
+            f"foot-to-foot stance {m['stance']} H, chest body depth {m['body_depth']} H, "
+            f"foot length {m['foot_length']} H.\n"
+            f"Front silhouette width profile, top to bottom, in 5% steps: {profile}.")
+
+
+def set_rig(family):
+    global RIG, BONES
+    RIG, BONES = family, set(RF.bones(family))
 
 
 def rig_table():
     lines = []
-    for name, head, tail in BONES_TABLE:
+    for name, _, head, tail in RF.FAMILIES[RIG]:
+        head, tail = (tuple(round(v, 2) for v in head), tuple(round(v, 2) for v in tail))
         mid = tuple((head[i] + tail[i]) / 2 for i in range(3))
         length = sum((tail[i] - head[i]) ** 2 for i in range(3)) ** 0.5
         lines.append(f"  {name:10} head {head} tail {tail} midpoint {tuple(round(v, 2) for v in mid)} length {length:.2f}")
@@ -146,7 +260,9 @@ AXES = {"front": "widths along x, heights along y, how far arms and legs spread"
         "left": "depths along z, forward/back offsets, foot length, limb lean",
         "back": "back-side masses and their x placement, seen from behind",
         "rts": "how the whole mass reads from the gameplay camera: shoulder and fist bulk, "
-               "head ornament, stance - the view the player actually sees"}
+               "head ornament, stance - the view the player actually sees",
+        "right": "right-side masses and their z placement, seen from the right",
+        "roof": "the footprint and the roof shape, seen straight down"}
 RENDER_NAME = {"rts": "wc3"}  # render_unit.py's file for the gameplay view
 PASS_EDITS = 6
 REGRESSION = 0.01
@@ -181,6 +297,28 @@ def data_url(path):
     return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
 
 
+REF_NOTES = {
+    "hard": "is the same unit as image 1, redrawn with every mass as a flat polygon: same "
+            "design, same pose, same colours, the props still in place. Use it to read the "
+            "shape of each block and each prop as faces rather than curves.",
+    "hard-clean": "is the same unit with the props removed and the arms in an empty-handed "
+                  "A-pose, still faceted: use it to read where each limb starts and ends and "
+                  "how far the arms sit from the torso. It has no props.",
+    "props": "is the same unit's props drawn detached at body scale. Model those props too, "
+             "with the shapes and sizes drawn there, and attach them where image 1 shows them "
+             "on the body.",
+}
+
+
+def with_refs(brief, refs):
+    """Append one line per extra reference image, numbered the way the brief already
+    numbers images (the sheet is image 1)."""
+    if not refs:
+        return brief
+    lines = [f"Image {i} {REF_NOTES[kind]}" for i, (kind, _) in enumerate(refs, start=2)]
+    return brief + "\nREFERENCE IMAGES\n" + "\n".join(lines) + "\n"
+
+
 def ask(model, brief, images):
     content = [{"type": "text", "text": brief}]
     content += [{"type": "image_url", "image_url": {"url": data_url(p)}} for p in images]
@@ -206,7 +344,8 @@ def normalise(parts):
     out = []
     for p in parts:
         p = list(p)
-        p[0] = ALIASES.get(p[0], p[0])
+        if RIG == "biped":
+            p[0] = ALIASES.get(p[0], p[0])
         if isinstance(p[5], dict):
             opts = dict(p[5])
             if not isinstance(opts.get("rot", 0), (int, float)):
@@ -220,8 +359,8 @@ def normalise(parts):
 
 
 def json_object(txt):
-    txt = re.sub(r'\[\s*(root|pelvis|spine|head|arm\.[LR]|forearm\.[LR]|thigh\.[LR]|shin\.[LR]|foot\.[LR])\s*,',
-                 r'["\1",', txt)
+    txt = re.sub(r'\[\s*([A-Za-z_][\w.]*)\s*,',
+                 lambda m: f'["{m.group(1)}",' if m.group(1) in BONES else m.group(0), txt)
     m = re.search(r"\{.*\}", txt, re.S)
     if not m:
         raise ValueError("no JSON in the reply")
@@ -229,10 +368,38 @@ def json_object(txt):
 
 
 def parse_spec(txt):
-    return validate(normalise(json_object(txt).get("parts")))
+    doc = json_object(txt)
+    palette = check_palette(doc.get("palette") or {})
+    extras = doc.get("bones") or []
+    if len(extras) > 3:
+        raise ValueError("more than 3 extra bones")
+    RF.with_extras(RIG, extras)                      # ValueError when one does not fit
+    spec = validate(normalise(doc.get("parts")), palette, {b[0] for b in extras})
+    if palette:
+        spec["palette"] = palette
+    if extras:
+        spec["bones"] = extras
+    return spec
 
 
-def apply_patch(parts, txt, limit=PASS_EDITS):
+def extra_names(spec):
+    return {b[0] for b in spec.get("bones", [])}
+
+
+def check_palette(palette):
+    """{"slot": {"surface": <surfaces.SURFACES>, "color": "#RRGGBB", "alpha"?: 0-1}}
+    or ValueError."""
+    for name, entry in palette.items():
+        colour = str(entry.get("color", ""))
+        alpha = entry.get("alpha", 1.0)
+        if (entry.get("surface") not in SURFACES
+                or not re.fullmatch(r"#[0-9A-Fa-f]{6}", colour)
+                or not (isinstance(alpha, (int, float)) and 0.0 < alpha <= 1.0)):
+            raise ValueError(f"palette slot {name} outside the schema: {entry}")
+    return palette
+
+
+def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
     """A refinement reply edits a few parts by index; the rest of the spec is untouched,
     so one view cannot rewrite the mass split another view already fixed."""
     patch = json_object(txt)
@@ -244,18 +411,21 @@ def apply_patch(parts, txt, limit=PASS_EDITS):
     for i, part in sets.items():
         out[int(i)] = part
     out = [p for i, p in enumerate(out) if i not in drops] + list(adds)
-    return validate(normalise(out))["parts"], patch.get("why", "")
+    return validate(normalise(out), palette, extra)["parts"], patch.get("why", "")
 
 
-def validate(parts):
+def validate(parts, palette=None, extra=()):
     if not isinstance(parts, list) or not parts:
         raise ValueError("no parts array")
     for i, p in enumerate(parts):
-        if (len(p) != 6 or p[0] not in BONES or p[1] not in KINDS or p[4] not in MATS
+        if (len(p) != 6 or p[0] not in BONES | set(extra) or p[1] not in KINDS
+                or p[4] not in MATS | set(palette or {})
                 or not isinstance(p[3], list)):
             raise ValueError(f"part {i} outside the schema: {p}")
         if p[3][1] < -0.01:
             raise ValueError(f"part {i} below the ground plane")
+        if isinstance(p[5], dict) and p[5].get("decal", "eyes2") not in DECALS:
+            raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
     return {"parts": parts}
 
 
@@ -286,7 +456,7 @@ def trial(spec, sheet, kind, work, name):
     build = tool("build_unit.py", path, glb, blender=True)
     if not glb.exists():
         return None, (problem or "") + build.stderr[-400:]
-    tool("silhouette.py", sheet, glb, work / f"{name}-sil")
+    tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind))
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
     tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), blender=True)
     return {view: r["iou"] for view, r in report.items()}, problem
@@ -301,8 +471,14 @@ def tilt_arg(report):
                               if r.get("tilt"))
 
 
-def numbered(parts):
-    return "\n".join(f"  {i}: {json.dumps(p)}" for i, p in enumerate(parts))
+def numbered(spec):
+    """The spec as a refinement prompt shows it: the fixed palette, then indexed parts."""
+    lines = [f"  {i}: {json.dumps(p)}" for i, p in enumerate(spec["parts"])]
+    if spec.get("bones"):
+        lines.insert(0, f"  extra bones (fixed): {json.dumps(spec['bones'])}")
+    if spec.get("palette"):
+        lines.insert(0, f"  palette (fixed - use only these slot names): {json.dumps(spec['palette'])}")
+    return "\n".join(lines)
 
 
 def repair(spec, args, brief, work, panels):
@@ -314,17 +490,18 @@ def repair(spec, args, brief, work, panels):
         if problem is None:
             break
         print(f"repair {k}: preflight fails\n{problem.strip()}")
-        prompt = REPAIR.format(problem=problem, parts=numbered(spec["parts"]),
+        prompt = REPAIR.format(problem=problem, parts=numbered(spec),
                                limit=REPAIR_EDITS, brief=brief)
         try:
             cand, _ = apply_patch(spec["parts"], ask(args.model, prompt,
-                                  [panels["front"], panels["left"]]), REPAIR_EDITS)
+                                  [panels["front"], panels["left"]]), REPAIR_EDITS,
+                                  spec.get("palette"), extra_names(spec))
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             print(f"repair {k}: rejected reply: {err}")
             continue
-        cur, cur_problem = trial({"parts": cand}, args.sheet, args.kind, work, f"repair{k}")
+        cur, cur_problem = trial({**spec, "parts": cand}, args.sheet, args.kind, work, f"repair{k}")
         if cur is not None:
-            spec, scores, problem, best = {"parts": cand}, cur, cur_problem, f"repair{k}"
+            spec, scores, problem, best = {**spec, "parts": cand}, cur, cur_problem, f"repair{k}"
     return spec, scores, problem, best
 
 
@@ -342,7 +519,7 @@ def run_passes(spec, args, brief, views):
     if not set(views) <= AXES.keys():
         raise SystemExit(f"--passes takes views from {sorted(AXES)}, got {views}")
     work = args.out / "passes" / f"{args.tag}-{args.id}"
-    panels = split(args.sheet, work / "panels", args.id)
+    panels = split(args.sheet, work / "panels", args.id, layout_of(args.kind))
     spec, scores, problem, best = repair(spec, args, brief, work, panels)
     if scores is None:
         print("passes: no GLB came out of the sheet spec; skipping refinement")
@@ -351,25 +528,80 @@ def run_passes(spec, args, brief, views):
     print(f"pass 0 sheet  {scores}  preflight {'PASS' if problem is None else 'FAIL'}")
     for n, view in enumerate(views, 1):
         prompt = REFINE.format(view=view, scores=scores, axes=AXES[view],
-                               parts=numbered(spec["parts"]),
+                               parts=numbered(spec),
                                limit=PASS_EDITS, brief=brief)
         shot = RENDER_NAME.get(view, view)
         images = [panels[view], work / f"{best}-views" / f"{best}-{shot}.png",
                   work / f"{best}-sil" / f"overlay-{view}.png"]
         try:
-            cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images))
-            cur, cur_problem = trial({"parts": cand}, args.sheet, args.kind, work, f"pass{n}")
+            cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images),
+                                    palette=spec.get("palette"), extra=extra_names(spec))
+            cur, cur_problem = trial({**spec, "parts": cand}, args.sheet, args.kind, work, f"pass{n}")
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             cand, why, cur, cur_problem = None, f"rejected reply: {err}", None, None
         # a pass may not break a preflight that held
         ok = accepted(scores, cur, view) and (cur_problem is None or problem is not None)
         if ok:
-            spec, scores, problem, best = {"parts": cand}, cur, cur_problem, f"pass{n}"
+            spec, scores, problem, best = {**spec, "parts": cand}, cur, cur_problem, f"pass{n}"
         log.append({"pass": n, "view": view, "why": why, "scores": cur, "accepted": ok,
                     "preflight": cur_problem is None})
         print(f"pass {n} {view:5} {'ACCEPT' if ok else 'reject'} {cur}  {why}")
     (work / "passes.json").write_text(json.dumps(log, indent=2))
     return spec
+
+
+def review(args, glb, layout):
+    """Silhouette gate, then the colour views and the compare, with top/bottom and the
+    RTS view shot from the cameras the silhouette matched. True when the gate passes."""
+    sil_ok, report = True, {}
+    if not args.no_silhouette:
+        sil_dir = args.out / "sil" / args.tag
+        sil = tool("silhouette.py", args.sheet, glb, sil_dir, "--layout", layout)
+        print(sil.stdout.strip())
+        sil_ok = sil.returncode == 0
+        report = json.loads((sil_dir / "silhouette.json").read_text())
+    view_dir = args.out / "views" / args.tag
+    compare = args.out / args.tag / f"{args.id}-compare.png"
+    tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
+    tool("make_compare.py", args.sheet, view_dir, glb.stem, compare, "--layout", layout)
+    return sil_ok
+
+
+def make_brief(args, lo, hi):
+    """The spec brief for this sheet: the unit brief, or the building brief for a
+    static rig, both around the same part DSL and code-measured numbers."""
+    from silhouette import measure, sheet_colours
+    limb_note, rig_note = rig_text(args.rig)
+    dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
+                     surfaces=", ".join(SURFACES),
+                     colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.sheet)))
+    template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
+    return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
+                           dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
+                           measured=measured_text(args.rig, measure(args.sheet)))
+
+
+def ensure_rts(sheet, building=False):
+    """Draw the gameplay-camera concept from the approved sheet when it is missing:
+    the compare, the silhouette sweep and the rts pass all need it. A failed call is
+    reported and the run goes on without the RTS view."""
+    from silhouette import rts_path
+    if rts_path(sheet).exists():
+        return True
+    sheets = ROOT / "artifacts/model-sheets"
+    if building:
+        template = sheets / "draft2/prompts/00-template-rts-building.txt"
+    else:
+        # a hard sheet keeps its facets in the gameplay camera: same angle, same blockout
+        hard = "-hard" in sheet.stem
+        template = sheets / "draft2/prompts" / ("00-template-rts-hard.txt" if hard
+                                                else "00-template-rts.txt")
+    gen = subprocess.run([sys.executable, str(sheets / "generate.py"), str(template),
+                          "--image", str(sheet), "--out", str(sheet.parent),
+                          "--name", rts_path(sheet).stem, "--resolution", "1K"],
+                         capture_output=True, text=True)
+    print(gen.stdout.strip() or f"rts view not drawn: {gen.stderr.strip()[-200:]}")
+    return rts_path(sheet).exists()
 
 
 def main():
@@ -379,13 +611,29 @@ def main():
     ap.add_argument("--name", required=True)
     ap.add_argument("--role", default="game unit")
     ap.add_argument("--sheet", required=True, type=pathlib.Path)
+    ap.add_argument("--hard", type=pathlib.Path, default=None,
+                    help="hard-edged faceted sheet of the same unit, props in place "
+                         "(artifacts/model-sheets/draft2/<id>-hard.jpg), sent as an extra "
+                         "reference; it never replaces --sheet or the silhouette gate")
+    ap.add_argument("--hard-clean", type=pathlib.Path, default=None,
+                    help="the same unit faceted with the props removed and the arms in an "
+                         "empty-handed A-pose (<id>-hard-clean.jpg)")
+    ap.add_argument("--props", type=pathlib.Path, default=None,
+                    help="the same unit's props drawn detached (<id>-props.jpg), sent as the "
+                         "last reference so the props are modelled from clear shapes")
     ap.add_argument("--model", default="google/gemini-4-argon")
     ap.add_argument("--tag", default="argon")
-    ap.add_argument("--height", type=float, default=2.0)
+    ap.add_argument("--rig", default=None, choices=sorted(RF.FAMILIES),
+                    help="skeleton family (rig_families.py); default biped, or building "
+                         "for --kind building/large")
+    ap.add_argument("--height", type=float, default=None,
+                    help="unit height in metres (default: the rig's own height)")
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
     ap.add_argument("--flat", action="store_true",
                     help="skip the procedural painted texture (on by default)")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
+    ap.add_argument("--no-rts", action="store_true",
+                    help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
     ap.add_argument("--passes", default="",
@@ -394,23 +642,36 @@ def main():
     args = ap.parse_args()
 
     lo, hi = BUDGETS[args.kind]
+    layout = layout_of(args.kind)
+    args.rig = args.rig or ("building" if layout == "building" else "biped")
     for d in ("specs", "glb", args.tag):
         (args.out / d).mkdir(parents=True, exist_ok=True)
+    if not args.no_rts:
+        ensure_rts(args.sheet, building=args.kind in ("building", "large"))
+        for ref in (args.hard, args.hard_clean):
+            if ref:
+                ensure_rts(ref, building=args.kind in ("building", "large"))
 
-    sheet = args.out / ".." / ".." / ".sheet.jpg"
+    work = args.out / ".." / ".."
+    sheet = work / f".sheet-{args.id}.jpg"   # per unit: parallel runs
     subprocess.run(["magick", str(args.sheet), "-resize", "1024x1024", "-quality", "88", str(sheet)], check=True)
-    from silhouette import measure
-    m = measure(args.sheet)
-    brief = BRIEF.format(race=args.race, name=args.name, uid=args.id, role=args.role,
-                         height=args.height, budget=f"{lo} to {hi}", bones=rig_table(),
-                         shoulder_span=m["shoulder_span"], fist_span=m["fist_span"],
-                         stance=m["stance"], body_depth=m["body_depth"],
-                         foot_length=m["foot_length"],
-                         width_profile=", ".join(f"{v:.2f}" for v in m["front_width_profile"]))
+    refs, tmp = [], [sheet]
+    for kind, src in (("hard", args.hard), ("hard-clean", args.hard_clean),
+                      ("props", args.props)):
+        if src:
+            p = work / f".ref-{kind}-{args.id}.jpg"
+            subprocess.run(["magick", str(src), "-resize", "1024x1024", "-quality", "88", str(p)],
+                           check=True)
+            refs.append((kind, p))
+            tmp.append(p)
+    set_rig(args.rig)
+    brief = with_refs(make_brief(args, lo, hi), refs)
     # --spec resumes from an approved spec: only the refinement passes call the model
     spec = (parse_spec(args.spec.read_text()) if args.spec
-            else parse_spec(ask(args.model, brief, [sheet])))
-    sheet.unlink(missing_ok=True)
+            else parse_spec(ask(args.model, brief, [sheet] + [p for _, p in refs])))
+    spec["rig"] = args.rig
+    for p in tmp:
+        p.unlink(missing_ok=True)
     if args.passes:
         spec = run_passes(spec, args, brief, args.passes.split(","))
     spec_path = args.out / "specs" / f"{args.tag}-{args.id}.json"
@@ -424,7 +685,9 @@ def main():
         print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
 
     glb = args.out / "glb" / f"{args.tag}-{args.id}.glb"
-    extra = [] if args.flat else [str(lo + hi), "nofuse", str(hi), "tex"]
+    # the first number is what chamfers may spend up to: the budget ceiling, the same
+    # one the gate checks (lo + hi let a box-heavy building chamfer itself to 1100+ tris)
+    extra = [] if args.flat else [str(hi), "nofuse", str(hi), "tex"]
     build = subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"),
                             "--", str(spec_path), str(glb)] + extra, capture_output=True, text=True)
     if not glb.exists():
@@ -442,21 +705,9 @@ def main():
                     str(args.out / args.tag / f"{args.id}.gif")], check=False)
     subprocess.run(["rm", "-rf", str(frames)], check=False)
 
-    sil_ok, report = True, {}
-    if not args.no_silhouette:
-        sil_dir = args.out / "sil" / args.tag
-        sil = tool("silhouette.py", args.sheet, glb, sil_dir)
-        print(sil.stdout.strip())
-        sil_ok = sil.returncode == 0
-        report = json.loads((sil_dir / "silhouette.json").read_text())
-
-    # the review renders top/bottom at the tilt the silhouette matched, like the sheet
-    view_dir = args.out / "views" / args.tag
-    compare = args.out / args.tag / f"{args.id}-compare.png"
-    tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
-    tool("make_compare.py", args.sheet, view_dir, glb.stem, compare)
-
-    ok = (not pre.returncode and lo <= tris <= hi and 3 <= len(mats) <= 5 and skins == 1 and anims == 4
+    sil_ok = review(args, glb, layout)
+    ok = (not pre.returncode and lo <= tris <= hi and 3 <= len(mats) <= 5 and skins == 1
+          and anims == (0 if args.rig in RF.STATIC else 4)
           and smear_pct <= 0.5 and sil_ok)
     print(f"{args.id}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\tanims {anims}\t"
           f"smear {smear_pct}%\tpreflight {'FAIL' if pre.returncode else 'PASS'}\tsilhouette {'PASS' if sil_ok else 'FAIL'}\t{'PASS' if ok else 'CHECK'}")

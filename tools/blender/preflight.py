@@ -28,15 +28,22 @@ import sys
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
              "dome": 28, "ring": 144}
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
-REQUIRED = {"pelvis", "spine", "head", "arm.L", "forearm.L", "thigh.L", "shin.L", "foot.L"}
-PARENT = {"forearm.L": "arm.L", "forearm.R": "arm.R", "shin.L": "thigh.L",
-          "shin.R": "thigh.R", "foot.L": "shin.L", "foot.R": "shin.R"}
+# triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
+BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
 ORNAMENT = ("ring", "wheel")
-LEG_BONES = {"thigh.L", "shin.L", "foot.L", "thigh.R", "shin.R", "foot.R"}
+
+
+def is_leg(bone):
+    return bone.startswith(("thigh", "shin", "foot", "leg"))
 
 
 def load(path):
+    """(parts, spec document) of a spec file."""
     doc = json.loads(pathlib.Path(path).read_text())
+    return load_parts(doc), doc
+
+
+def load_parts(doc):
     if "segments" in doc:                       # skeleton-first spec
         parts = []
         for seg in doc["segments"]:
@@ -71,53 +78,48 @@ def centre(part):
     return tuple(at)
 
 
+def _tube(r, h, axis):
+    """Half extents of a tube of radius r and length h along `axis`."""
+    return {"up": (r, h / 2, r), "side": (h / 2, r, r)}.get(axis, (r, r, h / 2))
+
+
+def _disc(kind, dims, opts):
+    r, t = dims[0], dims[-1]
+    axis = opts.get("axis", "fwd" if kind == "wheel" else "up")
+    tilt = math.radians(opts.get("tilt", 0.0)) if kind == "ring" else 0.0
+    if axis == "up":
+        return r, r * math.sin(tilt) + t / 2, r * math.cos(tilt) + t / 2
+    return (t / 2, r, r) if axis == "side" else (r, r, t / 2)
+
+
+def _frustum(dims, opts):
+    w, h, d = dims
+    sx, sz = opts.get("top", (1.0, 1.0))
+    return max(w, w * sx) / 2, h / 2, max(d, d * sz) / 2
+
+
+# kind -> half extents (x, y, z) around the part centre; anything else is a box
+HALF = {
+    "prism": lambda d, o: _tube(max(d[0], d[1]), d[2], o.get("axis", "up")),
+    "cyl": lambda d, o: _tube(d[0], d[1], o.get("axis", "fwd")),
+    "dome": lambda d, o: (d[0], d[1] / 2, d[0]),
+    "wheel": lambda d, o: _disc("wheel", d, o),
+    "ring": lambda d, o: _disc("ring", d, o),
+    "frustum": _frustum,
+}
+SPAN_RADIUS = {"prism": lambda d: max(d[0], d[1]), "cyl": lambda d: d[0]}
+
+
 def bbox(part):
-    _, kind, dims, at, _, opts = part
-    x, y, z = centre(part)
+    _, kind, dims, _, _, opts = part
     if "from" in opts and "to" in opts:
         a, b = opts["from"], opts["to"]
-        if kind == "prism":
-            r = max(dims[0], dims[1])
-        elif kind == "cyl":
-            r = dims[0]
-        else:
-            r = max(dims[0], dims[2]) / 2
-        lo = tuple(min(a[i], b[i]) - r for i in range(3))
-        hi = tuple(max(a[i], b[i]) + r for i in range(3))
-        return lo, hi
-    if kind in ("prism", "cyl"):
-        if kind == "prism":
-            r, h = max(dims[0], dims[1]), dims[2]
-        else:
-            r, h = dims[0], dims[1]
-        axis = opts.get("axis", "up" if kind == "prism" else "fwd")
-        if axis == "up":
-            return (x - r, y - h / 2, z - r), (x + r, y + h / 2, z + r)
-        if axis == "side":
-            return (x - h / 2, y - r, z - r), (x + h / 2, y + r, z + r)
-        return (x - r, y - r, z - h / 2), (x + r, y + r, z + h / 2)
-    if kind == "dome":
-        r, h = dims
-        return (x - r, y - h / 2, z - r), (x + r, y + h / 2, z + r)
-    if kind in ("wheel", "ring"):
-        r, t = dims[0], dims[-1]
-        axis = opts.get("axis", "fwd" if kind == "wheel" else "up")
-        tilt = math.radians(opts.get("tilt", 0.0)) if kind == "ring" else 0.0
-        if axis == "up":
-            hx, hy, hz = r, r * math.sin(tilt) + t / 2, r * math.cos(tilt) + t / 2
-        elif axis == "side":
-            hx, hy, hz = t / 2, r, r
-        else:
-            hx, hy, hz = r, r, t / 2
-        return (x - hx, y - hy, z - hz), (x + hx, y + hy, z + hz)
-    if kind == "frustum":
-        w, h, d = dims
-        sx, sz = opts.get("top", (1.0, 1.0))
-        dx, dz = opts.get("shift", (0.0, 0.0))
-        hw, hd = max(w, w * sx) / 2, max(d, d * sz) / 2
-        return (x - hw, y - h / 2, z - hd), (x + hw, y + h / 2, z + hd)
-    w, h, d = dims
-    return (x - w / 2, y - h / 2, z - d / 2), (x + w / 2, y + h / 2, z + d / 2)
+        r = SPAN_RADIUS.get(kind, lambda d: max(d[0], d[2]) / 2)(dims)
+        return (tuple(min(a[i], b[i]) - r for i in range(3)),
+                tuple(max(a[i], b[i]) + r for i in range(3)))
+    x, y, z = centre(part)
+    hx, hy, hz = HALF.get(kind, lambda d, o: (d[0] / 2, d[1] / 2, d[2] / 2))(dims, opts)
+    return (x - hx, y - hy, z - hz), (x + hx, y + hy, z + hz)
 
 
 def overlaps(a, b):
@@ -132,29 +134,9 @@ def span(parts, names):
     return max(max(abs(b[0][0]), abs(b[1][0])) for b in boxes) * 2
 
 
-def main():
-    path = sys.argv[1]
-    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
-    lo, hi = (400, 700) if kind == "mass" else (900, 1600)
-    parts = load(path)
+def biped_checks(parts, boxes, height):
+    """Landmarks measured on the n01X sheet; they only mean something for a biped."""
     checks = []
-
-    tris = sum(part_tris(p) for p in parts)
-    checks.append(("budget", lo <= tris <= hi, f"{tris} tris vs {lo}-{hi}"))
-
-    mats = {p[4] for p in parts}
-    checks.append(("materials", 3 <= len(mats) <= 5 and mats <= PALETTE,
-                   f"{sorted(mats)} ({len(mats)} slots)"))
-
-    bones = {p[0] for p in parts}
-    missing = REQUIRED - bones
-    checks.append(("bones", not missing, f"missing {sorted(missing) or 'none'}"))
-
-    boxes = {id(p): bbox(p) for p in parts}
-    height = max(b[1][1] for b in boxes.values())
-    zs = [b[1][1] for b in boxes.values()]
-    height = max(height, 1e-6)
-
     shoulder_parts = [p for p in parts if p[0] in ("arm.L", "arm.R")
                       and centre(p)[1] > 0.70 * height]
     shoulder = (max(max(abs(bbox(p)[0][0]), abs(bbox(p)[1][0])) for p in shoulder_parts) * 2
@@ -196,6 +178,49 @@ def main():
         checks.append(("head_top", head_top <= shoulder_top + allowance * height,
                        f"head {head_top:.2f} vs shoulder {shoulder_top:.2f} "
                        f"(allow +{allowance:.2f} H)"))
+    return checks
+
+
+def floating_parts(parts, parent_of):
+    """Bones whose parts touch neither another part on the bone nor one on its parent."""
+    floating = []
+    for p in parts:
+        parent = parent_of.get(p[0])
+        if not parent:
+            continue
+        # A distal piece may sit on its own bone: the fist overlaps the forearm
+        # shell, not the upper arm. Check the bone and its parent together.
+        group = {p[0], parent}
+        siblings = [q for q in parts if q[0] in group and q is not p]
+        if siblings and not any(overlaps(p, q) for q in siblings):
+            floating.append(p[0])
+    return sorted(set(floating))
+
+
+def main():
+    import rig_families as RF
+    path = sys.argv[1]
+    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
+    lo, hi = BUDGETS[kind]
+    parts, doc = load(path)
+    family = doc.get("rig", "biped")                       # specs without "rig" are bipeds
+    palette = PALETTE | set(doc.get("palette") or {})      # n01X names + the spec's slots
+    checks = []
+
+    tris = sum(part_tris(p) for p in parts)
+    checks.append(("budget", lo <= tris <= hi, f"{tris} tris vs {lo}-{hi}"))
+
+    mats = {p[4] for p in parts}
+    checks.append(("materials", 3 <= len(mats) <= 5 and mats <= palette,
+                   f"{sorted(mats)} ({len(mats)} slots)"))
+
+    missing = RF.required(family) - {p[0] for p in parts}
+    checks.append(("bones", not missing, f"{family}: missing {sorted(missing) or 'none'}"))
+
+    boxes = {id(p): bbox(p) for p in parts}
+    height = max(max(b[1][1] for b in boxes.values()), 1e-6)
+    if family == "biped":
+        checks += biped_checks(parts, boxes, height)
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:
@@ -213,25 +238,15 @@ def main():
     below = [p[0] for p in parts if boxes[id(p)][0][1] < -0.02]
     checks.append(("ground", not below, f"below y=0: {below or 'none'}"))
 
-    floating = []
-    for p in parts:
-        parent = PARENT.get(p[0])
-        if not parent:
-            continue
-        # A distal piece may sit on its own bone: the fist overlaps the forearm
-        # shell, not the upper arm. Check the bone and its parent together.
-        group = {p[0], parent}
-        siblings = [q for q in parts if q[0] in group and q is not p]
-        if siblings and not any(overlaps(p, q) for q in siblings):
-            floating.append(p[0])
-    checks.append(("overlap", not floating, f"detached: {sorted(set(floating)) or 'none'}"))
+    floating = floating_parts(parts, RF.parents(family, doc.get("bones")))
+    checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))
 
     width = max(len(name) for name, *_ in checks)
     bad = 0
     for name, ok, detail in checks:
         bad += 0 if ok else 1
         print(f"  {name.ljust(width)}  {'PASS' if ok else 'FAIL'}  {detail}")
-    leg_share = sum(part_tris(p) for p in parts if p[0] in LEG_BONES) / max(tris, 1)
+    leg_share = sum(part_tris(p) for p in parts if is_leg(p[0])) / max(tris, 1)
     print(f"  {'tri_mix'.ljust(width)}  {'INFO':4}  legs+feet {leg_share:.0%}, "
           f"ornament {share:.0%}, parts {len(parts)}")
     print(f"\n{len(checks) - bad}/{len(checks)} rules pass -> "

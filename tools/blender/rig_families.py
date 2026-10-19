@@ -2,18 +2,22 @@
 entry here and not a change to the builder.
 
 Every family uses the same convention so animation clips can be shared inside the
-family:
+family, and the clips themselves are derived from the bone names:
 
-  root                     ground anchor
-  <chain>.<n>              spines, tails, tentacles   spine.1, spine.2 ...
-  head                     head / turret / cockpit
-  leg<N>.upper/.lower/.foot    each leg, numbered from the front-left, clockwise
-  wing<N>.upper/.lower     wings
-  jaw / tail.<n>           optional extras
+  root                         ground anchor (hovering bodies bob on it)
+  <chain>.<n>                  spines, tails, necks, tentacles: they wave
+  head                         head / turret / cockpit
+  leg<N>.upper/.lower          each leg, numbered from the front-left, clockwise: they walk
+  wing<N>.upper/.lower         wing1 on the left (+x), wing2 on the right: they flap
+  wheel<N>                     they spin
+  arm.L/R, thigh.L/R ...       biped limbs: they take the biped's hand-keyed clips
+  rider.*                      a rider's body on a mount
+  jaw, abdomen                 optional extras
 
-A unit's spec picks the family with {"rig": "biped" | "quadruped" | "spider" |
-"serpent" | "vehicle"}; the builder reads the bone table from here and the spec
-only names bones, never coordinates. Placement, length and overlap come from the rig.
+A unit's spec picks the family with {"rig": <name in FAMILIES>}; families are composed
+from the parts below (a drake is a quadruped body + neck + wings, a mounted unit is a
+quadruped + rider). A spec may add its own prop bones with "bones" (with_extras), so a
+mast, a second head or a counterweight never needs a family of its own.
 """
 import math
 
@@ -53,8 +57,10 @@ def _legs(n, parent, body_y, body_r, reach, up=0.55, phase=0.0):
 
 
 SPIDER = ([("root", None, (0, 0, 0), (0, 0.25, 0)),
-           ("body", "root", (0, 0.55, 0), (0, 0.95, 0)),
-           ("head", "body", (0, 0.55, 0.45), (0, 0.50, 0.85))]
+           # the thorax lies along the body, not up it: a spider is long and low
+           ("body", "root", (0, 0.60, -0.15), (0, 0.62, 0.35)),
+           ("head", "body", (0, 0.58, 0.35), (0, 0.52, 0.72)),
+           ("abdomen", "body", (0, 0.66, -0.15), (0, 0.74, -0.85))]
           + _legs(8, "body", 0.60, 0.34, 0.78, phase=math.pi / 8))
 
 QUADRUPED = [("root", None, (0, 0, 0), (0, 0.3, 0)),
@@ -85,5 +91,351 @@ VEHICLE = [("root", None, (0, 0, 0), (0, 0.2, 0)),
            ("wheel3", "hull", (0.42, 0.30, -0.38), (0.56, 0.30, -0.38)),
            ("wheel4", "hull", (-0.42, 0.30, -0.38), (-0.56, 0.30, -0.38))]
 
-FAMILIES = {"biped": BIPED, "spider": SPIDER, "quadruped": QUADRUPED,
-            "serpent": SERPENT, "vehicle": VEHICLE}
+
+def _chain(prefix, parent, start, step, n, first=1):
+    """n bones prefix.first.. laid head-to-tail from `start`, each `step` long."""
+    out, at = [], start
+    for i in range(first, first + n):
+        tip = tuple(at[k] + step[k] for k in range(3))
+        out.append((f"{prefix}.{i}", parent if i == first else f"{prefix}.{i - 1}", at, tip))
+        at = tip
+    return out
+
+
+def _wings(parent, root, span, lift=0.25):
+    """wing1 on +x, wing2 mirrored on -x, each an upper and lower spar."""
+    out = []
+    for n, side in ((1, 1), (2, -1)):
+        x0, y0, z0 = root
+        elbow = (side * (abs(x0) + span * 0.5), y0 + lift, z0 - 0.10)
+        tip = (side * (abs(x0) + span), y0 + lift * 0.4, z0 - 0.35)
+        out += [(f"wing{n}.upper", parent, (side * abs(x0), y0, z0), elbow),
+                (f"wing{n}.lower", f"wing{n}.upper", elbow, tip)]
+    return out
+
+
+def _upper_body(parent, base, prefix=""):
+    """A torso, head and two arms standing on `base`: the top half of a biped."""
+    x, y, z = base
+    sp = f"{prefix}spine"
+    return [(sp, parent, (x, y, z), (x, y + 0.66, z)),
+            (f"{prefix}head", sp, (x, y + 0.66, z), (x, y + 1.22, z)),
+            (f"{prefix}arm.L", sp, (x + 0.78, y + 0.52, z), (x + 0.78, y - 0.10, z)),
+            (f"{prefix}forearm.L", f"{prefix}arm.L", (x + 0.78, y - 0.10, z), (x + 0.78, y - 0.60, z)),
+            (f"{prefix}arm.R", sp, (x - 0.78, y + 0.52, z), (x - 0.78, y - 0.10, z)),
+            (f"{prefix}forearm.R", f"{prefix}arm.R", (x - 0.78, y - 0.10, z), (x - 0.78, y - 0.60, z))]
+
+
+def _rider(parent, seat, scale=0.55):
+    """A smaller seated rider (rider.spine, rider.head, rider.arm/forearm.L/R)."""
+    def place(point):
+        return tuple(seat[k] + point[k] * scale for k in range(3))
+    return [(n, p, place(h), place(t))
+            for n, p, h, t in _upper_body(parent, (0, 0, 0), prefix="rider.")]
+
+
+def _without(table, names):
+    return [b for b in table if b[0] not in names]
+
+
+_QUAD_BODY = _without(QUADRUPED, {"head", "tail.1", "tail.2"})
+
+DRAKE = (_QUAD_BODY
+         + _chain("neck", "spine.2", (0, 1.10, 0.55), (0, 0.22, 0.18), 2)
+         + [("head", "neck.2", (0, 1.54, 0.91), (0, 1.56, 1.30)),
+            ("jaw", "head", (0, 1.48, 0.95), (0, 1.40, 1.26))]
+         + _chain("tail", "spine.1", (0, 1.00, -0.55), (0, -0.05, -0.40), 3)
+         + _wings("spine.2", (0.30, 1.30, 0.20), 1.30))
+
+HARPY = BIPED + _wings("spine", (0.25, 2.00, -0.12), 1.10)
+
+WYRM = (_without(SERPENT, {f"spine.{i}" for i in (7, 8)})
+        + _wings("spine.1", (0.20, 0.62, 0.30), 0.90))
+
+MOUNTED = QUADRUPED + _rider("spine.2", (0, 1.25, 0.05))
+MOUNTED_FLYER = DRAKE + _rider("spine.2", (0, 1.30, 0.05))
+
+NAGA = ([("root", None, (0, 0, 0), (0, 0.2, 0))]
+        + _chain("tail", "root", (0, 0.30, 0.10), (0, -0.04, -0.38), 6)
+        + _upper_body("root", (0, 0.40, 0.10)))
+
+CENTAUR = (_without(QUADRUPED, {"head"})
+           + [("spine.3", "spine.2", (0, 1.10, 0.55), (0, 1.80, 0.60))]
+           + [b for b in _upper_body("spine.3", (0, 1.80, 0.60)) if b[0] != "spine"])
+CENTAUR = [(n, "spine.3" if p == "spine" else p, h, t) for n, p, h, t in CENTAUR]
+
+WRAITH = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
+           ("base", "root", (0, 0.20, 0), (0, 1.20, 0))]
+          + _upper_body("base", (0, 1.20, 0)))
+
+POD = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
+        ("body", "root", (0, 0.90, 0), (0, 1.40, 0))]
+       + _chain("stalk", "body", (0, 1.40, 0), (0, 0.35, -0.05), 2)
+       + [b for n in (1, 2, 3) for b in _chain(
+           f"tendril{n}", "body",
+           (0.25 * math.cos(2 * math.pi * n / 3), 0.90, 0.25 * math.sin(2 * math.pi * n / 3)),
+           (0.05 * math.cos(2 * math.pi * n / 3), -0.35, 0.05 * math.sin(2 * math.pi * n / 3)), 2)])
+
+SHARD = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
+          ("body", "root", (0, 1.30, -0.30), (0, 1.40, 0.40))]
+         + _wings("body", (0.15, 1.40, 0.05), 0.90, lift=0.15)
+         + [(f"plate.{i}", "body", (0, 1.50, 0.30 - 0.25 * i), (0, 1.75, 0.20 - 0.25 * i))
+            for i in (1, 2, 3)]
+         + _chain("tail", "body", (0, 1.30, -0.30), (0, -0.05, -0.40), 1))
+
+TRACKED = [("root", None, (0, 0, 0), (0, 0.2, 0)),
+           ("hull", "root", (0, 0.40, -0.55), (0, 0.50, 0.55)),
+           ("head", "hull", (0, 0.70, 0.00), (0, 0.70, 0.45)),
+           ("track.L", "hull", (0.45, 0.22, -0.60), (0.45, 0.22, 0.60)),
+           ("track.R", "hull", (-0.45, 0.22, -0.60), (-0.45, 0.22, 0.60)),
+           ("arm.L", "hull", (0.30, 0.55, 0.50), (0.35, 0.40, 0.95)),
+           ("arm.R", "hull", (-0.30, 0.55, 0.50), (-0.35, 0.40, 0.95))]
+
+WALKER = (_without(BIPED, {"spine", "arm.L", "forearm.L", "arm.R", "forearm.R", "head"})
+          + [("head", "pelvis", (0, 1.50, -0.10), (0, 1.60, 0.40)),
+             ("barrel.L", "head", (0.25, 1.65, 0.20), (0.35, 1.95, 0.90)),
+             ("barrel.R", "head", (-0.25, 1.65, 0.20), (-0.35, 1.95, 0.90))])
+
+AIRCRAFT = [("root", None, (0, 0, 0), (0, 0.3, 0)),
+            ("hull", "root", (0, 2.60, -0.90), (0, 2.60, 0.90)),
+            ("gondola", "hull", (0, 1.90, -0.40), (0, 1.90, 0.40)),
+            ("prop", "hull", (0, 2.60, -0.90), (0, 2.60, -1.20)),
+            ("rudder", "hull", (0, 2.70, -0.80), (0, 3.10, -1.10))]
+
+SLED = ([("root", None, (0, 0, 0), (0, 0.2, 0))]
+        + _chain("spine", "root", (0, 0.35, -0.80), (0, 0.0, 0.38), 4)
+        + [("head", "spine.4", (0, 0.35, 0.72), (0, 0.40, 1.05))])
+
+HYDRA = (_without(SLED, {"head"})
+         + [b for n, x in ((1, 0.30), (2, 0.0), (3, -0.30)) for b in _chain(
+             f"neck{n}", "spine.4", (x * 0.5, 0.40, 0.70), (x * 0.25, 0.30, 0.15), 3)])
+
+CREW = [("root", None, (0, 0, 0), (0, 0.2, 0)),
+        ("cradle", "root", (0, 0.35, -0.40), (0, 0.45, 0.30)),
+        ("barrel", "cradle", (0, 0.55, 0.00), (0, 0.80, 0.90)),
+        ("thigh.L", "cradle", (0.30, 0.45, -0.30), (0.30, 0.25, -0.30)),
+        ("shin.L", "thigh.L", (0.30, 0.25, -0.30), (0.30, 0.05, -0.30)),
+        ("thigh.R", "cradle", (-0.30, 0.45, -0.30), (-0.30, 0.25, -0.30)),
+        ("shin.R", "thigh.R", (-0.30, 0.25, -0.30), (-0.30, 0.05, -0.30))]
+
+CRAWLER = ([("root", None, (0, 0, 0), (0, 0.25, 0)),
+            ("body", "root", (0, 0.55, -0.20), (0, 0.58, 0.25)),
+            ("head", "body", (0, 0.60, 0.25), (0, 0.62, 0.55))]
+           + _legs(4, "body", 0.55, 0.28, 0.70, phase=math.pi / 4))
+
+CRUSTACEAN = ([("root", None, (0, 0, 0), (0, 0.25, 0)),
+               ("body", "root", (0, 0.45, -0.25), (0, 0.48, 0.30)),
+               ("head", "body", (0, 0.48, 0.30), (0, 0.46, 0.55))]
+              + _legs(6, "body", 0.45, 0.30, 0.60, phase=math.pi / 6)
+              + [b for side, x in (("L", 1), ("R", -1)) for b in (
+                  (f"claw.{side}", "body", (x * 0.25, 0.50, 0.35), (x * 0.40, 0.55, 0.80)),
+                  (f"pincer.{side}", f"claw.{side}", (x * 0.40, 0.55, 0.80), (x * 0.45, 0.55, 1.10)))]
+              + _chain("tail", "body", (0, 0.45, -0.25), (0, 0.02, -0.30), 3))
+
+BIRD = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
+         ("spine.1", "root", (0, 1.00, -0.35), (0, 1.10, 0.10)),
+         ("spine.2", "spine.1", (0, 1.10, 0.10), (0, 1.20, 0.40))]
+        + _chain("neck", "spine.2", (0, 1.20, 0.40), (0, 0.20, 0.12), 2)
+        + [("head", "neck.2", (0, 1.60, 0.64), (0, 1.62, 0.95))]
+        + [("leg1.upper", "spine.1", (0.22, 1.00, 0.00), (0.25, 0.55, 0.08)),
+           ("leg1.lower", "leg1.upper", (0.25, 0.55, 0.08), (0.25, 0.05, 0.10)),
+           ("leg2.upper", "spine.1", (-0.22, 1.00, 0.00), (-0.25, 0.55, 0.08)),
+           ("leg2.lower", "leg2.upper", (-0.25, 0.55, 0.08), (-0.25, 0.05, 0.10))]
+        + _wings("spine.2", (0.25, 1.25, 0.15), 1.40)
+        + _chain("tail", "spine.1", (0, 1.00, -0.35), (0, -0.05, -0.40), 3))
+
+BIRD_RIDER = BIRD + _rider("spine.2", (0, 1.35, 0.10))
+
+RAY = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
+        ("body", "root", (0, 1.20, -0.30), (0, 1.22, 0.45))]
+       + _wings("body", (0.30, 1.22, 0.10), 1.10, lift=0.10)
+       + _chain("tail", "body", (0, 1.20, -0.30), (0, -0.03, -0.35), 4))
+
+# a building does not move: one body bone carries every part; props that do move
+# (a crane arm, a smoke stack) come in as the spec's own extra bones
+BUILDING = [("root", None, (0, 0, 0), (0, 0.3, 0)),
+            ("body", "root", (0, 0, 0), (0, 4.0, 0))]
+
+FAMILIES = {"building": BUILDING, "biped": BIPED, "spider": SPIDER, "quadruped": QUADRUPED,
+            "serpent": SERPENT, "vehicle": VEHICLE, "drake": DRAKE, "harpy": HARPY,
+            "wyrm": WYRM, "mounted": MOUNTED, "mounted_flyer": MOUNTED_FLYER, "naga": NAGA,
+            "centaur": CENTAUR, "wraith": WRAITH, "pod": POD, "shard": SHARD,
+            "tracked": TRACKED, "walker": WALKER, "aircraft": AIRCRAFT, "sled": SLED,
+            "hydra": HYDRA, "crew": CREW, "crawler": CRAWLER, "crustacean": CRUSTACEAN,
+            "bird": BIRD, "bird_rider": BIRD_RIDER, "ray": RAY}
+# bones a spec may leave out: tails are always optional (see required())
+OPTIONAL = {"spider": {"abdomen"}, "drake": {"jaw"}, "mounted_flyer": {"jaw"},
+            "vehicle": {"wheel1", "wheel2", "wheel3", "wheel4"}, "shard": {"plate.2", "plate.3"},
+            "aircraft": {"prop", "rudder"}, "tracked": {"arm.L", "arm.R"}}
+
+
+def with_extras(family, extras):
+    """The family table plus a spec's own prop bones [[name, parent, head, tail]]:
+    a mast, a second head, a counterweight. Names must be new, parents must exist."""
+    table = list(FAMILIES[family])
+    known = {b[0] for b in table}
+    for name, parent, head, tail in extras or []:
+        if name in known or parent not in known:
+            raise ValueError(f"extra bone {name} (parent {parent}) does not fit {family}")
+        table.append((name, parent, tuple(head), tuple(tail)))
+        known.add(name)
+    return table
+
+
+def bones(family):
+    """Bone names of a family, in table order."""
+    return [name for name, *_ in FAMILIES[family]]
+
+
+def parents(family, extras=None):
+    """bone -> parent, skipping bones that hang straight off the root."""
+    return {name: parent for name, parent, *_ in with_extras(family, extras)
+            if parent and parent != "root"}
+
+
+def required(family):
+    """Bones a spec must cover: everything but the root, tails and the family's
+    optional extras."""
+    return {b for b in bones(family) if b != "root" and not b.startswith("tail")
+            } - OPTIONAL.get(family, set())
+
+
+def top(family):
+    """Highest bone point: the rig's natural height in spec metres."""
+    return max(max(head[1], tail[1]) for _, _, head, tail in FAMILIES[family])
+
+
+def has_biped_limbs(family):
+    """Families whose arms or legs take the biped's hand-keyed clips."""
+    return bool({"arm.L", "thigh.L"} & set(bones(family)))
+
+
+# ---------------------------------------------------------------- clips
+# Each clip is {frame: {bone: (rx, ry, rz, lift)}}, the format build_unit.make_actions
+# keys. Gaits are sine cycles over 24 frames, phased per leg so the classic patterns
+# fall out: trot (diagonal pairs) for four legs, alternating neighbours for rings,
+# a travelling wave for chains, a flap for wings, spinning wheels, a bob for hoverers.
+CYCLE = 24
+STEP = 3
+TROT = {"leg1": 0.0, "leg4": 0.0, "leg2": 0.5, "leg3": 0.5}
+CHAINS = ("tail.", "neck", "tendril", "stalk.")       # always wave
+BODY = ("hull", "body", "spine.1", "base", "cradle", "pelvis")
+# no ground contact: these bob on the root in idle and walk; the winged ones also flap
+HOVER = {"wraith", "pod", "shard", "aircraft", "wyrm", "drake", "harpy", "mounted_flyer",
+         "bird", "bird_rider", "ray"}
+
+
+def _cycle(channels, frames=CYCLE, step=STEP):
+    """channels: {bone: (axis 0-2, amplitude deg, phase in cycles, lift metres)}."""
+    out = {}
+    for f in range(1, frames + 2, step):
+        t = 2 * math.pi * (f - 1) / frames
+        pose = {}
+        for bone, (axis, amp, phase, lift) in channels.items():
+            rot = [0.0, 0.0, 0.0]
+            rot[axis] = amp * math.sin(t + 2 * math.pi * phase)
+            pose[bone] = (*rot, lift * max(0.0, math.sin(t + 2 * math.pi * phase)))
+        out[f] = pose
+    return out
+
+
+def _gait(names):
+    legs = sorted({b.split(".")[0] for b in names if b.startswith("leg")})
+    ch = {}
+    for i, leg in enumerate(legs):
+        four = len(legs) == 4 and "spine.1" in names     # a quadruped body trots
+        ph = TROT[leg] if four else 0.5 * (i % 2)
+        fore_aft = four or len(legs) == 2
+        ch[f"{leg}.upper"] = (0 if fore_aft else 2, 24.0, ph, 0.0)   # fore-aft vs. sweep
+        ch[f"{leg}.lower"] = (0, 14.0, ph + 0.25, 0.0)
+    return ch
+
+
+def _flap(names, amp=28.0):
+    ch = {}
+    for b in names:
+        if b.startswith("wing") and b.endswith(".upper"):
+            ch[b] = (0, amp if b.startswith("wing1") else -amp, 0.0, 0.0)
+        elif b.startswith("wing") and b.endswith(".lower"):
+            ch[b] = (0, amp * 0.5 if b.startswith("wing1") else -amp * 0.5, 0.15, 0.0)
+    return ch
+
+
+def _wave(names, amp=14.0):
+    """Tails, necks and tentacles wave; a spine chain waves only on a legless body
+    (serpent, sled) - on a quadruped it is the rigid back."""
+    legged = any(b.startswith(("leg", "thigh")) for b in names)
+    chain = [b for b in names
+             if b.startswith(CHAINS) or (b.startswith("spine.") and not legged)]
+    return {b: (2, amp, i / max(len(chain), 1), 0.0) for i, b in enumerate(chain)}
+
+
+def walk(family):
+    names = bones(family)
+    if any(b.startswith("wheel") for b in names):
+        out = _cycle({_body(names): (0, 1.5, 0.0, 0.01)})
+        # wheels spin monotonically around their own axis, not back and forth
+        for f, pose in out.items():
+            for w in (b for b in names if b.startswith("wheel")):
+                pose[w] = (0.0, 360.0 * (f - 1) / CYCLE, 0.0, 0.0)
+        return out
+    ch = {**_wave(names), **_gait(names), **_flap(names)}
+    ch[_body(names)] = (0, 2.0, 0.0, 0.02)
+    if "rider.spine" in names:
+        ch["rider.spine"] = (0, 3.0, 0.25, 0.0)      # the rider rocks with the mount
+    if family in HOVER:
+        ch["root"] = (0, 0.0, 0.0, 0.06)
+    if "head" in names and "head" not in ch:
+        ch["head"] = (0, 4.0, 0.5, 0.0)
+    return _cycle(ch)
+
+
+def _body(names):
+    return next((b for b in BODY if b in names), "root")
+
+
+def idle(family):
+    names = bones(family)
+    ch = {k: (a, amp * 0.25, ph, lift * 0.5)
+          for k, (a, amp, ph, lift) in {**_wave(names), **_flap(names)}.items()}
+    ch[_body(names)] = (0, 2.5, 0.0, 0.0)
+    if "head" in names:
+        ch["head"] = (2, 6.0, 0.25, 0.0)
+    if family in HOVER:
+        ch["root"] = (0, 0.0, 0.0, 0.04)
+    return _cycle(ch, frames=48, step=6)
+
+
+def attack(family):
+    """Wind back, strike forward with the head (bite, ram, recoil), recover."""
+    names = bones(family)
+    body = _body(names)
+    strike = "head" if "head" in names else body
+    keys = {1: (0, 0), 7: (12, 8), 10: (-20, -14), 16: (-18, -12), 30: (0, 0)}
+    return {f: {strike: (h, 0, 0, 0), body: (b, 0, 0, 0)} for f, (h, b) in keys.items()}
+
+
+def death(family):
+    """Roll onto the side and settle; legs curl for the arthropods."""
+    curl = {b: (30, 0, 0, 0) for b in bones(family) if b.endswith(".lower")}
+    keys = {1: (0, 0.0), 6: (8, -0.02), 14: (35, -0.10), 26: (80, -0.20), 40: (90, -0.24)}
+    out = {}
+    for f, (roll, drop) in keys.items():
+        k = roll / 90
+        pose = {"root": (0, 0, roll, drop)}
+        pose.update({b: (r[0] * k, 0, 0, 0) for b, r in curl.items()})
+        out[f] = pose
+    return out
+
+
+STATIC = {"building"}          # no clips: the game never animates these models
+
+
+def actions(family):
+    """(name, poses, cyclic, contacts, lags) for every clip derived from the bones.
+    Families with biped limbs get these merged over the biped's hand-keyed tables
+    (build_unit.make_actions); the biped itself adds nothing; static families none."""
+    if family in STATIC:
+        return []
+    return [("idle", idle(family), True, (), ()), ("walk", walk(family), True, (), ()),
+            ("attack", attack(family), False, (10,), ()), ("death", death(family), False, (26,), ())]

@@ -65,6 +65,27 @@ that marks the upgrade — <the upgrade's cue> — belongs to the higher tier an
 Compared with <sibling>, this body is the <simpler | heavier> one: <mass / event delta>.
 ```
 
+`{blocks}` in block 3 names the body's main masses for its rig family, so a non-biped
+sheet is never asked for arms: biped "head, torso, two arms, two legs"; quadruped "head,
+torso, four legs, tail"; spider "head, body, eight legs"; serpent "head and a long
+segmented body"; vehicle "hull, turret or cab, wheels or tracks".
+
+### 2.1 RTS view, after the sheet is approved
+
+One image-to-image call per unit or building draws the same design from the gameplay
+camera; the pipeline measures its angle (`views.RTS`) and refines against it:
+
+```bash
+cd artifacts/model-sheets
+python3 generate.py draft2/prompts/00-template-rts.txt --image draft2/<id>.jpg \
+  --out draft2 --name <id>-rts --resolution 1K                 # unit
+python3 generate.py draft2/prompts/00-template-rts-building.txt --image draft2/<id>.jpg \
+  --out draft2 --name <id>-rts --resolution 1K                 # building
+```
+
+The file must sit next to the sheet as `<sheet>-rts.jpg`; split, silhouette, compare and
+`--passes rts` pick it up from there.
+
 ## 3. Failure log — what went wrong and the fix that worked
 
 | symptom | cause | fix |
@@ -89,7 +110,13 @@ artifacts/model-sheets/
   draft1/                first model comparison, kept as-is
   draft2/                the accepted set
     <id>.jpg             one sheet per unit
-    prompts/             00-template-{unit,building}.txt + unit-<id>.txt + building-<id>.txt
+    <id>-hard.jpg        hard-edged, props in place (same pose as <id>.jpg) ...... §16
+    <id>-hard-clean.jpg  hard-edged, empty-handed A-pose, no props ............... §16
+    <id>-props.jpg       props detached at body scale (only units with props) .... §16
+    <id>-hard-rts.jpg    hard sheet from the 45/45 gameplay camera ............... §16
+    <id>-refsheet.png    all of the above on one contact sheet (human only) ...... §16
+    prompts/             00-template-{unit,building,unit-hard,unit-hard-clean,props,
+                         rts,rts-hard}.txt + unit-<id>[-hard|-hard-clean|-props].txt
     audit/               weapon-role-audit.md, unit-chains.md
     glb/                 build_unit.py output: <id>.glb + the six render frames
 ```
@@ -477,7 +504,9 @@ python3 tools/blender/silhouette.py artifacts/model-sheets/draft2/n01X.jpg \
   `silhouette.py` sweeps elevation x azimuth (`views.RTS`); the `wc3` render uses that
   camera, orthographic like the sweep (the old close perspective looked steeper than
   the matched angle). Elevation = height of the camera above the ground, azimuth = turn
-  around the unit from the front; n01X asked 45/45, the drawing measures 35/-45.
+  around the unit from the front; n01X asked 45/45, the drawing measures 35/+45. The
+  match is never mirrored: with a mirror allowed, a symmetric body scored the same from
+  both sides and the review rendered the wrong side (an earlier 35/-45 here was that).
 - Commit per draft only `specs/*.json` and `glb/*.glb`. `passes/`, `sil/`, `views/` and
   every PNG/GIF (compare, turntable) are local-only (`artifacts/model-sheets/.gitignore`).
 
@@ -489,3 +518,200 @@ python3 tools/blender/silhouette.py artifacts/model-sheets/draft2/n01X.jpg \
 
 v13: only the back pass was accepted (it closed the thigh-pelvis gap); the rts pass
 did not raise the rts IoU and the left pass broke the preflight.
+
+## 15. Rig families, surfaces, palette, decals, buildings (2026-10-19)
+
+### 15.1 Rig families (`tools/blender/rig_families.py`)
+
+A spec names its skeleton with `"rig"`; the builder, the preflight and the brief all
+read the same table. Families are composed from parts (quadruped body, wings, rider,
+chains), and the four clips are derived from the bone names: `leg<N>` walk (four legs
+on a spine trot, rings alternate), `wing<N>` flap, tails/necks/tentacles wave, `wheel<N>`
+spin, `HOVER` families bob on the root. Families with biped limbs (`arm.L`, `thigh.L`)
+get the hand-keyed biped clips merged under the derived ones. `building` is static.
+
+| family | body plan | example units (cards) |
+|---|---|---|
+| biped | the n01X skeleton | 88 cards |
+| quadruped / spider / serpent / vehicle | as before; the spider body now lies along z, abdomen optional | 12 / 3 / 0 / 7 |
+| drake | quadruped body + neck + jaw + tail + wings | n001, n01D, n01B, n02A, n010 |
+| harpy | biped + wings | n034, n02W, n032, n008 |
+| wyrm | serpent + wings | n00H, e000 |
+| mounted / mounted_flyer | quadruped or drake + rider.* | h03B, h03C, o006, o008, o00B / h016, o009 |
+| bird / bird_rider | two legs + wings + neck + tail, no arms (also wyverns) | u000 / n01Y |
+| naga | torso on a tail chain | n002, n00X, n00S |
+| centaur | quadruped + upright torso | n016 |
+| wraith | torso on a base, no legs, floats | 13 cards (e00A, u001, h03R ...) |
+| pod | floating body + stalk + 3 tendrils | n019, n01A, h06B |
+| shard | rigid abstract flyer | o00C, o00D, o00E |
+| ray | flat body + wings + stinger tail | n03U |
+| crawler / crustacean | 4-leg ring / 6 legs + claws + tail | n01U / n00W |
+| tracked / walker / aircraft | tracks + tools / mech legs + barrels / gasbag + gondola | h06S, n01T, h06U / n02J / h06R, h06Q, h07S |
+| sled / hydra / crew | bending legless body / + 3 necks / weapon + fused crew legs | n01E, n01F / n01P / hmtm |
+| building | static: everything on body | buildings |
+
+Per-unit props that move (a mast, a second head, a counterweight, a catapult arm) are
+`"bones": [[name, parent, head, tail]]` in the spec (max 3) - never a new family.
+Two passes over all 167 cards found no squad or beast+cart unit: every multi-figure WC3
+unit was redesigned as one composite body (hmtm = `crew`) or split into separate units.
+
+`{blocks}` in the unit sheet template: biped "head, torso, two arms, two legs";
+quadruped "head, torso, four legs, tail"; spider "head, body, eight legs"; serpent "head
+and a long segmented body"; vehicle "hull, turret or cab, wheels or tracks"; for the
+composed families, name the masses of the table above.
+
+### 15.2 Surfaces, palette, decals, glass
+
+- `surfaces.py` paints 14 surfaces: metal (the approved n01X painter, pixel-identical),
+  polished, skin, leather, cloth, silk, scales, chitin, wood, stone, fur, plastic, glass,
+  glow. The engine draws albedo only, so gloss is painted: a hard highlight on silk,
+  plastic, chitin, polished; a broad faint one on skin; none on cloth.
+- One atlas per unit: every material slot gets a block, all materials sample one image.
+- `"palette": {"slot": {"surface": ..., "color": "#hex", "alpha"?: 0-1}}` in the spec;
+  colours come from `silhouette.sheet_colours` (k-means of the sheet's flat tones), so
+  each unit is coloured from its own sheet. Old slot names (iron/darkiron/brass/lamp)
+  stay valid as metal.
+- `"alpha" < 1` with surface `glass` exports `alphaMode BLEND` (gauge glass, flame tongue).
+- Decals: opts `{"decal": "eyes2" | "eyes8", "decal_color": "#hex"}` paint eyes on the
+  part's front face, in a spare atlas cell - no geometry.
+
+### 15.3 Buildings
+
+`--kind building|large` switches the sheet layout to elevations + roof plan
+(`views.LAYOUTS`: front/left/back/right/roof), the rig to `building`, the brief to
+`BUILDING_BRIEF`, the budget to 600-800 (preflight and pipeline share `BUDGETS`), and the
+gate to 0 animations (the game never animates buildings). Passes may use `right` and
+`roof`. The RTS concept is drawn automatically from the sheet when it is missing
+(`ensure_rts`, `--no-rts` to skip), for units and buildings.
+
+## 16. Hard variant — two sheets, props both ways (2026-10-19)
+
+The approved sheet draws its masses as curves and puts the weapon in the hand. A modeller
+then has to read every curve as a plane, and the arm carrying the weapon is half hidden.
+The hard variant redraws the **same design** with every mass rebuilt as flat polygons. It is
+produced in two forms, both image-to-image from `<id>.jpg`, plus the detached props:
+
+| file | template | pose | props | use |
+|---|---|---|---|---|
+| `<id>-hard.jpg` | `00-template-unit-hard.txt` | same as approved | in place, faceted | faithful hard silhouette; source of the hard RTS view |
+| `<id>-hard-clean.jpg` | `00-template-unit-hard-clean.txt` | empty-handed A-pose | removed | limb/block read, clean body measures |
+| `<id>-props.jpg` | `00-template-props.txt` | — | detached, body scale | prop shapes |
+| `<id>-hard-rts.jpg` | `00-template-rts-hard.txt` | 45/45 gameplay camera | in place | gameplay read of the hard design |
+| `<id>-refsheet.png` | `ref_sheet.py` | — | — | all of the above on one page, for a human |
+
+Both hard sheets are needed. The **with-props** one is what a modeller axes to: complete
+silhouette, nothing missing, every prop faceted in the place it is worn or held. The **clean**
+one is what shows where the arms actually are — an A-pose with clear daylight at the armpit
+and mitt hands. Dropping the props from the hard sheet alone loses the pack and the weapon
+from the silhouette, and a detached props sheet fixes the shape question but not the
+placement one.
+
+```bash
+cd artifacts/model-sheets
+# hard, props in place (style transfer: same sheet, faceted)
+python3 generate.py draft2/prompts/unit-hfoo-hard.txt --image draft2/hfoo.jpg --out draft2
+# hard, empty-handed A-pose, no props
+python3 generate.py draft2/prompts/unit-hfoo-hard-clean.txt --image draft2/hfoo.jpg --out draft2
+# props detached, same scale
+python3 generate.py draft2/prompts/unit-hfoo-props.txt --image draft2/hfoo.jpg --out draft2
+# the hard RTS view is drawn automatically by spec_pipeline.py --hard; by hand:
+python3 generate.py draft2/prompts/00-template-rts-hard.txt \
+    --image draft2/hfoo-hard.jpg --out draft2 --name hfoo-hard-rts --resolution 1K
+# one contact sheet for a human
+python3 tools/blender/ref_sheet.py draft2/hfoo.jpg draft2/hfoo-refsheet.png
+```
+
+`00-template-unit-hard.txt` is a pure style transfer: it asks for the identical sheet —
+same panels, pose, props, colours — and changes only how the forms are built, so the only
+per-unit inputs are `{keep}` (the identity parts) and `{facets}` (one polygon per mass).
+`00-template-unit-hard-clean.txt` also changes the pose and removes the props, so it carries
+`{pose}` per rig family:
+
+| rig | `{pose}` |
+|---|---|
+| biped | A-pose; arms 45° off the torso, elbow as far from the ribcage as the shoulder is wide; mitt hands; legs 1.5 shoulder-widths |
+| quadruped | four legs planted symmetrically, body level and clear of the ground, nothing in the mouth or on the back |
+| spider | eight legs splayed in a full circle, body carried high with daylight under it, chelicerae closed |
+| serpent | one flat S, head raised, no limbs |
+| vehicle | hull level, wheels/tracks straight and symmetric, no stowage |
+
+Units whose "props" are body parts (n01X fists and chest disc, n00U/n01N carved plates,
+n01I snag and root claw) get no props file; their hard prompt says so explicitly, and the
+with-props sheet is just the faceted approved sheet.
+
+### 16.1 The approved sheet is still the gate
+
+`--sheet` stays `<id>.jpg`. It is what `measure()`, `sheet_colours()` and the silhouette gate
+read, and it is the design contract. Pass the hard sheets **alongside** it:
+
+```bash
+python3 tools/blender/spec_pipeline.py --id hfoo --race Human --name Footman \
+  --sheet artifacts/model-sheets/draft2/hfoo.jpg \
+  --hard  artifacts/model-sheets/draft2/hfoo-hard.jpg \
+  --hard-clean artifacts/model-sheets/draft2/hfoo-hard-clean.jpg \
+  --props artifacts/model-sheets/draft2/hfoo-props.jpg \
+  --model google/gemini-4-argon --tag argon --kind mass \
+  --out artifacts/model-sheets/draft16
+```
+
+`--hard`, `--hard-clean` and `--props` are resized to 1024 px and appended as images 2, 3 and
+4; `with_refs()` adds one line per image to the brief, telling the spec author which
+reference answers which question (block shape, limb position, prop shape). The DSL's "each
+part must match image 1" rule still points at the approved sheet, so no gate moves.
+`--hard` and `--hard-clean` also trigger their `<sheet>-rts.jpg` through `ensure_rts()`,
+which picks `00-template-rts-hard.txt` whenever the stem contains `-hard`.
+
+Measured on all seven units in `draft2`, same model (`google/gemini-4-argon`), same brief:
+`draft4` = sheet only, `draft16` = sheet + `--hard` + `--hard-clean` + `--props`. Front/left
+are the silhouette IoU against the approved sheet; tri counts come from the gate.
+
+| unit | front no-ref -> ref | left no-ref -> ref | tris | mats | view gates |
+|---|---|---|---|---|---|
+| hfoo | 0.523 -> **0.702** | 0.505 -> 0.540 | 556 | 5 | 0/2 |
+| n005 | 0.761 -> 0.720 | 0.581 -> **0.796** | 604 | 5 | 1/2 |
+| n00U | 0.604 -> **0.739** | 0.608 -> **0.676** | 548 | 4 | 1/2 |
+| n01I | 0.719 -> 0.692 | 0.428 -> **0.574** | 500 | 4 | 0/2 |
+| n01N | n/a (no draft4 model) | n/a | 528 | 4 | 0/2 |
+| n01X | 0.604 -> **0.793** | 0.735 -> **0.816** | 584 | 4 | **2/2** |
+| n02X | 0.711 -> 0.708 | 0.523 -> **0.620** | 640 | 5 | 0/2 |
+
+All seven land inside the 400-700 mass budget with 4-5 materials, 1 skin and 4 clips. The
+references raise the cluttered views most (front on hfoo/n00U/n01X, left on n005/n01I/n02X)
+and the part count drops (hfoo 34 -> 27) because the faceted sheet reads as fewer, larger
+blocks. They do not fix the preflight defects the brief never addressed: every humanoid
+still reports `shoulder_span 0.00`, `head_top` ~0.3 m over the allowance and `shin` parts
+below y=0; the two spiders fail `ground` on every lower leg. n01N is the outlier: the spec
+author drew a body far smaller than the sheet (0.246 front), a model-quality failure, not a
+reference-file failure. The references sharpen the read; they do not repair a spec-author
+error.
+
+### 16.2 RTS on the concept page?
+
+No — keep the RTS as its own file, and put it on the **contact sheet** instead.
+`concept_panels()` splits a sheet on its 3+2 empty bands and the gates expect exactly five
+panels; a sixth RTS panel would be read as part of the bottom row and corrupt the top/bottom
+masks. `split_sheet.py`, `silhouette.py` and the per-view passes all assume one projection
+per cell as well. `ref_sheet.py` gives the human (or a reviewer) the single page without
+touching anything the code reads.
+
+### 16.3 Failure log
+
+| symptom | cause | fix |
+|---|---|---|
+| first hard sheet was a different character (fedora brim, blue pauldrons, shin plates that do not exist) | it was text-to-image from the card, so it obeyed the style rules and invented the design | **a variant is an edit pass**: `generate.py --image <id>.jpg`, open with "redraw that identical sheet", list the identity parts in `{keep}`, and forbid any part not already drawn |
+| props vanished from the hard sheet | the prompt asked for an empty-handed A-pose *and* no props, and the spec author faithfully followed | keep two sheets: `-hard` (props in place) and `-hard-clean` (A-pose, no props); the props file alone does not tell the model where they attach |
+| hands came out with five slender fingers | "block hand" is read as a style, not as one shape | say fingerless mitt: one solid slab for all four fingers plus one thumb block, no line between digits; on units whose approved sheet has fingers, say the mitt replaces them |
+| arms stayed near the body | a 45° angle is not a spatial constraint the model can check | tie the pose to a distance: "the elbow sits as far from the ribcage as the shoulder is wide, with daylight between the whole arm and the body" |
+| bottom-up panel reads as a cut-open body | the sheet draws top/bottom tilted toward the front (§14) | accepted: that panel is for sole and palm read, not for silhouette gating |
+
+### 16.4 What the batch produced
+
+Seven units with an approved sheet in `draft2`; every one now has `<id>-hard.jpg`,
+`<id>-hard-clean.jpg`, `<id>-hard-rts.jpg` and `<id>-refsheet.png`. Detached props exist for
+the three units that carry them — hfoo (pike, pack, lantern), n005 (tank, vaporiser, lantern),
+n02X (club). n00U, n01N, n01I and n01X have no detached props because their "props" are body
+parts (shell plates, snag, root claw, piston fists, chest disc).
+
+The two buildings in `draft2` (`h05X`, `h09B`) were left alone: the A-pose and the props rules
+do not apply to a building, and their elevation sheets are already drawn as flat blockouts.
+A `building-hard` variant would be a separate template if it is ever wanted.

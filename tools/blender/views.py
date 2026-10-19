@@ -18,10 +18,23 @@ VIEWS = {
     "back": ((0, DIST, 0), (90, 0, 180)),
     "top": ((0, 0, DIST), (0, 0, 0)),
     "bottom": ((0, 0, -DIST), (180, 0, 0)),
+    "right": ((DIST, 0, 0), (90, 0, 90)),
+    "roof": ((0, 0, DIST), (0, 0, 0)),          # building roof plan: a true ortho top
 }
+# panel names of a sheet, in reading order (top row of three, bottom row of two)
+LAYOUTS = {"unit": ("front", "left", "back", "top", "bottom"),
+           "building": ("front", "left", "back", "right", "roof")}
+
+
+def layout_of(kind):
+    """Sheet layout for a budget kind: buildings are drawn as elevations + roof plan."""
+    return "building" if kind in ("building", "large") else "unit"
 TILTED = ("top", "bottom")
 TILTS = tuple(range(-40, 50, 10))
-# (elevation above the ground, azimuth from the front toward +X), degrees
+# (elevation above the ground, azimuth from the front toward +X), degrees. Both sides
+# are swept and the match is never mirrored (silhouette.variants), so the IoU picks the
+# side: n01X 0.78 at +45 against 0.58 at -45. The image model reads "front-right" as the
+# viewer's right (+X), but it is measured, not assumed.
 RTS = tuple((e, a) for e in (35, 45, 55, 65) for a in (-60, -45, -30, 30, 45, 60))
 RTS_DEFAULT = (45, 45)
 
