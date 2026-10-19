@@ -164,7 +164,40 @@ Operational rules learned:
 - Two models can draw well and still fail the gates (gpt-5.4 lost the flame accent and doubled the
   budget); the gates, not the render, decide.
 
-## 7. Outstanding review work
+## 7. Triangle budgets (Warcraft III SD standard)
+
+Every unit and building description follows the original WC3 standard-definition budget for its
+class, scaled by importance. `check_gates.py --kind <class>` enforces it.
+
+| class | tris | applies to |
+|---|---|---|
+| mass unit | **400–700** | every non-hero unit (Footman, Ogre, Spider, Ent, Golem…) |
+| hero | **900–1600** | legendary / hero units |
+| standard building | **600–800** | production, tower, utility buildings |
+| town hall / large structure | **2000–3000** | castle, main hall, wonders |
+
+A row also fails when the model is not one skin with three materials and four clips. Measured on
+`draft4` (6 units × 2 spec authors): **12 of 12 inside 400–700**, 452–664 tris, all 3 materials,
+1 skin, 4 clips.
+
+## 8. Batch runner and delegation
+
+```bash
+# one unit, end to end: sheet -> spec -> glb -> gates -> gif
+python3 tools/blender/spec_pipeline.py --id n01X --race Mech --name "Iron Golem" \
+    --sheet artifacts/model-sheets/draft2/n01X.jpg \
+    --model google/gemini-4-argon --tag argon --height 2.7 --kind mass
+
+# gate a whole folder
+python3 tools/blender/check_gates.py artifacts/model-sheets/draft4/glb --kind mass
+```
+
+`spec_pipeline.py` prints one gate line per unit and exits non-zero on failure, so it is safe to
+loop or to hand to a subagent. A subagent needs only: the id, race, name, sheet path, model id,
+`--tag` (one folder per author) and `--kind` for the budget. It must not edit the design cards or
+the animation; those stay with the parent.
+
+## 9. Outstanding review work
 
 - `audit/weapon-role-audit.md` — 5 melee units whose props name a ranged weapon (`hfoo` fixed in
   the prompt; `n03G` rifle at range 60, `h06U` carbine at range 100 are errors **in the design
