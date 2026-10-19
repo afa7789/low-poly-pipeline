@@ -138,7 +138,10 @@ The mesh is built by `build_unit.py` from a JSON part spec, so a stronger model 
 spec while the pipeline stays deterministic. Tested 2026-10-19 on `n01X`, same brief
 (`draft3/specs/BRIEF.txt`), same sheet, same builder and gates.
 
-**Verdict: `claude-opus-5.5` for the hero units, `google/gemini-4-argon` for the bulk.**
+**Verdict (decided 2026-10-19): `google/gemini-4-argon` for the whole roster — ~$0.011 per unit,
+cheaper than opus-5.5 ($0.048) with a spec that already passes the 400–700 budget.** `claude-opus-5.5`
+stays as the quality reference: use it only if a single unit keeps failing the gates after an argon
+re-run.
 
 | model | US$/M in · out | cost/unit | parts | tris | mats | smear | JSON | verdict |
 |---|---|---|---|---|---|---|---|---|
@@ -164,7 +167,16 @@ Operational rules learned:
 - Two models can draw well and still fail the gates (gpt-5.4 lost the flame accent and doubled the
   budget); the gates, not the render, decide.
 
-## 7. Triangle budgets (Warcraft III SD standard)
+## 7. The WC3 read — measured, not assumed
+
+Tested on `n01X` (`draft5/compare/n01X-antes.gif` vs `n01X-depois.gif`): chamfering the big masses
+(1 segment, +32 tris each) with 48° smoothing **made it read worse** — the plates inflate and lose
+the hard silhouette. Conclusion: at 400–700 tris the WC3 look does not come from smoothing or
+chamfers; it comes from painted shading (light and shadow painted into the model or its texture) and
+from fewer, larger parts. Chamfering is therefore opt-in (`build_unit.py ... 700` as a third
+argument) and off by default.
+
+## 8. Triangle budgets (Warcraft III SD standard)
 
 Every unit and building description follows the original WC3 standard-definition budget for its
 class, scaled by importance. `check_gates.py --kind <class>` enforces it.
@@ -180,7 +192,7 @@ A row also fails when the model is not one skin with three materials and four cl
 `draft4` (6 units × 2 spec authors): **12 of 12 inside 400–700**, 452–664 tris, all 3 materials,
 1 skin, 4 clips.
 
-## 8. Batch runner and delegation
+## 9. Batch runner and delegation
 
 ```bash
 # one unit, end to end: sheet -> spec -> glb -> gates -> gif
@@ -197,7 +209,7 @@ loop or to hand to a subagent. A subagent needs only: the id, race, name, sheet 
 `--tag` (one folder per author) and `--kind` for the budget. It must not edit the design cards or
 the animation; those stay with the parent.
 
-## 9. Outstanding review work
+## 10. Outstanding review work
 
 - `audit/weapon-role-audit.md` — 5 melee units whose props name a ranged weapon (`hfoo` fixed in
   the prompt; `n03G` rifle at range 60, `h06U` carbine at range 100 are errors **in the design

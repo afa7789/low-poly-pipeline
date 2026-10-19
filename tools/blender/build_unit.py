@@ -19,6 +19,7 @@ import math
 import pathlib
 import sys
 
+import bmesh
 import bpy
 from mathutils import Vector
 
@@ -102,6 +103,47 @@ SPECS = {
 D = math.radians
 
 
+
+# ---------------------------------------------------------------- WC3 surface
+def chamfer_cube(dims, at, rot, width):
+    """A cube with its 12 edges chamfered: 6 + 12 quads and 8 corner tris (44 tris).
+    This, not smooth shading alone, is what stops a model reading as Minecraft."""
+    me = bpy.data.meshes.new("chamfer")
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, vec=Vector(dims), verts=bm.verts)
+    bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(width, 0.25 * min(dims)),
+                    segments=1, affect="EDGES", profile=0.5)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("chamfer", me)
+    bpy.context.collection.objects.link(obj)
+    obj.location = bp(at)
+    obj.rotation_euler = (0, 0, rot)
+    return obj
+
+
+def soften(body, angle=48.0):
+    """Smoothing groups by angle: every face smooth, every edge sharper than `angle`
+    marked sharp. Flat faces stay flat, chamfers blend - the WC3 read."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    for f in bm.faces:
+        f.smooth = True
+    thr = math.radians(angle)
+    for e in bm.edges:
+        e.smooth = not (len(e.link_faces) == 2 and e.calc_face_angle(0.0) > thr)
+    bm.to_mesh(body.data)
+    bm.free()
+    body.data.update()
+
+
+def shading_report(body):
+    faces = len(body.data.polygons)
+    smooth = sum(1 for p in body.data.polygons if p.use_smooth)
+    sharp = sum(1 for e in body.data.edges if not e.use_edge_sharp)
+    return f"{smooth}/{faces} faces smooth, {len(body.data.edges)} edges, {sharp} soft edges"
+
 def bp(p):
     """Spec (right, up, forward) -> Blender (x, y, z); glTF then gives +Y up, +Z front."""
     return (p[0], -p[2], p[1])
@@ -161,13 +203,38 @@ def build_armature():
     return arm
 
 
-def build_part(bone, kind, dims, at, mat_name, opts, idx):
+BASE_TRIS = {"box": 12, "cyl": 44, "wheel": 80}
+CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
+
+
+def plan_chamfers(spec, budget):
+    """Spend the spare triangles on the biggest masses first. WC3 SD models put the
+    roundness in a few large chamfered volumes and the rest in painted texture; a
+    chamfer on every box would triple the budget for nothing at 32 px."""
+    room = budget - sum(BASE_TRIS[k] for _, k, *_ in spec)
+    chosen = set()
+    for dim, idx in sorted(((max(d), i) for i, (_, kind, d, *_ ) in enumerate(spec) if kind == "box"),
+                           reverse=True):
+        if room < CHAMFER_EXTRA:
+            break
+        chosen.add(idx)
+        room -= CHAMFER_EXTRA
+    return chosen
+
+
+def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     rot_z = D(opts.get("rot", 0.0))
     axis = opts.get("axis", "fwd")
     loc = bp(at)
     if kind == "box":
+        size = bd(dims)
+        if chamfer:
+            obj = chamfer_cube(size, at, rot_z, 0.02)
+            obj.name = f"{bone}_{idx}"
+            obj.data.materials.append(material(mat_name))
+            return obj
         bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=(0, 0, rot_z))
-        bpy.context.active_object.scale = bd(dims)
+        bpy.context.active_object.scale = size
     elif kind == "wheel":
         bpy.ops.mesh.primitive_torus_add(major_segments=10, minor_segments=4,
                                          major_radius=dims[0], minor_radius=dims[1],
@@ -283,9 +350,15 @@ def main():
     wipe()
     arm = build_armature()
 
+    # chamfer is opt-in: measured on n01X it inflated the plates and read worse than
+    # the crisp blockout, because the WC3 roundness comes from painted shading, not
+    # from geometry at this budget. Pass a triple budget as the third argument to enable.
+    rest = sys.argv[sys.argv.index("--") + 1:]
+    chamfers = plan_chamfers(spec, int(rest[2])) if len(rest) > 2 else set()
     parts = []
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
-        parts.append((build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx), bone))
+        parts.append((build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
+                                 idx in chamfers), bone))
 
     # rigid skin (one bone per piece, weight 1), then one joined mesh so the
     # engine draws a single mesh with three material slots
@@ -299,12 +372,11 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
-    # hard-surface stack: micro bevel (game: 1 segment) + weighted normals
-    HS = load_toolkit("blender-hard-surface", "bx_hardsurface")
-    HS.apply_scale(body)
-    HS.hard_surface_stack(body, micro_width=0.008, micro_segments=1, angle=30.0)
-    report = HS.shading_audit(body)
-    print("shading:", HS.verdict(report) or "clean")
+    # WC3 read, in order: chamfer the right angles, then smooth by angle (the
+    # equivalent of a smoothing group: flat faces stay flat, chamfers blend).
+    # Without the chamfer, smooth shading alone does nothing on two-faced edges.
+    soften(body)
+    print("shading:", shading_report(body))
 
     body.parent = arm
     body.modifiers.new("Armature", "ARMATURE").object = arm
