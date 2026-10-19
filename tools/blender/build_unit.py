@@ -119,7 +119,11 @@ def chamfer_cube(dims, at, rot, width):
     obj = bpy.data.objects.new("chamfer", me)
     bpy.context.collection.objects.link(obj)
     obj.location = bp(at)
-    obj.rotation_euler = (0, 0, rot)
+    rots = opts.get("rot", rot)
+    if isinstance(rots, (int, float)):
+        rots = (0, 0, rots)
+    rx, ry, rz = (math.radians(v) for v in rots)
+    obj.rotation_euler = (rx, -rz, ry)  # spec right/up/forward -> Blender x/z/y
     return obj
 
 
@@ -222,7 +226,7 @@ def plan_chamfers(spec, budget):
     return chosen
 
 
-def prism(dims, at, rot, sides=8, axis="up"):
+def prism(dims, at, rot=0.0, sides=8, axis="up", rot_euler=None):
     """A tapered n-gon tube: the WC3 limb primitive. dims = (r_bottom, r_top, height).
     Eight sides read as round at 32 px and cost 28 tris (16 side + 12 cap)."""
     r0, r1, height = dims
@@ -235,12 +239,21 @@ def prism(dims, at, rot, sides=8, axis="up"):
     obj = bpy.data.objects.new("prism", me)
     bpy.context.collection.objects.link(obj)
     obj.location = bp(at)
-    obj.rotation_euler = (D(90), 0, 0) if axis == "fwd" else (0, 0, rot)
+    base = (D(90), 0, 0) if axis == "fwd" else (0, 0, 0)
+    if rot_euler is None:
+        obj.rotation_euler = (base[0], base[1] - rot, base[2])
+    else:
+        rx, ry, rz = rot_euler
+        obj.rotation_euler = (base[0] + rx, base[1] - rz, base[2] + ry)
     return obj
 
 
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
-    rot_z = D(opts.get("rot", 0.0))
+    rots = opts.get("rot", 0.0)
+    if isinstance(rots, (int, float)):
+        rots = (0.0, 0.0, rots)
+    rx, ry, rz = (D(v) for v in rots)
+    rot_z = rz  # legacy: a single number means "turn around the forward axis"
     axis = opts.get("axis", "fwd")
     loc = bp(at)
     if kind in ("prism", "dome"):
@@ -248,18 +261,19 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         if kind == "dome":
             # a closed dome: taper hard to a small top cap instead of a sphere
             dims = (dims[0], dims[0] * float(opts.get("top", 0.35)), dims[1])
-        obj = prism(dims, at, rot_z, sides=sides, axis=opts.get("axis", "up"))
+        obj = prism(dims, at, rot_z, sides=sides, axis=opts.get("axis", "up"),
+                    rot_euler=(rx, ry, rz))
         obj.name = f"{bone}_{idx}"
         obj.data.materials.append(material(mat_name))
         return obj
     if kind == "box":
         size = bd(dims)
         if chamfer:
-            obj = chamfer_cube(size, at, rot_z, 0.02)
+            obj = chamfer_cube(size, at, rz, 0.02)
             obj.name = f"{bone}_{idx}"
             obj.data.materials.append(material(mat_name))
             return obj
-        bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=(0, 0, rot_z))
+        bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=(rx, -rz, ry))
         bpy.context.active_object.scale = size
     elif kind == "wheel":
         bpy.ops.mesh.primitive_torus_add(major_segments=10, minor_segments=4,
