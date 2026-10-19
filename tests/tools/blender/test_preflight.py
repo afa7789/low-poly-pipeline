@@ -27,11 +27,11 @@ def spider_spec():
     return {"rig": "spider", "parts": parts}
 
 
-def run(spec, kind="mass"):
+def run(spec, kind="mass", sheet=None):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(spec, f)
-    return subprocess.run([sys.executable, str(ROOT / "tools/blender/preflight.py"), f.name, kind],
-                          capture_output=True, text=True).stdout
+    argv = [sys.executable, str(ROOT / "tools/blender/preflight.py"), f.name, kind]
+    return subprocess.run(argv + ([str(sheet)] if sheet else []), capture_output=True, text=True).stdout
 
 
 class Family(unittest.TestCase):
@@ -53,6 +53,17 @@ class Family(unittest.TestCase):
 
 
 class Palette(unittest.TestCase):
+    def test_up_to_eight_slots(self):
+        spec = spider_spec()
+        names = [f"m{i}" for i in range(8)]
+        for i, part in enumerate(spec["parts"]):
+            part[4] = names[i % 8]
+        spec["palette"] = {n: {"surface": "metal", "color": "#808080"} for n in names}
+        self.assertIn("materials      PASS", run(spec))
+        spec["parts"][0][4] = "m8"
+        spec["palette"]["m8"] = {"surface": "metal", "color": "#808080"}
+        self.assertIn("materials      FAIL", run(spec))
+
     def test_spec_palette_slots_are_valid_materials(self):
         spec = spider_spec()
         names = ["chitin", "moss", "eye"]
@@ -63,6 +74,46 @@ class Palette(unittest.TestCase):
                            "moss": {"surface": "fur", "color": "#62794C"},
                            "eye": {"surface": "glow", "color": "#B3DEAB"}}
         self.assertIn("materials      PASS", run(spec))
+
+
+class Landmarks(unittest.TestCase):
+    def biped(self, half_width):
+        """A biped whose every arm part sits half_width out from the centre line."""
+        parts = []
+        for name, _, h, t in RF.BIPED:
+            if name == "root":
+                continue
+            x = half_width if name.endswith(".L") else -half_width if name.endswith(".R") else 0
+            h, t = (x, h[1], h[2]), (x, t[1], t[2])
+            parts.append([name, "prism", [0.08, 0.08, 0.5], [x, (h[1] + t[1]) / 2, 0],
+                          ["iron", "darkiron", "brass"][len(parts) % 3],
+                          {"sides": 6, "from": list(h), "to": list(t)}])
+        return parts
+
+    def test_widths_are_read_in_the_sheet_bands(self):
+        boxes = [PF.bbox(p) for p in self.biped(0.5)]
+        h = max(b[1][1] for b in boxes)
+        self.assertAlmostEqual(PF.band_span(boxes, h, PF.BANDS["shoulder_span"]), (0.5 + 0.08) * 2 / h, places=3)
+
+    def test_targets_fall_back_to_n01x(self):
+        self.assertEqual(PF.targets_from(None), PF.N01X_TARGETS)
+
+    @unittest.skipUnless((ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg").exists(), "refs")
+    def test_a_too_wide_footman_fails_its_own_sheet(self):
+        sheet = ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
+        wide = run({"parts": self.biped(1.0)}, sheet=sheet)
+        self.assertIn("shoulder_span  FAIL", wide)
+        self.assertIn("sheet 0.46", wide)
+
+
+class Ground(unittest.TestCase):
+    def test_dipping_parts_are_lifted_by_their_dip(self):
+        shin = ["shin.L", "prism", [0.1, 0.1, 0.6], [0.3, 0.2, 0], "iron",
+                {"from": [0.3, 0.5, 0], "to": [0.3, -0.1, 0]}]
+        boot = ["foot.L", "box", [0.2, 0.1, 0.4], [0.3, 0.5, 0.2], "iron", {}]
+        self.assertEqual(PF.ground_fix([shin, boot]), ["shin.L"])
+        self.assertAlmostEqual(PF.bbox(shin)[0][1], 0.0)
+        self.assertEqual(boot[3], [0.3, 0.5, 0.2])                # untouched
 
 
 class Floating(unittest.TestCase):

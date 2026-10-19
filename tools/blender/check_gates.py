@@ -5,7 +5,7 @@
     python3 tools/blender/check_gates.py <dir> --kind mass     # 400-700 tris
     python3 tools/blender/check_gates.py <dir> --kind building # 600-800 tris
 
-Gates (PIPELINE.md §6): triangle budget for the asset kind, 3-5 palette materials, one skin,
+Gates (PIPELINE.md §6): triangle budget for the asset kind, 3-8 palette materials, one skin,
 four animation clips. Exit 1 if any row fails, so it can gate a batch run.
 """
 import argparse
@@ -13,7 +13,7 @@ import json
 import pathlib
 import sys
 
-BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
+from preflight import BUDGETS, MATERIAL_SLOTS  # one table for every gate
 
 
 def stats(glb):
@@ -35,7 +35,8 @@ def main():
     print(f"{'file':28} {'tris':>5}  {'budget':>9}  mats skin anims  gate")
     for glb in sorted(args.folder.glob("*.glb")):
         tris, mats, skins, anims = stats(glb)
-        ok = lo <= tris <= hi and 3 <= mats <= 5 and skins == 1 and anims == 4
+        ok = (lo <= tris <= hi and MATERIAL_SLOTS[0] <= mats <= MATERIAL_SLOTS[1]
+              and skins == 1 and anims == 4)
         bad += 0 if ok else 1
         print(f"{glb.name:28} {tris:5}  {f'{lo}-{hi}':>9}  {mats:4} {skins:4} {anims:5}  {'PASS' if ok else 'FAIL'}")
     print(f"\n{len(list(args.folder.glob('*.glb')))} models, {bad} failing")

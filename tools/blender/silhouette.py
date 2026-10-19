@@ -144,6 +144,8 @@ def measure(sheet, size=768):
         "stance": round(max(fs[19:]), 3),
         "body_depth": round(max(ls[8:16]) * k, 3),
         "foot_length": round(max(ls[18:]) * k, 3),
+        # the widest top row is the shoulder line: how far below the top it sits
+        "head_clear": round(0.05 * max(range(2, 7), key=lambda i: fs[i]), 3),
         "front_width_profile": [round(v, 3) for v in fs],
         "left_width_profile": [round(v * k, 3) for v in ls],
     }

@@ -762,5 +762,32 @@ A `building-hard` variant would be a separate template if it is ever wanted.
   makes the spec author average the two.
 - `rts_path()` is `<stem>-rts.jpg` next to the sheet (`sheet.jpg -> sheet-rts.jpg`,
   `sheet-hard.jpg -> sheet-hard-rts.jpg`). `ensure_rts()` reads the RTS templates from
-  `TEMPLATES` in spec_pipeline.py (`prompts/_templates/`).
+  `TEMPLATES` in spec_pipeline.py (`prompts/00-template-*.txt`).
 
+
+### 16.6 Landmarks from the unit's own sheet, 3-8 materials, ground by construction (2026-10-20)
+
+- **Biped landmarks come from the unit's approved sheet.** The preflight used to hold every
+  biped to n01X's numbers (shoulders 0.55-0.70 H, fists 0.78-0.95 H, stance 0.45-0.62 H), so
+  every humanoid failed and nobody could tell a wide Footman from a right one. Now
+  `preflight.py <spec> <kind> <sheet>` measures the spec in the same height bands
+  `silhouette.measure` reads on the sheet (shoulders 10-30% from the top, fists 60-80%,
+  stance the bottom 5%) and asks for +/-15% of that sheet; foot length >= 0.8 x the sheet's;
+  the head may rise as far over the shoulders as the sheet's shoulder line sits below its
+  top. Without a sheet it falls back to the n01X numbers. Calibration: n01X v1 and n00U v1
+  are within 9% of their sheets; every hfoo run so far is 30-53% too wide at the shoulders
+  (sheet 0.46 H, models 0.60-0.70 H) - that is the "not there yet" on the other units.
+- **3 to 8 material slots** (`preflight.MATERIAL_SLOTS`, shared by the pipeline gate and
+  `check_gates.py`): the atlas packs every slot into one image, so more slots cost no texture.
+- **Ground by construction:** `preflight.ground_fix` lifts any part whose box dips below
+  y = 0 by exactly its dip, after every parse and every patch; the shins that kept failing
+  `ground` no longer depend on the spec author.
+- `--image1 hard|sheet` picks what the spec author builds from (default hard, §16.5);
+  `sheet` is the §16.1 arrangement, approved sheet first with the hard sheet as an extra.
+- **The repair pass runs by default** (`--no-repair` to skip): preflight failures, now with
+  the sheet's own targets, go back to the spec author as a patch even without `--passes`.
+  hfoo `abR1`: shoulders 0.66 -> 0.54 -> 0.51 (sheet 0.46), fists 0.71 -> 0.56, stance
+  0.49 -> 0.41; the first humanoid to pass 12/12, front 0.63 against the approved sheet.
+- A/B on hfoo, no repair (runs/draft/hfoo/ab*): hard as image 1 front 0.50/0.62/0.54, left
+  0.57/0.56/0.54; approved as image 1 front 0.58/0.59, left 0.53/0.55. Within run-to-run
+  noise (0.12 between two hard runs): image 1 is not the lever, the width error is.

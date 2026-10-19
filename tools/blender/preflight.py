@@ -2,19 +2,20 @@
 """Pre-flight for a unit spec: the rules this project learned the hard way, checked
 BEFORE anything is built, so the first attempt is already inside the design.
 
-    python3 tools/blender/preflight.py artifacts/model-sheets/draft11/spec-n01X-v11.json mass
+    python3 tools/blender/preflight.py <spec.json> <kind> [<approved sheet.jpg>]
 
 Rules (each one exists because an iteration failed on it):
 
-  budget         400-700 mass / 900-1600 hero, counted with DSL v2 primitive costs
-  materials      3-5 slots from the shared warm palette (iron, darkiron, brass, lamp)
-  bones          every bone of the family covered
-  shoulder_span  pauldron span / height 0.55-0.70 (concept n01X: 0.62)
-  fist_span      fist-to-fist span / height 0.78-0.95 (concept n01X: 0.88)
-  stance         foot-to-foot span / height 0.45-0.62 (concept n01X: 0.50)
-  feet_mass      boot height >= 0.045 H and length >= 0.18 H (v9 failed: 0.05 / 0.14)
+  budget         BUDGETS per kind, counted with DSL v2 primitive costs
+  materials      MATERIAL_SLOTS (3-8) slots, palette names or the spec's own "palette"
+  bones          every required bone of the rig family covered
+  shoulder_span  biped widths in the sheet's height bands (shoulders, fists, stance),
+  fist_span        within TOLERANCE of the unit's own sheet when it is given,
+  stance           else of the n01X sheet
+  feet_mass      boot height >= 0.045 H and length >= 0.8 x the sheet's foot length
   shin_mass      calf width >= 0.09 H (v9's stilts were 0.07)
-  head_top       ornamented head may rise 0.25 H over the shoulders; a bare head 0.05 H
+  head_top       the head may rise over the shoulders as far as the sheet's shoulder line
+                 sits below its top (+0.05 H); an ornamented head at least 0.25 H
   ornament_cost  head-wheel geometry <= 22% of the triangle budget (v9: 15% on spokes)
   ground         no part below y = 0
   overlap        each distal limb segment intersects its parent (no floating pieces)
@@ -31,6 +32,49 @@ PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
 ORNAMENT = ("ring", "wheel")
+MATERIAL_SLOTS = (3, 8)   # one atlas holds every slot, so more materials cost no texture
+# Biped landmarks, as fractions of the height, read in the same height bands the sheet
+# measure uses (silhouette.measure): rows 10-30% from the top are the shoulders, 60-80% the
+# fists, the bottom 5% the stance. Targets come from the unit's own sheet (--sheet); the
+# n01X numbers are only the fallback. Calibrated: n01X v1 and n00U v1 sit within 9% of
+# their sheets; every hfoo run so far is 30-53% wider than its sheet at the shoulders.
+BANDS = {"shoulder_span": (0.70, 0.90), "fist_span": (0.20, 0.40), "stance": (0.0, 0.05)}
+TOLERANCE = 0.15
+N01X_TARGETS = {"shoulder_span": 0.635, "fist_span": 0.863, "stance": 0.506,
+                "foot_length": 0.228, "head_clear": 0.25}
+
+
+def targets_from(sheet):
+    """Landmark targets measured on this unit's approved sheet, or the n01X fallback."""
+    if not sheet:
+        return dict(N01X_TARGETS)
+    from silhouette import measure
+    m = measure(pathlib.Path(sheet))
+    return {k: float(m[k]) for k in N01X_TARGETS}
+
+
+def band_span(boxes, height, band):
+    """Widest |x| extent x2 of any part reaching into a height band, as a fraction of H."""
+    lo, hi = band[0] * height, band[1] * height
+    w = [max(abs(b[0][0]), abs(b[1][0])) * 2 for b in boxes if b[1][1] >= lo and b[0][1] <= hi]
+    return max(w) / height if w else 0.0
+
+
+def ground_fix(parts):
+    """Lift every part whose box dips below y = 0 by exactly the dip, so the spec stands
+    on the ground without the model having to get it right. Returns the parts lifted."""
+    lifted = []
+    for p in parts:
+        dip = -bbox(p)[0][1]
+        if dip <= 1e-6:
+            continue
+        opts = p[5] if isinstance(p[5], dict) else {}
+        p[3] = [p[3][0], p[3][1] + dip, p[3][2]]
+        for end in ("from", "to"):
+            if end in opts:
+                opts[end] = [opts[end][0], opts[end][1] + dip, opts[end][2]]
+        lifted.append(p[0])
+    return lifted
 
 
 def is_leg(bone):
@@ -127,37 +171,21 @@ def overlaps(a, b):
     return all(al[i] <= bh[i] and bl[i] <= ah[i] for i in range(3))
 
 
-def span(parts, names):
-    boxes = [bbox(p) for p in parts if p[0] in names]
-    if not boxes:
-        return 0.0
-    return max(max(abs(b[0][0]), abs(b[1][0])) for b in boxes) * 2
-
-
-def biped_checks(parts, boxes, height):
-    """Landmarks measured on the n01X sheet; they only mean something for a biped."""
+def biped_checks(parts, boxes, height, targets):
+    """Biped landmarks against the unit's own sheet (targets_from), within TOLERANCE."""
     checks = []
-    shoulder_parts = [p for p in parts if p[0] in ("arm.L", "arm.R")
-                      and centre(p)[1] > 0.70 * height]
-    shoulder = (max(max(abs(bbox(p)[0][0]), abs(bbox(p)[1][0])) for p in shoulder_parts) * 2
-                if shoulder_parts else 0.0)
-    checks.append(("shoulder_span", 0.55 <= shoulder / height <= 0.70,
-                   f"{shoulder / height:.2f} (sheet 0.62)"))
-
-    fist = span(parts, {"forearm.L", "forearm.R"})
-    checks.append(("fist_span", 0.78 <= fist / height <= 0.95,
-                   f"{fist / height:.2f} (sheet 0.88)"))
-
-    stance = span(parts, {"foot.L", "foot.R"})
-    checks.append(("stance", 0.45 <= stance / height <= 0.62,
-                   f"{stance / height:.2f} (sheet 0.50)"))
+    for name, band in BANDS.items():
+        got, want = band_span(list(boxes.values()), height, band), targets[name]
+        checks.append((name, abs(got - want) <= TOLERANCE * want,
+                       f"{got:.2f} (sheet {want:.2f}, +/-{TOLERANCE:.0%})"))
 
     feet = [b for p, b in ((p, boxes[id(p)]) for p in parts) if p[0] in ("foot.L", "foot.R")]
     if feet:
         fh = min(b[1][1] - b[0][1] for b in feet) / height
         fl = min(b[1][2] - b[0][2] for b in feet) / height
-        checks.append(("feet_mass", fh >= 0.045 and fl >= 0.18,
-                       f"height {fh:.3f} H, length {fl:.3f} H"))
+        need = 0.8 * targets["foot_length"]
+        checks.append(("feet_mass", fh >= 0.045 and fl >= need,
+                       f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f})"))
     else:
         checks.append(("feet_mass", False, "no foot parts"))
 
@@ -174,7 +202,8 @@ def biped_checks(parts, boxes, height):
         shoulder_top = max((boxes[id(p)][1][1] for p in parts if p[0].startswith("arm.")),
                            default=head_top)
         ornamented = any(p[0] == "head" and p[1] in ORNAMENT for p in parts)
-        allowance = 0.25 if ornamented else 0.05
+        # the sheet's shoulder line sets how far a head may rise; an ornament keeps 0.25
+        allowance = max(targets["head_clear"] + 0.05, 0.25 if ornamented else 0.0)
         checks.append(("head_top", head_top <= shoulder_top + allowance * height,
                        f"head {head_top:.2f} vs shoulder {shoulder_top:.2f} "
                        f"(allow +{allowance:.2f} H)"))
@@ -211,7 +240,8 @@ def main():
     checks.append(("budget", lo <= tris <= hi, f"{tris} tris vs {lo}-{hi}"))
 
     mats = {p[4] for p in parts}
-    checks.append(("materials", 3 <= len(mats) <= 5 and mats <= palette,
+    checks.append(("materials", MATERIAL_SLOTS[0] <= len(mats) <= MATERIAL_SLOTS[1]
+                   and mats <= palette,
                    f"{sorted(mats)} ({len(mats)} slots)"))
 
     missing = RF.required(family) - {p[0] for p in parts}
@@ -220,7 +250,8 @@ def main():
     boxes = {id(p): bbox(p) for p in parts}
     height = max(max(b[1][1] for b in boxes.values()), 1e-6)
     if family == "biped":
-        checks += biped_checks(parts, boxes, height)
+        checks += biped_checks(parts, boxes, height,
+                               targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:

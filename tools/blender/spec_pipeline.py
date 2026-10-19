@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """One unit, end to end: sheet -> spec (vision model) -> GLB -> gates -> turntable GIF.
 
-    python3 tools/blender/spec_pipeline.py --id n01X --race Mech --name "Iron Golem" \\
-        --sheet artifacts/model-sheets/draft2/n01X.jpg --model google/gemini-4-argon --tag argon
-
+    python3 tools/blender/spec_pipeline.py --id n01X --race Mech --name "Iron Golem"
     python3 tools/blender/spec_pipeline.py --id hfoo --race Human --name Footman \\
-        --sheet artifacts/model-sheets/draft2/hfoo.jpg --model claude-opus-5.5 --tag opus55 \\
-        --budget 400-700 --out artifacts/model-sheets/draft4
+        --model claude-opus-5.5 --tag opus55 --run opus55
+
+Inputs default to refs/<id>/ (sheet.jpg judges, sheet-hard.jpg builds; sheet-hard-clean.jpg
+and sheet-props.jpg ride along when present); the run lands in runs/draft/<id>/<run>/.
 
 Triangle budgets, WC3 SD standard (see PIPELINE.md §6):
     mass unit 400-700 · hero 900-1600 · standard building 600-800 · town hall / large 2000-3000
@@ -38,7 +38,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS  # noqa: E402  (one table for the pipeline and the gate)
+from preflight import BUDGETS, MATERIAL_SLOTS, ground_fix  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -52,7 +52,7 @@ Kinds and dims, exactly:
 - "wheel": a torus rim. dims = (major_radius, tube_radius).
 - at = (x, y, z) in metres: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The unit stands on y = 0, about {height} m tall.
 - LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. {limb_note}
-- material: the name of one palette slot. Declare 3 to 5 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
+- material: the name of one palette slot. Declare 3 to 8 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
 Sheet colours (code-measured, share of the figure; near-black ink outlines removed): {colours}.
 - PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes) or {{"decal": "eyes8"}} (spider eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face.
 
@@ -355,7 +355,7 @@ def check_drift(args, layout):
     drift = sheet_drift(args.sheet, args.build, layout)
     low = [v for v in DRIFT_VIEWS if drift.get(v, 1.0) < DRIFT_MIN]
     print(f"drift hard vs approved: {drift}"
-          + (f"  - LOW on {low}: regenerate refs/{args.id}/hard.jpg" if low else "  ok"))
+          + (f"  - LOW on {low}: regenerate refs/{args.id}/sheet-hard.jpg" if low else "  ok"))
     return drift
 
 
@@ -415,6 +415,7 @@ def parse_spec(txt):
         raise ValueError("more than 3 extra bones")
     RF.with_extras(RIG, extras)                      # ValueError when one does not fit
     spec = validate(normalise(doc.get("parts")), palette, {b[0] for b in extras})
+    ground_fix(spec["parts"])                        # stand on y = 0 by construction
     if palette:
         spec["palette"] = palette
     if extras:
@@ -451,7 +452,9 @@ def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
     for i, part in sets.items():
         out[int(i)] = part
     out = [p for i, p in enumerate(out) if i not in drops] + list(adds)
-    return validate(normalise(out), palette, extra)["parts"], patch.get("why", "")
+    parts = validate(normalise(out), palette, extra)["parts"]
+    ground_fix(parts)
+    return parts, patch.get("why", "")
 
 
 def validate(parts, palette=None, extra=()):
@@ -491,7 +494,7 @@ def trial(spec, sheet, kind, work, name):
     path = work / f"{name}.json"
     path.write_text(json.dumps(spec, indent=2))
     glb = work / f"{name}.glb"
-    pre = tool("preflight.py", path, kind)
+    pre = tool("preflight.py", path, kind, sheet)     # landmark targets from this sheet
     problem = pre.stdout if pre.returncode else None
     build = tool("build_unit.py", path, glb, blender=True)
     if not glb.exists():
@@ -659,7 +662,7 @@ def ensure_rts(sheet, building=False):
 MSHEETS = ROOT / "artifacts/model-sheets"
 REFS = MSHEETS / "refs"
 PROMPTS = MSHEETS / "prompts"
-TEMPLATES = PROMPTS / "_templates"   # shared recipes; prompts/<id>/ holds the filled ones
+TEMPLATES = PROMPTS   # shared 00-template-*.txt recipes; prompts/<id>/ holds the filled ones
 RUNS = MSHEETS / "runs" / "draft"
 
 
@@ -678,10 +681,9 @@ def iou_rows(summary):
 def resolve_paths(args):
     """Fill the refs/<id>/ defaults and pick the run dir runs/<id>/<run> (next free vN)."""
     args.sheet = args.sheet or REFS / args.id / "sheet.jpg"
-    args.hard = args.hard or (REFS / args.id / "hard.jpg")
-    args.hard_clean = args.hard_clean or (REFS / args.id / "hard-clean.jpg")
-    args.props = args.props or (REFS / args.id / "props.jpg")
-    args.prompt = args.prompt or (PROMPTS / args.id / "unit.txt")
+    args.hard = args.hard or (REFS / args.id / "sheet-hard.jpg")
+    args.hard_clean = args.hard_clean or (REFS / args.id / "sheet-hard-clean.jpg")
+    args.props = args.props or (REFS / args.id / "sheet-props.jpg")
     if args.out is not None:
         return
     rundir = RUNS / args.id
@@ -704,13 +706,16 @@ def main():
     ap.add_argument("--sheet", type=pathlib.Path, default=None,
                     help="approved sheet; default refs/<id>/sheet.jpg")
     ap.add_argument("--hard", type=pathlib.Path, default=None,
-                    help="hard-edged faceted sheet, props in place; default refs/<id>/hard.jpg. "
+                    help="hard-edged faceted sheet, props in place; default refs/<id>/sheet-hard.jpg. "
                          "Sent as an extra reference; never replaces --sheet or the gate")
     ap.add_argument("--hard-clean", type=pathlib.Path, default=None,
                     help="same unit faceted, props removed, empty-handed A-pose; default "
-                         "refs/<id>/hard-clean.jpg")
+                         "refs/<id>/sheet-hard-clean.jpg")
     ap.add_argument("--props", type=pathlib.Path, default=None,
-                    help="props drawn detached; default refs/<id>/props.jpg")
+                    help="props drawn detached; default refs/<id>/sheet-props.jpg")
+    ap.add_argument("--image1", choices=("hard", "sheet"), default="hard",
+                    help="what the spec author builds from: the hard sheet (default) or the "
+                         "approved sheet with the hard one as an extra image (PIPELINE §16.1)")
     ap.add_argument("--with-sheet", action="store_true",
                     help="also send the approved sheet to the spec author (A/B against the "
                          "default, where the hard sheet alone is image 1)")
@@ -727,10 +732,10 @@ def main():
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")
-    ap.add_argument("--prompt", type=pathlib.Path, default=None,
-                    help="prompt file; default prompts/<id>/unit.txt")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
+    ap.add_argument("--no-repair", action="store_true",
+                    help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
                     help="comma-separated views to refine after the sheet pass, e.g. left,back,front")
     ap.add_argument("--out", type=pathlib.Path, default=None,
@@ -742,8 +747,7 @@ def main():
     lo, hi = BUDGETS[args.kind]
     layout = layout_of(args.kind)
     args.rig = args.rig or ("building" if layout == "building" else "biped")
-    for d in ("specs", "glb", args.tag):
-        (args.out / d).mkdir(parents=True, exist_ok=True)
+    args.out.mkdir(parents=True, exist_ok=True)
     if not args.no_rts:
         ensure_rts(args.sheet, building=args.kind in ("building", "large"))
         for ref in (args.hard, args.hard_clean):
@@ -751,7 +755,8 @@ def main():
                 ensure_rts(ref, building=args.kind in ("building", "large"))
 
     # construction sheet: the hard redraw when there is one; the approved sheet judges
-    args.build = args.hard if args.hard and args.hard.exists() else args.sheet
+    args.build = (args.hard if args.image1 == "hard" and args.hard and args.hard.exists()
+                  else args.sheet)
     args.drift = check_drift(args, layout)
     sheet, refs, tmp = prompt_images(args, args.out / ".." / "..")
     args.refs = refs
@@ -763,14 +768,16 @@ def main():
     spec["rig"] = args.rig
     for p in tmp:
         p.unlink(missing_ok=True)
-    if args.passes:
-        spec = run_passes(spec, args, brief, args.passes.split(","))
+    # the repair pass (preflight failures -> patch) runs even without --passes: it is
+    # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
+    if args.passes or not args.no_repair:
+        spec = run_passes(spec, args, brief, args.passes.split(",") if args.passes else [])
     spec_path = args.out / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2))
 
     # The spec is cheap to reject; the build is not. Preflight now runs before Blender.
     pre = subprocess.run([sys.executable, str(ROOT / "tools/blender/preflight.py"),
-                          str(spec_path), args.kind], capture_output=True, text=True)
+                          str(spec_path), args.kind, str(args.sheet)], capture_output=True, text=True)
     print(pre.stdout.strip())
     if pre.returncode:
         print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
@@ -797,7 +804,7 @@ def main():
     subprocess.run(["rm", "-rf", str(frames)], check=False)
 
     sil_ok = review(args, glb, layout)
-    ok = (not pre.returncode and lo <= tris <= hi and 3 <= len(mats) <= 5 and skins == 1
+    ok = (not pre.returncode and lo <= tris <= hi and MATERIAL_SLOTS[0] <= len(mats) <= MATERIAL_SLOTS[1] and skins == 1
           and anims == (0 if args.rig in RF.STATIC else 4)
           and smear_pct <= 0.5 and sil_ok)
     verdict = "PASS" if ok else "CHECK"

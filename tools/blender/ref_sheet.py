@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Compose every reference drawing of one unit into one contact sheet.
 
-    python3 tools/blender/ref_sheet.py artifacts/model-sheets/draft2/hfoo.jpg \
-        artifacts/model-sheets/draft2/hfoo-refsheet.png
+    python3 tools/blender/ref_sheet.py artifacts/model-sheets/refs/hfoo/sheet.jpg \
+        artifacts/model-sheets/refs/hfoo/refsheet.png
 
 Cells, in reading order: the approved 5-view sheet, the hard-edge sheet with the props
 attached, the hard clean sheet (empty-handed A-pose, no props), the detached props, the

@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """Send one prompt file to the ppq image endpoint and save the result as <stem>.jpg.
 
-    python3 generate.py prompts/unit-n01X.txt
-    python3 generate.py prompts/building-h09B.txt --out draft3 --dry-run
-    python3 generate.py prompts/unit-n00U.txt --model nano-banana-2-1 --resolution 2K
-    python3 generate.py draft2/prompts/00-template-rts.txt --image draft2/n01X.jpg \
-        --out draft2 --name n01X-rts            # RTS 3/4 view drawn from the approved sheet
+Layout: art in refs/<id>/, prompts in prompts/<id>/, shared templates in prompts/.
 
-New layout (art in refs/, prompts in prompts/):
-
-    python3 generate.py prompts/hfoo/unit.txt --id hfoo --refsheet
+    python3 generate.py prompts/hfoo/unit.txt --id hfoo --refsheet            # -> sheet.jpg
     python3 generate.py prompts/hfoo/unit-hard.txt --id hfoo --image refs/hfoo/sheet.jpg
     python3 generate.py prompts/hfoo/unit-hard-clean.txt --id hfoo --image refs/hfoo/sheet.jpg
     python3 generate.py prompts/hfoo/unit-props.txt --id hfoo --image refs/hfoo/sheet.jpg
-    python3 generate.py prompts/hfoo/rts-hard.txt --id hfoo --image refs/hfoo/hard.jpg
+    python3 generate.py prompts/00-template-rts-hard.txt --image refs/hfoo/sheet-hard.jpg \
+        --out refs/hfoo --name sheet-hard-rts --resolution 1K
+    python3 generate.py prompts/building-h09B.txt --dry-run
 
-`--id` switches the default output to `refs/<id>/<stem>.jpg` (versioned) and, with
-`--refsheet`, composes the contact sheet into `refs/<id>/refsheet.png` afterwards.
+`--id` switches the default output to `refs/<id>/` and names it after the prompt with
+unit -> sheet (prompts/hfoo/unit-hard.txt -> refs/hfoo/sheet-hard.jpg), the names
+spec_pipeline.py reads; `--refsheet` then composes refs/<id>/refsheet.png.
 
 Key resolution order: $PPQ_API_KEY, then provider.ppq.options.apiKey in
 ~/.config/opencode/opencode.json. Never write the key into a file under this folder.
@@ -85,7 +82,9 @@ def main():
     prompt = args.prompt_file.read_text().strip()
     if args.id and not args.out and not args.name:
         out = ROOT / "artifacts/model-sheets" / "refs" / args.id
-        stem = args.prompt_file.stem
+        # prompts are unit*.txt, the art they draw is refs/<id>/sheet*.jpg (unit-hard -> sheet-hard)
+        stem = "sheet" + args.prompt_file.stem[len("unit"):] if args.prompt_file.stem.startswith("unit") \
+            else args.prompt_file.stem
     else:
         out = args.out or args.prompt_file.parent
         stem = args.name or args.prompt_file.stem
