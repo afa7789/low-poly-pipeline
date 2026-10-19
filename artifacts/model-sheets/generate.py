@@ -4,6 +4,8 @@
     python3 generate.py prompts/unit-n01X.txt
     python3 generate.py prompts/building-h09B.txt --out draft3 --dry-run
     python3 generate.py prompts/unit-n00U.txt --model nano-banana-2-1 --resolution 2K
+    python3 generate.py draft2/prompts/00-template-rts.txt --image draft2/n01X.jpg \
+        --out draft2 --name n01X-rts            # RTS 3/4 view drawn from the approved sheet
 
 Key resolution order: $PPQ_API_KEY, then provider.ppq.options.apiKey in
 ~/.config/opencode/opencode.json. Never write the key into a file under this folder.
@@ -14,11 +16,15 @@ Models verified on this gateway (2026-10-18, GET /v1/models?type=image):
   krea-2-turbo     $0.013  1K, silhouette sheets with a real shadow, no colour read
   flux-2-pro       $0.029  ignores panel wording, repeats one viewpoint
   flux-kontext-pro / flux-2-pro-i2i: broken on this gateway (502 / 400), do not use
+  nano-banana-2-1-edit  $0.051  image-to-image (--image): same unit, new camera -- verified
+                                2026-10-19 on the n01X RTS view
 """
 import argparse
+import base64
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -44,8 +50,12 @@ def main():
     ap.add_argument("--aspect", default="1:1")
     ap.add_argument("--out", type=pathlib.Path, default=None, help="output directory (default: the prompt file's folder)")
     ap.add_argument("--name", default=None, help="output stem (default: the prompt file's stem minus its prefix)")
+    ap.add_argument("--image", type=pathlib.Path, default=None,
+                    help="reference image (the approved sheet); switches to the edit model")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if args.image and args.model == "nano-banana-2-1":
+        args.model = "nano-banana-2-1-edit"
 
     prompt = args.prompt_file.read_text().strip()
     out = args.out or args.prompt_file.parent
@@ -54,8 +64,15 @@ def main():
 
     payload = {"model": args.model, "prompt": prompt, "aspect_ratio": args.aspect,
                "resolution": args.resolution, "n": 1}
+    if args.image:
+        small = subprocess.run(["magick", str(args.image), "-resize", "1024x1024", "-quality", "88",
+                                "jpg:-"], check=True, capture_output=True).stdout
+        payload["image_url"] = "data:image/jpeg;base64," + base64.b64encode(small).decode()
     if args.dry_run:
-        print(json.dumps({**payload, "prompt": f"<{len(prompt)} chars>"}, indent=1))
+        shown = {**payload, "prompt": f"<{len(prompt)} chars>"}
+        if "image_url" in shown:
+            shown["image_url"] = f"<{len(shown['image_url'])} chars>"
+        print(json.dumps(shown, indent=1))
         print("would write:", dest)
         return
 

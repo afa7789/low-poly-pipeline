@@ -454,3 +454,38 @@ python3 tools/blender/check_gates.py artifacts/model-sheets/draft11 --kind mass
 python3 tools/blender/silhouette.py artifacts/model-sheets/draft2/n01X.jpg \
   artifacts/model-sheets/draft11/n01X-v11.glb artifacts/model-sheets/draft11/sil
 ```
+
+## 14. Per-view passes, calibrated cameras, RTS view (2026-10-19)
+
+- `split_sheet.py` cuts the 3+2 sheet into `<id>-front/left/back/top/bottom.png`
+  (plus `<id>-rts.png` when the RTS concept exists).
+- `spec_pipeline.py --passes rts,left,back,front`: after the sheet spec, each pass
+  sends the concept view + the model render of that view + the silhouette overlay
+  and gets back a patch of at most 6 parts. A patch is kept only if its own view's
+  IoU rises, no gated view drops more than 0.01 and the preflight does not break.
+  Pass 0 repairs a preflight failure (up to 2 patches of 12 parts). `--spec` resumes
+  from an approved spec.
+- Never stop on a failed gate: the GLB, compare and GIF always come out; gates set
+  the verdict (PASS/CHECK) and the exit code.
+- Procedural painted texture (`texturize`) is the default; `--flat` opts out. Do not
+  project the concept onto the model: it copies the sheet background.
+- Top/bottom panels are drawn tilted toward the front. `silhouette.py` sweeps the
+  camera tilt (`views.TILTS`) and keeps the best match; the colour review renders at
+  that tilt. Vertical flips are no longer tried (a flipped back-side view used to win).
+- RTS view: `generate.py <template-rts> --image <sheet>` draws the same unit from the
+  gameplay camera with `nano-banana-2-1-edit` (saved as `<sheet>-rts.jpg`).
+  `silhouette.py` sweeps elevation x azimuth (`views.RTS`); the `wc3` render uses that
+  camera, orthographic like the sweep (the old close perspective looked steeper than
+  the matched angle). Elevation = height of the camera above the ground, azimuth = turn
+  around the unit from the front; n01X asked 45/45, the drawing measures 35/-45.
+- Commit per draft only `specs/*.json` and `glb/*.glb`. `passes/`, `sil/`, `views/` and
+  every PNG/GIF (compare, turntable) are local-only (`artifacts/model-sheets/.gitignore`).
+
+| n01X | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| v11 (manual) | 0.771 | 0.694 | — | — | — | — |
+| v12 sheet + passes | 0.829 | 0.829 | 0.823 | 0.782 @10° | 0.791 @20° | 0.778 @35°/−45° |
+| v13 = v12 + rts,left,back | **0.857** | 0.832 | **0.854** | 0.785 | 0.804 | 0.783 |
+
+v13: only the back pass was accepted (it closed the thigh-pelvis gap); the rts pass
+did not raise the rts IoU and the left pass broke the preflight.

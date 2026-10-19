@@ -21,14 +21,20 @@ import sys
 
 import bmesh
 import bpy
+import mathutils
 from mathutils import Vector
 
 # ---------------------------------------------------------------- materials
 MATERIALS = {
-    "iron": (0.431, 0.486, 0.549, 1.0),   # #6E7C8C steel mid
-    "brass": (0.784, 0.573, 0.180, 1.0),  # #C8922E gold mid
-    "flame": (1.000, 0.902, 0.000, 1.0),  # #FFE600 pilot flame
+    # Sampled from the approved sheet, not invented: warm iron reads as painted
+    # metal at 32 px; the blue-steel accent was what made v9 look like a toy.
+    "iron": (0.431, 0.423, 0.408, 1.0),      # #6E6C68 concept iron
+    "darkiron": (0.306, 0.251, 0.204, 1.0),  # #4E4034 waist, pelvis, straps
+    "brass": (0.647, 0.506, 0.290, 1.0),     # #A5814A muted brass
+    "flame": (1.000, 0.824, 0.290, 1.0),     # #FFD24A lamp / pilot light
 }
+# Keep the old spelling as a read-only alias so older specs still load.
+MATERIALS["lamp"] = MATERIALS["flame"]
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
@@ -115,6 +121,11 @@ SPECS = {
     ],
 }
 
+# The accepted draft is the source of truth; the literal above is the v9 history.
+_REF = pathlib.Path(__file__).resolve().parents[2] / "artifacts/model-sheets/draft11/spec-n01X-v11.json"
+if _REF.exists():
+    SPECS["n01X"] = [tuple(p) for p in json.loads(_REF.read_text())["parts"]]
+
 D = math.radians
 
 
@@ -190,22 +201,35 @@ def wipe():
 _MAT_CACHE = {}
 
 
+def srgb(rgb):
+    """Blender and glTF store base colour in linear space; the palette is sampled
+    in sRGB. Skipping this conversion is why the first renders looked chalk-white."""
+    out = []
+    for c in rgb[:3]:
+        out.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+    return (*out, 1.0)
+
+
 def material(name):
     if name in _MAT_CACHE:
         return _MAT_CACHE[name]
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = MATERIALS[name]
+    bsdf.inputs["Base Color"].default_value = srgb(MATERIALS[name])
     bsdf.inputs["Roughness"].default_value = 0.85
-    if name == "flame":
-        bsdf.inputs["Emission Color"].default_value = MATERIALS[name]
+    if name in ("flame", "lamp"):
+        bsdf.inputs["Emission Color"].default_value = srgb(MATERIALS[name])
         bsdf.inputs["Emission Strength"].default_value = 1.0
     _MAT_CACHE[name] = mat
     return mat
 
 
-def build_armature():
+def build_armature(rest_pose=None):
+    """Build the shared rig. `rest_pose` is an optional {bone: [rx, ry, rz]} in
+    spec-space degrees; the bone is rotated around its head so an arm authored
+    splayed outward also swings outward in the clips. Parts stay in world space:
+    the bind pose is unchanged, only the animation axes move."""
     arm_data = bpy.data.armatures.new("rig")
     arm = bpy.data.objects.new("rig", arm_data)
     bpy.context.collection.objects.link(arm)
@@ -216,11 +240,19 @@ def build_armature():
         b.head, b.tail = Vector(bp(head)), Vector(bp(tail))
         if parent:
             b.parent = arm_data.edit_bones[parent]
+        if rest_pose and name in rest_pose:
+            rx, ry, rz = (D(v) for v in rest_pose[name])
+            pivot = b.head.copy()
+            rot = (mathutils.Matrix.Rotation(rx, 3, "X")
+                   @ mathutils.Matrix.Rotation(rz, 3, "Z")
+                   @ mathutils.Matrix.Rotation(ry, 3, "Y"))
+            b.tail = pivot + rot @ (b.tail - pivot)
     bpy.ops.object.mode_set(mode="OBJECT")
     return arm
 
 
-BASE_TRIS = {"box": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28}
+BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28,
+             "ring": 144}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
 
@@ -252,13 +284,122 @@ def prism(dims, at, rot=0.0, sides=8, axis="up", rot_euler=None):
     obj = bpy.data.objects.new("prism", me)
     bpy.context.collection.objects.link(obj)
     obj.location = bp(at)
-    base = (D(90), 0, 0) if axis == "fwd" else (0, 0, 0)
+    base = ((D(90), 0, 0) if axis == "fwd"
+            else (0, D(90), 0) if axis == "side" else (0, 0, 0))
     if rot_euler is None:
         obj.rotation_euler = (base[0], base[1] - rot, base[2])
     else:
         rx, ry, rz = rot_euler
         obj.rotation_euler = (base[0] + rx, base[1] - rz, base[2] + ry)
     return obj
+
+
+def frustum(dims, at, top=(1.0, 1.0), shift=(0.0, 0.0), rot=(0.0, 0.0, 0.0)):
+    """A box with independent top scale and top offset: wedge boots, trapezoid
+    pelvis, tapered fists. Six quads, 12 tris - the shape WC3 uses instead of
+    bevelling every edge."""
+    w, h, d = dims
+    sx, sz = top
+    dx, dz = shift
+    hw, hd, hh = w / 2, d / 2, h / 2
+    lo = [(-hw, -hd, -hh), (hw, -hd, -hh), (hw, hd, -hh), (-hw, hd, -hh)]
+    hi = [(-hw * sx + dx, -hd * sz + dz, hh), (hw * sx + dx, -hd * sz + dz, hh),
+          (hw * sx + dx, hd * sz + dz, hh), (-hw * sx + dx, hd * sz + dz, hh)]
+    me = bpy.data.meshes.new("frustum")
+    bm = bmesh.new()
+    vs = [bm.verts.new(v) for v in lo + hi]
+    bm.faces.new(vs[3::-1])                 # bottom
+    bm.faces.new(vs[4:8])                   # top
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((vs[i], vs[j], vs[4 + j], vs[4 + i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("frustum", me)
+    bpy.context.collection.objects.link(obj)
+    obj.location = bp(at)
+    rx, ry, rz = (D(v) for v in rot)
+    obj.rotation_euler = (rx, -rz, ry)
+    return obj
+
+
+def ring(dims, at, opts):
+    """A flat annulus with optional radial spokes and a hub, built as one mesh.
+
+    dims = (outer_radius, radial_width, thickness). This is the WC3 valve-wheel
+    primitive: 10 sides, three spokes and an 8-sided hub is 144 tris and reads as
+    a wheel from every view. `axis` picks the disc normal (up / fwd / side),
+    `tilt` tips it around the lateral axis and `spin` rotates the spokes."""
+    outer, width, thick = dims
+    inner = max(outer - width, 0.01)
+    sides = int(opts.get("sides", 10))
+    spokes = int(opts.get("spokes", 0))
+    hub_r = float(opts.get("hub", 0.0)) or (inner * 0.32 if spokes else 0.0)
+    half = thick / 2
+    bm = bmesh.new()
+    rings = []
+    for r in (outer, inner):
+        rings.append([bm.verts.new((r * math.cos(2 * math.pi * i / sides),
+                                    r * math.sin(2 * math.pi * i / sides), z))
+                      for z in (-half, half) for i in range(sides)])
+    outer_lo, outer_hi = rings[0][:sides], rings[0][sides:]
+    inner_lo, inner_hi = rings[1][:sides], rings[1][sides:]
+    for i in range(sides):
+        j = (i + 1) % sides
+        bm.faces.new((outer_lo[i], outer_lo[j], outer_hi[j], outer_hi[i]))
+        bm.faces.new((inner_hi[i], inner_hi[j], inner_lo[j], inner_lo[i]))
+        bm.faces.new((outer_hi[i], outer_hi[j], inner_hi[j], inner_hi[i]))
+        bm.faces.new((inner_lo[i], inner_lo[j], outer_lo[j], outer_lo[i]))
+    if spokes:
+        span = inner - hub_r
+        mid = (inner + hub_r) / 2
+        for k in range(spokes):
+            ang = D(90 + 360 * k / spokes)
+            mat = (mathutils.Matrix.Translation((mid * math.cos(ang), mid * math.sin(ang), 0))
+                   @ mathutils.Matrix.Rotation(ang, 4, "Z")
+                   @ mathutils.Matrix.Diagonal((span, width * 0.72, thick * 0.8, 1)))
+            bmesh.ops.create_cube(bm, size=1.0, matrix=mat)
+    if hub_r:
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8,
+                              radius1=hub_r, radius2=hub_r, depth=thick)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new("ring")
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("ring", me)
+    bpy.context.collection.objects.link(obj)
+    obj.location = bp(at)
+    axis = opts.get("axis", "up")
+    base = mathutils.Quaternion((1, 0, 0), D(90)) if axis == "fwd" else (
+        mathutils.Quaternion((0, 1, 0), D(90)) if axis == "side" else mathutils.Quaternion())
+    obj.rotation_mode = "QUATERNION"
+    obj.rotation_quaternion = (base
+                               @ mathutils.Quaternion((1, 0, 0), D(opts.get("tilt", 0.0)))
+                               @ mathutils.Quaternion((0, 0, 1), D(opts.get("spin", 0.0))))
+    return obj
+
+
+def orient_between(obj, a, b):
+    """Point a part's local +Z from spec point a to b. Limbs and feet stop being
+    axis-aligned stacks: the spec can declare the two joints and the builder solves
+    the angle, so the LLM never writes a placement number."""
+    d = Vector(bp(b)) - Vector(bp(a))
+    if d.length < 1e-6:
+        return
+    obj.rotation_mode = "QUATERNION"
+    obj.rotation_quaternion = d.to_track_quat("Z", "Y")
+
+
+def fit_length(kind, dims, a, b, margin=1.08):
+    length = (Vector(b) - Vector(a)).length * margin
+    if kind == "prism":
+        return (dims[0], dims[1], length)
+    if kind == "cyl":
+        return (dims[0], length)
+    if kind in ("box", "frustum"):
+        return (dims[0], length, dims[2])
+    return dims
 
 
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
@@ -268,6 +409,13 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     rx, ry, rz = (D(v) for v in rots)
     rot_z = rz  # legacy: a single number means "turn around the forward axis"
     axis = opts.get("axis", "fwd")
+    has_span = "from" in opts and "to" in opts
+    a = b = None
+    if has_span:
+        a, b = tuple(opts["from"]), tuple(opts["to"])
+        at = tuple((a[i] + b[i]) / 2 for i in range(3))
+        if opts.get("fit", True):
+            dims = fit_length(kind, dims, a, b)
     loc = bp(at)
     if kind in ("prism", "dome"):
         sides = int(opts.get("sides", 8))
@@ -276,12 +424,35 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
             dims = (dims[0], dims[0] * float(opts.get("top", 0.35)), dims[1])
         obj = prism(dims, at, rot_z, sides=sides, axis=opts.get("axis", "up"),
                     rot_euler=(rx, ry, rz))
+        if opts.get("spin"):
+            obj.rotation_euler.z += D(float(opts["spin"]))
+        if opts.get("scale"):
+            obj.scale = (float(opts["scale"][0]), float(opts["scale"][1]), 1.0)
+        obj.name = f"{bone}_{idx}"
+        obj.data.materials.append(material(mat_name))
+        if has_span:
+            orient_between(obj, a, b)
+        return obj
+    if kind == "ring":
+        obj = ring(dims, at, opts)
         obj.name = f"{bone}_{idx}"
         obj.data.materials.append(material(mat_name))
         return obj
+    if kind == "frustum":
+        obj = frustum(dims, at, top=opts.get("top", (1.0, 1.0)),
+                      shift=opts.get("shift", (0.0, 0.0)), rot=(rx, ry, rz))
+        if opts.get("spin"):
+            obj.rotation_euler.z += D(float(opts["spin"]))
+        if opts.get("scale"):
+            obj.scale = (float(opts["scale"][0]), float(opts["scale"][1]), 1.0)
+        obj.name = f"{bone}_{idx}"
+        obj.data.materials.append(material(mat_name))
+        if has_span:
+            orient_between(obj, a, b)
+        return obj
     if kind == "box":
         size = bd(dims)
-        if chamfer:
+        if chamfer and not has_span:
             obj = chamfer_cube(size, at, (rx, ry, rz), 0.02)
             obj.name = f"{bone}_{idx}"
             obj.data.materials.append(material(mat_name))
@@ -291,7 +462,12 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     elif kind == "wheel":
         bpy.ops.mesh.primitive_torus_add(major_segments=10, minor_segments=4,
                                          major_radius=dims[0], minor_radius=dims[1],
-                                         location=loc, rotation=(D(90), 0, 0))
+                                         location=loc)
+        obj = bpy.context.active_object
+        base = mathutils.Quaternion((1, 0, 0), D(90)) if axis == "fwd" else (
+            mathutils.Quaternion((0, 1, 0), D(90)) if axis == "side" else mathutils.Quaternion())
+        obj.rotation_mode = "QUATERNION"
+        obj.rotation_quaternion = base @ mathutils.Quaternion((1, 0, 0), D(opts.get("tilt", 0.0)))
     else:
         if axis == "up":
             # axis along the spec's up: cylinder default axis is +Z, already up
@@ -303,6 +479,8 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     obj.name = f"{bone}_{idx}"
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     obj.data.materials.append(material(mat_name))
+    if has_span:
+        orient_between(obj, a, b)
     return obj
 
 
@@ -651,7 +829,76 @@ def texturize(body, meta, size=256):
         bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
         slot.material.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
         images[base] = {"material": slot.material, "image": img}
-    return len(images)
+
+ATLAS_SLOTS = {"pelvis": 2, "spine": 1, "head": 0,
+               "arm.L": 3, "arm.R": 3, "forearm.L": 4, "forearm.R": 4,
+               "thigh.L": 5, "thigh.R": 5, "shin.L": 6, "shin.R": 6,
+               "foot.L": 7, "foot.R": 7, "root": 2}
+
+
+def texturize_atlas(body, meta, atlas_path, cols=4, rows=2):
+    """Project a per-part crop atlas (concept tiles) onto the joined mesh.
+
+    Unlike texturize(), the tile content is painted art, not a sine mottle, and each
+    part is mapped inside its own crop, so the background of the sheet cannot bleed
+    onto the model. Faces use a box projection in part-local space; left/right parts
+    share a tile with mirrored U."""
+    mesh = body.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv = mesh.uv_layers.active.data
+    img = bpy.data.images.load(str(atlas_path), check_existing=True)
+
+    def nearest_part(co):
+        best, best_d = meta[0], 1e9
+        for m in meta:
+            bone, mat_name, centre, half = m
+            d = 0.0
+            for a in range(3):
+                delta = abs(co[a] - centre[a]) - half[a]
+                if delta > 0:
+                    d += delta * delta
+            d += 0.02 * sum((co[i] - centre[i]) ** 2 for i in range(3))
+            if d < best_d:
+                best, best_d = m, d
+        return best
+
+    for poly in mesh.polygons:
+        bone, mat_name, centre, half = nearest_part(poly.center)
+        slot = ATLAS_SLOTS.get(bone, 2)
+        tx, ty = slot % cols, slot // cols
+        n = poly.normal
+        axis = max(range(3), key=lambda i: abs(n[i]))
+        mirror = bone.endswith(".R")
+        for li in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[li].vertex_index].co
+            local = [(co[i] - centre[i]) / max(2 * half[i], 1e-6) + 0.5 for i in range(3)]
+            if axis == 0:
+                u, v = local[1], local[2]
+            elif axis == 1:
+                u, v = local[0], local[2]
+            else:
+                u, v = local[0], local[1]
+            if mirror:
+                u = 1.0 - u
+            u = min(0.97, max(0.03, u))
+            v = min(0.97, max(0.03, v))
+            uv[li].uv = ((tx + u) / cols, (1 - ty) * 0.5 + v * 0.5)
+
+    for slot in body.material_slots:
+        mat = slot.material
+        base = mat.name.split(".")[0]
+        if base in ("flame", "lamp"):
+            continue
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        bsdf = nodes.get("Principled BSDF")
+        tex = nodes.new("ShaderNodeTexImage")
+        tex.image = img
+        tex.interpolation = "Linear"
+        mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+        bsdf.inputs["Base Color"].default_value = (1, 1, 1, 1)
+    return img.size[:]
 
 # ---------------------------------------------------------------- fusion
 def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
@@ -742,11 +989,11 @@ IDLE = {
 WALK = {
     1: {"thigh.L": (-26, 0, 0, 0), "shin.L": (16, 0, 0, 0), "foot.L": (-8, 0, 0, 0),
         "thigh.R": (22, 0, 0, 0), "shin.R": (22, 0, 0, 0), "foot.R": (14, 0, 0, 0),
-        "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (3, 0, 0, 0),
+        "arm.L": (22, 0, 0, 0), "arm.R": (-22, 0, 0, 0), "spine": (3, 0, 0, 0),
         "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
     4: {"thigh.L": (-14, 0, 0, 0), "shin.L": (24, 0, 0, 0), "foot.L": (0, 0, 0, 0),
         "thigh.R": (14, 0, 0, 0), "shin.R": (14, 0, 0, 0), "foot.R": (6, 0, 0, 0),
-        "arm.L": (9, 0, 0, 0), "arm.R": (-9, 0, 0, 0), "spine": (5, 0, 0, 0),
+        "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (5, 0, 0, 0),
         "head": (-2, 0, 0, 0), "root": (0, 0, 0, -0.06)},
     7: {"thigh.L": (0, 0, 0, 0), "shin.L": (10, 0, 0, 0), "foot.L": (0, 0, 0, 0),
         "thigh.R": (0, 0, 0, 0), "shin.R": (6, 0, 0, 0), "foot.R": (0, 0, 0, 0),
@@ -754,15 +1001,15 @@ WALK = {
         "head": (0, 0, 0, 0), "root": (0, 0, 0, 0.02)},
     10: {"thigh.L": (16, 0, 0, 0), "shin.L": (6, 0, 0, 0), "foot.L": (10, 0, 0, 0),
          "thigh.R": (-18, 0, 0, 0), "shin.R": (12, 0, 0, 0), "foot.R": (-6, 0, 0, 0),
-         "arm.L": (-9, 0, 0, 0), "arm.R": (9, 0, 0, 0), "spine": (3, 0, 0, 0),
+         "arm.L": (-14, 0, 0, 0), "arm.R": (14, 0, 0, 0), "spine": (3, 0, 0, 0),
          "head": (-2, 0, 0, 0), "root": (0, 0, 0, 0.0)},
     13: {"thigh.L": (22, 0, 0, 0), "shin.L": (22, 0, 0, 0), "foot.L": (14, 0, 0, 0),
          "thigh.R": (-26, 0, 0, 0), "shin.R": (16, 0, 0, 0), "foot.R": (-8, 0, 0, 0),
-         "arm.L": (-14, 0, 0, 0), "arm.R": (14, 0, 0, 0), "spine": (3, 0, 0, 0),
+         "arm.L": (-22, 0, 0, 0), "arm.R": (22, 0, 0, 0), "spine": (3, 0, 0, 0),
          "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
     16: {"thigh.L": (14, 0, 0, 0), "shin.L": (14, 0, 0, 0), "foot.L": (6, 0, 0, 0),
          "thigh.R": (-14, 0, 0, 0), "shin.R": (24, 0, 0, 0), "foot.R": (0, 0, 0, 0),
-         "arm.L": (-9, 0, 0, 0), "arm.R": (9, 0, 0, 0), "spine": (5, 0, 0, 0),
+         "arm.L": (-14, 0, 0, 0), "arm.R": (14, 0, 0, 0), "spine": (5, 0, 0, 0),
          "head": (-2, 0, 0, 0), "root": (0, 0, 0, -0.06)},
     19: {"thigh.L": (0, 0, 0, 0), "shin.L": (6, 0, 0, 0), "foot.L": (0, 0, 0, 0),
          "thigh.R": (0, 0, 0, 0), "shin.R": (10, 0, 0, 0), "foot.R": (0, 0, 0, 0),
@@ -770,11 +1017,11 @@ WALK = {
          "head": (0, 0, 0, 0), "root": (0, 0, 0, 0.02)},
     22: {"thigh.L": (-18, 0, 0, 0), "shin.L": (12, 0, 0, 0), "foot.L": (-6, 0, 0, 0),
          "thigh.R": (16, 0, 0, 0), "shin.R": (6, 0, 0, 0), "foot.R": (10, 0, 0, 0),
-         "arm.L": (9, 0, 0, 0), "arm.R": (-9, 0, 0, 0), "spine": (3, 0, 0, 0),
+         "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (3, 0, 0, 0),
          "head": (-2, 0, 0, 0), "root": (0, 0, 0, 0.0)},
     25: {"thigh.L": (-26, 0, 0, 0), "shin.L": (16, 0, 0, 0), "foot.L": (-8, 0, 0, 0),
          "thigh.R": (22, 0, 0, 0), "shin.R": (22, 0, 0, 0), "foot.R": (14, 0, 0, 0),
-         "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (3, 0, 0, 0),
+         "arm.L": (22, 0, 0, 0), "arm.R": (-22, 0, 0, 0), "spine": (3, 0, 0, 0),
          "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
 }
 
@@ -806,27 +1053,33 @@ ACTIONS = [("idle", IDLE, True, (), ()), ("walk", WALK, True, (1, 5, 17, 21), ((
 
 
 def load_spec(target):
-    """Either a built-in id (SPECS) or a path to {"parts": [...]} JSON."""
+    """Either a built-in id (SPECS) or a path to {"parts"|"segments": ...} JSON.
+    Returns (unit, spec, rest_pose). rest_pose is optional bone rest rotations."""
     p = pathlib.Path(target)
     if p.suffix == ".json":
         doc = json.loads(p.read_text())
+        pose = doc.get("rest_pose")
         if "segments" in doc:          # skeleton-first spec: placement comes from the rig
-            return p.stem, doc
-        return p.stem, [tuple(x) for x in doc["parts"]]
+            return p.stem, doc, pose
+        return p.stem, [tuple(x) for x in doc["parts"]], pose
     if target not in SPECS:
         sys.exit(f"no spec for {target}")
-    return target, SPECS[target]
+    return target, SPECS[target], None
 
 
 def main():
     target, out = sys.argv[sys.argv.index("--") + 1:][:2]
     rest = sys.argv[sys.argv.index("--") + 1:]
+    cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
+    atlas_path = None
     for arg in rest:
+        if arg.startswith("atlas="):
+            atlas_path = arg[len("atlas="):]
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     wipe()                                  # before any branch: the factory cube is not ours
-    unit, spec = load_spec(target)
+    unit, spec, rest_pose = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):
         print("rig family:", load_family(spec["rig"]))
     if isinstance(spec, dict) and spec.get("mode") == "boxmod":
@@ -835,7 +1088,7 @@ def main():
         bpy.context.view_layer.objects.active = body
         for m, _ in [("iron", None)]:
             body.data.materials.append(material(m))
-        arm = build_armature()
+        arm = build_armature(rest_pose)
         body.parent = arm
         body.vertex_groups.new(name="spine").add(range(len(body.data.vertices)), 1.0, "REPLACE")
         body.modifiers.new("Armature", "ARMATURE").object = arm
@@ -866,7 +1119,7 @@ def main():
             bpy.context.view_layer.objects.active = body
             bpy.ops.object.join()
             print(f"mix: +{len(extra_parts)} hard plates -> {len(body.data.polygons)} faces")
-        arm = build_armature()
+        arm = build_armature(rest_pose)
         body.parent = arm
         body.modifiers.new("Armature", "ARMATURE").object = arm
         make_actions(arm)
@@ -890,12 +1143,12 @@ def main():
         validate_skeleton(spec, 700)
         spec = resolve_skeleton(spec)
     wipe()
-    arm = build_armature()
+    arm = build_armature(rest_pose)
 
     # chamfer is opt-in: measured on n01X it inflated the plates and read worse than
     # the crisp blockout, because the WC3 roundness comes from painted shading, not
     # from geometry at this budget. Pass a triple budget as the third argument to enable.
-    chamfers = plan_chamfers(spec, int(rest[2])) if len(rest) > 2 else set()
+    chamfers = plan_chamfers(spec, int(cli[0])) if cli else set()
 
     parts = []
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
@@ -914,7 +1167,7 @@ def main():
         lo = Vector((min(c[i] for c in corners) for i in range(3)))
         hi = Vector((max(c[i] for c in corners) for i in range(3)))
         meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
-    if "union" in rest:
+    if "union" in cli:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears
         keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"]
@@ -941,7 +1194,7 @@ def main():
                 if d < bd:
                     best, bd = m, d
             body_u.vertex_groups[best[0]].add([v.index], 1.0, "REPLACE")
-        if "nobev" not in rest:
+        if "nobev" not in cli:
             bev = body_u.modifiers.new("Junction", "BEVEL")
             bev.width = 0.006
             bev.segments = 1
@@ -953,7 +1206,7 @@ def main():
         plan.angle_limit = math.radians(6)
         bpy.ops.object.modifier_apply(modifier=plan.name)
         faces = len(body_u.data.polygons)
-        budget = int(rest[4]) if len(rest) > 4 and rest[4].isdigit() else 700
+        budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
         if faces > budget // 2:
             dec = body_u.modifiers.new("Dec", "DECIMATE")
             dec.decimate_type = "COLLAPSE"
@@ -967,15 +1220,17 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
-    if rest and len(rest) > 3 and rest[3] == "morph":
-        faces = morph(body, target=int(rest[4]) if len(rest) > 4 else 650)
+    if len(cli) > 1 and cli[1] == "morph":
+        faces = morph(body, target=int(cli[2]) if len(cli) > 2 else 650)
         print(f"morph: {faces} faces after subdiv + decimate")
-    if rest and len(rest) > 5 and rest[5] == "tex":
+    if atlas_path:
+        print("atlas:", texturize_atlas(body, meta, atlas_path))
+    elif len(cli) > 3 and cli[3] == "tex":
         n = texturize(body, meta)
         print(f"texture: {n} painted tiles + world-space UVs")
-    if rest and rest[3] == "fuse":
-        faces = fuse(body, meta, target=int(rest[4]) if len(rest) > 4 else 650,
-                     voxel=float(rest[6]) if len(rest) > 6 else 0.025)
+    if len(cli) > 1 and cli[1] == "fuse":
+        faces = fuse(body, meta, target=int(cli[2]) if len(cli) > 2 else 650,
+                     voxel=float(cli[4]) if len(cli) > 4 else 0.025)
         print(f"fused: {faces} faces after remesh + decimate")
     else:
         soften(body)

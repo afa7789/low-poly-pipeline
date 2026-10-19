@@ -11,8 +11,12 @@
 Triangle budgets, WC3 SD standard (see PIPELINE.md §6):
     mass unit 400-700 · hero 900-1600 · standard building 600-800 · town hall / large 2000-3000
 
-Writes <out>/specs/<tag>-<id>.json, <out>/glb/<tag>-<id>.glb, <out>/<tag>/<id>.gif and prints one
-gate line: id, tag, tris, budget, materials, smear. Exit code 1 if any gate fails.
+Writes, under <out>:
+    specs/<tag>-<id>.json, glb/<tag>-<id>.glb      versioned: the result
+    <tag>/<id>.gif, <tag>/<id>-compare.png          local review (gitignored)
+    views/, sil/, passes/                           local intermediates (gitignored)
+and prints one gate line: id, tag, tris, budget, materials, smear. Exit code 1 if any gate
+fails; a failed gate never stops the run, every output is still written.
 """
 import argparse
 import base64
@@ -28,7 +32,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILLS = pathlib.Path.home() / ".config" / "opencode" / "skills"
 BONES = {"root", "pelvis", "spine", "head", "arm.L", "forearm.L", "arm.R", "forearm.R",
          "thigh.L", "shin.L", "foot.L", "thigh.R", "shin.R", "foot.R"}
-KINDS, MATS = {"box", "cyl", "wheel", "prism", "dome"}, {"iron", "brass", "flame"}
+KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
+MATS = {"iron", "darkiron", "brass", "flame", "lamp"}
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
 
 BRIEF = """You are a technical artist building a low-poly game unit in the style of classic Warcraft III. The attached image is a 5-view turnaround of ONE unit: a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: proportions, the shape of every mass, where the coloured parts are, how the limbs and props are built.
@@ -37,12 +42,20 @@ Write a Blender part spec as a JSON object: {{"parts": [[bone, kind, dims, at, m
 
 Kinds and dims, exactly:
 - "prism": a tapered n-gon tube - THE limb and torso primitive. dims = (radius_bottom, radius_top, height). opts {{"sides": 6 or 8, "axis": "up" | "fwd"}}. Use a smaller radius_top so the limb tapers away from the body.
-- "dome": a closed dome for shoulders, helmet crown, knee and elbow caps. dims = (radius, height). opts {{"sides": 8, "top": 0.2 to 0.4}}.
-- "box": ONLY for flat plates, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
+- "frustum": a box with a scaled, offset top - THE wedge primitive. dims = (width_x, height_y, depth_z). opts {{"top": (scale_x, scale_z), "shift": (offset_x, offset_z)}}. Use for boots, trapezoid pelvis, waist taper and stepped fists.
+- "ring": a flat annulus with optional spokes and hub - THE valve-wheel primitive. dims = (outer_radius, radial_width, thickness). opts {{"sides": 10, "spokes": 3, "hub": 0.05, "axis": "up" | "fwd" | "side", "tilt": degrees, "spin": degrees}}. `axis` is the disc normal; a halo/steering wheel is axis "up" with tilt 20-30, NOT a disc facing the camera.
+- "dome": only for a genuinely domed organic cap. Never a mechanical pauldron: use a box slab instead.
+- "box": for flat plates, slabs, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
 - "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd"}}.
 - "wheel": a torus rim. dims = (major_radius, tube_radius).
 - at = (x, y, z) in metres: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The unit stands on y = 0, about {height} m tall.
-- material: "iron", "brass" or "flame" - use the sheet's real colour masses.
+- LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. Use this for every upper arm, forearm, thigh, shin and foot direction.
+- material: "iron" (warm grey), "darkiron" (brown waist/straps), "brass" (tan panels), "lamp" (yellow light), or "flame" (old alias). Use 3-5 slots; the sheet's colour zones are the contract.
+
+MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey these, do not
+re-guess them): shoulder span {shoulder_span} H, fist-to-fist span {fist_span} H,
+foot-to-foot stance {stance} H, chest body depth {body_depth} H, foot length {foot_length} H.
+Front silhouette width profile, top to bottom, in 5% steps: {width_profile}.
 
 RIG TABLE - place every part ON these segments. The "at" of a part must be the segment
 MIDPOINT, and its length (prism height / cyl depth / box height) must be 105 to 115 percent of
@@ -53,7 +66,7 @@ the segment length, so consecutive parts overlap and the body stays connected:
 FORM RULES, non-negotiable - these are what keep the model from reading as Minecraft:
 1. No limb is a box. Thighs, shins, upper arms, forearms, necks and torso are prisms with 6 or 8 sides and a taper along their length.
 2. The torso is wider at the shoulders than at the waist (a prism, or two stacked prisms). It is never a cuboid.
-3. Shoulders, helmet crown, knee caps and elbows are domes, not blocks.
+3. Mechanical shoulders are upright slabs (box or frustum), not domes; organic caps may use a dome. Match the concept's part language: a box where the sheet draws a box.
 4. Boxes may be at most a third of the parts, and only as flat plates, boots, shields or weapon heads.
 5. Nothing is axis-aligned: arms sit 10 to 20 degrees out from the body and slightly bent at the elbow; feet turn 8 to 12 degrees outward.
 6. The silhouette is asymmetric: one arm carries the main prop, the other stays free or carries a smaller one.
@@ -70,6 +83,7 @@ FORM RULES, non-negotiable - these are what keep the model from reading as Minec
 17. Hands are mitts - no fingers. Feet are wedges. Fur, cloth, spikes and fangs are flat cards, never modelled strands.
 18. Mirror what can be mirrored (arm and leg parts are duplicated across x); asymmetry comes from props, not from different limbs.
 19. Separate placed parts are allowed - classic WC3 uses them (ghoul claws, back spikes) - as long as each one overlaps the body mass and the union reads as one silhouette.
+19b. A head wheel/halo is a "ring" lying near-horizontal (axis "up", tilt 20-30 degrees), with 3 spokes, never a disc facing the camera and never six spokes.
 20. One 256 to 512 pixel atlas per unit (1024 only for a hero). Model the large forms the atlas will describe, nothing finer.
 
 CHUNKIFY - the Blizzard house style (Samwise Didier, WC3 art direction):
@@ -105,16 +119,73 @@ def rig_table():
     return "\n".join(lines)
 
 
+REFINE = """You are refining a low-poly Blender part spec so it matches ONE view of its approved concept.
+Image 1: the concept's {view} view. Image 2: the current model rendered from the same {view} view.
+Image 3: both silhouettes normalised to the same body height - red is concept only (missing mass:
+grow or move a part there), green is model only (excess mass: shrink it or move it away), yellow
+is shared.
+
+Measured silhouette IoU of the current model per view: {scores}.
+This pass fixes only what the {view} view shows: {axes}. Never trade mass between parts to win
+IoU: each part must match the size of the same part in image 1.
+
+Current spec, one part per line, index first - [bone, kind, dims, at, material, opts]:
+{parts}
+
+Return ONLY a JSON object, no prose, no code fences:
+{{"set": {{"<index>": [bone, kind, dims, at, material, opts]}}, "add": [[...]], "drop": [index, ...], "why": "<one sentence>"}}
+Change at most {limit} parts in total. Same bones, kinds, materials and coordinate convention as
+the original brief below; every one of its rules still holds.
+
+ORIGINAL BRIEF
+{brief}"""
+
+# What each refinement view can see; top and bottom are not passes (the sheet draws them
+# off-ortho, PIPELINE.md §13), so they never steer geometry.
+AXES = {"front": "widths along x, heights along y, how far arms and legs spread",
+        "left": "depths along z, forward/back offsets, foot length, limb lean",
+        "back": "back-side masses and their x placement, seen from behind",
+        "rts": "how the whole mass reads from the gameplay camera: shoulder and fist bulk, "
+               "head ornament, stance - the view the player actually sees"}
+RENDER_NAME = {"rts": "wc3"}  # render_unit.py's file for the gameplay view
+PASS_EDITS = 6
+REGRESSION = 0.01
+REPAIRS = 2
+REPAIR_EDITS = 12
+
+REPAIR = """The low-poly Blender part spec below was rejected by the preflight before it could be
+built. Images: the concept's front and left views. Fix every FAIL line with the fewest part
+changes; keep everything that passes.
+
+PREFLIGHT
+{problem}
+
+Current spec, one part per line, index first - [bone, kind, dims, at, material, opts]:
+{parts}
+
+Return ONLY a JSON object, no prose, no code fences:
+{{"set": {{"<index>": [bone, kind, dims, at, material, opts]}}, "add": [[...]], "drop": [index, ...], "why": "<one sentence>"}}
+Change at most {limit} parts in total. Same rules as the original brief below.
+
+ORIGINAL BRIEF
+{brief}"""
+
+
 def api_key():
     cfg = pathlib.Path.home() / ".config" / "opencode" / "opencode.json"
     return json.loads(cfg.read_text())["provider"]["ppq"]["options"]["apiKey"]
 
 
-def ask(model, brief, image_b64):
+def data_url(path):
+    mime = "image/png" if path.suffix == ".png" else "image/jpeg"
+    return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
+
+
+def ask(model, brief, images):
+    content = [{"type": "text", "text": brief}]
+    content += [{"type": "image_url", "image_url": {"url": data_url(p)}} for p in images]
     body = {"model": model, "max_tokens": 9000, "temperature": 0.2,
-            "messages": [{"role": "user", "content": [
-                {"type": "text", "text": brief},
-                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image_b64}}]}]}
+            "messages": [{"role": "user", "content": content}]}
     req = urllib.request.Request("https://api.ppq.ai/v1/chat/completions",
                                  data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {api_key()}",
@@ -141,21 +212,47 @@ def normalise(parts):
             if not isinstance(opts.get("rot", 0), (int, float)):
                 opts.pop("rot", None)
             p[5] = opts
+            # a from/to limb may leave `at` out: the builder places it at the midpoint
+            if p[3] is None and "from" in opts and "to" in opts:
+                p[3] = [(opts["from"][i] + opts["to"][i]) / 2 for i in range(3)]
         out.append(p)
     return out
 
 
-def parse_spec(txt):
+def json_object(txt):
     txt = re.sub(r'\[\s*(root|pelvis|spine|head|arm\.[LR]|forearm\.[LR]|thigh\.[LR]|shin\.[LR]|foot\.[LR])\s*,',
                  r'["\1",', txt)
     m = re.search(r"\{.*\}", txt, re.S)
     if not m:
         raise ValueError("no JSON in the reply")
-    parts = normalise(json.loads(m.group(0)).get("parts"))
+    return json.loads(m.group(0))
+
+
+def parse_spec(txt):
+    return validate(normalise(json_object(txt).get("parts")))
+
+
+def apply_patch(parts, txt, limit=PASS_EDITS):
+    """A refinement reply edits a few parts by index; the rest of the spec is untouched,
+    so one view cannot rewrite the mass split another view already fixed."""
+    patch = json_object(txt)
+    sets, adds = patch.get("set", {}), patch.get("add", [])
+    drops = {int(i) for i in patch.get("drop", [])}
+    if len(sets) + len(adds) + len(drops) > limit:
+        raise ValueError(f"patch edits more than {limit} parts")
+    out = [list(p) for p in parts]
+    for i, part in sets.items():
+        out[int(i)] = part
+    out = [p for i, p in enumerate(out) if i not in drops] + list(adds)
+    return validate(normalise(out))["parts"], patch.get("why", "")
+
+
+def validate(parts):
     if not isinstance(parts, list) or not parts:
         raise ValueError("no parts array")
     for i, p in enumerate(parts):
-        if len(p) != 6 or p[0] not in BONES or p[1] not in KINDS or p[4] not in MATS:
+        if (len(p) != 6 or p[0] not in BONES or p[1] not in KINDS or p[4] not in MATS
+                or not isinstance(p[3], list)):
             raise ValueError(f"part {i} outside the schema: {p}")
         if p[3][1] < -0.01:
             raise ValueError(f"part {i} below the ground plane")
@@ -171,6 +268,110 @@ def glb_stats(path):
     return tris, mats, len(doc.get("skins", [])), len(doc.get("animations", []))
 
 
+def tool(name, *argv, blender=False):
+    cmd = (["blender", "-b", "-P", str(ROOT / "tools/blender" / name), "--"] if blender
+           else [sys.executable, str(ROOT / "tools/blender" / name)])
+    return subprocess.run(cmd + [str(a) for a in argv], capture_output=True, text=True)
+
+
+def trial(spec, sheet, kind, work, name):
+    """Preflight, build and measure one candidate spec. A preflight failure is reported,
+    not fatal: the model is still built so there is always something to look at.
+    Returns (IoU per view or None when no GLB came out, preflight report or None)."""
+    path = work / f"{name}.json"
+    path.write_text(json.dumps(spec, indent=2))
+    glb = work / f"{name}.glb"
+    pre = tool("preflight.py", path, kind)
+    problem = pre.stdout if pre.returncode else None
+    build = tool("build_unit.py", path, glb, blender=True)
+    if not glb.exists():
+        return None, (problem or "") + build.stderr[-400:]
+    tool("silhouette.py", sheet, glb, work / f"{name}-sil")
+    report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
+    tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), blender=True)
+    return {view: r["iou"] for view, r in report.items()}, problem
+
+
+def tilt_arg(report):
+    """render_unit.py argument that shoots top/bottom and the RTS view from the camera
+    silhouette.py matched; the RTS camera is an (elevation, azimuth) pair."""
+    def value(tilt):
+        return "/".join(map(str, tilt)) if isinstance(tilt, (list, tuple)) else str(tilt)
+    return "tilt=" + ",".join(f"{v}:{value(r['tilt'])}" for v, r in report.items()
+                              if r.get("tilt"))
+
+
+def numbered(parts):
+    return "\n".join(f"  {i}: {json.dumps(p)}" for i, p in enumerate(parts))
+
+
+def repair(spec, args, brief, work, panels):
+    """Pass 0: the preflight's failing rules go back to the model as a patch request.
+    A repair is kept only when it still builds; the passes run either way."""
+    scores, problem = trial(spec, args.sheet, args.kind, work, "pass0")
+    best = "pass0"  # the trial whose renders show the spec held
+    for k in range(1, REPAIRS + 1):
+        if problem is None:
+            break
+        print(f"repair {k}: preflight fails\n{problem.strip()}")
+        prompt = REPAIR.format(problem=problem, parts=numbered(spec["parts"]),
+                               limit=REPAIR_EDITS, brief=brief)
+        try:
+            cand, _ = apply_patch(spec["parts"], ask(args.model, prompt,
+                                  [panels["front"], panels["left"]]), REPAIR_EDITS)
+        except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
+            print(f"repair {k}: rejected reply: {err}")
+            continue
+        cur, cur_problem = trial({"parts": cand}, args.sheet, args.kind, work, f"repair{k}")
+        if cur is not None:
+            spec, scores, problem, best = {"parts": cand}, cur, cur_problem, f"repair{k}"
+    return spec, scores, problem, best
+
+
+def accepted(prev, cur, view):
+    """The pass's own view must improve and no gated view may slip."""
+    from silhouette import GATES
+    return (cur is not None and cur[view] > prev[view]
+            and all(cur[g] >= prev[g] - REGRESSION for g in GATES))
+
+
+def run_passes(spec, args, brief, views):
+    """Refine the spec one concept view at a time: concept panel, model render and the
+    silhouette overlay of that view go back to the model, which answers with a patch."""
+    from split_sheet import split
+    if not set(views) <= AXES.keys():
+        raise SystemExit(f"--passes takes views from {sorted(AXES)}, got {views}")
+    work = args.out / "passes" / f"{args.tag}-{args.id}"
+    panels = split(args.sheet, work / "panels", args.id)
+    spec, scores, problem, best = repair(spec, args, brief, work, panels)
+    if scores is None:
+        print("passes: no GLB came out of the sheet spec; skipping refinement")
+        return spec
+    log = [{"pass": 0, "view": "sheet", "scores": scores, "preflight": problem is None}]
+    print(f"pass 0 sheet  {scores}  preflight {'PASS' if problem is None else 'FAIL'}")
+    for n, view in enumerate(views, 1):
+        prompt = REFINE.format(view=view, scores=scores, axes=AXES[view],
+                               parts=numbered(spec["parts"]),
+                               limit=PASS_EDITS, brief=brief)
+        shot = RENDER_NAME.get(view, view)
+        images = [panels[view], work / f"{best}-views" / f"{best}-{shot}.png",
+                  work / f"{best}-sil" / f"overlay-{view}.png"]
+        try:
+            cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images))
+            cur, cur_problem = trial({"parts": cand}, args.sheet, args.kind, work, f"pass{n}")
+        except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
+            cand, why, cur, cur_problem = None, f"rejected reply: {err}", None, None
+        # a pass may not break a preflight that held
+        ok = accepted(scores, cur, view) and (cur_problem is None or problem is not None)
+        if ok:
+            spec, scores, problem, best = {"parts": cand}, cur, cur_problem, f"pass{n}"
+        log.append({"pass": n, "view": view, "why": why, "scores": cur, "accepted": ok,
+                    "preflight": cur_problem is None})
+        print(f"pass {n} {view:5} {'ACCEPT' if ok else 'reject'} {cur}  {why}")
+    (work / "passes.json").write_text(json.dumps(log, indent=2))
+    return spec
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
@@ -182,7 +383,13 @@ def main():
     ap.add_argument("--tag", default="argon")
     ap.add_argument("--height", type=float, default=2.0)
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
-    ap.add_argument("--tex", action="store_true", help="bake the painted atlas tiles")
+    ap.add_argument("--flat", action="store_true",
+                    help="skip the procedural painted texture (on by default)")
+    ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
+    ap.add_argument("--spec", type=pathlib.Path, default=None,
+                    help="start from this spec JSON instead of asking the model for one")
+    ap.add_argument("--passes", default="",
+                    help="comma-separated views to refine after the sheet pass, e.g. left,back,front")
     ap.add_argument("--out", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/draft4")
     args = ap.parse_args()
 
@@ -192,16 +399,32 @@ def main():
 
     sheet = args.out / ".." / ".." / ".sheet.jpg"
     subprocess.run(["magick", str(args.sheet), "-resize", "1024x1024", "-quality", "88", str(sheet)], check=True)
-    b64 = base64.b64encode(sheet.read_bytes()).decode()
+    from silhouette import measure
+    m = measure(args.sheet)
     brief = BRIEF.format(race=args.race, name=args.name, uid=args.id, role=args.role,
-                         height=args.height, budget=f"{lo} to {hi}", bones=rig_table())
-    spec = parse_spec(ask(args.model, brief, b64))
-    spec_path = args.out / "specs" / f"{args.tag}-{args.id}.json"
-    spec_path.write_text(json.dumps(spec))
+                         height=args.height, budget=f"{lo} to {hi}", bones=rig_table(),
+                         shoulder_span=m["shoulder_span"], fist_span=m["fist_span"],
+                         stance=m["stance"], body_depth=m["body_depth"],
+                         foot_length=m["foot_length"],
+                         width_profile=", ".join(f"{v:.2f}" for v in m["front_width_profile"]))
+    # --spec resumes from an approved spec: only the refinement passes call the model
+    spec = (parse_spec(args.spec.read_text()) if args.spec
+            else parse_spec(ask(args.model, brief, [sheet])))
     sheet.unlink(missing_ok=True)
+    if args.passes:
+        spec = run_passes(spec, args, brief, args.passes.split(","))
+    spec_path = args.out / "specs" / f"{args.tag}-{args.id}.json"
+    spec_path.write_text(json.dumps(spec, indent=2))
+
+    # The spec is cheap to reject; the build is not. Preflight now runs before Blender.
+    pre = subprocess.run([sys.executable, str(ROOT / "tools/blender/preflight.py"),
+                          str(spec_path), args.kind], capture_output=True, text=True)
+    print(pre.stdout.strip())
+    if pre.returncode:
+        print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
 
     glb = args.out / "glb" / f"{args.tag}-{args.id}.glb"
-    extra = [str(lo + hi), "nofuse", str(hi), "tex"] if args.tex else []
+    extra = [] if args.flat else [str(lo + hi), "nofuse", str(hi), "tex"]
     build = subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"),
                             "--", str(spec_path), str(glb)] + extra, capture_output=True, text=True)
     if not glb.exists():
@@ -211,7 +434,6 @@ def main():
     smear_pct = float(smear.group(1)) if smear else 0.0
 
     tris, mats, skins, anims = glb_stats(glb)
-    mp4 = pathlib.Path(f"/tmp/{args.tag}-{args.id}.mp4")
     frames = pathlib.Path(f"/tmp/orbit-{args.tag}-{args.id}")
     subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable_color.py"),
                     "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
@@ -220,9 +442,24 @@ def main():
                     str(args.out / args.tag / f"{args.id}.gif")], check=False)
     subprocess.run(["rm", "-rf", str(frames)], check=False)
 
-    ok = lo <= tris <= hi and len(mats) == 3 and skins == 1 and anims == 4 and smear_pct <= 0.5
+    sil_ok, report = True, {}
+    if not args.no_silhouette:
+        sil_dir = args.out / "sil" / args.tag
+        sil = tool("silhouette.py", args.sheet, glb, sil_dir)
+        print(sil.stdout.strip())
+        sil_ok = sil.returncode == 0
+        report = json.loads((sil_dir / "silhouette.json").read_text())
+
+    # the review renders top/bottom at the tilt the silhouette matched, like the sheet
+    view_dir = args.out / "views" / args.tag
+    compare = args.out / args.tag / f"{args.id}-compare.png"
+    tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
+    tool("make_compare.py", args.sheet, view_dir, glb.stem, compare)
+
+    ok = (not pre.returncode and lo <= tris <= hi and 3 <= len(mats) <= 5 and skins == 1 and anims == 4
+          and smear_pct <= 0.5 and sil_ok)
     print(f"{args.id}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\tanims {anims}\t"
-          f"smear {smear_pct}%\t{'PASS' if ok else 'CHECK'}")
+          f"smear {smear_pct}%\tpreflight {'FAIL' if pre.returncode else 'PASS'}\tsilhouette {'PASS' if sil_ok else 'FAIL'}\t{'PASS' if ok else 'CHECK'}")
     return 0 if ok else 1
 
 

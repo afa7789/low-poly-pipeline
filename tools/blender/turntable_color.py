@@ -48,6 +48,8 @@ def main():
     centre, extent = (lo + hi) / 2, hi - lo
 
     scene = bpy.context.scene
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
     except TypeError:
@@ -77,7 +79,7 @@ def main():
     scene.display.shading.color_type = "TEXTURE" if has_tex else "MATERIAL"
     scene.display.shading.show_object_outline = True
     scene.display.shading.object_outline_color = (0.06, 0.06, 0.06)
-    scene.display.shading.studio_light = "rim.sl"
+    scene.display.shading.studio_light = "paint.sl"
     scene.display.render_aa = "8"
     scene.world = bpy.data.worlds.new("sheet")
     scene.world.color = (0.8, 0.8, 0.8)

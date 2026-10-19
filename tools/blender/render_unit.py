@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render a 5-view turnaround of one exported unit GLB, plus one walk frame.
 
-    blender -b -P tools/blender/render_unit.py -- <unit.glb> <outdir>
+    blender -b -P tools/blender/render_unit.py -- <unit.glb> <outdir> [tilt=top:20,bottom:30]
 
 Workbench engine, flat lighting, material colours, orthographic cameras square on
 to each axis and a #CCCCCC world, so the frames line up with the AI sheets.
@@ -14,19 +14,16 @@ import sys
 import bpy
 import mathutils
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from views import RTS_DEFAULT, VIEWS, camera, parse_tilts, rts_offset  # noqa: E402
+
 D = math.radians
-# name, camera offset from the model centre, camera rotation (deg)
-VIEWS = [
-    ("front", (0, -8, 0), (90, 0, 0)),
-    ("left", (-8, 0, 0), (90, 0, -90)),
-    ("back", (0, 8, 0), (90, 0, 180)),
-    ("top", (0, 0, 8), (0, 0, 0)),
-    ("bottom", (0, 0, -8), (180, 0, 0)),
-]
 
 
 def setup_scene():
     scene = bpy.context.scene
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
     except TypeError:
@@ -78,7 +75,9 @@ def fix_orientation():
 
 
 def main():
-    glb, outdir = sys.argv[sys.argv.index("--") + 1:][:2]
+    argv = sys.argv[sys.argv.index("--") + 1:]
+    glb, outdir = argv[:2]
+    tilts = parse_tilts(next((a[5:] for a in argv[2:] if a.startswith("tilt=")), ""))
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
     # the importer links a bone-shape helper called Icosphere; it is not part of the
@@ -104,8 +103,18 @@ def main():
         cam.data.ortho_scale = max(span, extent.x, extent.y) * 1.25
         shoot(name)
 
-    for name, offset, rot in VIEWS:
-        frame(name, offset, rot)
+    for name in VIEWS:
+        frame(name, *camera(name, tilts.get(name, 0)))
+
+    # WC3 gameplay angle: high three-quarter view, the one the model must read at,
+    # shot from the camera the silhouette matched on the concept's RTS image. Ortho,
+    # like that silhouette sweep: a close perspective camera looked steeper than the
+    # matched angle, so concept and model no longer showed the same view.
+    look = centre + mathutils.Vector(rts_offset(*tilts.get("rts", RTS_DEFAULT)))
+    cam.location = look
+    cam.rotation_euler = (centre - look).to_track_quat("-Z", "Y").to_euler()
+    cam.data.ortho_scale = max(extent) * 1.25
+    shoot("wc3")
 
     # rig proof: the walk action, mid-stride, from the left
     arm = next((o for o in bpy.context.scene.objects if o.type == "ARMATURE"), None)

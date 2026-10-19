@@ -51,11 +51,15 @@ def main():
     centre, extent = (lo + hi) / 2, (hi - lo)
 
     scene = bpy.context.scene
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = scene.render.resolution_y = size
     scene.display.shading.light = "FLAT"
     scene.display.shading.color_type = "MATERIAL"
     scene.display.shading.show_object_outline = True
+    scene.display.shading.show_specular_highlight = False
+    scene.display.shading.studio_light = "paint.sl"
     scene.display.render_aa = "8"
     scene.world = bpy.data.worlds.new("sheet")
     scene.world.color = (0.8, 0.8, 0.8)

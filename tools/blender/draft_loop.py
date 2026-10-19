@@ -103,10 +103,24 @@ Return ONLY JSON: {{"score": <0-10>, "ops": ["<key>", "<key>"], "note": "<12 wor
     return json.loads(m.group(0)) if m else {}
 
 
+# An ordered 40-step menu so every draft consumes two changes that were never applied
+# before: the first 20 are the base magnitudes, the last 20 re-apply them, which
+# compounds the multipliers (pelvis x1.22 twice is x1.49) instead of repeating a no-op.
+def menu():
+    steps = []
+    for key, (desc, fn) in OPS.items():
+        steps.append((key, desc, fn))
+    for key, (desc, fn) in OPS.items():
+        steps.append((key + ".2", "again: " + desc, fn))
+    return steps
+
+
 def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     recipe = json.loads(json.dumps(MD.BASE))
-    used, score = set(), 4.6
+    steps = menu()
+    consumed, score = set(), 4.6
+    log = []
     for n in range(1, count + 1):
         tag = f"draft{n:02d}"
         vdir = build(tag, recipe)
@@ -115,14 +129,37 @@ def main():
             return
         res = review(vdir / "n01X-compare.png", score)
         score = float(res.get("score", score))
-        ops = [o for o in res.get("ops", []) if o in OPS]
+
+        # take the reviewer's picks first, but only ones not applied yet; fill the rest
+        # from the ordered menu so two new changes land in every draft
+        picks = [o for o in res.get("ops", []) if f"{o}" not in consumed and o in OPS]
+        chosen = []
+        for o in picks:
+            if len(chosen) == 2:
+                break
+            if o not in consumed:
+                chosen.append(o)
+        for idx, (key, desc, fn) in enumerate(steps):
+            if len(chosen) == 2:
+                break
+            base = key.split(".")[0]
+            if idx in consumed or base in chosen:
+                continue
+            chosen.append(base)
+            consumed.add(idx)
+        applied = []
+        for o in chosen:
+            for idx, (key, desc, fn) in enumerate(steps):
+                if key.split(".")[0] == o and idx not in consumed:
+                    fn(recipe)
+                    consumed.add(idx)
+                    applied.append(key)
+                    break
         (vdir / "claude.txt").write_text(
-            f"score: {score}\nops: {ops}\nnote: {res.get('note', '')}\n")
-        for o in ops:
-            if o not in used:
-                OPS[o][1](recipe)
-                used.add(o)
-        print(f"{tag} claude {score:.1f} -> next adds {ops} | {res.get('note', '')}")
+            f"score: {score}\nreviewer asked: {res.get('ops', [])}\napplied for next: {applied}\nnote: {res.get('note', '')}\n")
+        log.append((tag, score, applied, res.get("note", "")))
+        print(f"{tag} claude {score:.1f} | applied {applied} | {len(recipe)} parts | {res.get('note','')}")
+    pathlib.Path("/tmp/draft-loop-log.json").write_text(json.dumps(log, indent=1))
 
 
 if __name__ == "__main__":
