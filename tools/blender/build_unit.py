@@ -915,7 +915,13 @@ def main():
         hi = Vector((max(c[i] for c in corners) for i in range(3)))
         meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
     if "union" in rest:
-        merged = union_parts(parts, meta, per_chain=True)
+        # the flame slit is a lit decal, not a plate: keep it out of the union or the
+        # boolean absorbs its faces into the iron material and the accent disappears
+        keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"]
+        union_targets = [p for p in parts if p not in keep]
+        merged = union_parts(union_targets, meta, per_chain=True)
+        for obj, _ in keep:
+            merged.append(obj)
         if len(merged) > 1:
             bpy.ops.object.select_all(action="DESELECT")
             for o in merged:
