@@ -267,3 +267,25 @@ and the silhouette test is a solid-colour render at gameplay distance.
 
 Our engine has a per-model `tint` (RGB multiplier) but no per-material tint, so the team-colour zone
 needs a decision: a fourth material slot named `team`, or the tint applied to the whole model.
+
+
+### Iteration log — what actually worked on n01X (fewest passes, fewest tris)
+
+| recipe | tris | verdict |
+|---|---|---|
+| box parts, flat colours | 612 | Lego: right angles read as blocks |
+| 6-sided prisms, separate parts | 684 | limbs read as tubes; still assembled |
+| **6 sides on limbs + 8 on the largest masses, separate parts, painted tiles** | **716** | **best: shaped, rigid-bound, atlas on** |
+| subdiv (1) + decimate ("morph") | 1240 | rejected: each part shrinks inward, parts detach, tris explode |
+| voxel fuse 0.045 + decimate | 656 | rejected: one blob, colour blocking and detail lost |
+
+Rules that came out of it:
+
+1. **Shaping belongs in the cage, not in a post pass.** Taper the prism radii and pick the side
+   count per mass (6 for limbs, 8 for the torso/shoulders). Subdividing afterwards only shrinks
+   and separates what you already placed.
+2. **Do not weld the body.** Classic WC3 keeps parts separate and rigid-bound; the union reads as
+   one silhouette once the texture is on. The skeleton (14 bones) carries the motion, not a smooth
+   skin.
+3. **The atlas is the last 50% of the look.** Without it the same mesh reads as cardboard.
+4. **Budget check after every pass**, not at the end: `check_gates.py` on the folder.

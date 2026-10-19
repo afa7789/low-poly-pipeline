@@ -347,6 +347,33 @@ def texturize(body, outdir=None, size=128):
         images[base] = {"material": mat, "image": img}
     return len(images)
 
+
+# ---------------------------------------------------------------- morph
+def morph(body, target=650, subdiv=1, weld=0.012):
+    """Round the cage instead of stacking straight primitives: weld the seams, run one
+    Catmull-Clark level (which pulls every corner inward), then decimate back to the
+    triangle budget. This is what turns a blockout into a shaped low-poly body."""
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.remove_doubles(threshold=weld)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    if subdiv:
+        sub = body.modifiers.new("Subd", "SUBSURF")
+        sub.levels = sub.render_levels = subdiv
+        sub.use_limit_surface = True
+        bpy.ops.object.modifier_apply(modifier=sub.name)
+
+    faces = len(body.data.polygons)
+    if faces > target:
+        dec = body.modifiers.new("Decimate", "DECIMATE")
+        dec.decimate_type = "COLLAPSE"
+        dec.ratio = max(0.05, target / float(faces))
+        bpy.ops.object.modifier_apply(modifier=dec.name)
+    soften(body)
+    return len(body.data.polygons)
+
 # ---------------------------------------------------------------- fusion
 def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
     """Turn a stack of primitives into ONE continuous shell, the way a WC3 model reads.
@@ -385,6 +412,9 @@ def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
             groups[bone] = body.vertex_groups.new(name=bone)
 
     def nearest(co):
+        # score = distance outside the part box + a tie-break on the distance to the
+        # part centre; without the tie-break every surface point on a seam picks the
+        # first part and the whole model comes out in one material.
         best, best_d = 0, 1e9
         for i, (bone, mat_name, centre, half) in enumerate(parts_meta):
             d = 0.0
@@ -392,6 +422,7 @@ def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
                 delta = abs(co[a] - centre[a]) - half[a]
                 if delta > 0:
                     d += delta * delta
+            d += 0.02 * ((co[0] - centre[0]) ** 2 + (co[1] - centre[1]) ** 2 + (co[2] - centre[2]) ** 2)
             if d < best_d:
                 best, best_d = i, d
         return parts_meta[best]
@@ -541,11 +572,15 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
+    if rest and len(rest) > 3 and rest[3] == "morph":
+        faces = morph(body, target=int(rest[4]) if len(rest) > 4 else 650)
+        print(f"morph: {faces} faces after subdiv + decimate")
     if rest and len(rest) > 5 and rest[5] == "tex":
         n = texturize(body, pathlib.Path(rest[2]).parent if False else None)
         print(f"texture: {n} painted tiles + world-space UVs")
     if rest and rest[3] == "fuse":
-        faces = fuse(body, meta, target=int(rest[4]) if len(rest) > 4 else 650)
+        faces = fuse(body, meta, target=int(rest[4]) if len(rest) > 4 else 650,
+                     voxel=float(rest[6]) if len(rest) > 6 else 0.025)
         print(f"fused: {faces} faces after remesh + decimate")
     else:
         soften(body)
