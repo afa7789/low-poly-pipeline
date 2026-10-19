@@ -289,3 +289,63 @@ Rules that came out of it:
    skin.
 3. **The atlas is the last 50% of the look.** Without it the same mesh reads as cardboard.
 4. **Budget check after every pass**, not at the end: `check_gates.py` on the folder.
+
+
+## 12. First-attempt protocol (what ten iterations taught, in the order to apply it)
+
+The point of this section is that none of it should be discovered again by iterating.
+
+### 12.1 Measure the sheet before writing any prompt
+
+Take five numbers off the front view, as a fraction of the unit height H:
+
+| measure | sheet (n01X) | how to read it |
+|---|---|---|
+| shoulder span | 0.62 H | outer edge of the pauldrons |
+| hip height | 0.47 H | where the legs meet the pelvis |
+| head element | 0.19 H diameter | the valve wheel |
+| wrist height | 0.39 H | where the gauntlet starts |
+| foot length | 0.23 H | heel to toe, in profile |
+
+These five numbers replaced every adjective in the brief. The prompt says `shoulder 0.62 H`,
+never "chunky shoulders".
+
+### 12.2 Placement is code, never a coordinate from the model
+
+`resolve_skeleton()` takes `{bone, radius, material}` and derives position (bone midpoint),
+length (1.15 x bone length) and overlap. The LLM cannot float a limb because it never writes a
+number for a position. Rig families (`rig_families.py`) cover biped, quadruped, spider, serpent and
+vehicle, so the same rule works for the whole roster.
+
+### 12.3 Run the preflight before building
+
+`python3 tools/blender/preflight.py <spec> mass` prints seven rules and exits non-zero. On our
+4.6 spec it reports 3/7 pass and names the defects that took ten review rounds to find:
+
+```
+budget        FAIL  732 tris vs 416-700
+shoulderness  FAIL  0.83 (sheet 0.62)
+head_sunk     FAIL  head 2.66 vs shoulder 2.20
+overlap       FAIL  detached: forearm.L, forearm.R, foot.L, foot.R
+```
+
+### 12.4 Gates, in the order that they save the most time
+
+1. `preflight.py` — proportions, coverage, overlap, budget. Costs 0.1 s.
+2. `check_gates.py` — tris by class, 3 materials, 1 skin, 4 clips, on the built GLB.
+3. **Five-view comparison against the sheet, never a 3/4 render.** Measured: the same model
+   scores 5.5 on a three-quarter view and 4.0 on the five-view comparison, because the profile
+   collapse is invisible from 3/4. The comparison is `render_unit.py` + a 3+2 montage with the
+   concept sheet above it.
+4. Claude review only after 1-3 pass, and always with both sheets side by side.
+
+### 12.5 What still has to change to clear 5.5
+
+Geometry has plateaued: ten dial iterations moved Claude's score 4.8 to 5.5 and no further. The
+remaining gap is the surface. The atlas must be built **from the concept sheet itself** — crop the
+chest, pauldron, gauntlet, boot and wheel regions of the approved art into a 512 atlas and box-map
+each part into its crop. That transports the painted rivets, crevices and rim light instead of
+inventing a gradient, which is what the classic WC3 texture does.
+
+Hard-surface beats skin for machines, measured on the same unit: stacked parts 7.0, skeleton-placed
+parts 5.5, skin body 1.5, skin-plus-plates 3.5. Do not re-litigate that.
