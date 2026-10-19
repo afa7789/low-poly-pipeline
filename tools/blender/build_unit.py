@@ -463,6 +463,12 @@ def build_skin_body(spec, target=620, subdiv=1):
     faces = len(obj.data.polygons)
     if faces > target:
         dec = obj.modifiers.new("Dec", "DECIMATE")
+        dec.decimate_type = "DISSOLVE"    # merge coplanar faces, keep the facets
+        dec.angle_limit = math.radians(12)
+        bpy.ops.object.modifier_apply(modifier=dec.name)
+    faces = len(obj.data.polygons)
+    if faces > target:
+        dec = obj.modifiers.new("Dec2", "DECIMATE")
         dec.decimate_type = "COLLAPSE"
         dec.ratio = max(0.05, target / float(faces))
         bpy.ops.object.modifier_apply(modifier=dec.name)
@@ -789,12 +795,47 @@ def main():
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+    wipe()                                  # before any branch: the factory cube is not ours
     unit, spec = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):
         print("rig family:", load_family(spec["rig"]))
+    if isinstance(spec, dict) and spec.get("mode") == "boxmod":
+        import boxmod as BM
+        body = BM.build(spec)
+        bpy.context.view_layer.objects.active = body
+        for m, _ in [("iron", None)]:
+            body.data.materials.append(material(m))
+        arm = build_armature()
+        body.parent = arm
+        body.vertex_groups.new(name="spine").add(range(len(body.data.vertices)), 1.0, "REPLACE")
+        body.modifiers.new("Armature", "ARMATURE").object = arm
+        make_actions(arm)
+        print(f"built {unit}: boxmod {len(body.data.polygons)} faces")
+        bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_yup=True,
+                                  export_animations=True, export_animation_mode="ACTIONS",
+                                  export_apply=False, export_skins=True, export_morph=False)
+        return
     if isinstance(spec, dict) and spec.get("mode") == "skin":
-        body = build_skin_body(spec, target=620)
+        body = build_skin_body(spec, target=430, subdiv=2)
         print(f"skin body: {len(body.data.polygons)} faces")
+        extra_parts = []
+        for idx, ex in enumerate(spec.get("extras", [])):
+            head, tail = BONE_MAP[ex["bone"]]
+            off = ex.get("offset", (0, 0, 0))
+            at = tuple(head[i] + off[i] for i in range(3))
+            opts = {k: v for k, v in ex.items() if k in ("sides", "axis", "rot", "top")}
+            obj = build_part(ex["bone"], ex.get("kind", "box"), tuple(ex["dims"]), at,
+                             ex.get("material", "iron"), opts, idx)
+            obj.vertex_groups.new(name=ex["bone"]).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+            extra_parts.append(obj)
+        if extra_parts:
+            bpy.ops.object.select_all(action="DESELECT")
+            for o in extra_parts:
+                o.select_set(True)
+            body.select_set(True)
+            bpy.context.view_layer.objects.active = body
+            bpy.ops.object.join()
+            print(f"mix: +{len(extra_parts)} hard plates -> {len(body.data.polygons)} faces")
         arm = build_armature()
         body.parent = arm
         body.modifiers.new("Armature", "ARMATURE").object = arm
