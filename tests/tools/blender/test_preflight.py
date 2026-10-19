@@ -116,6 +116,14 @@ class Ground(unittest.TestCase):
         self.assertEqual(boot[3], [0.3, 0.5, 0.2])                # untouched
 
 
+class SpanBoxes(unittest.TestCase):
+    def test_two_dimension_kinds_placed_from_to(self):
+        for kind, dims in (("dome", [0.2, 0.3]), ("wheel", [0.3, 0.05]), ("ring", [0.3, 0.05, 0.04])):
+            part = ["head", kind, dims, [0, 1, 0], "iron", {"from": [0, 1, 0], "to": [0, 1.4, 0]}]
+            (lo, hi) = PF.bbox(part)
+            self.assertAlmostEqual(hi[0] - lo[0], 2 * dims[0], msg=kind)
+
+
 class Floating(unittest.TestCase):
     def test_detached_child_is_flagged(self):
         parts = spider_spec()["parts"]

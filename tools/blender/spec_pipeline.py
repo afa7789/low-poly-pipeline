@@ -352,7 +352,14 @@ def check_drift(args, layout):
     if args.build == args.sheet:
         return {}
     from silhouette import DRIFT_MIN, DRIFT_VIEWS, sheet_drift
-    drift = sheet_drift(args.sheet, args.build, layout)
+    try:
+        drift = sheet_drift(args.sheet, args.build, layout)
+    except SystemExit as err:
+        # a hard sheet that cannot be cut into its panels (wrong file, wrong layout) must
+        # not end the run: build from the approved sheet and say why
+        print(f"hard sheet unreadable ({err}): building from {args.sheet.name} instead")
+        args.build = args.sheet
+        return {}
     low = [v for v in DRIFT_VIEWS if drift.get(v, 1.0) < DRIFT_MIN]
     print(f"drift hard vs approved: {drift}"
           + (f"  - LOW on {low}: regenerate refs/{args.id}/sheet-hard.jpg" if low else "  ok"))
@@ -620,6 +627,11 @@ def review(args, glb, layout):
     compare = args.out / "compare.png"
     tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
     tool("make_compare.py", args.sheet, view_dir, glb.stem, compare, "--layout", layout)
+    if args.build != args.sheet:
+        # the same renders against the faceted drawing the model was built from: what the
+        # silhouette cannot see (a chest disc, a hood, a club) shows up here
+        tool("make_compare.py", args.build, view_dir, glb.stem, args.out / "compare-hard.png",
+             "--layout", layout)
     return sil_ok
 
 
@@ -820,7 +832,8 @@ def main():
         f"| silhouette (vs approved: the gate) | {'PASS' if sil_ok else 'FAIL'} |\n"
         f"{iou_rows(args.summary)}\n"
         f"verdict: **{verdict}**\n\n"
-        f"artifacts: spec.json, model.glb, compare.png (vs the approved sheet), turntable.gif, "
+        f"artifacts: spec.json, model.glb, compare.png (vs the approved sheet), compare-hard.png "
+        f"(vs the hard sheet), turntable.gif, "
         f"silhouette.json\n")
     print(f"{args.id}\t{args.run}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\t"
           f"anims {anims}\tsmear {smear_pct} %\tpreflight {'FAIL' if pre.returncode else 'PASS'}\t"

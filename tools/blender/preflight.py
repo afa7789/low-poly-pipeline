@@ -151,7 +151,9 @@ HALF = {
     "ring": lambda d, o: _disc("ring", d, o),
     "frustum": _frustum,
 }
-SPAN_RADIUS = {"prism": lambda d: max(d[0], d[1]), "cyl": lambda d: d[0]}
+# radius of a from/to part around its axis; box and frustum use half their wider side
+SPAN_RADIUS = {"prism": lambda d: max(d[0], d[1]), "cyl": lambda d: d[0],
+               "dome": lambda d: d[0], "wheel": lambda d: d[0], "ring": lambda d: d[0]}
 
 
 def bbox(part):

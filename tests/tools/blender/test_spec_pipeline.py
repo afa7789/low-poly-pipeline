@@ -181,6 +181,22 @@ class HardFirst(unittest.TestCase):
         self.assertNotIn("drift", rows)
 
 
+class Drift(unittest.TestCase):
+    SHEET = pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
+
+    @unittest.skipUnless(SHEET.exists(), "hfoo refs not checked out")
+    def test_unreadable_hard_sheet_falls_back_to_the_approved(self):
+        import subprocess
+        import tempfile
+        import types
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = pathlib.Path(tmp) / "sheet-hard.jpg"
+            subprocess.run(["magick", "-size", "400x120", "xc:#cccccc", str(bad)], check=True)
+            args = types.SimpleNamespace(sheet=self.SHEET, build=bad, id="hfoo")
+            self.assertEqual(SP.check_drift(args, "unit"), {})
+            self.assertEqual(args.build, self.SHEET)
+
+
 class Accepted(unittest.TestCase):
     PREV = {"front": 0.70, "left": 0.65, "back": 0.60, "top": 0.5, "bottom": 0.4}
 
