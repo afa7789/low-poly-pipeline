@@ -390,7 +390,7 @@ def texturize(body, meta, size=256):
                 v = (y % cell) / (cell - 1.0)
                 # WC3 read: one key light from above, 4:1 from shadow to highlight,
                 # a narrow bright band as the trim, a dark crease low on the tile.
-                ramp = 0.42 + 1.25 * (v ** 1.15)
+                ramp = 0.30 + 0.85 * (v ** 1.1)
                 trim = 1.35 if 0.62 < v < 0.70 else 1.0
                 crease = 1.0 - 0.30 * math.exp(-((v - 0.22) ** 2) / 0.0022)
                 mottle = 1.0 + 0.07 * math.sin(u * 17 + tx) * math.sin(v * 9 + ty)

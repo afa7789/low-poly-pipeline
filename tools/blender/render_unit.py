@@ -27,17 +27,27 @@ VIEWS = [
 
 def setup_scene():
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_WORKBENCH"
+    try:
+        scene.render.engine = "BLENDER_EEVEE_NEXT"
+    except TypeError:
+        scene.render.engine = "BLENDER_EEVEE"
+    scene.eevee.taa_render_samples = 16
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("world")
+    scene.world.use_nodes = True
+    bg = scene.world.node_tree.nodes["Background"]
+    bg.inputs[0].default_value = (0.62, 0.63, 0.65, 1.0)
+    bg.inputs[1].default_value = 0.9
+    for nm, rot, energy in (("key", (55, 0, -35), 3.2), ("fill", (70, 0, 140), 1.1)):
+        li = bpy.data.lights.new(nm, "SUN")
+        li.energy = energy
+        li.angle = math.radians(25)
+        ob = bpy.data.objects.new(nm, li)
+        ob.rotation_euler = tuple(math.radians(v) for v in rot)
+        bpy.context.collection.objects.link(ob)
     scene.render.resolution_x = scene.render.resolution_y = 512
     scene.render.film_transparent = False
-    shading = scene.display.shading
-    shading.light = "FLAT"
-    shading.color_type = "MATERIAL"
-    shading.show_object_outline = True
-    shading.object_outline_color = (0.05, 0.05, 0.05)
-    scene.display.render_aa = "8"
-    scene.world = bpy.data.worlds.new("sheet")
-    scene.world.color = (0.8, 0.8, 0.8)
+
     cam_data = bpy.data.cameras.new("cam")
     cam_data.type = "ORTHO"
     cam = bpy.data.objects.new("cam", cam_data)
@@ -71,9 +81,14 @@ def main():
     glb, outdir = sys.argv[sys.argv.index("--") + 1:][:2]
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    # the importer links a bone-shape helper called Icosphere; it is not part of the
+    # model and its unit sphere drags the bounding box, so the camera framed empty air.
+    for o in [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name.startswith("Icosphere")]:
+        bpy.data.objects.remove(o, do_unlink=True)
     scene, cam = setup_scene()
     fix_orientation()
     centre, extent = bounds()
+    print("BOUNDS extent", [round(v, 2) for v in extent], "centre", [round(v, 2) for v in centre])
     out = pathlib.Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     stem = pathlib.Path(glb).stem

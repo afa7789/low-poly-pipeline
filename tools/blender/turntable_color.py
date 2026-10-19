@@ -35,6 +35,10 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    # the importer links a bone-shape helper called Icosphere; it is not part of the
+    # model and its unit sphere drags the bounding box, so the camera framed empty air.
+    for o in [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name.startswith("Icosphere")]:
+        bpy.data.objects.remove(o, do_unlink=True)
     lo, hi = bounds()
     if (hi - lo).y > (hi - lo).z * 1.5:  # import came in Y-up
         for obj in [o for o in bpy.context.scene.objects if o.parent is None]:
