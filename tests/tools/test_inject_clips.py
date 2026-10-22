@@ -38,6 +38,28 @@ def biped_doc(helper=False):
             "buffers": [{"byteLength": 0}], "animations": [{"name": "Take 001", "samplers": [], "channels": []}]}
 
 
+def quad_doc():
+    """A small glTF quadruped (Y up, facing +Z, left = +X), metarig-like names; ears hang off
+    the head with a side but point up, so they must not be taken for legs."""
+    spec = [  # name, parent, translation
+        ("root", None, [0, 0, 0]), ("spine", "root", [0, 1.0, -0.5]), ("spine.001", "spine", [0, 0, 1.0]),
+        ("neck", "spine.001", [0, 0.2, 0.2]), ("head", "neck", [0, 0.1, 0.2]), ("jaw", "head", [0, -0.1, 0.3]),
+        ("ear.L", "head", [0.1, 0.1, 0]), ("ear.L.001", "ear.L", [0, 0.1, 0]), ("ear.L.002", "ear.L.001", [0, 0.1, 0]),
+        ("ear.R", "head", [-0.1, 0.1, 0]), ("ear.R.001", "ear.R", [0, 0.1, 0]), ("ear.R.002", "ear.R.001", [0, 0.1, 0]),
+    ]
+    for leg, parent, z in (("front_", "spine.001", 0.0), ("", "spine", 0.0)):
+        for side, x in (("L", 0.2), ("R", -0.2)):
+            thigh, shin = f"{leg}thigh.{side}", f"{leg}shin.{side}"
+            spec += [(thigh, parent, [x, 0, z]), (shin, thigh, [0, -0.5, 0]),
+                     (f"{leg}foot.{side}", shin, [0, -0.45, 0])]
+    names = [n for n, *_ in spec]
+    nodes = [{"name": f"{n}_{i}", "translation": t} for i, (n, _, t) in enumerate(spec)]
+    for i, (_, parent, _) in enumerate(spec):
+        if parent is not None:
+            nodes[names.index(parent)].setdefault("children", []).append(i)
+    return {"asset": {"version": "2.0"}, "nodes": nodes, "skins": [{"joints": list(range(len(nodes)))}]}
+
+
 def mapped(doc):
     skel = I.Skeleton(doc)
     m = I.humanoid(skel, set(doc["skins"][0]["joints"]))
@@ -77,6 +99,21 @@ class Mapping(unittest.TestCase):
         skel = I.Skeleton(doc)
         m = I.humanoid(skel, set(doc["skins"][0]["joints"]))
         left, up, front = I.front_of(skel, m)
+        self.assertAlmostEqual(front[2], 1.0)
+        self.assertAlmostEqual(left[0], 1.0)
+
+
+class Quadruped(unittest.TestCase):
+    def test_legs_spine_and_head_are_found_and_ears_are_not_legs(self):
+        doc = quad_doc()
+        skel = I.Skeleton(doc)
+        m = I.quadruped(skel, set(doc["skins"][0]["joints"]))
+        names = {k: (skel.names[a].rsplit("_", 1)[0], skel.names[b].rsplit("_", 1)[0]) for k, (a, b) in m.items()}
+        self.assertEqual(names["leg1.upper"], ("front_thigh.L", "front_shin.L"))
+        self.assertEqual(names["leg4.lower"], ("shin.R", "foot.R"))
+        self.assertEqual(names["spine.1"], ("spine", "spine.001"))
+        self.assertEqual(names["head"], ("head", "jaw"))
+        left, _, front = I.front_of_body(skel, m)
         self.assertAlmostEqual(front[2], 1.0)
         self.assertAlmostEqual(left[0], 1.0)
 
