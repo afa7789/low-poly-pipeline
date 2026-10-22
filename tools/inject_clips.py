@@ -15,6 +15,10 @@ children; hips, spine and neck come from the chain between the legs and the head
 every mapped joint is turned (shortest arc, no twist) so the vector to its child joint points
 where our bone points. The model's front is measured from its shoulders, not configured.
 
+A model tools/rig_static.py gave a skeleton of our own carries its bone map in extras.cf_rig: its
+joints take our bones' whole turns (twist included), measured from the clip's first pose, and a strike
+eases back to that pose at its end (the model has no idle clip to return to).
+
 What was injected is recorded in the glTF extras (start of the appended data, a hash of the
 motions), so a rerun replaces it instead of piling up, and skips when nothing changed.
 """
@@ -673,11 +677,12 @@ def plan(unit_id):
     """(family, picks, row) for a unit, or a reason string to skip it."""
     if unit_id in SKIP:
         return SKIP[unit_id]
-    rows = M.unit_rows()
-    row = rows.get(unit_id)
+    rows, rigged = M.unit_rows(), _rig_mark(unit_id)
+    row = rows.get(unit_id) or rows.get(rigged.get("row", ""))      # rigged "like" another unit
     if row is None:
         return "no registry row"
-    if row["rig"] not in FAMILY_BONES and row["rig"] not in GENERIC | {"quadruped"} and unit_id not in MANUAL:
+    if row["rig"] not in FAMILY_BONES and row["rig"] not in GENERIC | {"quadruped"} and unit_id not in MANUAL \
+            and not rigged:
         return f"rig {row['rig']}: no map yet"
     return row["rig"], {slot: row[slot] for slot in M.SLOTS}, row
 
@@ -696,16 +701,13 @@ def build(unit_id, glb, wanted):
     doc, _ = read_glb(glb)
     if not doc.get("skins"):
         return "static model (no skin)"
-    skel = Skeleton(doc)
-    joints = set(doc["skins"][0]["joints"])
-    mapping, axes = body_map(skel, joints, family, unit_id)
+    skel, mapping, axes, renames, spec = _rig_of(unit_id, doc, family)
     if not mapping:
         return f"skeleton not recognised as {family}"
-    renames = FAMILY_BONES.get(family, {})
+    joints = set(doc["skins"][0]["joints"])
     hips = _body_root(skel, joints, mapping)
-    start = next((mapping[b] for b in ("pelvis", "spine.1", "body") if b in mapping), None)
+    start = next((mapping[b] for b in BODY if b in mapping), None)
     height = skel.world_pos[start[0]][1] - min(skel.world_pos[j][1] for j in joints) if start else 0.0
-    spec = MANUAL.get(unit_id, {})
     clips = list(M.clips(family, picks))
     idle = next(p for slot, p, *_ in clips if slot == "idle")
     neutral = idle[frames_of(idle)[0][0]]                # their rest pose stands for our idle stance
@@ -715,18 +717,110 @@ def build(unit_id, glb, wanted):
         if slot.rstrip("23") not in wanted:
             continue
         keys, times = frames_of(poses)
-        rot = {}
-        for k in keys:
-            dirs = our_dirs(family, poses[k], axes)
-            if rest_dirs:
-                dirs = _relative(skel, mapping.items(), renames, rest_dirs, dirs)
-            for node, q in solve(skel, list(mapping.items()), dirs, renames).items():
-                rot.setdefault(node, []).append(q)
         posed = [poses[k] for k in keys]
-        moves = {**_hips_track(skel, doc, (hips, height), family, posed, axes),
-                 **_reach_tracks(skel, doc, spec, family, [neutral] + posed, axes)}
+        if "map" in spec:                     # our own skeleton: whole turns, from the clip's first pose
+            closed = slot != "death"          # no idle clip to go back to: a strike ends where it began
+            rot = _turn_tracks(skel, mapping, family, _measured(family, posed, closed), axes)
+            moves = _hips_track(skel, doc, (hips, height), family, posed, axes, base=_root_bases(posed, closed))
+        else:
+            base = _anchored(rest_dirs, our_dirs(family, poses[keys[0]], axes), spec.get("anchor", ()))
+            rot = _aim_tracks(skel, (mapping, renames), family, posed, (axes, base))
+            moves = {**_hips_track(skel, doc, (hips, height), family, posed, axes),
+                     **_reach_tracks(skel, doc, spec, family, [neutral] + posed, axes)}
         out.append((slot, times, rot, moves))
     return out
+
+
+def _aim_tracks(skel, maps, family, posed, frame):
+    """{joint: [quaternion per pose]}: each mapped joint aimed where our bone points (relative to
+    `base` directions when given)."""
+    (mapping, renames), (axes, base) = maps, frame
+    rot = {}
+    for pose in posed:
+        dirs = our_dirs(family, pose, axes)
+        if base:
+            dirs = _relative(skel, mapping.items(), renames, base, dirs)
+        for node, q in solve(skel, list(mapping.items()), dirs, renames).items():
+            rot.setdefault(node, []).append(q)
+    return rot
+
+
+def slerp(a, b, t):
+    """Spherical blend of two quaternions (x, y, z, w)."""
+    dot = sum(x * y for x, y in zip(a, b))
+    if dot < 0:
+        b, dot = [-c for c in b], -dot
+    if dot > 0.9995:
+        return unit([x + (y - x) * t for x, y in zip(a, b)])
+    theta = math.acos(dot)
+    wa, wb = math.sin((1 - t) * theta) / math.sin(theta), math.sin(t * theta) / math.sin(theta)
+    return [wa * x + wb * y for x, y in zip(a, b)]
+
+
+def _measured(family, posed, closed):
+    """[(our bones' orientations in a pose, the orientations it is measured from)]: the clip's first
+    pose; with `closed`, drifting to its last near the end, so the model ends at its rest too."""
+    first, last = P.frames(family, posed[0]), P.frames(family, posed[-1])
+    out = []
+    for i, pose in enumerate(posed):
+        s = _closing(i, len(posed)) if closed else 0.0
+        out.append((P.frames(family, pose), {b: q_to_m(slerp(m_to_q(first[b]), m_to_q(last[b]), s)) for b in first}))
+    return out
+
+
+def _closing(i, count, tail=0.35):
+    """0 until the last `tail` of the clip, then eased up to 1 on its last pose."""
+    t = max(0.0, (i / max(count - 1, 1) - (1 - tail)) / tail)
+    return t * t * (3 - 2 * t)
+
+
+def _root_bases(posed, closed):
+    """Our root's (lift, rise) each pose is measured from: the first pose's, drifting to the last's."""
+    a, b = (P.pad(p.get("root", (0, 0, 0, 0, 0)))[3:] for p in (posed[0], posed[-1]))
+    return [tuple(x + (y - x) * (_closing(i, len(posed)) if closed else 0.0) for x, y in zip(a, b))
+            for i in range(len(posed))]
+
+
+def our_turns(frames, axes):
+    """Each of our bones' whole turn (twist included) from the base orientation to the posed one, in
+    the model's world: 3x3 matrices. `frames` = (posed, base) as P.frames gives them."""
+    left, up, front = axes
+    to_model = [[left[k], -front[k], up[k]] for k in range(3)]    # our x left, y back, z up
+    a, b = frames
+    return {bone: mul(to_model, mul(mul(a[bone], tr(b[bone])), tr(to_model))) for bone in a}
+
+
+def _turn_tracks(skel, mapping, family, measured, axes):
+    """{joint: [quaternion per pose]}: a skeleton laid out like ours (tools/rig_static.py) takes our
+    bones' turns as they are, from the pose the clip is measured from (_measured)."""
+    joint_of = {pair[0]: bone for bone, pair in mapping.items()}
+    rot = {}
+    for frames in measured:
+        turns, world = our_turns(frames, axes), {}
+        for i in skel.order:
+            p = skel.parent[i]
+            parent = world.get(p, skel.world_rot[p]) if p >= 0 else None
+            current = mul(parent, skel.local_rot[i]) if parent is not None else skel.world_rot[i]
+            if i in joint_of:
+                current = mul(turns[joint_of[i]], skel.world_rot[i])
+                rot.setdefault(i, []).append(m_to_q(mul(tr(parent), current) if parent is not None else current))
+            world[i] = current
+    return rot
+
+
+# the bone that carries the body (its height scales our root's moves), first found
+BODY = ("pelvis", "spine.1", "body", "hull", "cradle")
+
+
+def _rig_of(unit_id, doc, family):
+    """(skeleton, {our bone: (joint, joint it points to)}, axes, renames, spec): a skeleton
+    tools/rig_static.py made carries its own map; any other is recognised by its names."""
+    skel = Skeleton(doc)
+    rigged = doc.get("extras", {}).get("cf_rig")
+    if rigged:
+        return skel, {b: tuple(pair) for b, pair in rigged["map"].items()}, rigged["axes"], {}, rigged
+    mapping, axes = body_map(skel, set(doc["skins"][0]["joints"]), family, unit_id)
+    return skel, mapping, axes, FAMILY_BONES.get(family, {}), MANUAL.get(unit_id, {})
 
 
 # rigs whose joint names say nothing (Bone001 ...) or only abbreviations, mapped by eye:
@@ -751,11 +845,11 @@ MANUAL = {
                        "tail.1": ("main.004", "main.005"), "tail.2": ("main.005", "main.006"),
                        "tail.3": ("main.006", "main.007")}},
     # relative: our motion is added to their rest pose (a crouch stays a crouch)
-    "n03J": {"front": ("joint49", "joint53"), "relative": True,                  # panda guardian
+    # anchor: its forelegs swipe from where they stand, not from the guard the punch holds up
+    "n03J": {"front": ("joint49", "joint53"), "relative": True, "anchor": ("leg1", "leg2"),   # panda guardian
              "bones": {"spine.1": ("joint49", "joint53"), "spine.2": ("joint53", "joint57"),
                        "head": ("joint57", "joint94"), "tail.1": ("joint54", "joint55"),
-                       "leg1.upper": ("joint65", "joint66"), "leg1.lower": ("joint66", "joint68"),
-                       "leg2.upper": ("joint80", "joint81"), "leg2.lower": ("joint81", "joint83"),
+                       "leg1.upper": ("joint65", "joint66"), "leg2.upper": ("joint80", "joint81"),
                        "leg3.upper": ("joint58", "joint59"), "leg3.lower": ("joint59", "joint61"),
                        "leg4.upper": ("joint73", "joint74"), "leg4.lower": ("joint74", "joint76")}},
     "h04I": {"front": ("Bone.013", "Bone.013_end"), "relative": True,            # crouched incubus
@@ -781,6 +875,14 @@ def _by_name(skel, joints, name):
     if not found:
         raise KeyError(f"MANUAL names a joint the model lacks: {name}")
     return found[0]
+
+
+def _anchored(rest_dirs, first, bones):
+    """Relative motion measured from the clip's own first pose for `bones` (prefixes): a stance
+    the clip holds throughout (a boxer's guard on a bear's forelegs) stays the model's rest."""
+    if not rest_dirs or not bones:
+        return rest_dirs
+    return {b: first[b] if b.startswith(tuple(bones)) else d for b, d in rest_dirs.items()}
 
 
 def _relative(skel, mapping, renames, rest_dirs, dirs):
@@ -839,7 +941,7 @@ def body_map(skel, joints, family, unit_id=None):
 def _body_root(skel, joints, mapping):
     """The joint that carries the whole body: the topmost skin joint above the hips (a Max
     biped hangs the thighs under the spine, so the thighs' parent is not it)."""
-    start = next((mapping[b] for b in ("pelvis", "spine.1", "body") if b in mapping), None)
+    start = next((mapping[b] for b in BODY if b in mapping), None)
     if start is None:
         return None
     j = start[0]
@@ -848,10 +950,11 @@ def _body_root(skel, joints, mapping):
     return j
 
 
-def _hips_track(skel, doc, body, family, poses, axes):
-    """The body root follows our root (up and forward), scaled by hip height over the ground."""
+def _hips_track(skel, doc, body, family, poses, axes, base=None):
+    """The body root follows our root (up and forward), scaled by hip height over the ground;
+    measured from base[i] = (lift, rise) for pose i when given."""
     hips, height = body
-    anchor = next((b for b in ("pelvis", "spine.2", "body") if b in P.joints(family)), None)
+    anchor = next((b for b in ("pelvis", "spine.2", "body", "hull", "cradle") if b in P.joints(family)), None)
     if hips is None or anchor is None:
         return {}
     left, up, front = axes
@@ -861,8 +964,10 @@ def _hips_track(skel, doc, body, family, poses, axes):
     inv = _inverse(skel.world_lin[p]) if p >= 0 else [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
     rest = doc["nodes"][hips].get("translation", [0, 0, 0])
     track = []
-    for pose in poses:
+    for i, pose in enumerate(poses):
         _, _, _, lift, rise = P.pad(pose.get("root", (0, 0, 0, 0, 0)))
+        lift0, rise0 = base[i] if base else (0.0, 0.0)
+        lift, rise = lift - lift0, rise - rise0
         world = [(rise * up[k] + lift * front[k]) * scale for k in range(3)]
         track.append([rest[k] + v for k, v in enumerate(apply(inv, world))])
     return {hips: track}
@@ -876,12 +981,13 @@ def _inverse(m):
     return [[cof[j][i] / det for j in range(3)] for i in range(3)]
 
 
-def wanted_slots(row, names=()):
+def wanted_slots(row, names=None):
     """What the model lacks: attack (and its combo) always, spell and death when the model has
-    none of its own (a clip that points at one of our cf_ clips is ours, so it counts as none)."""
+    none of its own (a clip that points at one of our cf_ clips is ours, so it counts as none;
+    `names` None: the model's clips are not known, the row is trusted)."""
     def own(column):
         i = int(row.get(column, "-1"))
-        return 0 <= i < len(names) and not names[i].startswith(PREFIX) if names else i >= 0
+        return i >= 0 if names is None else 0 <= i < len(names) and not names[i].startswith(PREFIX)
     slots = {"attack"}
     if not own("clip_spell"):
         slots.add("spell")
@@ -915,18 +1021,32 @@ def inject(unit_id, model_row):
     return "injected " + ",".join(a[0] for a in anims)
 
 
-def _injected(unit_id):
+def _rig_mark(unit_id):
+    """What tools/rig_static.py recorded when it gave the model a skeleton ({} if it did not)."""
     glb = ASSETS / f"{unit_id}.glb"
-    return glb.exists() and "cf_inject" in read_glb(glb)[0].get("extras", {})
+    return read_glb(glb)[0].get("extras", {}).get("cf_rig", {}) if glb.exists() else {}
+
+
+def ours(row):
+    """The unit's attack is (or should be) one of our clips: it has none, or the GLB carries our
+    injection or skeleton, or clip_attack points past the model's own clips (a fresh download of a
+    model data/models.tsv already counts our clips for)."""
+    if row["clip_attack"] == "-1":
+        return True
+    glb = ASSETS / f"{row['unit_id']}.glb"
+    if not glb.exists():
+        return False
+    doc = read_glb(glb)[0]
+    if {"cf_inject", "cf_rig"} & set(doc.get("extras", {})):
+        return True
+    return max(int(c) for c in row["clip_attack"].split(",")) >= len(doc.get("animations", []))
 
 
 def targets(argv):
-    """The units named, else every unit with no attack clip plus every one injected before
-    (once injected, its clip_attack points at cf_attack; a rerun must still refresh it)."""
+    """The units named, else every unit whose attack is ours to make (a rerun refreshes them)."""
     head, rows = AMC.rows(AMC.MODELS)
     by_id = {r["unit_id"]: r for r in rows}
-    ids = [a for a in argv if not a.startswith("--")] or [
-        r["unit_id"] for r in rows if r["clip_attack"] == "-1" or _injected(r["unit_id"])]
+    ids = [a for a in argv if not a.startswith("--")] or [r["unit_id"] for r in rows if ours(r)]
     return [(u, by_id[u]) for u in ids if u in by_id]
 
 

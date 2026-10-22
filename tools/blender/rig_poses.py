@@ -92,17 +92,29 @@ def _build_rest(family, extras):
     return out
 
 
-def joints(family, pose=None, extras=None):
-    """bone -> (head, tail) in armature space for `pose` ({bone: (rx, ry, rz, lift)})."""
+def _posed(family, pose, extras):
+    """bone -> 4x4 pose matrix in armature space."""
     pose, table = pose or {}, rest(family, extras)
-    world, out = {}, {}
-    for name, (parent, local, length) in table.items():
+    world = {}
+    for name, (parent, local, _) in table.items():
         offset = local
         if parent is not None:      # pose.matrix = parent.matrix @ parent.rest^-1 @ rest @ basis
             offset = _mul(world[parent], _mul(_affine_inverse(table[parent][1]), local))
         world[name] = _mul(offset, _basis(*pose.get(name, (0, 0, 0, 0))))
-        out[name] = (_apply(world[name], (0, 0, 0)), _apply(world[name], (0, length, 0)))
-    return out
+    return world
+
+
+def joints(family, pose=None, extras=None):
+    """bone -> (head, tail) in armature space for `pose` ({bone: (rx, ry, rz, lift)})."""
+    table = rest(family, extras)
+    return {name: (_apply(m, (0, 0, 0)), _apply(m, (0, table[name][2], 0)))
+            for name, m in _posed(family, pose, extras).items()}
+
+
+def frames(family, pose=None, extras=None):
+    """bone -> 3x3 orientation in armature space for `pose` (columns: the bone's x, y, z), twist
+    included: what aiming a bone along (head, tail) loses."""
+    return {name: [row[:3] for row in m[:3]] for name, m in _posed(family, pose, extras).items()}
 
 
 # ---------------------------------------------------------------- sampling clips
