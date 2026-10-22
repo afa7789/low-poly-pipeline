@@ -175,6 +175,33 @@ class Creature(unittest.TestCase):
         self.assertAlmostEqual(front[2], 1.0)
 
 
+class Relative(unittest.TestCase):
+    def setUp(self):
+        self.doc = biped_doc()
+        self.skel = I.Skeleton(self.doc)
+        self.m = I.humanoid(self.skel, set(self.doc["skins"][0]["joints"]))
+        self.axes = I.front_of(self.skel, self.m)
+
+    def test_our_idle_stance_leaves_their_rest_pose_alone(self):
+        dirs = I.our_dirs("biped", {}, self.axes)
+        got = I._relative(self.skel, self.m.items(), {}, dirs, dirs)
+        arm, fore = self.m["arm.L"]
+        want = [a - b for a, b in zip(self.skel.world_pos[fore], self.skel.world_pos[arm])]
+        self.assertLess(math.dist(got["arm.L"], want), 1e-9)
+
+    def test_a_floating_fist_moves_by_our_hand_and_stays_put_at_idle(self):
+        spec = {"reach": {"LeftHand": "forearm.L"}}
+        names = [n["name"] for n in self.doc["nodes"]]
+        for n in self.doc["nodes"]:
+            n["name"] = n["name"].split(":")[1]
+        raised = {"arm.L": (0, 0, 90, 0, 0)}
+        track = I._reach_tracks(I.Skeleton(self.doc), self.doc, spec, "biped", [{}, {}, raised], self.axes)
+        (_, (still, moved)), = track.items()
+        rest = self.doc["nodes"][names.index("mixamorig:LeftHand_8")].get("translation")
+        self.assertLess(math.dist(still, rest), 1e-9)
+        self.assertGreater(math.dist(moved, rest), 0.01)
+
+
 class Solve(unittest.TestCase):
     def test_a_mapped_joint_points_where_asked(self):
         doc = biped_doc()

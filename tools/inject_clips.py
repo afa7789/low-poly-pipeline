@@ -705,16 +705,27 @@ def build(unit_id, glb, wanted):
     hips = _body_root(skel, joints, mapping)
     start = next((mapping[b] for b in ("pelvis", "spine.1", "body") if b in mapping), None)
     height = skel.world_pos[start[0]][1] - min(skel.world_pos[j][1] for j in joints) if start else 0.0
+    spec = MANUAL.get(unit_id, {})
+    clips = list(M.clips(family, picks))
+    idle = next(p for slot, p, *_ in clips if slot == "idle")
+    neutral = idle[frames_of(idle)[0][0]]                # their rest pose stands for our idle stance
+    rest_dirs = our_dirs(family, neutral, axes) if spec.get("relative") else None
     out = []
-    for slot, poses, *_ in M.clips(family, picks):
+    for slot, poses, *_ in clips:
         if slot.rstrip("23") not in wanted:
             continue
         keys, times = frames_of(poses)
         rot = {}
         for k in keys:
-            for node, q in solve(skel, list(mapping.items()), our_dirs(family, poses[k], axes), renames).items():
+            dirs = our_dirs(family, poses[k], axes)
+            if rest_dirs:
+                dirs = _relative(skel, mapping.items(), renames, rest_dirs, dirs)
+            for node, q in solve(skel, list(mapping.items()), dirs, renames).items():
                 rot.setdefault(node, []).append(q)
-        out.append((slot, times, rot, _hips_track(skel, doc, (hips, height), family, [poses[k] for k in keys], axes)))
+        posed = [poses[k] for k in keys]
+        moves = {**_hips_track(skel, doc, (hips, height), family, posed, axes),
+                 **_reach_tracks(skel, doc, spec, family, [neutral] + posed, axes)}
+        out.append((slot, times, rot, moves))
     return out
 
 
@@ -739,11 +750,69 @@ MANUAL = {
                        "wing2.upper": ("w01.R", "w02.R"), "wing2.lower": ("w02.R", "w03.R"),
                        "tail.1": ("main.004", "main.005"), "tail.2": ("main.005", "main.006"),
                        "tail.3": ("main.006", "main.007")}},
+    # relative: our motion is added to their rest pose (a crouch stays a crouch)
+    "n03J": {"front": ("joint49", "joint53"), "relative": True,                  # panda guardian
+             "bones": {"spine.1": ("joint49", "joint53"), "spine.2": ("joint53", "joint57"),
+                       "head": ("joint57", "joint94"), "tail.1": ("joint54", "joint55"),
+                       "leg1.upper": ("joint65", "joint66"), "leg1.lower": ("joint66", "joint68"),
+                       "leg2.upper": ("joint80", "joint81"), "leg2.lower": ("joint81", "joint83"),
+                       "leg3.upper": ("joint58", "joint59"), "leg3.lower": ("joint59", "joint61"),
+                       "leg4.upper": ("joint73", "joint74"), "leg4.lower": ("joint74", "joint76")}},
+    "h04I": {"front": ("Bone.013", "Bone.013_end"), "relative": True,            # crouched incubus
+             "bones": {"head": ("Bone.013", "Bone.013_end"),
+                       "arm.L": ("Bone.007", "Bone.008"), "forearm.L": ("Bone.008", "Bone.009"),
+                       "arm.R": ("Bone.001", "Bone.002"), "forearm.R": ("Bone.002", "Bone.003"),
+                       "thigh.L": ("Bone.010", "Bone.011"), "shin.L": ("Bone.011", "Bone.012"),
+                       "thigh.R": ("Bone.004", "Bone.005"), "shin.R": ("Bone.005", "Bone.006")}},
+    # the golem's fists float free of its body: they move (reach) instead of turning; its "L" is
+    # on the viewer's left, so our left arm drives its R fist
+    "h03N": {"front": ("B_foot_R", "B_toe_R_end"), "relative": True,
+             "bones": {"spine": ("B_Body_1", "B_Body_2"),
+                       "thigh.L": ("B_leg_R", "B_knee_R"), "shin.L": ("B_knee_R", "B_foot_R"),
+                       "thigh.R": ("B_leg_L", "B_knee_L"), "shin.R": ("B_knee_L", "B_foot_L")},
+             "reach": {"B_hand_R": "forearm.L", "B_hand_L": "forearm.R"}},
 }
 
 
 def _by_name(skel, joints, name):
-    return next(j for j in joints if re.sub(r"(?i)_armature$", "", re.sub(r"_\d+$", "", skel.names[j])) == name)
+    def base(n):
+        return re.sub(r"(?i)_armature$", "", re.sub(r"_\d+$", "", n.split(":")[-1]))
+    found = [j for j in joints if base(skel.names[j]) == name]
+    if not found:
+        raise KeyError(f"MANUAL names a joint the model lacks: {name}")
+    return found[0]
+
+
+def _relative(skel, mapping, renames, rest_dirs, dirs):
+    """Our bones' turn from our rest, applied to their rest directions."""
+    out = {}
+    for ours, (a, b) in mapping:
+        name = renames.get(ours, ours)
+        if name in dirs:
+            out[name] = apply(arc(rest_dirs[name], dirs[name]), [p - q for p, q in zip(skel.world_pos[b],
+                                                                                            skel.world_pos[a])])
+    return out
+
+
+def _reach_tracks(skel, doc, spec, family, poses, axes):
+    """Translation tracks for joints that follow the tip of one of our bones (floating fists),
+    measured from poses[0] (our idle stance)."""
+    left, up, front = axes
+    rest, poses = P.joints(family, poses[0]), poses[1:]
+    ys = [p[1] for p in skel.world_pos.values()]
+    scale = (max(ys) - min(ys)) / max(t[2] for _, t in rest.values())
+    out = {}
+    for name, bone in spec.get("reach", {}).items():
+        j = _by_name(skel, set(range(len(skel.names))), name)
+        inv = _inverse(skel.world_lin[skel.parent[j]])
+        base = doc["nodes"][j].get("translation", [0, 0, 0])
+        track = []
+        for pose in poses:
+            d = [a - b for a, b in zip(P.joints(family, pose)[bone][1], rest[bone][1])]
+            world = [(d[0] * left[k] + d[2] * up[k] - d[1] * front[k]) * scale for k in range(3)]
+            track.append([base[k] + v for k, v in enumerate(apply(inv, world))])
+        out[j] = track
+    return out
 
 
 def manual_map(skel, joints, spec):
