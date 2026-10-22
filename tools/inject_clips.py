@@ -43,6 +43,9 @@ FAMILY_BONES = {"biped": {}, "harpy": {},
                 "wraith": {"pelvis": "base", **_NO_LEGS},
                 "naga": {"pelvis": None, **_NO_LEGS},
                 "centaur": {"pelvis": None, "spine": "spine.3", **_NO_LEGS}}
+# Portuguese rigs (coxa, perna, asa ...) and fins read as the English parts
+SYNONYMS = {"coxa": "thigh", "perna": "shin", "pe": "foot", "asa": "wing", "fin": "wing", "pescoco": "neck",
+            "cranio": "head", "calda": "tail", "cauda": "tail", "peito": "chest", "mouth": "jaw"}
 IGNORE = {"cat", "rig", "bip", "bip01", "bip001", "def", "org", "jnt", "m", "mixamorig", "metarig", "armature",
           "valvebiped", "golem", "v1"}
 
@@ -177,7 +180,7 @@ def tokens(name):
     name = re.sub(r"_\d+$", "", name)
     name = re.sub(r"(?i)(_metarig|_armature|\(mirrored\))", "", name).split(":")[-1].replace("ValveBiped.", "")
     parts = re.findall(r"[A-Z]{2,}(?=[A-Z][a-z]|[0-9]|\b|_)|[A-Z]?[a-z]+[0-9]*|[A-Z][0-9]*|[0-9]+", name)
-    return [t.lower() for t in parts if t.lower() not in IGNORE]
+    return [SYNONYMS.get(t.lower(), t.lower()) for t in parts if t.lower() not in IGNORE]
 
 
 def noise_tokens(names):
@@ -293,7 +296,8 @@ def _torso(skel, joints, limbs, noise):
 
 # ---------------------------------------------------------------- quadrupeds
 TIPS = ("toe", "ball", "digit", "finger", "end", "nail", "claw")
-TOPS = ("clavicle", "shoulder", "scapula", "pelvis", "collar", "collarbone")
+TOPS = ("clavicle", "shoulder", "scapula", "pelvis", "collar", "collarbone", "base")
+CONTROLS = ("ik", "pole", "target", "control", "roll", "chain")   # IK helpers, not the skin's bones
 
 
 def _leg_chain(skel, joints, end, noise):
@@ -324,14 +328,21 @@ def _limb_ends(skel, joints, noise):
     return ends
 
 
-def _legs(skel, joints, noise):
-    """The four distinct three-joint sided chains that drop the most: legs hang down, ears,
-    eyelids and brows do not."""
+def _drops(skel, joints, noise):
+    """Distinct three-joint sided chains that hang down, most dropping first: legs do, ears,
+    eyelids and brows do not (or barely)."""
     chains = {tuple(_leg_chain(skel, joints, e, noise)) for e in _limb_ends(skel, joints, noise)}
 
-    def drop(c):
-        return skel.world_pos[c[0]][1] - skel.world_pos[c[2]][1]
-    legs = sorted((list(c) for c in chains if len(c) == 3 and drop(c) > 0), key=drop, reverse=True)[:4]
+    def drop(c):                                   # to the lowest point: spider knees rise first
+        return skel.world_pos[c[0]][1] - min(skel.world_pos[d][1] for d in skel.subtree(c[0]))
+    legs = sorted((list(c) for c in chains if len(c) == 3 and drop(c) > 0 and
+                   not any(_has(skel, j, "wing") for j in c)), key=drop, reverse=True)
+    return [c for c in legs if drop(c) > 0.25 * drop(legs[0])]
+
+
+def _legs(skel, joints, noise):
+    """The four chains that drop the most, two a side."""
+    legs = _drops(skel, joints, noise)[:4]
     sides = sorted(role(skel.names[c[0]], noise)[0] for c in legs)
     return legs if sides == ["L", "L", "R", "R"] else []
 
@@ -357,7 +368,8 @@ def _head(skel, joints, chest):
         if j is not None:
             j = _up(skel, joints, j) if up else j
             siblings = [c for c in skel.children(_up(skel, joints, j)) if "head" in tokens(skel.names[c])]
-            return _up(skel, joints, j) if len(siblings) > 1 else j
+            neck = _has(skel, _up(skel, joints, j), "neck")   # Head_Jaw + Head_Top under a neck end
+            return _up(skel, joints, j) if len(siblings) > 1 and neck else j
     path = [chest]
     while (kid := _first_child(skel, joints, path[-1])) is not None and \
             {"spine", "neck"} & set(tokens(skel.names[kid])):
@@ -399,6 +411,172 @@ def quadruped(skel, joints):
     tip = _ahead_child(skel, joints, head, front)
     if tip is not None:
         out["head"] = (head, tip)
+    return out
+
+
+# ---------------------------------------------------------------- other bodies
+GENERIC = {"drake", "bird", "bird_rider", "spider", "crawler", "ray"}
+
+
+def _control(skel, j):
+    return any(t.startswith(c) for t in tokens(skel.names[j]) for c in CONTROLS)
+
+
+def _has(skel, j, word):
+    """A token of j's name starts with word ("Wing1", "Tail3")."""
+    return any(t.startswith(word) for t in tokens(skel.names[j]))
+
+
+def _main_chain(skel, joints, j, n):
+    """j and its biggest-subtree real descendants, n joints; a "base" piece on top is skipped."""
+    chain = [j]
+    while len(chain) <= n and (kids := [c for c in skel.children(chain[-1]) if c in joints]):
+        chain.append(max(kids, key=lambda c: len(skel.subtree(c))))
+    if len(chain) > 2 and "base" in tokens(skel.names[chain[0]]):
+        chain.pop(0)
+    return chain[:n]
+
+
+def _wings(skel, joints, noise):
+    """The topmost wing (or fin) chain on each side."""
+    out = []
+    for j in sorted(joints, key=skel.depth):
+        side = role(skel.names[j], noise)[0]
+        if side and side not in {role(skel.names[c[0]], noise)[0] for c in out} and \
+                _has(skel, j, "wing") and not _control(skel, j) and not _helper(skel, joints, j):
+            chain = _main_chain(skel, joints, j, 3)
+            out += [chain] if len(chain) >= 2 else []
+    return out
+
+
+def _named_chain(skel, joints, word, n):
+    top = next((j for j in sorted(joints, key=skel.depth) if _has(skel, j, word)), None)
+    return _main_chain(skel, joints, top, n) if top is not None else []
+
+
+def _split(ours, path):
+    """Spread our chain of bones over their path of joints: {our bone: (joint, joint)}."""
+    out, n = {}, len(ours)
+    if len(path) < 2:
+        return out
+    for k, bone in enumerate(ours):
+        a, b = round(k * (len(path) - 1) / n), round((k + 1) * (len(path) - 1) / n)
+        if a != b:
+            out[bone] = (path[a], path[b])
+    return out
+
+
+def _path(skel, joints, top, bottom):
+    """Real joints from top down to bottom, or [] when top is not above bottom."""
+    path = [bottom]
+    while path[-1] not in (top, -1):
+        path.append(_up(skel, joints, path[-1]))
+    return path[::-1] if path[-1] == top else []
+
+
+def _our_chain(family, end):
+    """Our bones from below the root down to the parent of `end`."""
+    table, chain = P.rest(family), []
+    b = table[end][0] if end in table else None
+    while b not in (None, "root"):
+        chain.append(b)
+        b = table[b][0]
+    return chain[::-1]
+
+
+def _limb_slots(family, kind):
+    """Our limbs of a kind ("leg"/"wing"): [(name, side, forward)], forward measured like theirs."""
+    js = P.joints(family)
+    head = js["head"][0] if "head" in js else js["root"][0]
+    roots = {b[:-6]: js[b][0] for b in js if b.startswith(kind) and b.endswith(".upper")}
+    reach = max([r[1] - head[1] for r in roots.values()], default=0.0) or 1.0
+    return [(name, "L" if r[0] > 0 else "R", -(r[1] - head[1]) / reach) for name, r in roots.items()]
+
+
+def _match(slots, chains, place):
+    """Pair each of their chains with the nearest free slot of ours on the same side."""
+    out, free = {}, list(slots)
+    pairs = sorted(((abs(f - place(c)[1]), i, n) for i, c in enumerate(chains)
+                    for n, (_, side, f) in enumerate(slots) if side == place(c)[0]))
+    used = set()
+    for _, i, n in pairs:
+        if i in used or free[n] is None:
+            continue
+        used.add(i)
+        out[free[n][0]] = chains[i]
+        free[n] = None
+    return out
+
+
+def creature(skel, joints, family):
+    """({our bone: (their joint, joint it points to)}, axes) for a drake, bird, spider, crawler
+    or ray; ({}, None) when the head or the limbs are missing."""
+    joints = {j for j in joints if not _control(skel, j)}       # IK targets and poles stay put
+    noise = noise_tokens([skel.names[j] for j in joints])
+    root = min(joints, key=skel.depth)
+    legs, wings = _drops(skel, joints, noise), _wings(skel, joints, noise)
+    head = _head(skel, joints, root)
+    if head is None or not (legs or wings):
+        return {}, None
+    front = _facing(skel, joints, head, [c[0] for c in legs + wings] or [root])
+    left = cross([0.0, 1.0, 0.0], front)
+    out = _limbs(skel, family, (legs, wings), (head, front, left), noise)
+    rear = min(legs, key=lambda c: sum(skel.world_pos[c[0]][k] * front[k] for k in (0, 2)), default=None)
+    hips = _sideless_up(skel, joints, rear[0], noise) if rear else root
+    out.update(_spine_tail(skel, joints, family, (hips, head), front))
+    return out, (left, [0.0, 1.0, 0.0], front)
+
+
+def _facing(skel, joints, head, tops):
+    """Horizontal front: from the limbs' roots to the head, or from the tail tip when the limbs
+    sit at the head (a fish whose fins, head and tail all start at one point)."""
+    pos = skel.world_pos
+    size = max(math.dist(pos[a], pos[b]) for a in joints for b in (head,))
+    for back in ([sum(pos[t][k] for t in tops) / len(tops) for k in range(3)],
+                 pos[(_named_chain(skel, joints, "tail", 99) or [head])[-1]]):
+        flat = [pos[head][0] - back[0], 0.0, pos[head][2] - back[2]]
+        if math.hypot(flat[0], flat[2]) > 0.1 * size:
+            return unit(flat)
+    return [0.0, 0.0, 1.0]
+
+
+def _limbs(skel, family, chains, frame, noise):
+    head, front, left = frame
+    pos = skel.world_pos
+    tops = [c[0] for group in chains for c in group]
+    reach = max([sum((pos[head][k] - pos[t][k]) * front[k] for k in (0, 2)) for t in tops]) or 1.0
+
+    def place(c):
+        return role(skel.names[c[0]], noise)[0], sum((pos[c[0]][k] - pos[head][k]) * front[k] for k in (0, 2)) / reach
+    out = {}
+    for kind, group in zip(("leg", "wing"), chains):
+        for name, c in _match(_limb_slots(family, kind), group, place).items():
+            out[f"{name}.upper"] = (c[0], c[1])
+            if len(c) == 3:
+                out[f"{name}.lower"] = (c[1], c[2])
+    return out
+
+
+def _spine_tail(skel, joints, family, ends, front):
+    hips, head = ends
+    path = []
+    while hips >= 0 and not (path := _path(skel, joints, hips, head)):
+        hips = _up(skel, joints, hips)                 # thighs under a pelvis beside the spine
+    ours = _our_chain(family, "head") or ["body"]
+    out = _split(ours, path) if len(path) > 1 else {}
+    tip = _ahead_child(skel, joints, head, front)
+    if tip is not None and "head" in P.joints(family):
+        out["head"] = (head, tip)
+    jaw = _named_chain(skel, joints, "jaw", 2) or _named_chain(skel, joints, "inf", 2)   # boca_inf
+    if len(jaw) == 2 and "jaw" in P.joints(family):
+        out["jaw"] = tuple(jaw)
+    tails = sorted(b for b in P.joints(family) if b.startswith("tail."))
+    chain = _named_chain(skel, joints, "tail", 99)
+    if chain and math.dist(skel.world_pos[chain[0]], skel.world_pos[head]) < 1e-3 + 0.1 * math.dist(
+            skel.world_pos[chain[0]], skel.world_pos[chain[-1]]):
+        chain = chain[len(chain) // 2:]                # a fish: its "tail" starts at the head
+    if tails:
+        out.update(_split(tails, chain[:len(tails) + 1]))
     return out
 
 
@@ -499,7 +677,7 @@ def plan(unit_id):
     row = rows.get(unit_id)
     if row is None:
         return "no registry row"
-    if row["rig"] not in FAMILY_BONES and row["rig"] != "quadruped":
+    if row["rig"] not in FAMILY_BONES and row["rig"] not in GENERIC | {"quadruped"} and unit_id not in MANUAL:
         return f"rig {row['rig']}: no map yet"
     return row["rig"], {slot: row[slot] for slot in M.SLOTS}, row
 
@@ -520,14 +698,12 @@ def build(unit_id, glb, wanted):
         return "static model (no skin)"
     skel = Skeleton(doc)
     joints = set(doc["skins"][0]["joints"])
-    four = family == "quadruped"
-    mapping = quadruped(skel, joints) if four else humanoid(skel, joints)
-    if not mapping or (four and "spine.1" not in mapping):
+    mapping, axes = body_map(skel, joints, family, unit_id)
+    if not mapping:
         return f"skeleton not recognised as {family}"
-    axes = front_of_body(skel, mapping) if four else front_of(skel, mapping)
-    renames = {} if four else FAMILY_BONES[family]
+    renames = FAMILY_BONES.get(family, {})
     hips = _body_root(skel, joints, mapping)
-    start = mapping.get("pelvis", mapping.get("spine.1"))
+    start = next((mapping[b] for b in ("pelvis", "spine.1", "body") if b in mapping), None)
     height = skel.world_pos[start[0]][1] - min(skel.world_pos[j][1] for j in joints) if start else 0.0
     out = []
     for slot, poses, *_ in M.clips(family, picks):
@@ -542,10 +718,59 @@ def build(unit_id, glb, wanted):
     return out
 
 
+# rigs whose joint names say nothing (Bone001 ...) or only abbreviations, mapped by eye:
+# front = (joint, joint toward the head); bones = {our bone: (their joint, joint it points to)}
+MANUAL = {
+    "n007": {"front": ("Bone002", "Bone003"),                                   # dragon turtle
+             "bones": {"spine.2": ("Bone002", "Bone004"), "head": ("Bone004", "Bone005"),
+                       "leg1.upper": ("Bone007(mirrored)", "Bone008(mirrored)"),
+                       "leg1.lower": ("Bone008(mirrored)", "Bone009(mirrored)"),
+                       "leg2.upper": ("Bone007", "Bone008"), "leg2.lower": ("Bone008", "Bone009"),
+                       "leg3.upper": ("Bone011(mirrored)", "Bone012(mirrored)"),
+                       "leg3.lower": ("Bone012(mirrored)", "Bone013(mirrored)"),
+                       "leg4.upper": ("Bone011", "Bone012"), "leg4.lower": ("Bone012", "Bone013"),
+                       "tail.1": ("Bone015", "Bone016"), "tail.2": ("Bone016", "Bone017")}},
+    "h016": {"front": ("main.009", "main.002"),                                  # gryphon (rider unskinned)
+             "bones": {"spine.2": ("main.001", "main.002"),
+                       "leg1.upper": ("fl01.L", "fl02.L"), "leg2.upper": ("fl01.R", "fl02.R"),
+                       "leg3.upper": ("bl01.L", "bl02.L"), "leg3.lower": ("bl02.L", "bl03.L"),
+                       "leg4.upper": ("bl01.R", "bl02.R"), "leg4.lower": ("bl02.R", "bl03.R"),
+                       "wing1.upper": ("w01.L", "w02.L"), "wing1.lower": ("w02.L", "w03.L"),
+                       "wing2.upper": ("w01.R", "w02.R"), "wing2.lower": ("w02.R", "w03.R"),
+                       "tail.1": ("main.004", "main.005"), "tail.2": ("main.005", "main.006"),
+                       "tail.3": ("main.006", "main.007")}},
+}
+
+
+def _by_name(skel, joints, name):
+    return next(j for j in joints if re.sub(r"(?i)_armature$", "", re.sub(r"_\d+$", "", skel.names[j])) == name)
+
+
+def manual_map(skel, joints, spec):
+    """MANUAL[unit] as joint indices plus axes."""
+    a, b = (_by_name(skel, joints, n) for n in spec["front"])
+    front = unit([skel.world_pos[b][0] - skel.world_pos[a][0], 0.0, skel.world_pos[b][2] - skel.world_pos[a][2]])
+    bones = {ours: tuple(_by_name(skel, joints, n) for n in pair) for ours, pair in spec["bones"].items()}
+    return bones, (cross([0.0, 1.0, 0.0], front), [0.0, 1.0, 0.0], front)
+
+
+def body_map(skel, joints, family, unit_id=None):
+    """({our bone: (their joint, joint it points to)}, (left, up, front)), or ({}, None)."""
+    if unit_id in MANUAL:
+        return manual_map(skel, joints, MANUAL[unit_id])
+    if family in GENERIC:
+        return creature(skel, joints, family)
+    if family == "quadruped":
+        m = quadruped(skel, joints)
+        return (m, front_of_body(skel, m)) if "spine.1" in m else ({}, None)
+    m = humanoid(skel, joints)
+    return (m, front_of(skel, m)) if m else ({}, None)
+
+
 def _body_root(skel, joints, mapping):
     """The joint that carries the whole body: the topmost skin joint above the hips (a Max
     biped hangs the thighs under the spine, so the thighs' parent is not it)."""
-    start = mapping.get("pelvis", mapping.get("spine.1"))
+    start = next((mapping[b] for b in ("pelvis", "spine.1", "body") if b in mapping), None)
     if start is None:
         return None
     j = start[0]
@@ -557,7 +782,7 @@ def _body_root(skel, joints, mapping):
 def _hips_track(skel, doc, body, family, poses, axes):
     """The body root follows our root (up and forward), scaled by hip height over the ground."""
     hips, height = body
-    anchor = next((b for b in ("pelvis", "spine.2") if b in P.joints(family)), None)
+    anchor = next((b for b in ("pelvis", "spine.2", "body") if b in P.joints(family)), None)
     if hips is None or anchor is None:
         return {}
     left, up, front = axes

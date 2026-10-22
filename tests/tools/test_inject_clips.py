@@ -60,6 +60,31 @@ def quad_doc():
     return {"asset": {"version": "2.0"}, "nodes": nodes, "skins": [{"joints": list(range(len(nodes)))}]}
 
 
+def drake_doc():
+    """A Portuguese-named winged drake (coxa/perna/pe, asa, calda, pescoco, cranio) facing +Z,
+    plus an IK target that must be ignored; and a fish whose tail chain starts at its head."""
+    spec = [
+        ("root", None, [0, 0, 0]), ("tronco", "root", [0, 1.0, -0.5]), ("peito", "tronco", [0, 0, 1.0]),
+        ("pescoco", "peito", [0, 0.3, 0.3]), ("cranio", "pescoco", [0, 0.3, 0.3]), ("boca_sup", "cranio", [0, 0, 0.3]),
+        ("calda_001", "tronco", [0, 0, -0.3]), ("calda_002", "calda_001", [0, 0, -0.3]),
+        ("calda_003", "calda_002", [0, 0, -0.3]), ("calda_004", "calda_003", [0, 0, -0.3]),
+        ("leg_IK.L", "root", [0.2, 0, 0.5]),
+    ]
+    for part, parent, z in (("", "peito", 0.0), ("_T", "tronco", 0.0)):
+        for side, x in (("L", 0.2), ("R", -0.2)):
+            coxa, perna = f"coxa{part}_{side}", f"perna{part}_{side}"
+            spec += [(coxa, parent, [x, 0, z]), (perna, coxa, [0, -0.5, 0]), (f"pe{part}_{side}", perna, [0, -0.45, 0])]
+    for side, x in (("L", 1), ("R", -1)):
+        spec += [(f"asa_{side}", "peito", [0.2 * x, 0.2, 0]), (f"asa_02_{side}", f"asa_{side}", [0.5 * x, 0.1, 0]),
+                 (f"asa_03_{side}", f"asa_02_{side}", [0.5 * x, 0, 0])]
+    names = [n for n, *_ in spec]
+    nodes = [{"name": f"{n}_Armature_{i}", "translation": t} for i, (n, _, t) in enumerate(spec)]
+    for i, (_, parent, _) in enumerate(spec):
+        if parent is not None:
+            nodes[names.index(parent)].setdefault("children", []).append(i)
+    return {"asset": {"version": "2.0"}, "nodes": nodes, "skins": [{"joints": list(range(len(nodes)))}]}
+
+
 def mapped(doc):
     skel = I.Skeleton(doc)
     m = I.humanoid(skel, set(doc["skins"][0]["joints"]))
@@ -116,6 +141,38 @@ class Quadruped(unittest.TestCase):
         left, _, front = I.front_of_body(skel, m)
         self.assertAlmostEqual(front[2], 1.0)
         self.assertAlmostEqual(left[0], 1.0)
+
+
+class Creature(unittest.TestCase):
+    def names(self, family):
+        doc = drake_doc()
+        skel = I.Skeleton(doc)
+        m, axes = I.body_map(skel, set(doc["skins"][0]["joints"]), family)
+        base = lambda j: skel.names[j].split("_Armature")[0]  # noqa: E731
+        return {k: (base(a), base(b)) for k, (a, b) in m.items()}, axes
+
+    def test_a_portuguese_drake_maps_legs_wings_neck_and_tail(self):
+        m, (left, _, front) = self.names("drake")
+        self.assertEqual(m["leg1.upper"], ("coxa_L", "perna_L"))           # front left
+        self.assertEqual(m["leg4.lower"], ("perna_T_R", "pe_T_R"))         # hind right
+        self.assertEqual(m["wing2.upper"], ("asa_R", "asa_02_R"))
+        self.assertEqual(m["tail.1"], ("calda_001", "calda_002"))
+        self.assertEqual(m["head"], ("cranio", "boca_sup"))
+        self.assertAlmostEqual(front[2], 1.0)
+        self.assertAlmostEqual(left[0], 1.0)
+
+    def test_a_two_legged_bird_takes_the_legs_nearest_its_own(self):
+        m, _ = self.names("bird")
+        self.assertEqual({m["leg1.upper"][0], m["leg2.upper"][0]} & {"coxa_L", "coxa_T_L"}, {m["leg1.upper"][0]})
+        self.assertNotIn("leg3.upper", m)
+
+    def test_manual_maps_find_joints_by_base_name(self):
+        doc = drake_doc()
+        skel = I.Skeleton(doc)
+        spec = {"front": ("tronco", "peito"), "bones": {"head": ("cranio", "boca_sup")}}
+        m, (_, _, front) = I.manual_map(skel, set(doc["skins"][0]["joints"]), spec)
+        self.assertEqual([skel.names[j].split("_Armature")[0] for j in m["head"]], ["cranio", "boca_sup"])
+        self.assertAlmostEqual(front[2], 1.0)
 
 
 class Solve(unittest.TestCase):
