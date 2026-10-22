@@ -200,7 +200,8 @@ def _forearm(skel, joints, side, noise):
     fore = _limb(skel, joints, FOREARM, side, noise)
     if fore is None:
         hand = _limb(skel, joints, {"hand", "wrist"}, side, noise)
-        fore = skel.parent[hand] if hand is not None and skel.parent[hand] in joints else None
+        fore = _up(skel, joints, hand) if hand is not None else None
+        fore = fore if fore is not None and fore >= 0 else None
     return fore
 
 
@@ -213,9 +214,28 @@ def _chain(skel, low, high):
     return list(reversed(path)) if j == low else []
 
 
+def _helper(skel, joints, j):
+    """Not a real joint: outside the skin, or an exporter's scale-compensation node (Maya)."""
+    return j not in joints or "scalecompensation" in skel.names[j].lower()
+
+
+def _up(skel, joints, j):
+    """The nearest real joint above j (skips helper nodes), or -1."""
+    j = skel.parent[j]
+    while j >= 0 and _helper(skel, joints, j):
+        j = skel.parent[j]
+    return j
+
+
 def _first_child(skel, joints, j):
-    kids = [c for c in skel.children(j) if c in joints]
-    return kids[0] if kids else None
+    """The first real joint below j, looking through helper nodes."""
+    for c in skel.children(j):
+        if not _helper(skel, joints, c):
+            return c
+        deeper = _first_child(skel, joints, c)
+        if deeper is not None:
+            return deeper
+    return None
 
 
 def humanoid(skel, joints):
@@ -229,12 +249,12 @@ def humanoid(skel, joints):
         if fore is None:
             return {}
         hand = _first_child(skel, joints, fore)
-        out[f"arm.{s}"] = (skel.parent[fore], fore)
+        out[f"arm.{s}"] = (_up(skel, joints, fore), fore)
         if hand is not None:
             out[f"forearm.{s}"] = (fore, hand)
         if shin is not None:
             foot = _first_child(skel, joints, shin)
-            out[f"thigh.{s}"] = (skel.parent[shin], shin)
+            out[f"thigh.{s}"] = (_up(skel, joints, shin), shin)
             if foot is not None:
                 out[f"shin.{s}"] = (shin, foot)
     if out["arm.L"] == out["arm.R"]:         # no arm bones (a golem's hands hang off the body)
@@ -246,12 +266,12 @@ def humanoid(skel, joints):
 def _torso(skel, joints, limbs, noise):
     head = next((j for j in sorted(joints) if role(skel.names[j], noise)[1] == "head"), None)
     neck = next((j for j in sorted(joints) if role(skel.names[j], noise)[1].startswith("neck")), None)
-    shoulder = skel.parent[limbs["arm.L"][0]]
+    shoulder = _up(skel, joints, limbs["arm.L"][0])
     top = neck if neck is not None else head if head is not None else shoulder
-    hips = skel.parent[limbs["thigh.L"][0]] if "thigh.L" in limbs else None
+    hips = _up(skel, joints, limbs["thigh.L"][0]) if "thigh.L" in limbs else None
     out = {}
     if hips is not None:
-        path = _chain(skel, hips, top)
+        path = [j for j in _chain(skel, hips, top) if not _helper(skel, joints, j)]
         if path:
             out["pelvis"] = (hips, path[0])
             out["spine"] = (path[0], top) if path[0] != top else (hips, top)
@@ -396,8 +416,8 @@ def _body_root(skel, joints, mapping):
     if "pelvis" not in mapping:
         return None
     j = mapping["pelvis"][0]
-    while skel.parent[j] in joints:
-        j = skel.parent[j]
+    while _up(skel, joints, j) >= 0:
+        j = _up(skel, joints, j)
     return j
 
 
@@ -427,12 +447,16 @@ def _inverse(m):
     return [[cof[j][i] / det for j in range(3)] for i in range(3)]
 
 
-def wanted_slots(row):
-    """What the model lacks: attack (and its combo) always, spell and death when missing."""
+def wanted_slots(row, names=()):
+    """What the model lacks: attack (and its combo) always, spell and death when the model has
+    none of its own (a clip that points at one of our cf_ clips is ours, so it counts as none)."""
+    def own(column):
+        i = int(row.get(column, "-1"))
+        return 0 <= i < len(names) and not names[i].startswith(PREFIX) if names else i >= 0
     slots = {"attack"}
-    if row.get("clip_spell", "-1") == "-1":
+    if not own("clip_spell"):
         slots.add("spell")
-    if row.get("clip_death", "-1") == "-1":
+    if not own("clip_death"):
         slots.add("death")
     return slots
 
@@ -441,7 +465,8 @@ def inject(unit_id, model_row):
     glb = ASSETS / f"{unit_id}.glb"
     if not glb.exists():
         return "no GLB"
-    anims = build(unit_id, glb, wanted_slots(model_row))
+    names = [a.get("name", "") for a in read_glb(glb)[0].get("animations", [])]
+    anims = build(unit_id, glb, wanted_slots(model_row, names))
     if isinstance(anims, str):
         return anims
     rounded = [(a[0], a[1], {n: [[round(c, 5) for c in q] for q in v] for n, v in a[2].items()},
@@ -461,10 +486,18 @@ def inject(unit_id, model_row):
     return "injected " + ",".join(a[0] for a in anims)
 
 
+def _injected(unit_id):
+    glb = ASSETS / f"{unit_id}.glb"
+    return glb.exists() and "cf_inject" in read_glb(glb)[0].get("extras", {})
+
+
 def targets(argv):
+    """The units named, else every unit with no attack clip plus every one injected before
+    (once injected, its clip_attack points at cf_attack; a rerun must still refresh it)."""
     head, rows = AMC.rows(AMC.MODELS)
     by_id = {r["unit_id"]: r for r in rows}
-    ids = [a for a in argv if not a.startswith("--")] or [r["unit_id"] for r in rows if r["clip_attack"] == "-1"]
+    ids = [a for a in argv if not a.startswith("--")] or [
+        r["unit_id"] for r in rows if r["clip_attack"] == "-1" or _injected(r["unit_id"])]
     return [(u, by_id[u]) for u in ids if u in by_id]
 
 
