@@ -57,8 +57,8 @@ class Composition(unittest.TestCase):
                 RF.with_extras("vehicle", [bad])
 
     def test_hoverers_bob_and_flyers_flap(self):
-        for fam in ("wraith", "pod", "drake"):
-            self.assertTrue(any(p.get("root", (0, 0, 0, 0))[3] > 0 for p in RF.walk(fam).values()), fam)
+        for fam in ("wraith", "pod", "drake"):               # the bob rises: `up`, the 5th value
+            self.assertTrue(any(p.get("root", (0, 0, 0, 0, 0))[4] > 0 for p in RF.walk(fam).values()), fam)
         pose = RF.walk("drake")[4]
         self.assertAlmostEqual(pose["wing1.upper"][0], -pose["wing2.upper"][0])
 

@@ -18,6 +18,7 @@ down until the lowest joint sits where it sits at rest, so feet neither sink nor
 `existing` motions are the clips the builder makes today, sampled to ten drawings
 (not planted: they are drawn as the builder keys them).
 """
+import functools
 import math
 import pathlib
 
@@ -73,25 +74,21 @@ def lowest(family, pose):
 
 def plant(family, poses, air=()):
     """Raise or lower the root on every grounded frame so the lowest joint sits at its
-    rest height. The root's `up` is along the root bone, i.e. straight up."""
+    rest height; a positive authored root `up` (a hop) is added on top, a negative one
+    would sink the feet and is not used. Flying families (rig_families.HOVER) are left
+    as keyed: their lowest point is a wing tip or a tail, not a foot."""
+    if family in RF.HOVER:
+        return {frame: {bone: P.pad(v) for bone, v in pose.items()} for frame, pose in poses.items()}
     floor = lowest(family, {})
     out = {}
     for frame, pose in poses.items():
         pose = {bone: P.pad(v) for bone, v in pose.items()}
         if frame not in air:
             rx, ry, rz, lift, up = pose.get("root", (0, 0, 0, 0, 0))
-            pose["root"] = (rx, ry, rz, lift, up + floor - lowest(family, pose))
+            grounded = {**pose, "root": (rx, ry, rz, lift, 0.0)}
+            pose["root"] = (rx, ry, rz, lift, floor - lowest(family, grounded) + max(up, 0.0))
         out[frame] = pose
     return out
-
-
-def existing(family):
-    """The builder's clips today (rig_families), as {name: poses on frames 1..10}."""
-    if family == "biped":
-        clips = RF.BIPED_ACTIONS
-    else:
-        clips = RF.actions(family)
-    return {name: _frames(poses) for name, poses, *_ in clips}
 
 
 # ---------------------------------------------------------------- shared pieces
@@ -99,10 +96,9 @@ REST = {}
 
 
 def crouch(depth):
-    """Biped knees bent by `depth` (0..1): thighs forward, shins back, root down."""
+    """Biped knees bent by `depth` (0..1): thighs forward, shins back (plant lowers the body)."""
     return {"thigh.L": (35 * depth, 0, 0), "shin.L": (-60 * depth, 0, 0), "foot.L": (25 * depth, 0, 0),
-            "thigh.R": (35 * depth, 0, 0), "shin.R": (-60 * depth, 0, 0), "foot.R": (25 * depth, 0, 0),
-            "root": (0, 0, 0, 0, -0.30 * depth)}
+            "thigh.R": (35 * depth, 0, 0), "shin.R": (-60 * depth, 0, 0), "foot.R": (25 * depth, 0, 0)}
 
 
 def _with(*parts):
@@ -232,7 +228,7 @@ QUADRUPED = {
                                            "leg1.lower": (-20, 0, 0), "leg2.lower": (-20, 0, 0)}),
             6: _with(_quad_legs(35, -30), {"root": (0, 0, 0, 0.60, 0.05), "spine.1": (-12, 0, 0),
                                            "head": (-30, 0, 0), "tail.1": (15, 0, 0)}),
-            7: _with(_quad_legs(25, -20), {"root": (0, 0, 0, 0.55, -0.08), "spine.1": (-14, 0, 0),
+            7: _with(_quad_legs(25, -20), {"root": (0, 0, 0, 0.55), "spine.1": (-14, 0, 0),
                                            "head": (-30, 0, 0)}),
             10: REST,
         },
@@ -261,19 +257,19 @@ QUADRUPED = {
             5: {"root": (45, 0, 0, -0.30, 0.12), "leg1.upper": (60, 0, 0), "leg1.lower": (-90, 0, 0),
                 "leg2.upper": (85, 0, 0), "leg2.lower": (-60, 0, 0),
                 "leg3.upper": (-45, 0, 0), "leg4.upper": (-45, 0, 0), "head": (-30, 0, 0)},
-            6: _with(_quad_legs(25, -10), {"root": (-5, 0, 0, 0.05, -0.08), "head": (-20, 0, 0)}),
+            6: _with(_quad_legs(25, -10), {"root": (-5, 0, 0, 0.05), "head": (-20, 0, 0)}),
             10: REST,
         },
     },
     "roar": {
         "kind": "spell", "impact": 5,
-        "note": "roar: plants the forelegs wide, drops the chest, stretches the neck out and up, holds",
+        "note": "roar: plants the forelegs wide, rocks the chest down, stretches the neck out and up, holds",
         "keys": {
             1: REST,
-            3: _with(_quad_legs(-10, 10), {"root": (0, 0, 0, -0.08, -0.05), "head": (-20, 0, 0)}),
-            5: {"root": (-8, 0, 0, 0.0, -0.10), "leg1.upper": (20, 25, 0), "leg2.upper": (20, -25, 0),
+            3: _with(_quad_legs(-10, 10), {"root": (0, 0, 0, -0.08), "head": (-20, 0, 0)}),
+            5: {"root": (-8, 0, 0, 0), "leg1.upper": (20, 25, 0), "leg2.upper": (20, -25, 0),
                 "head": (35, 0, 0), "tail.1": (30, 0, 0), "tail.2": (20, 0, 0)},
-            8: {"root": (-8, 0, 0, 0.0, -0.10), "leg1.upper": (20, 25, 0), "leg2.upper": (20, -25, 0),
+            8: {"root": (-8, 0, 0, 0), "leg1.upper": (20, 25, 0), "leg2.upper": (20, -25, 0),
                 "head": (30, 0, 0), "tail.1": (30, 0, 0), "tail.2": (20, 0, 0)},
             10: REST,
         },
@@ -320,12 +316,12 @@ SPIDER = {
         "note": "pounce: body drops low, springs forward with the front pair raised, fangs down on landing",
         "keys": {
             1: REST,
-            3: {"root": (0, 0, 0, -0.08, -0.15), "body": (-8, 0, 0), "head": (-5, 0, 0)},
+            3: {"root": (0, 0, 0, -0.08), "body": (-8, 0, 0), "head": (-5, 0, 0)},
             5: _with(_spider_front(70, 40), {"root": (0, 0, 0, 0.45, 0.55), "body": (15, 0, 0),
                                              "abdomen": (-15, 0, 0)}),
-            6: _with(_spider_front(-10, -10), {"root": (0, 0, 0, 0.50, -0.05), "body": (-8, 0, 0),
+            6: _with(_spider_front(-10, -10), {"root": (0, 0, 0, 0.5), "body": (-8, 0, 0),
                                                "head": (-20, 0, 0)}),
-            7: _with(_spider_front(-10, -10), {"root": (0, 0, 0, 0.50, -0.05), "body": (-8, 0, 0),
+            7: _with(_spider_front(-10, -10), {"root": (0, 0, 0, 0.5), "body": (-8, 0, 0),
                                                "head": (-20, 0, 0)}),
             10: REST,
         },
@@ -338,9 +334,9 @@ SPIDER = {
             3: {"body": (15, 0, 0), "abdomen": (-60, 0, 0), "head": (-5, 0, 0)},
             5: {"body": (20, 0, 0), "abdomen": (-120, 0, 0), "head": (-5, 0, 0)},
             6: {"body": (-8, 0, 0), "abdomen": (-185, 0, 0), "head": (-10, 0, 0),
-                "root": (0, 0, 0, 0.10, -0.05)},
+                "root": (0, 0, 0, 0.1)},
             7: {"body": (-8, 0, 0), "abdomen": (-185, 0, 0), "head": (-10, 0, 0),
-                "root": (0, 0, 0, 0.10, -0.05)},
+                "root": (0, 0, 0, 0.1)},
             10: REST,
         },
     },
@@ -376,13 +372,12 @@ def _recoil(extra_hit=None, extra_wind=None):
 
 
 def _brace(note, hold):
-    return {"kind": "spell", "impact": 5, "note": note,
-            "keys": {1: REST, 3: {"root": (0, 0, 0, 0, -0.06)}, 5: hold, 8: hold, 10: REST}}
+    return {"kind": "spell", "impact": 5, "note": note, "keys": {1: REST, 5: hold, 8: hold, 10: REST}}
 
 
 VEHICLE = {"recoil": _recoil({"hull": (4, 0, 0)}),
-           "brace": _brace("deploys: squats on its wheels, turret rises and holds", {"root": (0, 0, 0, 0, -0.08),
-                                                                                       "head": (18, 0, 0)})}
+           "brace": _brace("deploys: turret rises and holds, the hull rocks back", {"head": (18, 0, 0),
+                                                                                     "hull": (3, 0, 0)})}
 TRACKED = {"recoil": _recoil({"hull": (4, 0, 0)}),
            "arm_slam": {"kind": "attack", "impact": 6,
                         "note": "tool arms rise, then slam down together; the hull dips into the blow",
@@ -390,8 +385,8 @@ TRACKED = {"recoil": _recoil({"hull": (4, 0, 0)}),
                                  6: {"arm.L": (-25, 0, 0), "arm.R": (-25, 0, 0), "hull": (-5, 0, 0),
                                      "root": (0, 0, 0, 0.06)},
                                  7: {"arm.L": (-22, 0, 0), "arm.R": (-22, 0, 0), "hull": (-4, 0, 0)}, 10: REST}},
-           "brace": _brace("deploys: hull settles, turret rises and holds", {"root": (0, 0, 0, 0, -0.06),
-                                                                             "head": (18, 0, 0)})}
+           "brace": _brace("deploys: turret rises and holds, the hull rocks back", {"head": (18, 0, 0),
+                                                                                     "hull": (3, 0, 0)})}
 AIRCRAFT = {"strafe": {"kind": "attack", "impact": 5,
                        "note": "strafing run: noses down and lunges, gondola swings back, pulls up",
                        "keys": {1: REST, 3: {"hull": (8, 0, 0), "gondola": (-10, 0, 0)},
@@ -447,8 +442,21 @@ CRAWLER = {"spit": _spit("body"),
            "shoot": {**_recoil(), "note": "fires: head (its gun) kicks up, the body is shoved back"}}
 SLED = {"fire": {**_recoil({"spine.4": (4, 0, 0)}), "note": "fires: the front kicks up, the body is shoved back"}}
 
+_NECKS = [f"neck{n}" for n in (1, 2, 3)]
+HYDRA = {"roar": {"kind": "spell", "impact": 5,
+                  "note": "roar: the three necks rear up and fan out, heads high, then settle",
+                  "keys": {1: REST,
+                           5: {**{f"{n}.1": (35, side, 0) for n, side in zip(_NECKS, (25, 0, -25))},
+                               **{f"{n}.2": (20, 0, 0) for n in _NECKS}, **{f"{n}.3": (-15, 0, 0) for n in _NECKS}},
+                           8: {**{f"{n}.1": (35, side, 0) for n, side in zip(_NECKS, (25, 0, -25))},
+                               **{f"{n}.2": (20, 0, 0) for n in _NECKS}, **{f"{n}.3": (-15, 0, 0) for n in _NECKS}},
+                           10: REST}}}
+SLED["rear"] = {"kind": "spell", "impact": 5, "note": "rears: the front lifts and holds, then drops back",
+                "keys": {1: REST, 5: {"spine.4": (25, 0, 0), "spine.3": (10, 0, 0), "head": (-15, 0, 0)},
+                         8: {"spine.4": (25, 0, 0), "spine.3": (10, 0, 0), "head": (-15, 0, 0)}, 10: REST}}
+
 MOTIONS = {"biped": BIPED, "quadruped": QUADRUPED, "spider": SPIDER, "vehicle": VEHICLE, "tracked": TRACKED,
-           "aircraft": AIRCRAFT, "crew": CREW, "pod": POD, "crawler": CRAWLER, "sled": SLED}
+           "aircraft": AIRCRAFT, "crew": CREW, "pod": POD, "crawler": CRAWLER, "sled": SLED, "hydra": HYDRA}
 
 # ---------------------------------------------------------------- from reference animations
 # (model, clip, map, kind, note): retargeted by rig_retarget from artifacts/anim-ref/<model>
@@ -619,6 +627,8 @@ _DRAKE_STILL = [(_MOUNT, A_ + "Idle", "animal_drake"), _WINGS]
 _DRAKE = {"fly": _entry("loop", "hover, wings beating", *_DRAKE_STILL),
           "glide": _entry("loop", "fly forward", (_MOUNT, A_ + "Walk", "animal_drake"), _WINGS),
           "bite": _entry("attack", "lunging bite", ("n017", A_ + "Attack", "animal_drake"), _WINGS),
+          "breath": _entry("attack", "breath: the neck rears and throws the head forward (fire, frost, acid)",
+                           (_MOUNT, A_ + "Idle", "animal_drake"), ("h009", _DR + "Attack2", "dragon_neck"), _WINGS),
           "headbutt": _entry("attack", "head ram", (_MOUNT, A_ + "Attack_Headbutt", "animal_drake"), _WINGS),
           "claw": _entry("attack", "foreleg claw", (_MOUNT, A_ + "Idle", "animal_drake"), _WINGS,
                          kk("dual_chop", "kaykit_forelegs")),
@@ -711,7 +721,7 @@ FAMILIES = sorted(f for f in RF.FAMILIES if f not in RF.STATIC)
 def impact(family, poses):
     """1-based index of the fastest moment of the limb ends (tails of leaf bones)."""
     kids = set(RF.parents(family).values())
-    flaps = ("wing", "tail", "tendril")             # they beat or wave all the time
+    flaps = ("wing", "tail", "tendril", "foot", "shin", "thigh")  # beat/wave all the time, or stand
     leaves = [b for b in RF.bones(family) if b not in kids and b != "root"]
     ends = [b for b in leaves if not b.startswith(flaps)] or leaves     # a ray is all wing and tail
     tips = [P.joints(family, p) for p in poses]
@@ -719,9 +729,15 @@ def impact(family, poses):
     return speed.index(max(speed)) + 2
 
 
-def _sampled(poses, count):
-    keys = sorted(poses)
-    return [P.sample(poses, keys[0] + (keys[-1] - keys[0]) * i / (count - 1)) for i in range(count)]
+def _complete(poses):
+    """Every pose keys every bone the clip moves anywhere (rest = zeros): an empty rest key
+    would let Blender hold the previous value and end the clip off rest."""
+    zero = (0.0, 0.0, 0.0, 0.0, 0.0)
+    bones = sorted({bone for pose in (poses.values() if isinstance(poses, dict) else poses) for bone in pose})
+
+    def fill(pose):
+        return {bone: P.pad(pose.get(bone, zero)) for bone in bones}
+    return {k: fill(v) for k, v in poses.items()} if isinstance(poses, dict) else [fill(v) for v in poses]
 
 
 def _from_ref(family, layers, count):
@@ -731,14 +747,21 @@ def _from_ref(family, layers, count):
 
 
 # clip length in frames (24 fps) of the hand-keyed and today's motions, by kind
-LENGTH = {"attack": 30, "spell": 36, "loop": 24, "death": 40, "existing": 30}
+LENGTH = {"attack": 30, "spell": 36, "loop": 24, "death": 40}
+
+
+# Loops that only accompany a motion (wings beating, a mount or rider standing, a snake
+# swaying): the motion's length comes from the first layer that is not one of them.
+COMPANIONS = {("h009", "DragonArmature|Dragon_Flying"), ("e006", "AnimalArmature|Idle"),
+              ("kk_general", "Idle_A"), ("n00H", "SnakeArmature|Snake_Idle"), ("o009", "Hover"),
+              ("n01P", "Armature|Apatosaurus_Idle")}
 
 
 def _ref_length(layers):
-    """Frames of the layer that drives the motion: the longest one that is not an idle."""
-    lengths = [(RT.duration(model, clip), "Idle" in clip) for model, clip, *_ in layers]
-    active = [n for n, idle in lengths if not idle]
-    return max(active) if active else lengths[0][0]
+    """Frames of the layer that drives the motion: the first that is not a companion loop
+    (a harpy's chop runs at the chop's pace, not its wings'); all companions: the first."""
+    driver = next((layer for layer in layers if (layer[0], layer[1]) not in COMPANIONS), layers[0])
+    return RT.duration(driver[0], driver[1])
 
 
 def _today(family):
@@ -751,18 +774,20 @@ def names(family):
             + [f"keyed_{name}" for name in MOTIONS.get(family, {})])
 
 
+@functools.lru_cache(maxsize=None)
 def motion(family, name, rate=24):
     """{"kind", "impact", "note", "poses": {1..10: pose}, "clip": [pose] * rate, "frames":
-    clip length at 24 fps} of one motion."""
+    clip length at 24 fps} of one motion (cached: treat the result as read-only)."""
     if name.startswith("today_"):
         poses = next(p for n, p, *_ in _today(family) if n == name[len("today_"):])
-        return {"kind": "existing", "impact": None, "note": f"today's {name[6:]} clip", "poses": _frames(poses),
-                "clip": _sampled(poses, rate), "frames": max(poses) - min(poses)}
+        return {"kind": "existing", "impact": None, "note": f"today's {name[6:]} clip",
+                "poses": _complete(_frames(poses)), "clip": _complete(P.strip(poses, rate)),
+                "frames": max(poses) - min(poses)}
     if name.startswith("keyed_"):
         m = MOTIONS[family][name[len("keyed_"):]]
-        poses = plant(family, _frames(raw(family, m["keys"])), m.get("air", ()))
+        poses = _complete(plant(family, _frames(raw(family, m["keys"])), m.get("air", ())))
         return {"kind": m["kind"], "impact": m["impact"], "note": m["note"], "poses": poses,
-                "clip": _sampled(poses, rate), "frames": LENGTH[m["kind"]]}
+                "clip": _complete(P.strip(poses, rate)), "frames": LENGTH[m["kind"]]}
     kind, note, layers, *hit = REF_MOTIONS[family][name]
     full = _from_ref(family, layers, rate)
     strip = RT.ten(full, FRAMES)
@@ -797,7 +822,7 @@ DEFAULTS = {
     "serpent": _slots("idle", "walk", "bite", "today_death", "lunge"),
     "sled": _slots("idle", "walk", "bite", "today_death", "lunge"),
     "wyrm": _slots("idle", "walk", "bite", "today_death", "lunge"),
-    "hydra": _slots("idle", "walk", "bite", "today_death", "bite"),
+    "hydra": _slots("idle", "walk", "bite", "today_death", "keyed_roar"),
     "naga": _slots("idle", "walk", "stab", "death", "cast_shoot"),
     "centaur": _slots("idle", "walk", "chop", "death", "cheer"),
     "wraith": _slots("idle", "walk", "punch", "death", "cast_shoot"),
@@ -817,7 +842,9 @@ SLOTS = ("idle", "walk", "attack", "death", "spell")
 UNIT_TABLE = pathlib.Path(__file__).resolve().parents[2] / "data/unit_anim.tsv"
 
 
+@functools.lru_cache(maxsize=1)
 def unit_rows():
+    """data/unit_anim.tsv as {unit_id: row} (read once per process)."""
     if not UNIT_TABLE.exists():
         return {}
     lines = UNIT_TABLE.read_text().splitlines()
@@ -826,12 +853,15 @@ def unit_rows():
 
 
 def unit_in_path(path):
-    """The unit id a spec path names: runs/draft/<id>/... or spec-<id>-v11.json."""
-    rows = unit_rows()
-    for part in reversed(pathlib.Path(path).parts):
-        for token in [part, *part.replace(".", "-").split("-")]:
-            if token in rows:
-                return token
+    """The unit id a spec path names: spec-<id>-v11.json, or runs/draft/<id>/<variant>/spec.json.
+    Other directories are not looked at (a checkout under a folder named like a unit is not one)."""
+    rows, path = unit_rows(), pathlib.Path(path)
+    stem = path.stem.split("-")
+    if len(stem) > 1 and stem[0] == "spec" and stem[1] in rows:
+        return stem[1]
+    parts = path.parts
+    if len(parts) >= 4 and parts[-4] == "draft" and parts[-3] in rows:
+        return parts[-3]
     return None
 
 
@@ -851,9 +881,15 @@ def clips(family, choice=None):
         m = motion(family, name)
         span = max(m["frames"], len(m["clip"]) - 1)
         last = len(m["clip"]) - 1
-        poses = {1 + round(i * span / last): pose for i, pose in enumerate(m["clip"])}
+        clip = m["clip"]
+        cyclic = m["kind"] == "loop" or slot in ("idle", "walk")
+        if slot == "death" and name.startswith("today_"):     # the old roll-over sinks: lay it on the floor
+            clip = [plant(family, {1: pose})[1] for pose in clip]
+        if cyclic:                          # the last sample is the first again: keying it holds a frame
+            clip = clip[:-1]
+        poses = {1 + round(i * span / last): pose for i, pose in enumerate(clip)}
         hit = 1 + round((m["impact"] - 1) * span / (FRAMES - 1)) if m["impact"] else None
-        out.append((slot, poses, m["kind"] == "loop" or slot in ("idle", "walk"), (hit,) if hit else (), ()))
+        out.append((slot, poses, cyclic, (hit,) if hit else (), ()))
     return out
 
 

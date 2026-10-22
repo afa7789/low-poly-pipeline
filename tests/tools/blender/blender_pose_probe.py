@@ -1,7 +1,9 @@
 """Run inside Blender: pose each family's armature and print the pose bones' world
 heads/tails, for test_rig_poses.test_matches_blender_pose_bones.
 
-    blender -b --python tests/tools/blender/blender_pose_probe.py -- "<repr of {family: {bone: (rx, ry, rz, lift)}}>"
+    blender -b --python tests/tools/blender/blender_pose_probe.py -- "<repr of {family: {bone: pose}}>"
+
+with pose = (rx, ry, rz, lift, up) as build_unit keys it.
 """
 import ast
 import math
@@ -22,10 +24,10 @@ def probe(family, pose):
     bpy.context.view_layer.objects.active = arm
     bpy.ops.object.mode_set(mode="POSE")
     for pb in arm.pose.bones:
-        rx, ry, rz, lift = pose[pb.name]
+        rx, ry, rz, lift, up = pose[pb.name]
         pb.rotation_mode = "XYZ"
         pb.rotation_euler = (math.radians(rx), math.radians(ry), math.radians(rz))
-        pb.location = (0, 0, lift)
+        pb.location = (0, up, lift)                # as build_unit.make_actions keys it
     bpy.context.view_layer.update()
     out = {pb.name: (tuple(pb.head), tuple(pb.tail)) for pb in arm.pose.bones}
     bpy.ops.object.mode_set(mode="OBJECT")

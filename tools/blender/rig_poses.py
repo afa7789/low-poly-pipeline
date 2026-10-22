@@ -10,6 +10,7 @@ keyframe the builder will write (checked against Blender in tests/tools/blender)
 
 Coordinates come back in Blender axes (x right, y back, z up), like build_unit.bp.
 """
+import functools
 import math
 
 import rig_families as RF
@@ -72,7 +73,17 @@ def _basis(rx, ry, rz, lift, up=0.0):
 
 # ---------------------------------------------------------------- forward kinematics
 def rest(family, extras=None):
-    """bone -> (parent, rest matrix in armature space, length), in table order."""
+    """bone -> (parent, rest matrix in armature space, length), in table order (cached for
+    the plain family tables; read-only)."""
+    return _rest(family) if not extras else _build_rest(family, extras)
+
+
+@functools.lru_cache(maxsize=None)
+def _rest(family):
+    return _build_rest(family, None)
+
+
+def _build_rest(family, extras):
     out = {}
     for name, parent, head, tail in RF.with_extras(family, extras):
         h, t = bp(head), bp(tail)
@@ -173,19 +184,23 @@ def aim(family, directions, root=(0.0, 0.0), extras=None):
     return pose
 
 
-def turn(u, v, x):
-    """Rotate x by the shortest arc that takes direction u onto direction v."""
+def turn(u, v, x, gain=1.0):
+    """Rotate x by the shortest arc that takes direction u onto direction v, the angle
+    scaled by `gain` (2 = turn twice as far, for a reference that moves too little)."""
     def unit(w):
         n = math.sqrt(sum(c * c for c in w)) or 1.0
         return [c / n for c in w]
     u, v = unit(u), unit(v)
     k = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
-    c, s2 = sum(a * b for a, b in zip(u, v)), sum(a * a for a in k)
-    if s2 < 1e-12:
-        return list(x) if c > 0 else [-a for a in x]
-    kx = [k[1] * x[2] - k[2] * x[1], k[2] * x[0] - k[0] * x[2], k[0] * x[1] - k[1] * x[0]]
-    kdx = sum(a * b for a, b in zip(k, x))
-    return [x[i] * c + kx[i] + k[i] * kdx * (1 - c) / s2 for i in range(3)]
+    sin = math.sqrt(sum(a * a for a in k))
+    if sin < 1e-9:
+        return list(x) if sum(a * b for a, b in zip(u, v)) > 0 else [-a for a in x]
+    axis = [a / sin for a in k]
+    angle = math.atan2(sin, sum(a * b for a, b in zip(u, v))) * gain
+    c, s = math.cos(angle), math.sin(angle)
+    ax = [axis[1] * x[2] - axis[2] * x[1], axis[2] * x[0] - axis[0] * x[2], axis[0] * x[1] - axis[1] * x[0]]
+    adx = sum(a * b for a, b in zip(axis, x))
+    return [x[i] * c + ax[i] * s + axis[i] * adx * (1 - c) for i in range(3)]
 
 
 def two_bone(hip, target, a, b, bend):

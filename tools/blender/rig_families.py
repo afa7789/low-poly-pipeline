@@ -328,7 +328,9 @@ HOVER = {"wraith", "pod", "shard", "aircraft", "wyrm", "drake", "harpy", "mounte
 
 
 def _cycle(channels, frames=CYCLE, step=STEP):
-    """channels: {bone: (axis 0-2, amplitude deg, phase in cycles, lift metres)}."""
+    """channels: {bone: (axis 0-2, amplitude deg, phase in cycles, lift metres)}. The
+    root's lift goes in the pose's `up` slot: the root points up, so its local Z (where
+    `lift` moves it) is the forward axis, and a bob must rise, not slide."""
     out = {}
     for f in range(1, frames + 2, step):
         t = 2 * math.pi * (f - 1) / frames
@@ -336,7 +338,8 @@ def _cycle(channels, frames=CYCLE, step=STEP):
         for bone, (axis, amp, phase, lift) in channels.items():
             rot = [0.0, 0.0, 0.0]
             rot[axis] = amp * math.sin(t + 2 * math.pi * phase)
-            pose[bone] = (*rot, lift * max(0.0, math.sin(t + 2 * math.pi * phase)))
+            rise = lift * max(0.0, math.sin(t + 2 * math.pi * phase))
+            pose[bone] = (*rot, 0.0, rise) if bone == "root" else (*rot, rise)
         out[f] = pose
     return out
 
@@ -424,7 +427,7 @@ def death(family):
     out = {}
     for f, (roll, drop) in keys.items():
         k = roll / 90
-        pose = {"root": (0, 0, roll, drop)}
+        pose = {"root": (0, 0, roll, 0, drop)}          # drop along the root bone: down
         pose.update({b: (r[0] * k, 0, 0, 0) for b, r in curl.items()})
         out[f] = pose
     return out

@@ -29,7 +29,7 @@ LEFT, RIGHT, MID = "#2f6fd0", "#d0402f", "#4a4a4a"
 CHAIN_COLOURS = (("head", "#c98a10"), ("neck", "#c98a10"), ("jaw", "#c98a10"),
                  ("tail", "#2a9d5c"), ("wing", "#8a4fc8"), ("rider", "#e07a1f"),
                  ("abdomen", MID), ("spine", MID), ("pelvis", MID), ("body", MID), ("hull", MID))
-# the game camera, as in render_anim.py: from front-left-above, looking at the unit
+# the game camera, as in render_anim.py: front-right (-x is the figure's right), above, looking at the unit
 CAM = (-0.66, -0.66, 0.36)
 
 

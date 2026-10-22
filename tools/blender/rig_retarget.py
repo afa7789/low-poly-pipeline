@@ -60,7 +60,8 @@ _GAMEASSETS_RING = {"leg2": (1, "L"), "leg3": (1, "R"), "leg1": (2, "L"), "leg4"
                     "leg8": (3, "L"), "leg5": (3, "R"), "leg7": (4, "L"), "leg6": (4, "R")}
 
 def _rel(anchor, ours, neutral, bones, legs=None, still=False, leg_bones=None):
-    """A map retargeted relative to the reference's `neutral` clip (first frame). Legs
+    """A map retargeted relative to the reference's `neutral` clip (first frame); an
+    optional "gain" on the map scales every turn. Legs
     are {leg: (hip, knee, foot)} driving our `leg.upper`/`leg.lower`, or the two bones
     `leg_bones[leg]` names."""
     spec = {"anchor": anchor, "ours": ours, "neutral": neutral, "bones": bones}
@@ -141,9 +142,9 @@ MAPS = {
                          {"body": ("BodyRoot", "Body"), **_DRAGON_WINGS, "tail.1": ("Tail1", "Tail3")}),
     "wyvern": _rel("Hip", "spine.1", "Hover", _W),
     # the dragon's neck and head alone, over a body that keeps flying (its attacks spin the body)
-    "dragon_neck": _rel("Body", "spine.1", _H + "Dragon_Flying",
-                        {"neck.1": ("Body", "Neck"), "neck.2": ("Neck", "Head"), "head": ("Head", "Nose")},
-                        still=True),
+    "dragon_neck": {**_rel("Body", "spine.1", _H + "Dragon_Flying",
+                           {"neck.1": ("Body", "Neck"), "neck.2": ("Neck", "Head"), "head": ("Head", "Nose")},
+                           still=True), "gain": 2.0},   # without its body's spin the neck moves too little
     # the CC0 dragon on a bird body (two legs, wings, neck, tail): the default for birds
     "dragon_bird": _rel("Body", "spine.1", _H + "Dragon_Flying", {
         "spine.1": ("BodyRoot", "Body"), "spine.2": ("BodyRoot", "Body"), "neck.1": ("Body", "Neck"),
@@ -158,8 +159,9 @@ MAPS = {
                        {"head": ("Head", "Mouth"), **_snake(["spine.4", "spine.3", "spine.2", "spine.1"])}),
     "snake_wyrm": _rel("Body", "spine.3", "SnakeArmature|Snake_Idle",
                        {"head": ("Head", "Mouth"), **_snake([f"spine.{i}" for i in range(1, 7)])}),
+    # the naga's tail follows the snake from the body on (chest -> body -> tail tip), not its neck
     "snake_tail": _rel("Body", "tail.1", "SnakeArmature|Snake_Idle",
-                       _snake([f"tail.{i}" for i in range(1, 7)])),
+                       {f"tail.{i + 1}": (b, a) for i, (a, b) in enumerate(_SNAKE_CHAIN[3:] + _SNAKE_CHAIN[-1:])}),
     **{f"apatosaurus_neck{n}": _rel("Body", "spine.4", "Armature|Apatosaurus_Idle",
                                     {f"neck{n}.{i + 1}": pair for i, pair in enumerate(_HYDRA_NECK)}, still=n > 1)
        for n in (1, 2, 3)},
@@ -204,7 +206,10 @@ def _key(frame, bone):
     "lapa_1_L_2_08")."""
     if bone in frame:
         return bone
-    return next(k for k in frame if k.startswith(bone + "_"))
+    found = [k for k in frame if k.startswith(bone + "_")]
+    if len(found) != 1:
+        raise KeyError(f"reference joint {bone!r}: {'missing' if not found else 'ambiguous: ' + str(found)}")
+    return found[0]
 
 
 def _point(frame, name):
@@ -225,7 +230,9 @@ def _lowest(frame, spec):
 def duration(model, clip, fps=24):
     """Length of a captured clip in frames at `fps`."""
     ref = load(model)
-    start, end = ref.get("frames", {}).get(clip, (0, 23))
+    if clip not in ref.get("frames", {}):
+        raise KeyError(f"{model}: clip {clip!r} was not captured (ref_capture.py)")
+    start, end = ref["frames"][clip]
     return round((end - start) * fps / ref.get("fps", fps))
 
 
@@ -245,7 +252,9 @@ def _directions(frame, spec):
 def _relative(family, frame, neutral, spec):
     """Our rest direction of each bone, turned as the reference turned from `neutral`."""
     rest, now, then = P.joints(family), _directions(frame, spec), _directions(neutral, spec)
-    return {b: P.turn(then[b], now[b], [rest[b][1][i] - rest[b][0][i] for i in range(3)]) for b in now if b in rest}
+    gain = spec.get("gain", 1.0)
+    return {b: P.turn(then[b], now[b], [rest[b][1][i] - rest[b][0][i] for i in range(3)], gain)
+            for b in now if b in rest}
 
 
 def _leg(spec, leg):

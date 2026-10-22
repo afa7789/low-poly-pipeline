@@ -805,7 +805,7 @@ fallback for machines and bodies with no reference.
 | retarget | `rig_retarget.py` (maps, no bpy) | our poses: each bone aimed where its counterpart points (`rig_poses.aim`); relative maps turn our rest pose as much as the reference turned from its idle; legs with very different proportions (spider, rat, robot) use foot IK on the reference foot's movement |
 | library | `rig_motions.py` | per family: `today_*` (the old derived clips), reference motions, `keyed_*` (hand poses); `DEFAULTS[family]` = idle/walk/attack/death/spell |
 | review | `python3 tools/blender/rig_storyboard.py artifacts/anim-storyboard --json` | per-family JSON for the review page (10-frame strip + live player, side and game 3/4 views) |
-| build | `build_unit.py` | 5 actions: idle, walk, attack, death, spell, with the reference's own timing |
+| build | `build_unit.py` | idle, walk, attack (+ attack2, attack3 for a combo), death, spell: 5-7 actions, with the reference's own timing; loops never key the closing (= first) sample twice |
 
 Layers: a motion can stack references on disjoint bones (a mount's gallop + a KayKit chop on
 `rider.*`; a snake tail + KayKit upper body for naga; three apatosaurus necks out of step
@@ -816,7 +816,14 @@ old clips), else the unit's row when its rig matches, else the family defaults.
 Contract checks (`tests/tools/blender/test_rig_poses.py`): the pure-python FK matches
 Blender's pose bones (< 0.1 mm), `aim` reproduces any direction exactly, grounded frames
 are planted on the floor, every map's bones exist on both sides, every default and every
-unit-table pick names a real motion, `clips()` gives the five slots on real bones.
+unit-table pick names a real motion, `clips()` gives the five slots on real bones, flyers are not
+pinned, hand-keyed clips end exactly at rest.
+
+Plant (grounded motions): each frame not marked `air` moves the root so the lowest joint sits at
+its rest height; a positive authored root `up` is added on top (a hop), negative ones are not
+used. Flying families (`rig_families.HOVER`) are never planted. A motion's length is its driving
+layer's: the first layer that is not a companion loop (`rig_motions.COMPANIONS`: wings beating,
+a mount or rider standing, a snake swaying).
 
 Found while drawing today's clips: the root's `lift` moves along the root bone's local Z,
 which is the spec FORWARD axis (the old hover "bob" slides instead of rising; poses now
@@ -838,9 +845,13 @@ turns it into `data/models.tsv`:
 - `clip_spell` (new, optional column; the parser finds columns by header name) is played once.
 - `make model-clips-check` fails when `models.tsv` drifts from the registry (skipped without assets).
 
-`UnitModels` (render only; sim, hash and replays untouched): while a unit swings, each clip of the
-combo plays once and hands over to the next; a rise of any `Entity::castTimers` entry means the unit
-just cast, and the spell clip plays once over everything else. Idle and walk still loop.
+`UnitModels` hands the choice to `render/ClipPlayer` (pure, tested in `tests/render/ClipPlayer_test.cpp`;
+render only, sim/hash/replays untouched): each sim hit (`Entity::attackTimer` rises) starts the next clip
+of the combo from its first frame, sped up when it is longer than the cooldown, and the last frame holds
+until the next hit; a swing in progress finishes even if the target steps out of range; 1.5 s out of
+combat restarts the combo; a rise of any `Entity::castTimers` entry plays the spell clip once over
+everything else; walk runs at the measured speed over the unit's base speed (0.5x-2x). Clip lengths
+are read when the model loads, so offscreen units never trigger a GLB load.
 
 The biped library now comes from KayKit Character Animations 1.1 (CC0, the free itch.io download,
 same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (draw + release as one

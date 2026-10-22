@@ -87,7 +87,13 @@ def world(arm, bone, rest=False):
 
 
 def _action(name):
-    return bpy.data.actions.get(name) or next((a for a in bpy.data.actions if name in a.name), None)
+    """An action by exact name, else the only one whose name contains it (Blender prefixes
+    "Rig|Walk" and truncates long names); ambiguous or missing: None."""
+    exact = bpy.data.actions.get(name)
+    if exact is not None:
+        return exact
+    found = [a for a in bpy.data.actions if name in a.name]
+    return found[0] if len(found) == 1 else None
 
 
 def _timeline(clip, frames):

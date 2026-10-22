@@ -55,7 +55,7 @@ class ForwardKinematics(unittest.TestCase):
     def test_matches_blender_pose_bones(self):
         random.seed(3)
         poses = {fam: {b: (random.uniform(-60, 60), random.uniform(-40, 40), random.uniform(-60, 60),
-                           random.uniform(-0.2, 0.2)) for b in RF.bones(fam)}
+                           random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2)) for b in RF.bones(fam)}
                  for fam in ("biped", "quadruped", "spider", "mounted", "hydra")}
         probe = ROOT / "tests/tools/blender/blender_pose_probe.py"
         out = subprocess.run(["blender", "-b", "--python", str(probe), "--", repr(poses)],
@@ -73,7 +73,8 @@ class Motions(unittest.TestCase):
     def test_every_motion_has_ten_poses_on_real_bones(self):
         for fam in M.FAMILIES:
             names = set(RF.bones(fam))
-            for name, motion in M.storyboard(fam).items():
+            for name in M.names(fam):
+                motion = M.motion(fam, name)
                 self.assertIn(motion["kind"], KINDS, (fam, name))
                 self.assertEqual(sorted(motion["poses"]), list(range(1, M.FRAMES + 1)), (fam, name))
                 for pose in motion["poses"].values():
@@ -83,7 +84,7 @@ class Motions(unittest.TestCase):
         for fam, motions in M.MOTIONS.items():
             for name, motion in motions.items():
                 self.assertIn(motion["impact"], range(2, M.FRAMES), (fam, name))
-                poses = M.storyboard(fam)[f"keyed_{name}"]["poses"]
+                poses = M.motion(fam, f"keyed_{name}")["poses"]
                 for frame in (1, M.FRAMES):
                     js, rest = P.joints(fam, poses[frame]), P.joints(fam)
                     for bone in rest:
@@ -93,13 +94,34 @@ class Motions(unittest.TestCase):
         for fam, motions in M.MOTIONS.items():
             floor = M.lowest(fam, {})
             for name, motion in motions.items():
-                poses = M.storyboard(fam)[f"keyed_{name}"]["poses"]
+                poses = M.motion(fam, f"keyed_{name}")["poses"]
                 for frame, pose in poses.items():
                     low = M.lowest(fam, pose)
+                    hop = max(P.pad(motion["keys"].get(frame, {}).get("root", (0, 0, 0, 0)))[4], 0.0)
                     if frame in motion.get("air", ()):
                         self.assertGreater(low, floor, (fam, name, frame))
-                    else:
+                    elif fam not in RF.HOVER and hop == 0.0 and frame in motion["keys"]:
                         self.assertAlmostEqual(low, floor, places=4, msg=(fam, name, frame))
+
+    def test_hand_keyed_clips_end_exactly_at_rest(self):
+        for fam, motions in M.MOTIONS.items():
+            for name in motions:
+                clip = M.motion(fam, f"keyed_{name}")["clip"]
+                self.assertEqual(set(clip[0]), set(clip[-1]), (fam, name))   # the last key names every bone
+                for bone, value in clip[-1].items():
+                    if bone != "root":
+                        self.assertTrue(all(abs(v) < 1e-9 for v in value[:3]), (fam, name, bone, value))
+
+    def test_flyers_are_not_pinned_to_the_floor(self):
+        for fam, name in (("drake", "fly"), ("shard", "fly"), ("bird", "hover"), ("mounted_flyer", "fly")):
+            ups = [P.pad(p.get("root", (0, 0, 0, 0)))[4] for p in M.motion(fam, name)["clip"]]
+            self.assertLess(max(ups) - min(ups), 0.1, (fam, name))
+            self.assertLess(abs(sum(ups) / len(ups)), 0.1, (fam, name))
+
+    def test_an_authored_hop_survives_the_plant(self):
+        pose = M.motion("biped", "keyed_cast_raise")["poses"][6]
+        floor = M.lowest("biped", {})
+        self.assertAlmostEqual(M.lowest("biped", pose), floor + 0.08, places=3)
 
     def test_readable_pitch_swings_a_hanging_arm_forward(self):
         pose = M.raw("biped", {1: {"arm.R": (90, 0, 0)}})[1]
@@ -199,9 +221,33 @@ class Library(unittest.TestCase):
                 if slot.startswith("attack"):
                     self.assertTrue(contacts and 1 < contacts[0] < max(poses), (fam, contacts))
 
+    def test_a_motion_runs_at_its_driving_clip_pace(self):
+        chop = RT.duration("kk_melee", "Melee_1H_Attack_Chop")
+        self.assertEqual(M.motion("harpy", "chop")["frames"], chop)          # not the wings' 40
+        self.assertEqual(M.motion("mounted", "chop")["frames"], chop)        # not the mount's idle
+        self.assertEqual(M.motion("drake", "fly")["frames"], RT.duration("e006", "AnimalArmature|Idle"))
+
+    def test_loops_do_not_key_the_seam_twice(self):
+        for fam in ("biped", "quadruped", "spider", "drake"):
+            walk = dict((c[0], c[1]) for c in M.clips(fam))["walk"]
+            frames = sorted(walk)
+            self.assertNotEqual(walk[frames[0]], walk[frames[-1]], fam)
+            self.assertEqual(len(frames), 23, fam)          # 24 samples, the closing one dropped
+
     def test_a_combo_becomes_numbered_attacks(self):
         names = [c[0] for c in M.clips("biped", {"attack": "chop+stab+bow"})]
         self.assertEqual(names[2:5], ["attack", "attack2", "attack3"])
+
+    def test_unit_in_path_reads_only_spec_names_and_draft_folders(self):
+        self.assertEqual(M.unit_in_path("artifacts/model-sheets/runs/draft/n00U/hard-v1/spec.json"), "n00U")
+        self.assertEqual(M.unit_in_path("artifacts/model-sheets/draft11/spec-n01X-v11.json"), "n01X")
+        self.assertIsNone(M.unit_in_path("/home/hfoo/work/spec.json"))       # a folder named like a unit
+
+    def test_missing_reference_data_names_what_is_missing(self):
+        with self.assertRaisesRegex(KeyError, "not captured"):
+            RT.duration("kk_melee", "No_Such_Clip")
+        with self.assertRaisesRegex(KeyError, "missing"):
+            RT._key({"hips": None}, "spine")
 
     def test_a_spec_pick_overrides_the_default(self):
         default = dict((c[0], c[1]) for c in M.clips("biped"))

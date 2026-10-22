@@ -1076,20 +1076,32 @@ def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
 ACTIONS = families().BIPED_ACTIONS
 
 
+def registry_picks(doc, path):
+    """The unit's row in data/unit_anim.tsv, when the spec's rig is the registry's rig
+    (otherwise the family defaults, with a warning: the row was written for another body)."""
+    motions = sibling("rig_motions")
+    unit = doc.get("unit") or motions.unit_in_path(path)
+    row = motions.unit_rows().get(unit) if unit else None
+    if row is None:
+        return None
+    rig = doc.get("rig", "biped")
+    if row["rig"] != rig:
+        print(f"anim: {unit} is {row['rig']} in data/unit_anim.tsv but this spec is {rig}: family defaults")
+        return None
+    return motions.unit_picks(unit, rig)
+
+
 def load_spec(target):
     """Either a built-in id (SPECS) or a path to {"parts"|"segments": ...} JSON.
     Returns (unit, spec, rest_pose). rest_pose is optional bone rest rotations. Sets ANIM
     from the doc's "anim", else from the unit's row in data/unit_anim.tsv."""
     global ANIM
+    ANIM = None
     p = pathlib.Path(target)
     if p.suffix == ".json":
         doc = json.loads(p.read_text())
         pose = doc.get("rest_pose")
-        ANIM = doc.get("anim")
-        if ANIM is None:                    # the unit's row in data/unit_anim.tsv
-            motions = sibling("rig_motions")
-            unit = doc.get("unit") or motions.unit_in_path(p)
-            ANIM = motions.unit_picks(unit, doc.get("rig", "biped")) if unit else None
+        ANIM = doc.get("anim") or registry_picks(doc, p)
         if doc.get("rig") or doc.get("bones"):
             print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones")))
         register_palette(doc.get("palette"))
