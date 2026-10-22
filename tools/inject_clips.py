@@ -358,8 +358,8 @@ def strip_previous(doc, bin_):
 
 
 # ---------------------------------------------------------------- per unit
-# rigs that map but animate wrongly (to investigate): h034 flings the whole body on cf_attack
-SKIP = {"h034": "maps, but the whole skeleton flings on cf_attack (open bug)"}
+# rigs that map but must not be animated by us (unit id -> why); empty today
+SKIP = {}
 
 
 def plan(unit_id):
