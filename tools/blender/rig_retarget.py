@@ -107,7 +107,7 @@ _N00U_LEG = {ours: (hip, hip.replace("Leg.", "Leg2."), foot) for ours, (hip, foo
 _HYDRA_NECK = [("Shoulders", "Neck"), ("Neck", "Head"), ("Neck", "Head")]
 
 MAPS = {
-    # KayKit adventurers (CC0): hfoo, n022, u005 ...
+    # KayKit Character Animations (CC0, Rig_Medium): kk_melee, kk_ranged, kk_general ...
     "kaykit_biped": {"anchor": "hips", "ours": "pelvis", "bones": {
         "pelvis": ("hips", "spine"), "spine": ("spine", "head"), "head": ("head", "head.tail"),
         **_sides(_KAYKIT_ARMS), **_sides(_KAYKIT_LEGS)}},

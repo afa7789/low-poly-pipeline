@@ -823,3 +823,26 @@ which is the spec FORWARD axis (the old hover "bob" slides instead of rising; po
 carry an optional fifth value `up` along the bone); the biped death falls face-down; old
 walk/death clips sink up to 0.2 m (spider death 1.1 m) under the floor. The serpent/wyrm
 head now hangs on `spine.1` (it was on the root and left the body when the chain bent).
+
+### 17.1 In the game: combos and the spell clip (2026-10-21)
+
+The registry `data/unit_anim.tsv` says, per unit, its rig and the motion of each slot; the
+attack slot is a combo (`chop+slice_diagonal+slice_horizontal`, `stab_2h+slice_2h+stab_2h`,
+`bow`, `shoot_2h+burst_2h`, builders `tool_hammer+tool_chop`). `tools/assign_model_clips.py`
+turns it into `data/models.tsv`:
+
+- `clip_attack` is a list of clip indices (`2,5,7`): the motions found by name in the unit's
+  GLB (KayKit names exact; otherwise the model's own strikes/shots/spells by kind). A melee unit
+  whose model has more strikes than its combo names gets up to three (Attack1/2/3, Punch L/R).
+  Models we build carry `attack`, `attack2`, `attack3`, `spell` and are read as such.
+- `clip_spell` (new, optional column; the parser finds columns by header name) is played once.
+- `make model-clips-check` fails when `models.tsv` drifts from the registry (skipped without assets).
+
+`UnitModels` (render only; sim, hash and replays untouched): while a unit swings, each clip of the
+combo plays once and hands over to the next; a rise of any `Entity::castTimers` entry means the unit
+just cast, and the spell clip plays once over everything else. Idle and walk still loop.
+
+The biped library now comes from KayKit Character Animations 1.1 (CC0, the free itch.io download,
+same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (draw + release as one
+motion), guns, magic, tools; `ref_capture.py` films animation-only GLBs on its mannequin (Blender 5:
+an action from another file plays through its slot) and joins clips with `A+B`.

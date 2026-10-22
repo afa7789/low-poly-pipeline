@@ -134,14 +134,14 @@ class Aim(unittest.TestCase):
                 self.assertTrue(close(unit(d), unit([t[i] - h[i] for i in range(3)]), 1e-6), (fam, b))
 
 
-@unittest.skipUnless((RT.REF_DIR / "hfoo/joints.json").exists(), "needs the captured references")
+@unittest.skipUnless((RT.REF_DIR / "kk_melee/joints.json").exists(), "needs the captured references")
 class Retarget(unittest.TestCase):
     def test_maps_name_real_bones_on_both_sides(self):
         """Every map's bones exist in some family that uses it, and its reference points
         exist in every model it is used with."""
         used = {}
         for fam, motions in M.REF_MOTIONS.items():
-            for _, _, layers in motions.values():
+            for _, _, layers, *_ in motions.values():
                 for model, _, map_name, *_ in layers:
                     used.setdefault(map_name, set()).add((fam, model))
         self.assertEqual(set(used), set(RT.MAPS))
@@ -159,9 +159,10 @@ class Retarget(unittest.TestCase):
                     self.assertIsNotNone(RT._point(frame, p), (name, model, p))
 
     def test_bones_follow_the_reference_directions(self):
-        ref, spec = RT.load("hfoo"), RT.MAPS["kaykit_biped"]
-        frame = RT.ten(ref["clips"]["1H_Melee_Attack_Chop"], 24)[12]
-        got = P.joints("biped", RT.clip("biped", [("hfoo", "1H_Melee_Attack_Chop", "kaykit_biped")])["poses"][12])
+        chop = "Melee_1H_Attack_Chop"
+        ref, spec = RT.load("kk_melee"), RT.MAPS["kaykit_biped"]
+        frame = RT.ten(ref["clips"][chop], 24)[12]
+        got = P.joints("biped", RT.clip("biped", [("kk_melee", chop, "kaykit_biped")])["poses"][12])
         for bone, (a, b) in spec["bones"].items():
             want = unit([RT._point(frame, b)[i] - RT._point(frame, a)[i] for i in range(3)])
             h, t = got[bone]
@@ -169,32 +170,38 @@ class Retarget(unittest.TestCase):
 
     def test_layers_drive_mount_and_rider_together(self):
         got = RT.clip("mounted", [("e006", "AnimalArmature|Idle", "quaternius_animal"),
-                                  ("hfoo", "1H_Melee_Attack_Chop", "kaykit_rider")])["poses"]
+                                  ("kk_melee", "Melee_1H_Attack_Chop", "kaykit_rider")])["poses"]
         moved = {b for p in got for b, v in p.items() if any(abs(x) > 1e-6 for x in v[:3])}
         self.assertTrue({"rider.arm.R", "leg1.upper"} <= moved)
 
 
-@unittest.skipUnless((RT.REF_DIR / "hfoo/joints.json").exists(), "needs the captured references")
+@unittest.skipUnless((RT.REF_DIR / "kk_melee/joints.json").exists(), "needs the captured references")
 class Library(unittest.TestCase):
     def test_every_animated_family_has_defaults_that_exist(self):
         animated = {f for f in RF.FAMILIES if f not in RF.STATIC}
         self.assertEqual(set(M.DEFAULTS), animated)
         for fam, picks in M.DEFAULTS.items():
             self.assertEqual(set(picks), set(M.SLOTS), fam)
-            for slot, name in picks.items():
-                self.assertIn(name, M.names(fam), (fam, slot))
+            for slot, value in picks.items():
+                for name in M.combo(value):
+                    self.assertIn(name, M.names(fam), (fam, slot))
 
     def test_clips_are_the_five_slots_on_real_bones(self):
         for fam in M.DEFAULTS:
             clips = M.clips(fam)
-            self.assertEqual([c[0] for c in clips], list(M.SLOTS), fam)
+            base = [c[0] for c in clips if not c[0][-1].isdigit()]
+            self.assertEqual(base, list(M.SLOTS), fam)
             names = set(RF.bones(fam))
             for slot, poses, cyclic, contacts, _ in clips:
                 self.assertEqual(min(poses), 1, (fam, slot))
                 self.assertTrue(all(set(p) <= names for p in poses.values()), (fam, slot))
                 self.assertEqual(cyclic, slot in ("idle", "walk"), (fam, slot))
-                if slot == "attack":
+                if slot.startswith("attack"):
                     self.assertTrue(contacts and 1 < contacts[0] < max(poses), (fam, contacts))
+
+    def test_a_combo_becomes_numbered_attacks(self):
+        names = [c[0] for c in M.clips("biped", {"attack": "chop+stab+bow"})]
+        self.assertEqual(names[2:5], ["attack", "attack2", "attack3"])
 
     def test_a_spec_pick_overrides_the_default(self):
         default = dict((c[0], c[1]) for c in M.clips("biped"))
@@ -214,8 +221,9 @@ class Library(unittest.TestCase):
         for row in rows:
             rig, picks = row[1], dict(zip(head[2:7], row[2:7]))
             self.assertIn(rig, M.DEFAULTS, row[0])
-            for slot, name in picks.items():
-                self.assertIn(name, M.names(rig), (row[0], slot))
+            for slot, value in picks.items():
+                for name in M.combo(value):
+                    self.assertIn(name, M.names(rig), (row[0], slot))
 
 
 class Storyboard(unittest.TestCase):

@@ -6,8 +6,7 @@ in a unit built from them is an adaptation of the clip, so each source's license
 
 | model | source | license | used for |
 |---|---|---|---|
-| `hfoo` | KayKit Character Pack: Adventurers (Knight), Kay Lousberg | CC0-1.0 | biped, the rider of every mounted family, naga/centaur/wraith upper bodies, ghoul forelegs |
-| `u005` | KayKit Character Pack: Skeletons (Skeleton Mage), Kay Lousberg | CC0-1.0 | captured, not used yet (Spellcast_Summon, Taunt) |
+| `kk_melee`, `kk_ranged`, `kk_general`, `kk_move`, `kk_sim`, `kk_tools` | KayKit Character Animations 1.1 (Rig_Medium), Kay Lousberg, https://kaylousberg.itch.io/kaykit-character-animations (the free download; filmed on its Mannequin_Medium) | CC0-1.0 | biped (melee, bow, guns, magic, tools), the rider of every mounted family, naga/centaur/wraith/harpy upper bodies, ghoul forelegs |
 | `e006` | Quaternius animal (poly.pizza) | CC0-1.0 | quadruped, mounts, centaur body, drake body |
 | `n017` | Quaternius wolf (poly.pizza) | CC0-1.0 | quadruped and drake bite |
 | `n00U` | Quaternius spider (poly.pizza) | CC0-1.0 | spider, crustacean |

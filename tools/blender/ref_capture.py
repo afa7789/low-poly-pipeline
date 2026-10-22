@@ -2,7 +2,11 @@
 """Capture reference animations from an animated GLB: joint positions per frame, plus
 a textured flipbook for people to watch.
 
-    blender -b -P tools/blender/ref_capture.py -- <model.glb> <outdir> <clip,clip,...> [frames]
+    blender -b -P tools/blender/ref_capture.py -- <model.glb> <outdir> <clip,clip,...> [frames] [mesh.glb]
+
+A clip "A+B" plays A then B as one motion (a bow's draw then release). An animation-only
+GLB (no mesh) can borrow a character to film with: pass its mesh GLB last; the actions
+are played on that character's armature (same bone names).
 
 Writes <outdir>/joints.json: {"rest": {bone: [head, tail]}, "clips": {clip: [{bone:
 [head, tail]}, ...]}, "frames": {clip: [start, end]}, "fps": scene fps} for every bone,
@@ -82,24 +86,49 @@ def world(arm, bone, rest=False):
     return [[round(c, 4) for c in v] for v in ends]
 
 
-def capture(arm, clip, frames, cam, centre, reach, out):
-    act = bpy.data.actions.get(clip) or next((a for a in bpy.data.actions if clip in a.name), None)
-    if act is None:
-        print("NO CLIP", clip)
+def _action(name):
+    return bpy.data.actions.get(name) or next((a for a in bpy.data.actions if name in a.name), None)
+
+
+def _timeline(clip, frames):
+    """[(action, frame)] for `frames` samples of a clip; "A+B" plays A then B (a bow's
+    draw and release), each getting samples in proportion to its length."""
+    parts = [_action(name) for name in clip.split("+")]
+    if not all(parts):
         return None
+    spans = [tuple(int(v) for v in act.frame_range) for act in parts]
+    total = sum(end - start for start, end in spans) or 1
+    out = []
+    for i in range(frames):
+        t = i * total / max(frames - 1, 1)
+        for act, (start, end) in zip(parts, spans):
+            if t <= end - start or act is parts[-1]:
+                out.append((act, start + round(min(t, end - start))))
+                break
+            t -= end - start
+    return out, total
+
+
+def capture(arm, clip, frames, cam, centre, reach, out):
+    got = _timeline(clip, frames)
+    if got is None:
+        print("NO CLIP", clip)
+        return None, 0
+    timeline, total = got
     arm.animation_data_create()
-    arm.animation_data.action = act
-    start, end = (int(v) for v in act.frame_range)
     sc = bpy.context.scene
     poses = []
-    for i in range(frames):
-        sc.frame_set(start + round(i * (end - start) / max(frames - 1, 1)))
+    for i, (act, frame) in enumerate(timeline):
+        arm.animation_data.action = act
+        if act.slots:                       # Blender 5: an action made for another armature
+            arm.animation_data.action_slot = act.slots[0]            # plays only through its slot
+        sc.frame_set(frame)
         poses.append({b.name: world(arm, b.name) for b in arm.pose.bones})
         for view, direction in (("side", CAM_SIDE), ("34", CAM_34)):
             cam.location = centre + direction * reach * 4
             sc.render.filepath = str(out / "frames" / f"{safe(clip)}_{view}_{i:03d}.png")
             bpy.ops.render.render(write_still=True)
-    return poses
+    return poses, total
 
 
 def flipbook(out, clip, frames):
@@ -119,14 +148,18 @@ def main():
     frames = int(args[3]) if len(args) > 3 else 24
     (out / "frames").mkdir(parents=True, exist_ok=True)
     arm = load(glb)
+    if len(args) > 4:                       # film the clips on a character of the same rig
+        bpy.ops.import_scene.gltf(filepath=args[4])
+        arm = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE" and o != arm
+                   and any(c.type == "MESH" for c in o.children))
     cam, centre, reach = stage(arm)
     data = {"model": pathlib.Path(glb).stem, "fps": bpy.context.scene.render.fps,
             "rest": {b.name: world(arm, b.name, rest=True) for b in arm.data.bones}, "clips": {}, "frames": {}}
     for clip in clips:
-        poses = capture(arm, clip, frames, cam, centre, reach, out)
+        poses, total = capture(arm, clip, frames, cam, centre, reach, out)
         if poses:
             data["clips"][clip] = poses
-            data["frames"][clip] = [int(v) for v in arm.animation_data.action.frame_range]
+            data["frames"][clip] = [0, total]
             flipbook(out, clip, frames)
     shutil.rmtree(out / "frames")           # the GIFs keep what people look at
     (out / "joints.json").write_text(json.dumps(data, separators=(",", ":")))

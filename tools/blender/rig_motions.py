@@ -452,48 +452,82 @@ MOTIONS = {"biped": BIPED, "quadruped": QUADRUPED, "spider": SPIDER, "vehicle": 
 
 # ---------------------------------------------------------------- from reference animations
 # (model, clip, map, kind, note): retargeted by rig_retarget from artifacts/anim-ref/<model>
-_KAYKIT = [
-    ("chop", "1H_Melee_Attack_Chop", "attack", "one-hand chop"),
-    ("slice_diagonal", "1H_Melee_Attack_Slice_Diagonal", "attack", "one-hand diagonal slice"),
-    ("slice_horizontal", "1H_Melee_Attack_Slice_Horizontal", "attack", "one-hand horizontal slice"),
-    ("stab", "1H_Melee_Attack_Stab", "attack", "one-hand stab"),
-    ("chop_2h", "2H_Melee_Attack_Chop", "attack", "two-hand overhead chop"),
-    ("slice_2h", "2H_Melee_Attack_Slice", "attack", "two-hand slice"),
-    ("spin_2h", "2H_Melee_Attack_Spin", "attack", "two-hand spin"),
-    ("dual_chop", "Dualwield_Melee_Attack_Chop", "attack", "two weapons chop"),
-    ("punch", "Unarmed_Melee_Attack_Punch_A", "attack", "punch"),
-    ("kick", "Unarmed_Melee_Attack_Kick", "attack", "kick"),
-    ("shield_bash", "Block_Attack", "attack", "shield bash"),
-    ("shoot_1h", "1H_Ranged_Shoot", "attack", "one-hand shot (pistol, wand)"),
-    ("shoot_2h", "2H_Ranged_Shoot", "attack", "two-hand shot (bow, rifle)"),
-    ("throw", "Throw", "attack", "overarm throw"),
-    ("cast_raise", "Spellcast_Raise", "spell", "spell: raise"),
-    ("cast_shoot", "Spellcast_Shoot", "spell", "spell: shoot a bolt"),
-    ("cast_long", "Spellcast_Long", "spell", "spell: long channel"),
-    ("cheer", "Cheer", "spell", "war cry / cheer"),
-    ("idle", "Idle", "loop", "idle"),
-    ("walk", "Walking_A", "loop", "walk"),
-    ("death_a", "Death_A", "death", "death A"),
-    ("death_b", "Death_B", "death", "death B"),
-]
+# KayKit Character Animations 1.1 (CC0, Rig_Medium; the same rig as the KayKit characters),
+# captured per pack file: kk_melee, kk_ranged, kk_general, kk_move, kk_sim, kk_tools.
+_ML, _RG = "Melee_", "Ranged_"
+_KK = {  # name: (capture, clip, kind, note[, impact frame when the fastest move is not the hit])
+    "chop": ("kk_melee", _ML + "1H_Attack_Chop", "attack", "one-hand chop"),
+    "jump_chop": ("kk_melee", _ML + "1H_Attack_Jump_Chop", "attack", "leaping one-hand chop"),
+    "slice_diagonal": ("kk_melee", _ML + "1H_Attack_Slice_Diagonal", "attack", "one-hand diagonal slice"),
+    "slice_horizontal": ("kk_melee", _ML + "1H_Attack_Slice_Horizontal", "attack", "one-hand horizontal slice"),
+    "stab": ("kk_melee", _ML + "1H_Attack_Stab", "attack", "one-hand stab / short spear"),
+    "chop_2h": ("kk_melee", _ML + "2H_Attack_Chop", "attack", "two-hand overhead chop"),
+    "slice_2h": ("kk_melee", _ML + "2H_Attack_Slice", "attack", "two-hand slice"),
+    "spin_2h": ("kk_melee", _ML + "2H_Attack_Spin", "attack", "two-hand spin"),
+    "stab_2h": ("kk_melee", _ML + "2H_Attack_Stab", "attack", "two-hand thrust: spear, lance, pike"),
+    "dual_chop": ("kk_melee", _ML + "Dualwield_Attack_Chop", "attack", "two weapons chop"),
+    "dual_slice": ("kk_melee", _ML + "Dualwield_Attack_Slice", "attack", "two weapons slice"),
+    "dual_stab": ("kk_melee", _ML + "Dualwield_Attack_Stab", "attack", "two weapons stab"),
+    "punch": ("kk_melee", _ML + "Unarmed_Attack_Punch_A", "attack", "punch / claw"),
+    "kick": ("kk_melee", _ML + "Unarmed_Attack_Kick", "attack", "kick"),
+    "shield_bash": ("kk_melee", _ML + "Block_Attack", "attack", "shield bash"),
+    "bow": ("kk_ranged", _RG + "Bow_Draw+" + _RG + "Bow_Release", "attack", "bow: draw to the cheek, release", 7),
+    "bow_up": ("kk_ranged", _RG + "Bow_Draw_Up+" + _RG + "Bow_Release_Up", "attack", "bow shot upward (at flyers)", 7),
+    "shoot_1h": ("kk_ranged", _RG + "1H_Shoot", "attack", "one-hand shot: pistol, wand"),
+    "burst_1h": ("kk_ranged", _RG + "1H_Shooting", "attack", "one-hand rapid fire"),
+    "shoot_2h": ("kk_ranged", _RG + "2H_Shoot", "attack", "two-hand shot: rifle, crossbow"),
+    "burst_2h": ("kk_ranged", _RG + "2H_Shooting", "attack", "two-hand rapid fire"),
+    "throw": ("kk_general", "Throw", "attack", "overarm throw: axe, spear, grenade"),
+    "tool_chop": ("kk_tools", "Chop", "attack", "builder: axe"),
+    "tool_hammer": ("kk_tools", "Hammer", "attack", "builder: hammer"),
+    "tool_pickaxe": ("kk_tools", "Pickaxe", "attack", "builder: pickaxe"),
+    "tool_saw": ("kk_tools", "Saw", "attack", "builder: saw"),
+    "cast_raise": ("kk_ranged", _RG + "Magic_Raise", "spell", "spell: raise"),
+    "cast_shoot": ("kk_ranged", _RG + "Magic_Shoot", "spell", "spell: shoot a bolt"),
+    "cast_channel": ("kk_ranged", _RG + "Magic_Spellcasting", "spell", "spell: channel"),
+    "cast_long": ("kk_ranged", _RG + "Magic_Spellcasting_Long", "spell", "spell: long channel"),
+    "summon": ("kk_ranged", _RG + "Magic_Summon", "spell", "spell: summon from the ground"),
+    "cheer": ("kk_sim", "Cheering", "spell", "war cry / cheer"),
+    "use_item": ("kk_general", "Use_Item", "spell", "uses an item (potion, horn)"),
+    "idle": ("kk_general", "Idle_A", "loop", "idle"),
+    "idle_b": ("kk_general", "Idle_B", "loop", "idle, alert"),
+    "walk": ("kk_move", "Walking_A", "loop", "walk"),
+    "walk_b": ("kk_move", "Walking_B", "loop", "walk, heavy"),
+    "run": ("kk_move", "Running_A", "loop", "run"),
+    "death_a": ("kk_general", "Death_A", "death", "death A"),
+    "death_b": ("kk_general", "Death_B", "death", "death B"),
+}
+
+
+def kk(name, map_name):
+    """A KayKit motion as a layer on `map_name`."""
+    capture, clip, *_ = _KK[name]
+    return (capture, clip, map_name)
+
+
 A_ = "AnimalArmature|"
 _MOUNT = "e006"             # Quaternius animal (CC0): walk, gallop, kick, headbutt
-_RIDER = [                  # (name, mount clip, rider clip, kind, note)
-    ("idle", "Idle", "Idle", "loop", "standing, rider sits"),
-    ("walk", "Walk", "Idle", "loop", "walk, rider sits"),
-    ("gallop", "Gallop", "Idle", "loop", "gallop, rider sits"),
-    ("chop", "Idle", "1H_Melee_Attack_Chop", "attack", "rider: one-hand chop"),
-    ("lance", "Idle", "1H_Melee_Attack_Stab", "attack", "rider: lance / spear thrust"),
-    ("slice_2h", "Idle", "2H_Melee_Attack_Slice", "attack", "rider: two-hand slice"),
-    ("charge_chop", "Gallop", "1H_Melee_Attack_Chop", "attack", "charge: gallop and chop"),
-    ("shoot", "Idle", "2H_Ranged_Shoot", "attack", "rider: bow / rifle shot"),
-    ("cast", "Idle", "Spellcast_Raise", "spell", "rider: spell, raise"),
-    ("mount_kick", "Attack_Kick", "Idle", "attack", "the mount kicks"),
-    ("death", "Death", "Idle", "death", "the mount falls"),
+_RIDER = [                  # (name, mount clip, rider KayKit motion, kind, note)
+    ("idle", "Idle", "idle", "loop", "standing, rider sits"),
+    ("walk", "Walk", "idle", "loop", "walk, rider sits"),
+    ("gallop", "Gallop", "idle", "loop", "gallop, rider sits"),
+    ("chop", "Idle", "chop", "attack", "rider: one-hand chop"),
+    ("slice", "Idle", "slice_diagonal", "attack", "rider: diagonal slice"),
+    ("lance", "Idle", "stab_2h", "attack", "rider: lance thrust"),
+    ("slice_2h", "Idle", "slice_2h", "attack", "rider: two-hand slice"),
+    ("charge_chop", "Gallop", "chop", "attack", "charge: gallop and chop"),
+    ("charge_lance", "Gallop", "stab_2h", "attack", "charge: gallop, lance couched"),
+    ("bow", "Idle", "bow", "attack", "rider: bow"),
+    ("shoot", "Idle", "shoot_2h", "attack", "rider: rifle / crossbow"),
+    ("throw", "Idle", "throw", "attack", "rider: throws"),
+    ("cast", "Idle", "cast_raise", "spell", "rider: spell, raise"),
+    ("cheer", "Idle", "cheer", "spell", "rider: war cry"),
+    ("mount_kick", "Attack_Kick", "idle", "attack", "the mount kicks"),
+    ("death", "Death", "idle", "death", "the mount falls"),
 ]
 REF_MOTIONS = {
-    "biped": {name: (kind, f"{note} (KayKit, CC0)", [("hfoo", clip, "kaykit_biped")])
-              for name, clip, kind, note in _KAYKIT},
+    "biped": {name: (kind, f"{note} (KayKit, CC0)", [kk(name, "kaykit_biped")], *hit)
+              for name, (_, _, kind, note, *hit) in _KK.items()},
     "quadruped": {
         **{name: (kind, f"{note} (Quaternius animal, CC0)", [(_MOUNT, A_ + clip, "quaternius_animal")])
            for name, clip, kind, note in (("idle", "Idle", "loop", "idle"), ("walk", "Walk", "loop", "walk"),
@@ -505,13 +539,13 @@ REF_MOTIONS = {
         "bite": ("attack", "lunging bite (Quaternius wolf, CC0)", [("n017", A_ + "Attack", "quaternius_animal")]),
         "claw_chop": ("attack", "ghoul claws: both forelegs chop like arms (animal idle + KayKit dual-wield chop)",
                       [(_MOUNT, A_ + "Idle", "quaternius_animal"),
-                       ("hfoo", "Dualwield_Melee_Attack_Chop", "kaykit_forelegs")]),
+                       kk("dual_chop", "kaykit_forelegs")]),
         "claw_punch": ("attack", "ghoul jab: one foreleg punches (animal idle + KayKit punch)",
                        [(_MOUNT, A_ + "Idle", "quaternius_animal"),
-                        ("hfoo", "Unarmed_Melee_Attack_Punch_A", "kaykit_forelegs")]),
+                        kk("punch", "kaykit_forelegs")]),
     },
     "mounted": {name: (kind, f"{note} (Quaternius animal + KayKit rider, CC0)",
-                       [(_MOUNT, A_ + mount, "quaternius_animal"), ("hfoo", rider, "kaykit_rider")])
+                       [(_MOUNT, A_ + mount, "quaternius_animal"), kk(rider, "kaykit_rider")])
                 for name, mount, rider, kind, note in _RIDER},
     "spider": {name: (kind, f"{note} (Quaternius, CC0)",
                       [("n00U", f"SpiderArmature|Spider_{clip}", "quaternius_spider")])
@@ -522,13 +556,15 @@ REF_MOTIONS = {
 }
 _DR = "DragonArmature|Dragon_"
 _SN = "SnakeArmature|Snake_"
-_KAYKIT_PICK = {n: c for n, c, *_ in _KAYKIT}
-_RIDER_ACTS = [("chop", "1H_Melee_Attack_Chop", "attack", "rider: one-hand chop"),
-               ("lance", "1H_Melee_Attack_Stab", "attack", "rider: lance thrust"),
-               ("shoot", "2H_Ranged_Shoot", "attack", "rider: bow / rifle shot"),
-               ("throw", "Throw", "attack", "rider: throws (hammer, spear)"),
-               ("cast", "Spellcast_Raise", "spell", "rider: spell, raise")]
-_CREDIT = {"hfoo": "KayKit", "e006": "Quaternius animal", "h009": "Quaternius dragon",
+_RIDER_ACTS = [("chop", "chop", "attack", "rider: one-hand chop"),
+               ("slice", "slice_diagonal", "attack", "rider: diagonal slice"),
+               ("lance", "stab_2h", "attack", "rider: lance thrust"),
+               ("bow", "bow", "attack", "rider: bow"),
+               ("shoot", "shoot_2h", "attack", "rider: rifle / crossbow"),
+               ("throw", "throw", "attack", "rider: throws (hammer, spear)"),
+               ("cast", "cast_raise", "spell", "rider: spell, raise")]
+_CREDIT = {**dict.fromkeys(("kk_melee", "kk_ranged", "kk_general", "kk_move", "kk_sim", "kk_tools"), "KayKit"),
+           "e006": "Quaternius animal", "h009": "Quaternius dragon",
            "o009": "clintbellanger wyvern, CC-BY-SA-4.0",
            "n00H": "Quaternius snake", "n01P": "Quaternius apatosaurus", "cr_rat": "Quaternius rat",
            "n00U": "Quaternius spider", "h097": "Quaternius robot", "n01N": "TheGameAssets spider, CC-BY-4.0"}
@@ -541,24 +577,21 @@ def _entry(kind, note, *layers):
 
 def _upper_body(map_name, base):
     """KayKit actions on an upper body (naga, centaur, wraith) over `base` layers per slot."""
-    acts = [("chop", "attack", "one-hand chop"), ("stab", "attack", "stab / spear thrust"),
-            ("slice_2h", "attack", "two-hand slice"), ("punch", "attack", "claw / punch"),
-            ("shoot_2h", "attack", "bow / rifle shot"), ("throw", "attack", "throw"),
-            ("cast_raise", "spell", "spell: raise"), ("cast_shoot", "spell", "spell: bolt"),
-            ("cast_long", "spell", "spell: channel"), ("cheer", "spell", "war cry")]
-    out = {name: _entry(kind, note, *base["still"], ("hfoo", _KAYKIT_PICK[name], map_name))
-           for name, kind, note in acts}
-    out["idle"] = _entry("loop", "idle", *base["idle"], ("hfoo", "Idle", map_name))
-    out["walk"] = _entry("loop", "move", *base["walk"], ("hfoo", "Walking_A", map_name))
-    out["death"] = _entry("death", "death", *base["death"], ("hfoo", "Death_A", map_name))
+    acts = ("chop", "slice_diagonal", "slice_horizontal", "stab", "stab_2h", "slice_2h", "chop_2h", "spin_2h",
+            "dual_chop", "dual_slice", "dual_stab", "punch", "kick", "bow", "shoot_1h", "burst_1h", "shoot_2h",
+            "burst_2h", "throw", "cast_raise", "cast_shoot", "cast_channel", "cast_long", "summon", "cheer")
+    out = {name: _entry(_KK[name][2], _KK[name][3], *base["still"], kk(name, map_name)) for name in acts}
+    out["idle"] = _entry("loop", "idle", *base["idle"], kk("idle", map_name))
+    out["walk"] = _entry("loop", "move", *base["walk"], kk("walk", map_name))
+    out["death"] = _entry("death", "death", *base["death"], kk("death_a", map_name))
     return out
 
 
 def _flyer_rider(mount, rider_still, death):
-    out = {"fly": _entry("loop", "fly, rider sits", mount["fly"], ("hfoo", "Idle", "kaykit_rider")),
-           "death": _entry("death", "the mount falls", death, ("hfoo", "Idle", "kaykit_rider"))}
-    for name, clip, kind, note in _RIDER_ACTS:
-        out[name] = _entry(kind, note, rider_still, ("hfoo", clip, "kaykit_rider"))
+    out = {"fly": _entry("loop", "fly, rider sits", mount["fly"], kk("idle", "kaykit_rider")),
+           "death": _entry("death", "the mount falls", death, kk("idle", "kaykit_rider"))}
+    for name, motion, kind, note in _RIDER_ACTS:
+        out[name] = _entry(kind, note, rider_still, kk(motion, "kaykit_rider"))
     return out
 
 
@@ -588,7 +621,7 @@ _DRAKE = {"fly": _entry("loop", "hover, wings beating", *_DRAKE_STILL),
           "bite": _entry("attack", "lunging bite", ("n017", A_ + "Attack", "animal_drake"), _WINGS),
           "headbutt": _entry("attack", "head ram", (_MOUNT, A_ + "Attack_Headbutt", "animal_drake"), _WINGS),
           "claw": _entry("attack", "foreleg claw", (_MOUNT, A_ + "Idle", "animal_drake"), _WINGS,
-                         ("hfoo", "Dualwield_Melee_Attack_Chop", "kaykit_forelegs")),
+                         kk("dual_chop", "kaykit_forelegs")),
           "death": _entry("death", "falls", (_MOUNT, A_ + "Death", "animal_drake"),
                           ("h009", _DR + "Death", "dragon_wings"))}
 _CREDIT["n017"] = "Quaternius wolf"
@@ -608,22 +641,24 @@ def _snake_body(map_name, extra=()):
 REF_MOTIONS.update({
     "drake": _DRAKE,
     "mounted_flyer": {**{name: (kind, note.replace(")", " + KayKit rider)"),
-                                layers + [("hfoo", "Idle", "kaykit_rider")])
+                                layers + [kk("idle", "kaykit_rider")])
                          for name, (kind, note, layers) in _DRAKE.items()},
-                      **{name: _entry(kind, note, *_DRAKE_STILL, ("hfoo", clip, "kaykit_rider"))
-                         for name, clip, kind, note in _RIDER_ACTS}},
+                      **{name: _entry(kind, note, *_DRAKE_STILL, kk(motion, "kaykit_rider"))
+                         for name, motion, kind, note in _RIDER_ACTS}},
     "bird": {**_BIRD, **{f"wyvern_{k}": v for k, v in _WYVERN_MOVES.items()}},
     "bird_rider": {**_flyer_rider({"fly": _BIRD_FLY}, _BIRD_FLY, ("h009", _DR + "Death", "dragon_bird")),
-                   "hover": _entry("loop", "hover, rider sits", _BIRD_FLY, ("hfoo", "Idle", "kaykit_rider")),
+                   "hover": _entry("loop", "hover, rider sits", _BIRD_FLY, kk("idle", "kaykit_rider")),
                    "mount_bite": _entry("attack", "the mount bites", _BIRD_FLY, ("h009", _DR + "Attack", "dragon_neck"),
-                                        ("hfoo", "Idle", "kaykit_rider")),
-                   "wyvern_fly": _entry("loop", "fly, rider sits", _WYVERN["fly"], ("hfoo", "Idle", "kaykit_rider")),
+                                        kk("idle", "kaykit_rider")),
+                   "wyvern_fly": _entry("loop", "fly, rider sits", _WYVERN["fly"], kk("idle", "kaykit_rider")),
                    "wyvern_sting": _entry("attack", "the mount stings", ("o009", "Sting", "wyvern"),
-                                          ("hfoo", "Idle", "kaykit_rider"))},
-    "harpy": {name: _entry(kind, note, ("hfoo", clip, "kaykit_biped"), ("h009", _DR + "Flying", "dragon_wings"))
-              for name, clip, kind, note in _KAYKIT if name in
-              ("idle", "walk", "chop", "slice_diagonal", "stab", "chop_2h", "slice_2h", "punch", "kick", "shoot_1h",
-               "shoot_2h", "throw", "cast_raise", "cast_shoot", "cast_long", "cheer", "death_a")},
+                                          kk("idle", "kaykit_rider"))},
+    "harpy": {name: _entry(_KK[name][2], _KK[name][3], kk(name, "kaykit_biped"),
+                           ("h009", _DR + "Flying", "dragon_wings"))
+              for name in ("idle", "walk", "chop", "slice_diagonal", "slice_horizontal", "stab", "stab_2h", "chop_2h",
+                           "slice_2h", "spin_2h", "dual_chop", "dual_slice", "dual_stab", "punch", "kick", "bow",
+                           "bow_up", "shoot_1h", "shoot_2h", "throw", "cast_raise", "cast_shoot", "cast_long", "summon",
+                           "cheer", "death_a")},
     "ray": {"swim": _entry("loop", "glide", ("h009", _DR + "Flying", "dragon_ray")),
             "bite": _entry("attack", "strike", ("h009", _DR + "Attack", "dragon_ray")),
             "lash": _entry("attack", "tail lash", ("h009", _DR + "Attack2", "dragon_ray")),
@@ -642,9 +677,9 @@ REF_MOTIONS.update({
     "naga": _upper_body("kaykit_upper", _SNAKE_BASE),
     "centaur": {**_upper_body("kaykit_centaur", _HORSE_BASE),
                 "gallop": _entry("loop", "gallop", (_MOUNT, A_ + "Gallop", "quaternius_animal"),
-                                 ("hfoo", "Idle", "kaykit_centaur")),
+                                 kk("idle", "kaykit_centaur")),
                 "kick": _entry("attack", "hind kick", (_MOUNT, A_ + "Attack_Kick", "quaternius_animal"),
-                               ("hfoo", "Idle", "kaykit_centaur"))},
+                               kk("idle", "kaykit_centaur"))},
     "wraith": _upper_body("kaykit_wraith", _GHOST_BASE),
     "crawler": {name: _entry(kind, note, ("cr_rat", f"RatArmature|Rat_{clip}", "rat"))
                 for name, clip, kind, note in (("idle", "Idle", "loop", "idle"), ("walk", "Walk", "loop", "scurry"),
@@ -728,10 +763,11 @@ def motion(family, name, rate=24):
         poses = plant(family, _frames(raw(family, m["keys"])), m.get("air", ()))
         return {"kind": m["kind"], "impact": m["impact"], "note": m["note"], "poses": poses,
                 "clip": _sampled(poses, rate), "frames": LENGTH[m["kind"]]}
-    kind, note, layers = REF_MOTIONS[family][name]
+    kind, note, layers, *hit = REF_MOTIONS[family][name]
     full = _from_ref(family, layers, rate)
     strip = RT.ten(full, FRAMES)
-    return {"kind": kind, "impact": impact(family, strip) if kind in ("attack", "spell") else None,
+    auto = impact(family, strip) if kind in ("attack", "spell") else None
+    return {"kind": kind, "impact": hit[0] if hit else auto,
             "note": note, "poses": dict(enumerate(strip, start=1)), "clip": full, "frames": _ref_length(layers)}
 
 
@@ -747,7 +783,7 @@ def _slots(idle, walk, attack, death, spell):
 
 _MACHINE = ("today_idle", "today_walk", "today_death")
 DEFAULTS = {
-    "biped": _slots("idle", "walk", "chop", "death_a", "cast_raise"),
+    "biped": _slots("idle", "walk", "chop+slice_diagonal+slice_horizontal", "death_a", "cast_raise"),
     "quadruped": _slots("idle", "walk", "bite", "death", "keyed_roar"),
     "mounted": _slots("idle", "walk", "chop", "death", "cast"),
     "spider": _slots("idle", "walk", "bite", "death", "keyed_rear_up"),
@@ -811,13 +847,25 @@ def clips(family, choice=None):
     ({"attack": "chop", ...}). Frames follow the reference's own timing."""
     picks = {**DEFAULTS.get(family, {}), **(choice or {})}
     out = []
-    for slot in SLOTS:
-        if slot not in picks:
-            continue
-        m = motion(family, picks[slot])
+    for slot, name in _expanded(picks):
+        m = motion(family, name)
         span = max(m["frames"], len(m["clip"]) - 1)
         last = len(m["clip"]) - 1
         poses = {1 + round(i * span / last): pose for i, pose in enumerate(m["clip"])}
         hit = 1 + round((m["impact"] - 1) * span / (FRAMES - 1)) if m["impact"] else None
         out.append((slot, poses, m["kind"] == "loop" or slot in ("idle", "walk"), (hit,) if hit else (), ()))
+    return out
+
+
+def combo(value):
+    """The motions of a slot: "chop+slice_diagonal+stab" is a combo the game plays in turn."""
+    return value.split("+")
+
+
+def _expanded(picks):
+    """[(action name, motion)]: a combo's motions become attack, attack2, attack3..."""
+    out = []
+    for slot in SLOTS:
+        for i, name in enumerate(combo(picks[slot]) if slot in picks else []):
+            out.append((slot if i == 0 else f"{slot}{i + 1}", name))
     return out

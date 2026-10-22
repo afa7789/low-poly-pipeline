@@ -506,7 +506,8 @@ DEATH = {
     40: {"root": (86, 0, 0, -0.78), "spine": (4, 0, 0, 0), "thigh.L": (18, 0, 0, 0), "thigh.R": (14, 0, 0, 0)},
 }
 
-BIPED_ACTIONS = [("idle", IDLE, True, (), ()), ("walk", WALK, True, (1, 5, 17, 21), (("head", 2), ("forearm.L", 1), ("forearm.R", 1))),
+BIPED_ACTIONS = [("idle", IDLE, True, (), ()),
+                 ("walk", WALK, True, (1, 5, 17, 21), (("head", 2), ("forearm.L", 1), ("forearm.R", 1))),
                  ("attack", ATTACK, False, (10,), ()), ("death", DEATH, False, (26,), ())]
 
 
