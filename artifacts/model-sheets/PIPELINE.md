@@ -791,3 +791,35 @@ A `building-hard` variant would be a separate template if it is ever wanted.
 - A/B on hfoo, no repair (runs/draft/hfoo/ab*): hard as image 1 front 0.50/0.62/0.54, left
   0.57/0.56/0.54; approved as image 1 front 0.58/0.59, left 0.53/0.55. Within run-to-run
   noise (0.12 between two hard runs): image 1 is not the lever, the width error is.
+
+## 17. Animation library: retargeted references per rig family (2026-10-21)
+
+Every animated rig family gets its clips from professional reference animations already in
+`assets/models` (CC0 first, CC-BY when clearly better; sources and licenses in
+`artifacts/anim-ref/SOURCES.md`), transferred onto our skeleton. Hand-keyed poses are the
+fallback for machines and bodies with no reference.
+
+| step | tool | output |
+|---|---|---|
+| capture | `blender -b -P tools/blender/ref_capture.py -- <model.glb> artifacts/anim-ref/<model> <clip,...> 24` | `joints.json` (joints per frame, clip length, fps; versioned) + a textured GIF per clip (ignored) |
+| retarget | `rig_retarget.py` (maps, no bpy) | our poses: each bone aimed where its counterpart points (`rig_poses.aim`); relative maps turn our rest pose as much as the reference turned from its idle; legs with very different proportions (spider, rat, robot) use foot IK on the reference foot's movement |
+| library | `rig_motions.py` | per family: `today_*` (the old derived clips), reference motions, `keyed_*` (hand poses); `DEFAULTS[family]` = idle/walk/attack/death/spell |
+| review | `python3 tools/blender/rig_storyboard.py artifacts/anim-storyboard --json` | per-family JSON for the review page (10-frame strip + live player, side and game 3/4 views) |
+| build | `build_unit.py` | 5 actions: idle, walk, attack, death, spell, with the reference's own timing |
+
+Layers: a motion can stack references on disjoint bones (a mount's gallop + a KayKit chop on
+`rider.*`; a snake tail + KayKit upper body for naga; three apatosaurus necks out of step
+for the hydra). Picks per unit: `data/unit_anim.tsv` (176 units: rig + motion per slot);
+the builder uses the spec's `"anim"` first (`{"attack": "stab"}`, or `"legacy"` for the
+old clips), else the unit's row when its rig matches, else the family defaults.
+
+Contract checks (`tests/tools/blender/test_rig_poses.py`): the pure-python FK matches
+Blender's pose bones (< 0.1 mm), `aim` reproduces any direction exactly, grounded frames
+are planted on the floor, every map's bones exist on both sides, every default and every
+unit-table pick names a real motion, `clips()` gives the five slots on real bones.
+
+Found while drawing today's clips: the root's `lift` moves along the root bone's local Z,
+which is the spec FORWARD axis (the old hover "bob" slides instead of rising; poses now
+carry an optional fifth value `up` along the bone); the biped death falls face-down; old
+walk/death clips sink up to 0.2 m (spider death 1.1 m) under the floor. The serpent/wyrm
+head now hangs on `spine.1` (it was on the root and left the body when the chain bent).

@@ -137,16 +137,26 @@ class Aim(unittest.TestCase):
 @unittest.skipUnless((RT.REF_DIR / "hfoo/joints.json").exists(), "needs the captured references")
 class Retarget(unittest.TestCase):
     def test_maps_name_real_bones_on_both_sides(self):
-        fams = {"kaykit_biped": "biped", "kaykit_rider": "mounted", "kaykit_forelegs": "quadruped",
-                "quaternius_animal": "quadruped", "quaternius_spider": "spider"}
-        refs = {"kaykit_biped": "hfoo", "kaykit_rider": "hfoo", "kaykit_forelegs": "hfoo",
-                "quaternius_animal": "e006", "quaternius_spider": "n00U"}
-        for name, spec in RT.MAPS.items():
-            ours, theirs = set(RF.bones(fams[name])), RT.load(refs[name])["rest"]
-            for bone, (a, b) in spec["bones"].items():
+        """Every map's bones exist in some family that uses it, and its reference points
+        exist in every model it is used with."""
+        used = {}
+        for fam, motions in M.REF_MOTIONS.items():
+            for _, _, layers in motions.values():
+                for model, _, map_name, *_ in layers:
+                    used.setdefault(map_name, set()).add((fam, model))
+        self.assertEqual(set(used), set(RT.MAPS))
+        for name, pairs in used.items():
+            spec = RT.MAPS[name]
+            ours = set().union(*(RF.bones(fam) for fam, _ in pairs))
+            leg_bones = [b for leg in spec.get("legs", {}) for b in RT._leg(spec, leg)]
+            for bone in list(spec["bones"]) + leg_bones:
                 self.assertIn(bone, ours, (name, bone))
-                for p in (a, b):
-                    self.assertIn(p.removesuffix(".tail"), theirs, (name, p))
+            for _, model in pairs:
+                frame = RT.load(model)["clips"][spec.get("neutral") or next(iter(RT.load(model)["clips"]))][0]
+                points = [p for pair in spec["bones"].values() for p in pair]
+                points += [p for leg in spec.get("legs", {}).values() for p in leg] + [spec["anchor"]]
+                for p in points:
+                    self.assertIsNotNone(RT._point(frame, p), (name, model, p))
 
     def test_bones_follow_the_reference_directions(self):
         ref, spec = RT.load("hfoo"), RT.MAPS["kaykit_biped"]
@@ -162,6 +172,50 @@ class Retarget(unittest.TestCase):
                                   ("hfoo", "1H_Melee_Attack_Chop", "kaykit_rider")])["poses"]
         moved = {b for p in got for b, v in p.items() if any(abs(x) > 1e-6 for x in v[:3])}
         self.assertTrue({"rider.arm.R", "leg1.upper"} <= moved)
+
+
+@unittest.skipUnless((RT.REF_DIR / "hfoo/joints.json").exists(), "needs the captured references")
+class Library(unittest.TestCase):
+    def test_every_animated_family_has_defaults_that_exist(self):
+        animated = {f for f in RF.FAMILIES if f not in RF.STATIC}
+        self.assertEqual(set(M.DEFAULTS), animated)
+        for fam, picks in M.DEFAULTS.items():
+            self.assertEqual(set(picks), set(M.SLOTS), fam)
+            for slot, name in picks.items():
+                self.assertIn(name, M.names(fam), (fam, slot))
+
+    def test_clips_are_the_five_slots_on_real_bones(self):
+        for fam in M.DEFAULTS:
+            clips = M.clips(fam)
+            self.assertEqual([c[0] for c in clips], list(M.SLOTS), fam)
+            names = set(RF.bones(fam))
+            for slot, poses, cyclic, contacts, _ in clips:
+                self.assertEqual(min(poses), 1, (fam, slot))
+                self.assertTrue(all(set(p) <= names for p in poses.values()), (fam, slot))
+                self.assertEqual(cyclic, slot in ("idle", "walk"), (fam, slot))
+                if slot == "attack":
+                    self.assertTrue(contacts and 1 < contacts[0] < max(poses), (fam, contacts))
+
+    def test_a_spec_pick_overrides_the_default(self):
+        default = dict((c[0], c[1]) for c in M.clips("biped"))
+        picked = dict((c[0], c[1]) for c in M.clips("biped", {"attack": "stab"}))
+        self.assertNotEqual(default["attack"], picked["attack"])
+        self.assertEqual(default["walk"], picked["walk"])
+
+    def test_unit_table_names_real_motions(self):
+        path = ROOT / "data/unit_anim.tsv"
+        if not path.exists():
+            self.skipTest("no data/unit_anim.tsv")
+        rows = [line.split("\t") for line in path.read_text().splitlines()]
+        head, rows = rows[0], rows[1:]
+        self.assertEqual(head[:7], ["unit_id", "rig", *M.SLOTS[:3], "spell", "death"])
+        ideas = __import__("json").loads((ROOT / "data/unit_av_ideas.json").read_text())
+        self.assertEqual({r[0] for r in rows}, set(ideas))
+        for row in rows:
+            rig, picks = row[1], dict(zip(head[2:7], row[2:7]))
+            self.assertIn(rig, M.DEFAULTS, row[0])
+            for slot, name in picks.items():
+                self.assertIn(name, M.names(rig), (row[0], slot))
 
 
 class Storyboard(unittest.TestCase):

@@ -592,10 +592,18 @@ def merge_clips(base, extra):
     return out
 
 
-def clip_set(family):
-    """Biped: the hand-keyed tables. Families with biped limbs: those tables plus the
-    clips derived from their other bones. Everything else: the derived clips."""
+ANIM = None     # the spec's "anim": {"attack": "chop", ...} picks from rig_motions; "legacy" = old clips
+
+
+def clip_set(family, anim=None):
+    """The motion library (rig_motions: clips retargeted from reference animations, plus
+    a spell clip) by default, picks overridden by the spec's "anim". "anim": "legacy"
+    keeps the old clips: biped hand-keyed tables, families with biped limbs those plus
+    the clips derived from their other bones, everything else the derived clips."""
     fam = families()
+    motions = sibling("rig_motions")
+    if anim != "legacy" and family in motions.DEFAULTS:
+        return motions.clips(family, anim if isinstance(anim, dict) else None)
     if family == "biped":
         return ACTIONS
     if fam.has_biped_limbs(family):
@@ -604,7 +612,7 @@ def clip_set(family):
 
 
 def make_actions(arm):
-    """Four clips per unit: key poses stepped, a hand-made breakdown, then spline."""
+    """The unit's clips (clip_set): key poses stepped, a hand-made breakdown, then spline."""
     bpy.ops.object.select_all(action="DESELECT")
     bpy.context.view_layer.objects.active = arm
     bpy.ops.object.mode_set(mode="POSE")
@@ -612,19 +620,19 @@ def make_actions(arm):
         pb.rotation_mode = "XYZ"
     arm.animation_data_create()
     anim = load_toolkit("blender-animation", "bx_anim")
-    clips = clip_set(FAMILY)
+    clips = clip_set(FAMILY, ANIM)
     for name, poses, cyclic, contacts, lags in clips:
         act = bpy.data.actions.new(name)
         arm.animation_data.action = act
         frames = sorted(poses)
         for frame in frames:
             bpy.context.scene.frame_set(frame)
-            for bone, (rx, ry, rz, ly) in poses[frame].items():
+            for bone, (rx, ry, rz, ly, *up) in poses[frame].items():
                 if bone not in arm.pose.bones:
                     continue
                 pb = arm.pose.bones[bone]
                 pb.rotation_euler = (D(rx), D(ry), D(rz))
-                pb.location = (0, 0, ly)
+                pb.location = (0, up[0] if up else 0, ly)       # up: along the bone (rig_poses)
                 pb.keyframe_insert("rotation_euler", frame=frame)
                 pb.keyframe_insert("location", frame=frame)
         for a, b in zip(frames, frames[1:]):
@@ -1064,92 +1072,24 @@ def fuse(body, parts_meta, voxel=0.025, target=650, angle=52.0):
     return len(mesh.polygons)
 
 # ---------------------------------------------------------------- animation
-# Blocking follows the blender-animation skill: key poses first (stepped), a
-# breakdown between them, spline only at the end. Contacts and impacts get
-# VECTOR handles; holds get AUTO_CLAMPED so they stay flat.
-IDLE = {
-    1: {"root": (0, 0, 0, 0.0), "spine": (0, 0, 0, 0.0), "head": (0, 0, 0, 0.0),
-        "arm.L": (0, 0, 0, 0.0), "arm.R": (0, 0, 0, 0.0)},
-    24: {"root": (0, 0, 0, 0.0), "spine": (-1.5, 0, 0, 0.0), "head": (0, 4, 0, 0.0),
-         "arm.L": (2, 0, 0, 0.0), "arm.R": (-2, 0, 0, 0.0)},
-    48: {"root": (0, 0, 0, 0.0), "spine": (0, 0, 0, 0.0), "head": (0, 0, 0, 0.0),
-         "arm.L": (0, 0, 0, 0.0), "arm.R": (0, 0, 0, 0.0)},
-}
-
-# heavy two-step walk: contact 1/13, down 4/16, passing 7/19, up 10/22, loop 25
-WALK = {
-    1: {"thigh.L": (-26, 0, 0, 0), "shin.L": (16, 0, 0, 0), "foot.L": (-8, 0, 0, 0),
-        "thigh.R": (22, 0, 0, 0), "shin.R": (22, 0, 0, 0), "foot.R": (14, 0, 0, 0),
-        "arm.L": (22, 0, 0, 0), "arm.R": (-22, 0, 0, 0), "spine": (3, 0, 0, 0),
-        "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
-    4: {"thigh.L": (-14, 0, 0, 0), "shin.L": (24, 0, 0, 0), "foot.L": (0, 0, 0, 0),
-        "thigh.R": (14, 0, 0, 0), "shin.R": (14, 0, 0, 0), "foot.R": (6, 0, 0, 0),
-        "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (5, 0, 0, 0),
-        "head": (-2, 0, 0, 0), "root": (0, 0, 0, -0.06)},
-    7: {"thigh.L": (0, 0, 0, 0), "shin.L": (10, 0, 0, 0), "foot.L": (0, 0, 0, 0),
-        "thigh.R": (0, 0, 0, 0), "shin.R": (6, 0, 0, 0), "foot.R": (0, 0, 0, 0),
-        "arm.L": (0, 0, 0, 0), "arm.R": (0, 0, 0, 0), "spine": (1, 0, 0, 0),
-        "head": (0, 0, 0, 0), "root": (0, 0, 0, 0.02)},
-    10: {"thigh.L": (16, 0, 0, 0), "shin.L": (6, 0, 0, 0), "foot.L": (10, 0, 0, 0),
-         "thigh.R": (-18, 0, 0, 0), "shin.R": (12, 0, 0, 0), "foot.R": (-6, 0, 0, 0),
-         "arm.L": (-14, 0, 0, 0), "arm.R": (14, 0, 0, 0), "spine": (3, 0, 0, 0),
-         "head": (-2, 0, 0, 0), "root": (0, 0, 0, 0.0)},
-    13: {"thigh.L": (22, 0, 0, 0), "shin.L": (22, 0, 0, 0), "foot.L": (14, 0, 0, 0),
-         "thigh.R": (-26, 0, 0, 0), "shin.R": (16, 0, 0, 0), "foot.R": (-8, 0, 0, 0),
-         "arm.L": (-22, 0, 0, 0), "arm.R": (22, 0, 0, 0), "spine": (3, 0, 0, 0),
-         "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
-    16: {"thigh.L": (14, 0, 0, 0), "shin.L": (14, 0, 0, 0), "foot.L": (6, 0, 0, 0),
-         "thigh.R": (-14, 0, 0, 0), "shin.R": (24, 0, 0, 0), "foot.R": (0, 0, 0, 0),
-         "arm.L": (-14, 0, 0, 0), "arm.R": (14, 0, 0, 0), "spine": (5, 0, 0, 0),
-         "head": (-2, 0, 0, 0), "root": (0, 0, 0, -0.06)},
-    19: {"thigh.L": (0, 0, 0, 0), "shin.L": (6, 0, 0, 0), "foot.L": (0, 0, 0, 0),
-         "thigh.R": (0, 0, 0, 0), "shin.R": (10, 0, 0, 0), "foot.R": (0, 0, 0, 0),
-         "arm.L": (0, 0, 0, 0), "arm.R": (0, 0, 0, 0), "spine": (1, 0, 0, 0),
-         "head": (0, 0, 0, 0), "root": (0, 0, 0, 0.02)},
-    22: {"thigh.L": (-18, 0, 0, 0), "shin.L": (12, 0, 0, 0), "foot.L": (-6, 0, 0, 0),
-         "thigh.R": (16, 0, 0, 0), "shin.R": (6, 0, 0, 0), "foot.R": (10, 0, 0, 0),
-         "arm.L": (14, 0, 0, 0), "arm.R": (-14, 0, 0, 0), "spine": (3, 0, 0, 0),
-         "head": (-2, 0, 0, 0), "root": (0, 0, 0, 0.0)},
-    25: {"thigh.L": (-26, 0, 0, 0), "shin.L": (16, 0, 0, 0), "foot.L": (-8, 0, 0, 0),
-         "thigh.R": (22, 0, 0, 0), "shin.R": (22, 0, 0, 0), "foot.R": (14, 0, 0, 0),
-         "arm.L": (22, 0, 0, 0), "arm.R": (-22, 0, 0, 0), "spine": (3, 0, 0, 0),
-         "head": (-3, 0, 0, 0), "root": (0, 0, 0, -0.02)},
-}
-
-# piston thrust: settle, wind back (anticipation), snap, hold, recover
-ATTACK = {
-    1: {"root": (0, 0, 0, 0.0), "spine": (0, 0, 0, 0), "arm.R": (0, 0, 0, 0), "forearm.R": (0, 0, 0, 0),
-        "arm.L": (0, 0, 0, 0), "head": (0, 0, 0, 0)},
-    7: {"root": (0, 0, 0, -0.03), "spine": (7, 0, 0, 0), "arm.R": (26, 0, 0, 0), "forearm.R": (30, 0, 0, 0),
-        "arm.L": (-10, 0, 0, 0), "head": (5, 0, 0, 0)},
-    10: {"root": (0, 0, 0, 0.02), "spine": (-9, 0, 0, 0), "arm.R": (-30, 0, 0, 0), "forearm.R": (-78, 0, 0, 0),
-         "arm.L": (16, 0, 0, 0), "head": (-8, 0, 0, 0)},
-    16: {"root": (0, 0, 0, 0.01), "spine": (-8, 0, 0, 0), "arm.R": (-28, 0, 0, 0), "forearm.R": (-76, 0, 0, 0),
-         "arm.L": (15, 0, 0, 0), "head": (-6, 0, 0, 0)},
-    30: {"root": (0, 0, 0, 0.0), "spine": (0, 0, 0, 0), "arm.R": (0, 0, 0, 0), "forearm.R": (0, 0, 0, 0),
-         "arm.L": (0, 0, 0, 0), "head": (0, 0, 0, 0)},
-}
-
-# stagger back, knees buckle, fall on the back, settle
-DEATH = {
-    1: {"root": (0, 0, 0, 0.0), "spine": (0, 0, 0, 0), "thigh.L": (0, 0, 0, 0), "thigh.R": (0, 0, 0, 0)},
-    6: {"root": (0, 0, 0, 0.0), "spine": (12, 0, 0, 0), "thigh.L": (-10, 0, 0, 0), "thigh.R": (8, 0, 0, 0)},
-    14: {"root": (18, 0, 0, -0.16), "spine": (16, 0, 0, 0), "thigh.L": (26, 0, 0, 0), "thigh.R": (20, 0, 0, 0)},
-    26: {"root": (72, 0, 0, -0.62), "spine": (10, 0, 0, 0), "thigh.L": (34, 0, 0, 0), "thigh.R": (28, 0, 0, 0)},
-    40: {"root": (86, 0, 0, -0.78), "spine": (4, 0, 0, 0), "thigh.L": (18, 0, 0, 0), "thigh.R": (14, 0, 0, 0)},
-}
-
-ACTIONS = [("idle", IDLE, True, (), ()), ("walk", WALK, True, (1, 5, 17, 21), (("head", 2), ("forearm.L", 1), ("forearm.R", 1))),
-           ("attack", ATTACK, False, (10,), ()), ("death", DEATH, False, (26,), ())]
+# The biped's hand-keyed clips live in rig_families (no bpy there, so the storyboard reads them too).
+ACTIONS = families().BIPED_ACTIONS
 
 
 def load_spec(target):
     """Either a built-in id (SPECS) or a path to {"parts"|"segments": ...} JSON.
-    Returns (unit, spec, rest_pose). rest_pose is optional bone rest rotations."""
+    Returns (unit, spec, rest_pose). rest_pose is optional bone rest rotations. Sets ANIM
+    from the doc's "anim", else from the unit's row in data/unit_anim.tsv."""
+    global ANIM
     p = pathlib.Path(target)
     if p.suffix == ".json":
         doc = json.loads(p.read_text())
         pose = doc.get("rest_pose")
+        ANIM = doc.get("anim")
+        if ANIM is None:                    # the unit's row in data/unit_anim.tsv
+            motions = sibling("rig_motions")
+            unit = doc.get("unit") or motions.unit_in_path(p)
+            ANIM = motions.unit_picks(unit, doc.get("rig", "biped")) if unit else None
         if doc.get("rig") or doc.get("bones"):
             print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones")))
         register_palette(doc.get("palette"))
@@ -1362,7 +1302,7 @@ def main():
                               export_apply=False, export_skins=True, export_morph=False)
     tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
     print(f"built {unit}: {len(parts)} parts joined, {len(BONES)} bones, "
-          f"{len(ACTIONS)} actions, {len(body.data.polygons)} faces, ~{tris} tris, "
+          f"{len(bpy.data.actions)} actions, {len(body.data.polygons)} faces, ~{tris} tris, "
           f"{len(body.data.materials)} materials -> {out}")
 
 
