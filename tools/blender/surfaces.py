@@ -141,14 +141,23 @@ def paint(surface, rgb, size=256):
 
 
 # Painted features: eyes and similar marks are texture, not geometry. Each is a list of
-# (u, v, radius) dots in a 0..1 face, the face's front projected into a spare atlas cell.
+# (u, v, radius[, mode]) dots in a 0..1 face, the face's front projected into a spare atlas
+# cell. mode "eye" (default) is a dark eye with a glint, or lit in the decal colour; "dark"
+# is a flat dark fill (mouth, mask); "lit" is an eye that always glows (pale if no colour).
 DECALS = {
     "eyes2": [(0.32, 0.60, 0.11), (0.68, 0.60, 0.11)],
     "eyes8": [(0.38, 0.55, 0.10), (0.62, 0.55, 0.10),              # the big front pair
               (0.22, 0.68, 0.055), (0.78, 0.68, 0.055),
               (0.40, 0.75, 0.05), (0.60, 0.75, 0.05),
               (0.28, 0.42, 0.045), (0.72, 0.42, 0.045)],
+    # simple face: two eyes over a three-dot mouth
+    "face": [(0.32, 0.64, 0.09), (0.68, 0.64, 0.09),
+             (0.36, 0.30, 0.05, "dark"), (0.50, 0.27, 0.05, "dark"), (0.64, 0.30, 0.05, "dark")],
+    # hood shadow: a dark mask with two glowing eyes (hooded figures)
+    "mask": [(0.50, 0.50, 0.46, "dark"), (0.33, 0.56, 0.085, "lit"), (0.67, 0.56, 0.085, "lit")],
 }
+DARK = (0.05, 0.04, 0.04)
+PALE = (0.95, 0.85, 0.45)
 
 
 def decal(kind, colour=None, size=64):
@@ -157,13 +166,15 @@ def decal(kind, colour=None, size=64):
     x = (np.arange(size) + 0.5) / size
     u, v = np.meshgrid(x, x)
     rgb, alpha = np.zeros((size, size, 3)), np.zeros((size, size))
-    lit = np.asarray(colour if colour is not None else (0.05, 0.04, 0.04), dtype=float)
-    for cu, cv, r in DECALS[kind]:
+    for cu, cv, r, *mode in DECALS[kind]:
+        mode = mode[0] if mode else "eye"
         d = np.hypot(u - cu, v - cv) / r
         dot = np.clip((1.0 - d) * 6, 0, 1)                         # hard edge, 1 px soft
+        glow = mode == "lit" or (mode == "eye" and colour is not None)
+        lit = np.asarray(DARK if mode == "dark" else colour if colour is not None else PALE, dtype=float)
         glint = np.clip((1.0 - np.hypot(u - cu + 0.3 * r, v - cv - 0.3 * r) / (0.3 * r)) * 4, 0, 1)
-        core = glint if colour is None else np.clip(1.0 - d * 1.6, 0, 1)
-        shade = lit[None, None] * (1 - core[..., None]) + core[..., None] * (0.9 if colour is None else 1.0)
+        core = np.clip(1.0 - d * 1.6, 0, 1) if glow else glint * (mode == "eye")
+        shade = lit[None, None] * (1 - core[..., None]) + core[..., None] * (1.0 if glow else 0.9)
         rgb = rgb * (1 - dot[..., None]) + shade * dot[..., None]
         alpha = np.maximum(alpha, dot)
     return np.clip(rgb, 0, 1), alpha

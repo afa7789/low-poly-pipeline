@@ -60,13 +60,28 @@ class Decal(unittest.TestCase):
         for kind, dots in SF.DECALS.items():
             rgb, alpha = SF.decal(kind, None, 64)
             self.assertEqual(alpha[0, 0], 0.0)
-            cu, cv, _ = dots[0]
+            cu, cv = dots[0][:2]
             self.assertGreater(alpha[int(cv * 64), int(cu * 64)], 0.9, kind)
 
     def test_glowing_eyes_take_the_colour(self):
         rgb, alpha = SF.decal("eyes2", (0.2, 0.9, 0.3), 64)
         ring = rgb[alpha > 0.9]
         self.assertGreater(ring[:, 1].mean(), ring[:, 0].mean())    # green dominates
+
+    def test_mask_is_dark_with_glowing_eyes(self):
+        rgb, alpha = SF.decal("mask", (0.9, 0.1, 0.1), 64)
+        self.assertGreater(alpha[32, 32], 0.9)
+        self.assertLess(rgb[32, 32].max(), 0.1)                      # dark fill between the eyes
+        eye = rgb[int(0.56 * 64), int(0.33 * 64)]
+        self.assertGreater(eye[0], 0.8)                              # eye lit in the decal colour
+        pale = SF.decal("mask", None, 64)[0][int(0.56 * 64), int(0.33 * 64)]
+        self.assertGreater(pale.max(), 0.8)                          # no colour: still lit
+
+    def test_face_has_dark_mouth_and_eyes(self):
+        rgb, alpha = SF.decal("face", (0.2, 0.9, 0.3), 64)
+        mouth = rgb[int(0.27 * 64), int(0.50 * 64)]
+        self.assertLess(mouth.max(), 0.1)                            # mouth stays dark when eyes glow
+        self.assertGreater(alpha[int(0.64 * 64), int(0.32 * 64)], 0.9)
 
 
 class Layout(unittest.TestCase):

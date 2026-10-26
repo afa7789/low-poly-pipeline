@@ -857,3 +857,21 @@ The biped library now comes from KayKit Character Animations 1.1 (CC0, the free 
 same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (draw + release as one
 motion), guns, magic, tools; `ref_capture.py` films animation-only GLBs on its mannequin (Blender 5:
 an action from another file plays through its slot) and joins clips with `A+B`.
+
+### 18.B2 Shape rules: box ceiling, decal placement, hoods (2026-10-26)
+
+- `preflight.py` `box_ceiling`: parts of kind `box` <= 1/3 of the spec's parts (the rig mirrors by
+  bone, so the parts list is the count; buildings are exempt). Measured on the 7 `hard-v1` specs and
+  n01X `v13`: all 8 pass (0-3 boxes of 24-28). The "squareness" lives in `frustum`s, not boxes
+  (n01X v13: 13 frustums, 7 of them with top scale within 15% of 1.0), so the ceiling alone will
+  not push shape; it stops regressions into box-built limbs.
+- `preflight.py` `decal_place` + `spec_pipeline.validate`: a part with a `decal` must be bound to a
+  head/jaw/face/skull bone (last dotted segment, so `rider.head` counts). Validate rejects with
+  "decal on a non-head bone"; the REPAIR prompt gets the preflight line like any rule.
+- `surfaces.DECALS` new kinds `face` (eyes + 3-dot mouth) and `mask` (dark mask, two always-lit eyes,
+  pale when no `decal_color`). Dots take an optional 4th field `"dark"` / `"lit"`. `build_unit` needed
+  no change (it projects any kind onto the part's front face).
+- DSL text: HOODS (deep dark frustum/box on the head bone, open and set back; face/mask decal on the
+  head part's front face, pushed slightly ahead of the hood back wall) and BOXES lines.
+- Proof: n005 hard-v1 with the head part swapped for a decal-`mask` frustum in front of the hood:
+  two red glowing eyes on a dark face inside the hood, visible from the front in the colour turntable.
