@@ -266,6 +266,12 @@ AXES = {"front": "widths along x, heights along y, how far arms and legs spread"
 RENDER_NAME = {"rts": "wc3"}  # render_unit.py's file for the gameplay view
 PASS_EDITS = 6
 REGRESSION = 0.01
+# What a pass may not take away inside the contour (PIPELINE §18): colour zones, per view
+ZONE_DROP = 0.05    # the view's area-weighted zone IoU
+ZONE_LOSS = 0.15    # one zone's IoU, zones of silhouette.ZONE_SHARE or more
+PIECE_LOSS = 0.4    # one drawn piece's cover
+PROP_WARN = 0.40    # prop alone vs its drawing, IoU; n02X club 0.83, hfoo spear 0.69
+RULE_LINE = re.compile(r"^\s+(\w+)\s+(PASS|FAIL)\b", re.M)   # a preflight.py result line
 REPAIRS = 2
 REPAIR_EDITS = 12
 
@@ -497,7 +503,8 @@ def tool(name, *argv, blender=False):
 def trial(spec, sheet, kind, work, name):
     """Preflight, build and measure one candidate spec. A preflight failure is reported,
     not fatal: the model is still built so there is always something to look at.
-    Returns (IoU per view or None when no GLB came out, preflight report or None)."""
+    Returns (IoU per view or None when no GLB came out, preflight report or None, zone
+    report per view)."""
     path = work / f"{name}.json"
     path.write_text(json.dumps(spec, indent=2))
     glb = work / f"{name}.glb"
@@ -505,11 +512,12 @@ def trial(spec, sheet, kind, work, name):
     problem = pre.stdout if pre.returncode else None
     build = tool("build_unit.py", path, glb, blender=True)
     if not glb.exists():
-        return None, (problem or "") + build.stderr[-400:]
+        return None, (problem or "") + build.stderr[-400:], None
     tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind))
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
     tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), blender=True)
-    return {view: r["iou"] for view, r in report.items()}, problem
+    return ({view: r["iou"] for view, r in report.items()}, problem,
+            {view: r["zones"] for view, r in report.items() if "zones" in r})
 
 
 def tilt_arg(report):
@@ -534,7 +542,7 @@ def numbered(spec):
 def repair(spec, args, brief, work, panels):
     """Pass 0: the preflight's failing rules go back to the model as a patch request.
     A repair is kept only when it still builds; the passes run either way."""
-    scores, problem = trial(spec, args.build, args.kind, work, "pass0")
+    scores, problem, zones = trial(spec, args.build, args.kind, work, "pass0")
     best = "pass0"  # the trial whose renders show the spec held
     for k in range(1, REPAIRS + 1):
         if problem is None:
@@ -549,17 +557,68 @@ def repair(spec, args, brief, work, panels):
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             print(f"repair {k}: rejected reply: {err}")
             continue
-        cur, cur_problem = trial({**spec, "parts": cand}, args.build, args.kind, work, f"repair{k}")
-        if cur is not None:
-            spec, scores, problem, best = {**spec, "parts": cand}, cur, cur_problem, f"repair{k}"
-    return spec, scores, problem, best
+        cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.build, args.kind, work,
+                                            f"repair{k}")
+        # a repair that builds and breaks no rule that held
+        if cur is not None and rules_hold(problem, cur_problem):
+            spec, scores, problem, zones, best = ({**spec, "parts": cand}, cur, cur_problem,
+                                                  cur_zones, f"repair{k}")
+    return spec, scores, problem, zones, best
 
 
-def accepted(prev, cur, view):
-    """The pass's own view must improve and no gated view may slip."""
+def failing_rules(problem):
+    """Names of the rules a preflight report (its stdout, or None when clean) fails. A report
+    with no readable rule line is one unnamed failure, so it never matches a clean one."""
+    if problem is None:
+        return set()
+    return {name for name, result in RULE_LINE.findall(problem) if result == "FAIL"} or {"<unparsed>"}
+
+
+def rules_hold(prev, cur):
+    """No preflight rule that held may start failing: the set of passing rules only grows.
+    Generic by rule name, so rules added to preflight.py are covered without a change here."""
+    return failing_rules(cur) <= failing_rules(prev)
+
+
+def zone_view_holds(prev, cur):
+    """One view's zone report, before and after: the mean, every zone big enough to weigh and
+    every drawn piece may fall only so far. A zone lost whole is a fall of its whole IoU."""
+    from silhouette import ZONE_SHARE
+    if cur["mean"] < prev["mean"] - ZONE_DROP:
+        return False
+    zone_lost = any(z["share"] >= ZONE_SHARE and cur["zones"].get(k, {"iou": 0.0})["iou"] < z["iou"] - ZONE_LOSS
+                    for k, z in prev["zones"].items())
+    piece_lost = any(cur["pieces"].get(k, 0.0) < v - PIECE_LOSS for k, v in prev["pieces"].items())
+    return not (zone_lost or piece_lost)
+
+
+def zones_hold(prev, cur):
+    """True when no view measured both times lost colour inside its contour."""
+    if not prev or not cur:
+        return True
+    return all(zone_view_holds(prev[v], cur[v]) for v in prev.keys() & cur.keys())
+
+
+def accepted(prev, cur, view, *, zones=(None, None), problems=(None, None)):
+    """The pass's own view must improve, no gated view may slip, no colour zone or drawn piece
+    may be lost (`zones`: before, after) and no preflight rule that held may break
+    (`problems`: before, after)."""
     from silhouette import GATES
     return (cur is not None and cur[view] > prev[view]
-            and all(cur[g] >= prev[g] - REGRESSION for g in GATES))
+            and all(cur[g] >= prev[g] - REGRESSION for g in GATES)
+            and zones_hold(*zones) and rules_hold(*problems))
+
+
+def zone_scores(zones):
+    """{view: {"mean", "cover", "lost", "zones": {hex: iou}}}: the zone numbers worth a log line."""
+    return {v: {**{k: z[k] for k in ("mean", "cover", "lost")},
+                "zones": {h: g["iou"] for h, g in z["zones"].items()}}
+            for v, z in (zones or {}).items()}
+
+
+def zones_of(report):
+    """zone_scores of a silhouette.json report (views without zones are left out)."""
+    return zone_scores({v: r["zones"] for v, r in report.items() if "zones" in r})
 
 
 def run_passes(spec, args, brief, views):
@@ -570,11 +629,12 @@ def run_passes(spec, args, brief, views):
         raise SystemExit(f"--passes takes views from {sorted(AXES)}, got {views}")
     work = args.out / "passes" / f"{args.tag}-{args.id}"
     panels = split(args.build, work / "panels", args.id, layout_of(args.kind))
-    spec, scores, problem, best = repair(spec, args, brief, work, panels)
+    spec, scores, problem, zones, best = repair(spec, args, brief, work, panels)
     if scores is None:
         print("passes: no GLB came out of the sheet spec; skipping refinement")
         return spec
-    log = [{"pass": 0, "view": "sheet", "scores": scores, "preflight": problem is None}]
+    log = [{"pass": 0, "view": "sheet", "scores": scores, "preflight": problem is None,
+            "failing": sorted(failing_rules(problem)), "zones": zone_scores(zones)}]
     print(f"pass 0 sheet  {scores}  preflight {'PASS' if problem is None else 'FAIL'}")
     for n, view in enumerate(views, 1):
         prompt = REFINE.format(view=view, scores=scores, axes=AXES[view],
@@ -586,15 +646,17 @@ def run_passes(spec, args, brief, views):
         try:
             cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images),
                                     palette=spec.get("palette"), extra=extra_names(spec))
-            cur, cur_problem = trial({**spec, "parts": cand}, args.build, args.kind, work, f"pass{n}")
+            cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.build, args.kind,
+                                                work, f"pass{n}")
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
-            cand, why, cur, cur_problem = None, f"rejected reply: {err}", None, None
-        # a pass may not break a preflight that held
-        ok = accepted(scores, cur, view) and (cur_problem is None or problem is not None)
+            cand, why, cur, cur_problem, cur_zones = None, f"rejected reply: {err}", None, None, None
+        ok = accepted(scores, cur, view, zones=(zones, cur_zones), problems=(problem, cur_problem))
         if ok:
-            spec, scores, problem, best = {**spec, "parts": cand}, cur, cur_problem, f"pass{n}"
+            spec, scores, problem, zones, best = ({**spec, "parts": cand}, cur, cur_problem,
+                                                  cur_zones, f"pass{n}")
         log.append({"pass": n, "view": view, "why": why, "scores": cur, "accepted": ok,
-                    "preflight": cur_problem is None})
+                    "preflight": cur_problem is None, "failing": sorted(failing_rules(cur_problem)),
+                    "zones": zone_scores(cur_zones)})
         print(f"pass {n} {view:5} {'ACCEPT' if ok else 'reject'} {cur}  {why}")
     (work / "passes.json").write_text(json.dumps(log, indent=2))
     return spec
@@ -618,9 +680,12 @@ def review(args, glb, layout):
     if not args.no_silhouette:
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
+        summary["zones"] = {"approved": zones_of(report)}
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
+            summary["zones"]["hard"] = zones_of(hard)
+        summary["prop"] = prop_report(args)
         (args.out / "silhouette.json").write_text(json.dumps(summary, indent=2))
     args.summary = summary
     view_dir = args.out / "views" / args.tag
@@ -687,6 +752,50 @@ def iou_rows(summary):
                        ("drift", "drift hard vs approved f/l/b")):
         if summary.get(key):
             out += row(label, summary[key])
+    return out
+
+
+def prop_report(args):
+    """The held prop built and rendered alone, against the props sheet (prop_measure.py):
+    {"parts", "iou", "view", "component"}, or None when the unit has no props sheet. A signal,
+    not a gate: which spec parts are the prop is a heuristic, so a low number warns (PROP_WARN)
+    and the human looks at the compare."""
+    if not args.props.exists() or args.rig != "biped":
+        return None
+    run = tool("prop_measure.py", args.props, args.out / "spec.json", args.out / "prop")
+    try:
+        return json.loads(run.stdout)
+    except ValueError:
+        print(f"prop not measured: {run.stderr.strip()[-200:]}")
+        return None
+
+
+def prop_row(summary):
+    """review.md row for the prop-alone IoU, with a warning under PROP_WARN."""
+    prop = summary.get("prop")
+    if not prop:
+        return ""
+    if prop["iou"] is None:
+        return "| prop alone vs props sheet | no arm-held prop found in the spec |\n"
+    warn = " WARN: the prop is off its drawing" if prop["iou"] < PROP_WARN else ""
+    return (f"| prop alone vs props sheet (parts {','.join(map(str, prop['parts']))}) | "
+            f"{prop['iou']:.3f} ({prop['view']}){warn} |\n")
+
+
+def zone_rows(summary):
+    """review.md rows: colour-zone mean / cover per view and the front's zone IoUs, per sheet."""
+    out = ""
+    for key in ("approved", "hard"):
+        z = summary.get("zones", {}).get(key)
+        if not z:
+            continue
+        views = [v for v in ("front", "left", "back") if v in z]
+        out += (f"| colour zones vs {key}, mean / cover f/l/b | "
+                + " ; ".join(f"{z[v]['mean']:.2f} / {z[v]['cover']:.2f}" for v in views) + " |\n")
+        if "front" in z:
+            lost = f" LOST {', '.join(z['front']['lost'])}" if z["front"]["lost"] else ""
+            out += (f"| zone IoU, front vs {key} | "
+                    + ", ".join(f"{h} {i:.2f}" for h, i in z["front"]["zones"].items()) + f"{lost} |\n")
     return out
 
 
@@ -829,8 +938,8 @@ def main():
         f"| preflight | {'FAIL' if pre.returncode else 'PASS'} |\n"
         f"| tris | {tris}/{lo}-{hi} |\n| materials | {len(mats)} |\n| skins | {skins} |\n"
         f"| anims | {anims} |\n| smear | {smear_pct}% |\n"
-        f"| silhouette (vs approved: the gate) | {'PASS' if sil_ok else 'FAIL'} |\n"
-        f"{iou_rows(args.summary)}\n"
+        f"| silhouette + colour zones (vs approved: the gate) | {'PASS' if sil_ok else 'FAIL'} |\n"
+        f"{iou_rows(args.summary)}{zone_rows(args.summary)}{prop_row(args.summary)}\n"
         f"verdict: **{verdict}**\n\n"
         f"artifacts: spec.json, model.glb, compare.png (vs the approved sheet), compare-hard.png "
         f"(vs the hard sheet), turntable.gif, "

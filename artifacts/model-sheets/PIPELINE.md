@@ -857,3 +857,59 @@ The biped library now comes from KayKit Character Animations 1.1 (CC0, the free 
 same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (draw + release as one
 motion), guns, magic, tools; `ref_capture.py` films animation-only GLBs on its mannequin (Blender 5:
 an action from another file plays through its slot) and joins clips with `A+B`.
+
+## 18.1 Measuring the shape inside the contour (2026-10-26)
+
+n01X hard-v1 against v13: the silhouette rose (front 0.871) while the octagonal chest disc
+vanished, the shoulder pads became one bar and the club/fists lost blocks. Everything moved
+inside the contour, so no silhouette IoU could see it. Three additions, all code, no LLM.
+
+**Colour zones (`silhouette.py`, `render_silhouette.py`).** The sheet's figure pixels are
+k-means clustered (k=4, in a hue/chroma space where lightness weighs 0.35: `zone_feature`)
+into 2-4 zones; outlines are grown over from the zones beside them and a 5x5 mode filter
+removes outline slivers and texture grain. The model is rendered flat, unlit, no AA, with its
+painted texture (`<stem>-zone-{front,left,back}.png`, Standard view transform), its luma
+histogram is matched to the sheet figure's (the render is unlit albedo, the sheet is lit) and
+each pixel takes the nearest sheet zone. Both label maps are normalized exactly like the
+silhouettes (same crop, same mirror variant as `best_match` chose). Per view, in
+`silhouette.json` under `<view>.zones`:
+
+| key | meaning |
+|---|---|
+| `mean` | area-weighted IoU of the zones |
+| `cover` | area-weighted share of each *drawn piece* (connected zone region, >= 0.5 % of the figure) that the model's same-colour zone reaches within 4 px. Unlike the zone IoU it cannot be hidden by a same-colour part elsewhere: the chest disc is one piece, the shoulder pad another |
+| `lost` | zones of >= 3 % of the figure under IoU 0.02: a colour the model lacks entirely (n01N's carapace, n02X's metal trim). A small zone has little weight in `mean`, so it is named here |
+| `zones`, `pieces` | per zone `{iou, share}` and per piece `{"<hex>@x,y": cover}` |
+
+Gate (front and left, vs the approved sheet, `ZONE_GATES`): `mean >= 0.08` and `cover >= 0.30`.
+Calibrated on the 7 hard-v1 GLBs re-rendered (no LLM): lowest values are mean 0.100 (n01N left)
+and cover 0.340 (n01N back); typical 0.15-0.60 / 0.4-0.9. The gate is a floor against a
+wholesale colour miss; absolute zone IoU is low on thin-legged units (spiders) for geometric
+reasons. `lost` only warns. The sharp use is the passes.
+
+**Acceptance proof (n01X, front, chest-disc piece cover, vs hard / vs approved sheet):**
+hard-v1 **0.316 / 0.291**, v13 **1.000 / 1.000**. Whole-figure `cover` is 0.640 vs 0.611 (the
+disc is one piece among many): only the piece level sees it, which is why the passes check pieces.
+
+**Passes (`spec_pipeline.accepted`).** A pass is rejected when, in any of front/left/back, the
+zone `mean` falls > 0.05, a zone of >= 3 % loses > 0.15 IoU (a whole zone lost is a loss of its
+whole IoU), or any drawn piece's cover falls > 0.4 (the hard-v1 -> v13 disc is -0.68). Numbers
+go to `passes.json` (`zones`, `failing`) and the zone/prop rows to `review.md`.
+
+**Preflight rule by rule (item 13).** `run_passes` compared whole preflights (None vs not
+None), so a spec that already failed one rule let a pass break `shoulder_span` again (hfoo,
+n005, n01I, n02X ended with wide shoulders). `failing_rules()` parses the result lines of
+`preflight.py` (`  <rule>  PASS|FAIL`, INFO lines ignored) and `rules_hold()` requires that the
+failing set never grows: the set of passing rules cannot shrink. It is generic by rule name,
+so `box_ceiling`, `decal_place` and any later rule are covered. The pass-0 repair obeys the
+same rule. An unparsable report counts as one failure (`<unparsed>`), never as a pass.
+
+**Prop alone (`prop_measure.py`, review only).** When `refs/<id>/sheet-props.jpg` exists, the
+spec's arm-held prop (a part >= 0.4 H long on an arm/forearm/hand bone, not the arms' own
+material, plus the parts of that bone touching it) is built alone on the static `building`
+rig, rendered front/left and compared, height-normalized, with every drawing of the props
+sheet in 8 orientations (the sheet draws the club lying down). Best IoU goes to `review.md` and
+`silhouette.json` (`prop`): n02X club **0.83**, hfoo spear **0.69**; n005 has no arm-held prop.
+A signal, not a gate (warns under 0.40): which spec parts are the prop is a heuristic.
+ponytail: props worn on spine/pelvis (backpack, tank, lantern) are not measured; add when a
+spec marks its prop parts.
