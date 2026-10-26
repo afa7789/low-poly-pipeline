@@ -133,5 +133,28 @@ class Floating(unittest.TestCase):
         self.assertEqual(PF.floating_parts(parts, RF.parents("spider")), ["leg2.lower"])
 
 
+def rule(out, name):
+    return [line for line in out.splitlines() if line.strip().startswith(name)][0]
+
+
+class Shape(unittest.TestCase):
+    def test_box_ceiling(self):
+        for boxes, want in ((3, "PASS"), (4, "FAIL")):
+            spec = spider_spec()
+            for p in spec["parts"][:boxes]:
+                p[1] = "box"
+            spec["parts"] = spec["parts"][:9]       # 3 of 9 is a third; 4 is over
+            with self.subTest(boxes=boxes):
+                self.assertIn(want, rule(run(spec), "box_ceiling"))
+
+    def test_decal_place(self):
+        for bone, want in (("head", "PASS"), ("body", "FAIL")):
+            spec = spider_spec()
+            part = [p for p in spec["parts"] if p[0] == bone][0]
+            part[5]["decal"] = "eyes8"
+            with self.subTest(bone=bone):
+                self.assertIn(want, rule(run(spec), "decal_place"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,7 +38,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, MATERIAL_SLOTS, ground_fix  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, MATERIAL_SLOTS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -54,8 +54,9 @@ Kinds and dims, exactly:
 - LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. {limb_note}
 - material: the name of one palette slot. Declare 3 to 8 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. SURFACE BY WHAT THE PART IS (a rule, not a suggestion): an animal, insect or arachnid is "chitin" (hard shell), "fur" or "skin" - never "metal", "polished" or "plastic"; "scales" only for a reptile or a fish; a living tree is "bark", worked timber (planks, beams, crates) is "wood"; an ooze or any gooey creature is "slime"; raw meat, tongues and organs are "flesh"; "stone" for rock; "metal"/"polished" only for armour and machines. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
 Sheet colours (code-measured, share of the figure; near-black ink outlines removed): {colours}.
-- PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes) or {{"decal": "eyes8"}} (spider eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face.
-
+- PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes), {{"decal": "eyes8"}} (spider eyes), {{"decal": "face"}} (two eyes and a mouth) or {{"decal": "mask"}} (a dark mask with two glowing eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face. A decal goes ONLY on a part bound to the head (head, jaw, rider.head): eyes on the chest or any other bone are rejected.
+- HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back. Paint the face or mask as a decal on the FRONT face of the head part inside the hood, and push that head part slightly forward of the hood's back wall so the hood does not hide it. Never model the eyes as geometry.
+- BOXES: at most a third of the parts may be kind "box"; prefer prism, frustum, dome or cyl for everything else (the preflight rule box_ceiling fails the spec otherwise).
 """
 
 BUILDING_BRIEF = """You are a technical artist building a low-poly game building in the style of classic Warcraft III. The attached image is a five-view elevation sheet of ONE building: the top row is the front, left and back elevations, the bottom row the right elevation and the roof plan. It is a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: footprint, wall heights, roof line, where each prop sits and where the colour zones are.
@@ -97,7 +98,7 @@ FORM RULES, non-negotiable - these are what keep the model from reading as Minec
 1. No limb is a box. Thighs, shins, upper arms, forearms, necks and torso are prisms with 6 or 8 sides and a taper along their length.
 2. The torso is wider at the shoulders than at the waist (a prism, or two stacked prisms). It is never a cuboid.
 3. Mechanical shoulders are upright slabs (box or frustum), not domes; organic caps may use a dome. Match the concept's part language: a box where the sheet draws a box.
-4. Boxes may be at most a third of the parts, and only as flat plates, boots, shields or weapon heads.
+4. Boxes (kind "box") may be at most a third of the parts (preflight box_ceiling), and only as flat plates, boots, shields or weapon heads.
 5. Nothing is axis-aligned: arms sit 10 to 20 degrees out from the body and slightly bent at the elbow; feet turn 8 to 12 degrees outward.
 6. The silhouette is asymmetric: one arm carries the main prop, the other stays free or carries a smaller one.
 7. Use 22 to 28 parts, and end near {budget} triangles (prism about 28, dome about 28, box 12, cyl 44). Nothing below y = 0.
@@ -482,6 +483,9 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i} below the ground plane")
         if isinstance(p[5], dict) and p[5].get("decal", "eyes2") not in DECALS:
             raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
+    bad = misplaced_decals(parts)
+    if bad:
+        raise ValueError(f"decal on a non-head bone {bad}: eyes and faces go on a head/jaw part")
     return {"parts": parts}
 
 

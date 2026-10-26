@@ -19,6 +19,8 @@ Rules (each one exists because an iteration failed on it):
   ornament_cost  head-wheel geometry <= 22% of the triangle budget (v9: 15% on spokes)
   ground         no part below y = 0
   overlap        each distal limb segment intersects its parent (no floating pieces)
+  box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
+  decal_place    a face decal (eyes, mask...) sits on a head/jaw/face bone, never the chest
 """
 import json
 import math
@@ -75,6 +77,21 @@ def ground_fix(parts):
                 opts[end] = [opts[end][0], opts[end][1] + dip, opts[end][2]]
         lifted.append(p[0])
     return lifted
+
+
+BOX_SHARE = 1 / 3
+FACE_BONES = ("head", "jaw", "face", "skull")
+
+
+def is_face_bone(bone):
+    """head, jaw, rider.head...: the last dotted segment names a face."""
+    return bone.split(".")[-1].startswith(FACE_BONES)
+
+
+def misplaced_decals(parts):
+    """(index, bone) of every decal part whose bone is not a head/face bone."""
+    return [(i, p[0]) for i, p in enumerate(parts)
+            if isinstance(p[5], dict) and p[5].get("decal") and not is_face_bone(p[0])]
 
 
 def is_leg(bone):
@@ -270,6 +287,16 @@ def main():
 
     below = [p[0] for p in parts if boxes[id(p)][0][1] < -0.02]
     checks.append(("ground", not below, f"below y=0: {below or 'none'}"))
+
+    if family != "building":
+        boxes_n = sum(p[1] == "box" for p in parts)
+        checks.append(("box_ceiling", boxes_n <= BOX_SHARE * len(parts) + 1e-9,
+                       f"{boxes_n} of {len(parts)} parts are boxes (max {int(BOX_SHARE * len(parts))}); "
+                       "use prism/frustum/dome/cyl"))
+
+    bad_decals = misplaced_decals(parts)
+    checks.append(("decal_place", not bad_decals,
+                   f"decal off the head: {bad_decals or 'none'} (eyes go on a head/jaw part)"))
 
     floating = floating_parts(parts, RF.parents(family, doc.get("bones")))
     checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))

@@ -101,6 +101,17 @@ class Palette(unittest.TestCase):
         with self.assertRaises(ValueError):
             SP.parse_spec(json.dumps({"parts": [head]}))
 
+    def test_decal_only_on_a_head_bone(self):
+        for bone, ok in (("head", True), ("jaw", True), ("rider.head", True),
+                         ("spine", False), ("arm.L", False)):
+            part = [bone, "prism", [0.2, 0.2, 0.2], [0, 2.4, 0], "iron", {"decal": "mask"}]
+            with self.subTest(bone=bone):
+                if ok:
+                    SP.validate([part], extra=("jaw", "rider.head"))
+                else:
+                    with self.assertRaisesRegex(ValueError, "non-head bone"):
+                        SP.validate([part])
+
     def test_legacy_specs_need_no_palette(self):
         self.assertNotIn("palette", SP.parse_spec(json.dumps({"parts": PARTS})))
 
