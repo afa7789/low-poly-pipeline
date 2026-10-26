@@ -171,6 +171,7 @@ class Rig(unittest.TestCase):
         self.assertIn("Side silhouette", text)
         self.assertNotIn("shoulder span", text)
         self.assertIn("eight-legged", SP.rig_text("spider")[1])
+        self.assertIn("ARCHES", SP.rig_text("spider_high")[1])
 
 
 class HardFirst(unittest.TestCase):
@@ -323,6 +324,21 @@ class TiltArg(unittest.TestCase):
 
     def test_rts_camera_is_a_pair(self):
         self.assertEqual(SP.tilt_arg({"rts": {"tilt": [55, -30]}}), "tilt=rts:55/-30")
+
+
+class CountFigures(unittest.TestCase):
+    def test_blobs_count_and_small_bits_do_not(self):
+        import numpy as np
+        m = np.zeros((200, 200), bool)
+        m[10:90, 10:60] = True
+        self.assertEqual(SP.count_figures(m), 1)
+        m[120:190, 120:190] = True                 # a second figure
+        self.assertEqual(SP.count_figures(m), 2)
+        m[5:9, 150:154] = True                     # a speck is not a figure
+        self.assertEqual(SP.count_figures(m), 2)
+        m[10:90, 62:64] = True                     # a thin gap is closed: still one blob
+        self.assertEqual(SP.count_figures(m), 2)
+        self.assertEqual(SP.count_figures(np.zeros((9, 9), bool)), 0)
 
 
 if __name__ == "__main__":

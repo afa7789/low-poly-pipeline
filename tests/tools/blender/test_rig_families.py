@@ -43,6 +43,15 @@ class Composition(unittest.TestCase):
         _, _, head, tail = next(b for b in RF.SPIDER if b[0] == "body")
         self.assertGreater(abs(tail[2] - head[2]), abs(tail[1] - head[1]))
 
+    def test_high_spider_knees_stand_above_the_back_and_shins_reach_the_floor(self):
+        table = {n: (h, t) for n, _, h, t in RF.SPIDER_HIGH}
+        body_top = max(table["body"][0][1], table["abdomen"][0][1])
+        self.assertEqual([b[0] for b in RF.SPIDER_HIGH], [b[0] for b in RF.SPIDER])
+        for i in range(1, 9):
+            hip, knee = table[f"leg{i}.upper"]
+            self.assertGreater(knee[1], body_top)
+            self.assertAlmostEqual(table[f"leg{i}.lower"][1][1], 0.04)
+
     def test_rider_sits_above_the_mount(self):
         table = dict((n, (h, t)) for n, _, h, t in RF.MOUNTED)
         self.assertGreater(table["rider.spine"][0][1], table["spine.2"][0][1])
@@ -82,7 +91,7 @@ class Clips(unittest.TestCase):
         self.assertEqual(RF.required("building"), {"body"})
 
     def test_walk_loops(self):
-        for fam in ("quadruped", "spider", "serpent"):
+        for fam in ("quadruped", "spider", "spider_high", "serpent"):
             poses = RF.walk(fam)
             first, last = poses[1], poses[max(poses)]
             for bone, value in first.items():

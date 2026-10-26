@@ -950,3 +950,17 @@ spec marks its prop parts.
   head part's front face, pushed slightly ahead of the hood back wall) and BOXES lines.
 - Proof: n005 hard-v1 with the head part swapped for a decal-`mask` frustum in front of the hood:
   two red glowing eyes on a dark face inside the hood, visible from the front in the colour turntable.
+
+### 18.C Reference check and the high-knee spider (2026-10-26)
+
+- **One figure per RTS view.** `spec_pipeline.count_figures(mask)` counts connected blobs of the
+  `silhouette.foreground` key (3 px close, blobs under 10% of the foreground ignored).
+  `ensure_rts` now redraws up to 3 times while the count is above 1, then warns and goes on.
+  `python3.14 tools/blender/spec_pipeline.py --check-rts` lists the count of every
+  `refs/*/*-rts.jpg` (all 1 except `n00U/sheet-rts.jpg`, still 3 spiders). n01N `sheet-rts.jpg`
+  was 3 and was redrawn (the bad pair is not kept in the repo).
+- **Rig family `spider_high`**: the spider's bones with the knee 0.55 above the back line
+  (`_legs(arch=...)`): femur up and out, tibia down to the floor, as in the n01N sheet. Clips
+  are the spider's (retargeted references with foot IK, keyed combos), so `spider` is
+  untouched; `data/unit_anim.tsv` has n01N on `spider_high` and `RIG_TEXT` tells the spec author
+  about the arch. Look at it: `python3.14 tools/blender/rig_storyboard.py <out> spider_high`.

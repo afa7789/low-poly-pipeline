@@ -40,18 +40,22 @@ BIPED = [
 ]
 
 
-def _legs(n, parent, body_y, body_r, reach, up=0.55, phase=0.0):
-    """A ring of legs around the body: the generic arthropod plan."""
+def _legs(n, parent, body_y, body_r, reach, up=0.55, phase=0.0, arch=None):
+    """A ring of legs around the body: the generic arthropod plan. `arch` lifts the knee
+    that far ABOVE the hip (femur up and out, tibia down to the ground) instead of
+    letting it sag below it."""
     bones = []
     for i in range(n):
         a = phase + 2 * math.pi * i / n
         hx, hz = math.cos(a) * body_r, math.sin(a) * body_r
-        kx, kz = math.cos(a) * (body_r + reach * 0.55), math.sin(a) * (body_r + reach * 0.55)
+        kr = body_r + reach * (0.55 if arch is None else 0.4)
+        kx, kz = math.cos(a) * kr, math.sin(a) * kr
+        ky = body_y - up * 0.45 if arch is None else body_y + arch
         fx, fz = math.cos(a) * (body_r + reach), math.sin(a) * (body_r + reach)
         tag = f"leg{i + 1}"
         bones += [
-            (f"{tag}.upper", parent, (hx, body_y, hz), (kx, body_y - up * 0.45, kz)),
-            (f"{tag}.lower", f"{tag}.upper", (kx, body_y - up * 0.45, kz), (fx, 0.04, fz)),
+            (f"{tag}.upper", parent, (hx, body_y, hz), (kx, ky, kz)),
+            (f"{tag}.lower", f"{tag}.upper", (kx, ky, kz), (fx, 0.04, fz)),
         ]
     return bones
 
@@ -62,6 +66,10 @@ SPIDER = ([("root", None, (0, 0, 0), (0, 0.25, 0)),
            ("head", "body", (0, 0.58, 0.35), (0, 0.52, 0.72)),
            ("abdomen", "body", (0, 0.66, -0.15), (0, 0.74, -0.85))]
           + _legs(8, "body", 0.60, 0.34, 0.78, phase=math.pi / 8))
+
+# same bones as SPIDER, legs arched like the n01N sheet: the knee stands 0.55 above the
+# back line of the body and the shin comes down to the floor
+SPIDER_HIGH = SPIDER[:4] + _legs(8, "body", 0.60, 0.34, 0.78, phase=math.pi / 8, arch=0.55)
 
 QUADRUPED = [("root", None, (0, 0, 0), (0, 0.3, 0)),
              ("spine.1", "root", (0, 1.00, -0.55), (0, 1.10, 0.00)),
@@ -258,7 +266,7 @@ RAY = ([("root", None, (0, 0, 0), (0, 0.3, 0)),
 BUILDING = [("root", None, (0, 0, 0), (0, 0.3, 0)),
             ("body", "root", (0, 0, 0), (0, 4.0, 0))]
 
-FAMILIES = {"building": BUILDING, "biped": BIPED, "spider": SPIDER, "quadruped": QUADRUPED,
+FAMILIES = {"building": BUILDING, "biped": BIPED, "spider": SPIDER, "spider_high": SPIDER_HIGH, "quadruped": QUADRUPED,
             "serpent": SERPENT, "vehicle": VEHICLE, "drake": DRAKE, "harpy": HARPY,
             "wyrm": WYRM, "mounted": MOUNTED, "mounted_flyer": MOUNTED_FLYER, "naga": NAGA,
             "centaur": CENTAUR, "wraith": WRAITH, "pod": POD, "shard": SHARD,
@@ -266,7 +274,7 @@ FAMILIES = {"building": BUILDING, "biped": BIPED, "spider": SPIDER, "quadruped":
             "hydra": HYDRA, "crew": CREW, "crawler": CRAWLER, "crustacean": CRUSTACEAN,
             "bird": BIRD, "bird_rider": BIRD_RIDER, "ray": RAY}
 # bones a spec may leave out: tails are always optional (see required())
-OPTIONAL = {"spider": {"abdomen"}, "drake": {"jaw"}, "mounted_flyer": {"jaw"},
+OPTIONAL = {"spider": {"abdomen"}, "spider_high": {"abdomen"}, "drake": {"jaw"}, "mounted_flyer": {"jaw"},
             "vehicle": {"wheel1", "wheel2", "wheel3", "wheel4"}, "shard": {"plate.2", "plate.3"},
             "aircraft": {"prop", "rudder"}, "tracked": {"arm.L", "arm.R"}}
 
