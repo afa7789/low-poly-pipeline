@@ -978,3 +978,13 @@ again. The verdict also pinned `anims == 4`; animated rigs now carry 5-7 (`prefl
 shared with `check_gates.py --static` for rigs without clips). The §18.B1 zone thresholds
 were calibrated on the swung renders, so they are a floor: at rest the n01X views give
 mean 0.39-0.49 and cover 0.80-0.85.
+
+### 18.D Spec author on the local Claude Code login (2026-10-26)
+
+`--model session:<opus|sonnet|...>` sends every spec-author call (the first spec, the repairs
+and the per-view passes) to a one-shot `claude -p` instead of the ppq.ai chat API, so it runs
+on the Claude Code login with no API credit. Same brief, same images (listed by path and read
+with the Read tool), same reply parsing; any other `--model` value stays on the API.
+`review.md` records the model as given. The call runs in an empty temp dir with no setting
+sources, so no project CLAUDE.md, hooks or MCP servers reach the spec author. Image generation
+(`generate.py`, nano-banana) stays on the API.
