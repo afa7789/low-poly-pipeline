@@ -858,6 +858,8 @@ same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (
 motion), guns, magic, tools; `ref_capture.py` films animation-only GLBs on its mannequin (Blender 5:
 an action from another file plays through its slot) and joins clips with `A+B`.
 
+## 18. Before v2-hard (2026-10-26)
+
 ### 18.A Cel texture, organic surfaces, unlit review renders (2026-10-26)
 
 The game draws albedo only, so the hard sheet's flat facets have to live in the texture.
@@ -877,7 +879,7 @@ The game draws albedo only, so the hard sheet's flat facets have to live in the 
   as the game does. Pass `lit` to either script for the old key/fill look. Silhouette masks and the
   matcap `turntable.py` (form only) are unchanged.
 
-## 18.1 Measuring the shape inside the contour (2026-10-26)
+### 18.B1 Measuring the shape inside the contour (2026-10-26)
 
 n01X hard-v1 against v13: the silhouette rose (front 0.871) while the octagonal chest disc
 vanished, the shoulder pads became one bar and the club/fists lost blocks. Everything moved
