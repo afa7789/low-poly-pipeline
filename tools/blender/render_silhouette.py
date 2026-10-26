@@ -22,6 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from views import RTS, TILTED, TILTS, VIEWS, camera, rts_offset  # noqa: E402
 
 D = math.radians
+ZONE_VIEWS = ("front", "left", "back")
 
 
 def bounds():
@@ -33,6 +34,23 @@ def bounds():
             p = obj.matrix_world @ mathutils.Vector(corner)
             lo, hi = mathutils.Vector(map(min, lo, p)), mathutils.Vector(map(max, hi, p))
     return (lo + hi) / 2, (hi - lo)
+
+
+def zones(scene, cam, centre, out, stem):
+    """<stem>-zone-<view>.png: front/left/back in flat material colours, no light and no
+    anti-aliasing (every pixel is one slot's colour), for silhouette.py's colour zones.
+    Run after the silhouette shots: it changes the shading and leaves it changed."""
+    scene.display.render_aa = "OFF"
+    scene.view_settings.view_transform = "Standard"   # the default tone map darkens every colour
+    scene.display.shading.color_type = "TEXTURE"
+    for name in ZONE_VIEWS:
+        offset, rot = camera(name)
+        cam.location = centre + mathutils.Vector(offset)
+        cam.rotation_euler = (D(rot[0]), D(rot[1]), D(rot[2]))
+        scene.render.filepath = str(out / f"{stem}-zone-{name}.png")
+        bpy.ops.render.render(write_still=True)
+    scene.display.render_aa = "8"
+    scene.display.shading.color_type = "SINGLE"
 
 
 def main():
@@ -87,6 +105,7 @@ def main():
         cam.data.ortho_scale = span
         scene.render.filepath = str(out / filename)
         bpy.ops.render.render(write_still=True)
+    zones(scene, cam, centre, out, stem)
     for elev, azim in RTS:
         cam.location = centre + mathutils.Vector(rts_offset(elev, azim))
         cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()

@@ -215,6 +215,94 @@ class Accepted(unittest.TestCase):
         self.assertFalse(SP.accepted(self.PREV, None, "left"))
 
 
+def report(*fails):
+    """A preflight stdout: three rules, the named ones FAIL (what preflight.py prints)."""
+    rules = ["shoulder_span", "feet_mass", "box_ceiling"]
+    lines = "".join(f"  {r.ljust(13)}  {'FAIL' if r in fails else 'PASS'}  detail 1.0\n" for r in rules)
+    return lines + "  tri_mix        INFO  legs+feet 40%\n\n1/3 rules pass\n"
+
+
+class PreflightRules(unittest.TestCase):
+    def test_failing_rules_by_name(self):
+        self.assertEqual(SP.failing_rules(None), set())
+        self.assertEqual(SP.failing_rules(report("shoulder_span", "box_ceiling")),
+                         {"shoulder_span", "box_ceiling"})
+
+    def test_unparseable_report_counts_as_a_failure(self):
+        self.assertEqual(SP.failing_rules("Traceback ..."), {"<unparsed>"})
+
+    def test_rule_that_passed_may_not_start_failing(self):
+        cases = [("fixes one", report("shoulder_span", "feet_mass"), report("feet_mass"), True),
+                 ("same failures", report("feet_mass"), report("feet_mass"), True),
+                 ("breaks one that held", report("feet_mass"), report("feet_mass", "shoulder_span"), False),
+                 ("swaps one for another", report("feet_mass"), report("shoulder_span"), False),
+                 ("preflight clean before and after", None, None, True),
+                 ("clean spec breaks a rule", None, report("box_ceiling"), False),
+                 ("a rule this module never heard of", report(), report() + "  new_rule  FAIL  x\n", False)]
+        for label, prev, cur, want in cases:
+            with self.subTest(label):
+                self.assertIs(SP.rules_hold(prev, cur), want)
+
+    def test_accepted_checks_the_rules(self):
+        prev = {"front": 0.7, "left": 0.65}
+        cur = {"front": 0.75, "left": 0.65}
+        self.assertTrue(SP.accepted(prev, cur, "front", problems=(report("feet_mass"), report("feet_mass"))))
+        self.assertFalse(SP.accepted(prev, cur, "front", problems=(report("feet_mass"),
+                                                                    report("feet_mass", "shoulder_span"))))
+
+
+def zones(mean=0.5, pieces=None, gold=0.6, share=0.3):
+    """One view's zone report, the shape silhouette.zone_report writes: a gold zone
+    (`gold` IoU, `share` of the figure) and a grey one."""
+    z = {"#AA8850": {"iou": gold, "share": share}, "#706C68": {"iou": 0.5, "share": 0.6}}
+    return {"mean": mean, "zones": z, "pieces": pieces or {"#AA8850@50,29": 0.9, "#706C68@40,60": 0.8}}
+
+
+class ReviewRows(unittest.TestCase):
+    def test_zone_rows_name_the_lost_zone(self):
+        z = {"front": {"mean": 0.33, "cover": 0.6, "lost": ["#AA8850"], "zones": {"#AA8850": 0.0}}}
+        rows = SP.zone_rows({"zones": {"approved": z}})
+        self.assertIn("0.33 / 0.60", rows)
+        self.assertIn("LOST #AA8850", rows)
+        self.assertEqual(SP.zone_rows({}), "")
+
+    def test_prop_row_warns_only_when_the_prop_is_off(self):
+        row = lambda iou: SP.prop_row({"prop": {"parts": [18, 19], "iou": iou, "view": "left"}})  # noqa: E731
+        self.assertNotIn("WARN", row(0.83))
+        self.assertIn("WARN", row(0.2))
+        self.assertIn("no arm-held prop", SP.prop_row({"prop": {"parts": [], "iou": None}}))
+        self.assertEqual(SP.prop_row({"prop": None}), "")
+
+
+class ZonesHold(unittest.TestCase):
+    PREV = {"front": zones()}
+
+    def test_cases(self):
+        cases = [("same", {"front": zones()}, True),
+                 ("small noise", {"front": zones(0.48, {"#AA8850@50,29": 0.8, "#706C68@40,60": 0.7})}, True),
+                 ("mean falls", {"front": zones(0.40)}, False),
+                 ("a drawn piece (the chest disc) is lost",
+                  {"front": zones(pieces={"#AA8850@50,29": 0.1, "#706C68@40,60": 0.8})}, False),
+                 ("a whole zone is lost", {"front": zones(gold=0.0)}, False),
+                 ("view not measured now", {}, True)]
+        for label, cur, want in cases:
+            with self.subTest(label):
+                self.assertIs(SP.zones_hold(self.PREV, cur), want)
+
+    def test_nothing_to_compare(self):
+        self.assertTrue(SP.zones_hold(None, self.PREV))
+        self.assertTrue(SP.zones_hold(self.PREV, None))
+
+    def test_a_zone_too_small_to_weigh_may_go(self):
+        self.assertTrue(SP.zones_hold({"front": zones(share=0.01)}, {"front": zones(gold=0.0)}))
+
+    def test_accepted_checks_the_zones(self):
+        prev = {"front": 0.7, "left": 0.65}
+        cur = {"front": 0.75, "left": 0.65}
+        self.assertTrue(SP.accepted(prev, cur, "front", zones=(self.PREV, self.PREV)))
+        self.assertFalse(SP.accepted(prev, cur, "front", zones=(self.PREV, {"front": zones(0.3)})))
+
+
 class TiltArg(unittest.TestCase):
     def test_only_tilted_views_are_passed(self):
         report = {"front": {"iou": 0.8, "tilt": 0}, "top": {"iou": 0.7, "tilt": 10},

@@ -26,6 +26,16 @@ CANVAS_H = 256
 CANVAS_W = 384
 VIEWS = ["front", "left", "back", "top"]
 GATES = {"front": 0.75, "left": 0.65}
+# Colour zones (PIPELINE §18): what the silhouette cannot see inside the contour.
+ZONE_VIEWS = ("front", "left", "back")
+PIECE_MIN = 0.005      # a zone piece under this share of the figure is noise, not a part
+INK = 0.15             # sheet pixels this dark are outline, not a zone
+ZONE_GATES = {"mean": 0.08, "cover": 0.30}   # gated views; the lowest of the 7 hard-v1 is 0.100 / 0.368
+LOST = 0.02            # a zone of ZONE_SHARE+ under this IoU is "lost" (the model has none of it)
+ZONE_SHARE = 0.03      # a zone under this share of the figure does not set "min"
+SLACK = 4              # px of tolerance for a part that is there but offset
+SMOOTH = 2             # mode-filter radius on the 256-px canvas
+INK_FILL = 10          # px an outline is grown over from the zones beside it
 
 
 def read_rgba(path, size):
@@ -155,27 +165,44 @@ def read_mask(path):
     return read_rgba(path, 512)[..., 3] > 16
 
 
-def sheet_colours(path, k=6, size=768, seed=0):
-    """The sheet's flat tones, code-measured: k-means over the figure pixels of the
-    front, left and back panels. Ink outlines (near black) are dropped. Returns
-    [(hex, share)] by share, so the spec author picks colours instead of guessing."""
+LUMA = np.array([0.299, 0.587, 0.114])
+LW = 0.35
+
+
+def figure_pixels(path, size=768, seed=0):
+    """Up to 20000 non-ink figure pixels (rgb 0-1) of the front, left and back panels."""
     rgb = read_rgba(path, size)[..., :3].reshape(-1, 3).astype(float) / 255.0
     panels = concept_panels(path, size)
     mask = (panels["front"] | panels["left"] | panels["back"]).reshape(-1)
     px = rgb[mask]
     px = px[px.max(axis=1) > 0.12]
     rng = np.random.default_rng(seed)
-    px = px[rng.choice(len(px), min(len(px), 20000), replace=False)]
-    luma = px @ np.array([0.299, 0.587, 0.114])
-    centres = px[np.argsort(luma)[np.linspace(0, len(px) - 1, k).astype(int)]]
-    for _ in range(12):
-        label = np.argmin(((px[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1)
-        centres = np.array([px[label == i].mean(axis=0) if (label == i).any() else centres[i]
+    return px[rng.choice(len(px), min(len(px), 20000), replace=False)]
+
+
+def kmeans(x, luma, k, iters=12):
+    """(centres, label) of rows x, seeded from k quantiles of their luma."""
+    centres = x[np.argsort(luma)[np.linspace(0, len(x) - 1, k).astype(int)]]
+    for _ in range(iters):
+        label = np.argmin(((x[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1)
+        centres = np.array([x[label == i].mean(axis=0) if (label == i).any() else centres[i]
                             for i in range(k)])
+    return centres, label
+
+
+def hexcolour(c):
+    return "#" + "".join(f"{round(v * 255):02X}" for v in c)
+
+
+def sheet_colours(path, k=6, size=768, seed=0):
+    """The sheet's flat tones, code-measured: k-means over the figure pixels of the
+    front, left and back panels. Ink outlines (near black) are dropped. Returns
+    [(hex, share)] by share, so the spec author picks colours instead of guessing."""
+    px = figure_pixels(path, size, seed)
+    centres, label = kmeans(px, px @ LUMA, k)
     share = np.bincount(label, minlength=k) / len(px)
-    found = [("#" + "".join(f"{round(c * 255):02X}" for c in centres[i]), round(float(share[i]), 3))
-             for i in np.argsort(-share) if share[i] >= 0.02]
-    return found
+    return [(hexcolour(centres[i]), round(float(share[i]), 3)) for i in np.argsort(-share)
+            if share[i] >= 0.02]
 
 
 def model_panels(render_dir, stem):
@@ -193,6 +220,168 @@ def model_panels(render_dir, stem):
     rts = {cam: render_dir / f"{stem}-sil-rts@{cam[0]}_{cam[1]}.png" for cam in RTS}
     panels["rts"] = {cam: read_mask(path) for cam, path in rts.items() if path.exists()}
     return panels
+
+
+def zone_feature(rgb):
+    """Colour as (red-green, yellow-blue, 0.35 x luma) rows: hue and chroma decide a zone,
+    lightness barely does, because the model's render is darker than the sheet's lit tones
+    (a grey plate must still be the sheet's grey, not its dark brown)."""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    return np.stack([r - g, (r + g) / 2 - b, LW * (rgb @ LUMA)], axis=-1)
+
+
+def zone_palette(path, k=4):
+    """(names, centres): the sheet's colour zones, k-means in zone_feature space over its
+    figure pixels. A zone is named by the mean colour of its pixels. Under 2 % is dropped."""
+    px = figure_pixels(path)
+    bg = np.median(read_rgba(path, 768)[0, :, :3], axis=0) / 255.0
+    px = px[np.abs(px - bg).sum(axis=1) > 0.3]   # the anti-aliased halo is not a zone
+    centres, label = kmeans(zone_feature(px), px @ LUMA, k)
+    keep = [i for i in np.argsort(-np.bincount(label, minlength=k)) if (label == i).mean() >= 0.02]
+    return [hexcolour(px[label == i].mean(axis=0)) for i in keep], centres[keep]
+
+
+def nearest(rgb, centres):
+    """Zone index + 1 of every row of an (n, 3) colour array."""
+    return np.argmin(((zone_feature(rgb)[:, None, :] - centres[None]) ** 2).sum(axis=2), axis=1) + 1
+
+
+def match_luma(lit, mask, target):
+    """The render's rgb with its luma histogram matched to the sheet figure's `target`
+    pixels: the render is unlit albedo, the sheet is lit, and zones must not be exposure."""
+    qs = np.linspace(0, 1, 33)
+    luma = lit @ LUMA
+    new = np.interp(luma, np.quantile(luma[mask], qs), np.quantile(target @ LUMA, qs))
+    return np.clip(lit * (new / np.maximum(luma, 1e-3))[..., None], 0, 1)
+
+
+def mode_filter(lab, r=SMOOTH):
+    """Each labelled pixel takes the most common label in its (2r+1)^2 window, outside
+    pixels not counted: outline slivers and texture grain go, a part's blocks stay."""
+    h, w = lab.shape
+    k = 2 * r + 1
+    counts = []
+    for z in range(1, lab.max() + 1):
+        c = np.pad((lab == z).astype(np.int32), r + 1).cumsum(0).cumsum(1)   # summed-area table
+        counts.append(c[k:k + h, k:k + w] - c[:h, k:k + w] - c[k:k + h, :w] + c[:h, :w])
+    return np.where(lab > 0, np.argmax(counts, axis=0) + 1, 0).astype(lab.dtype)
+
+
+def zone_labels(rgb, mask, centres, ink=False):
+    """Zone index + 1 (0 = outside) of every mask pixel: the nearest zone. With
+    `ink` the sheet's black outlines are first grown over from the zones beside them, so a
+    face keeps one label across its drawn edges."""
+    lab = np.zeros(mask.shape, np.int16)
+    px = rgb[mask]
+    idx = nearest(px, centres)
+    if ink:
+        idx[px.max(axis=1) <= INK] = 0
+    lab[mask] = idx
+    for _ in range(INK_FILL if ink else 0):
+        empty = mask & (lab == 0)
+        if not empty.any():
+            break
+        pad = np.pad(lab, 1)
+        near = np.maximum.reduce([pad[:-2, 1:-1], pad[2:, 1:-1], pad[1:-1, :-2], pad[1:-1, 2:]])
+        lab = np.where(empty, near, lab)
+    rest = mask & (lab == 0)   # an outline-only island: fall back to its own colour
+    if rest.any():
+        lab[rest] = nearest(rgb[rest], centres)
+    return lab
+
+
+def components(mask):
+    """Connected pieces of a boolean mask as a list of boolean masks (4-neighbour)."""
+    big = mask.size + 1
+    ids = np.where(mask, np.arange(mask.size).reshape(mask.shape), big)
+    while True:
+        pad = np.pad(ids, 1, constant_values=big)
+        near = np.minimum.reduce([ids, pad[:-2, 1:-1], pad[2:, 1:-1], pad[1:-1, :-2], pad[1:-1, 2:]])
+        near = np.where(mask, near, big)
+        if (near == ids).all():
+            break
+        ids = near
+    return [ids == i for i in np.unique(ids[mask])]
+
+
+def dilate(mask, r):
+    """Boolean mask grown by r pixels (square window)."""
+    for _ in range(r):
+        pad = np.pad(mask, 1)
+        mask = np.logical_or.reduce([pad[i:i + mask.shape[0], j:j + mask.shape[1]]
+                                     for i in range(3) for j in range(3)])
+    return mask
+
+
+def cover(piece, zone):
+    """Share of one drawn piece the model's same-colour zone reaches within SLACK px: a
+    part present but a little off still counts, a part painted in another colour, or not
+    there at all, is ~0. Unlike the zone IoU it cannot be hidden by a same-colour part
+    elsewhere on the figure."""
+    return float((piece & dilate(zone, SLACK)).sum() / piece.sum())
+
+
+def zone_report(concept, model, names):
+    """Per colour zone and per drawn piece, how well the model's flat-colour render covers
+    the concept's. `concept` and `model` are normalized label maps (0 = outside). Returns
+      mean    area-weighted zone IoU
+      lost    zones of >= ZONE_SHARE of the figure under LOST IoU: a colour the model lacks
+              entirely (the carapace, the club) reads ~0 however small its weight
+      cover   area-weighted piece cover (see cover())
+      zones   {hex: {"iou", "share"}}       pieces   {"hex@x,y": cover}  (x, y in % of canvas)"""
+    total = (concept > 0).sum()
+    zones, pieces, areas = {}, {}, {}
+    for z, name in enumerate(names, 1):
+        zc, zm = concept == z, model == z
+        if zc.sum() < PIECE_MIN * total:
+            continue
+        zones[name] = {"iou": round(iou(zc, zm), 4), "share": round(float(zc.sum() / total), 4)}
+        for piece in components(zc):
+            if piece.sum() >= PIECE_MIN * total:
+                ys, xs = np.where(piece)
+                at = f"{name}@{int(100 * xs.mean() / CANVAS_W)},{int(100 * ys.mean() / CANVAS_H)}"
+                pieces[at], areas[at] = round(cover(piece, zm), 4), int(piece.sum())
+    weight = sum(z["share"] for z in zones.values()) or 1.0
+    return {"mean": round(sum(z["iou"] * z["share"] for z in zones.values()) / weight, 4),
+            "lost": [k for k, z in zones.items() if z["share"] >= ZONE_SHARE and z["iou"] < LOST],
+            "cover": round(sum(pieces[k] * areas[k] for k in pieces) / max(sum(areas.values()), 1), 4),
+            "zones": zones, "pieces": pieces}
+
+
+def zone_views(sheet, renders, stem, silhouettes, layout="unit"):
+    """view -> zone_report for front/left/back: the sheet and the model's flat-colour
+    render, both in the sheet's own zones and normalized like the silhouettes.
+    `silhouettes` maps view -> the model mask best_match chose (picks the mirror)."""
+    names, centres = zone_palette(sheet)
+    rgb = read_rgba(sheet, 768)[..., :3] / 255.0
+    panels = concept_panels(sheet, layout=layout)
+    out = {}
+    for view in ZONE_VIEWS:
+        path = renders / f"{stem}-zone-{view}.png"
+        if view not in silhouettes or not path.exists():
+            continue
+        shot = read_rgba(path, 512)
+        lit, mask = shot[..., :3] / 255.0, shot[..., 3] > 16
+        lab = zone_labels(match_luma(lit, mask, rgb[panels[view]]), mask, centres)
+        model = max(variants(mode_filter(normalize(lab)), view), key=lambda v: iou(v > 0, silhouettes[view]))
+        concept = mode_filter(normalize(zone_labels(rgb, panels[view], centres, ink=True)))
+        out[view] = zone_report(concept, model, names)
+    return out
+
+
+def zone_gate(report, zones):
+    """Attach each view's zone report to the silhouette report and print it. On the gated
+    views a mean or cover under ZONE_GATES fails (returned: how many views); a lost zone
+    only warns, it is the passes' acceptance that must not make one."""
+    bad = 0
+    for name, z in zones.items():
+        fails = [m for m, lo in ZONE_GATES.items() if z[m] < lo] if name in GATES else []
+        report[name]["zones"] = {**z, "fails": fails}
+        lost = f"  LOST {','.join(z['lost'])}" if z["lost"] else ""
+        print(f"{name:8} zones mean {z['mean']:.3f}  cover {z['cover']:.3f}  "
+              f"{'FAIL ' + ','.join(fails) if fails else 'ok'}{lost}")
+        bad += bool(fails)
+    return bad
 
 
 def best_match(concept, tilted, name):
@@ -223,7 +412,7 @@ def normalize(mask, target_h=CANVAS_H, canvas_w=CANVAS_W):
     iy = (np.arange(target_h) * h / target_h).astype(int)
     ix = (np.arange(tw) * w / tw).astype(int)
     small = m[iy[:, None], ix[None, :]]
-    out = np.zeros((target_h if target_h == CANVAS_H else CANVAS_H, canvas_w), bool)
+    out = np.zeros((target_h if target_h == CANVAS_H else CANVAS_H, canvas_w), m.dtype)
     y0, x0 = (CANVAS_H - target_h) // 2, (canvas_w - tw) // 2
     out[y0:y0 + target_h, x0:x0 + tw] = small
     return out
@@ -303,7 +492,7 @@ def main():
     model = model_panels(renders, args.glb.stem)
 
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
-    report, bad = {}, 0
+    report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
         best, best_mask, tilt = best_match(concept[name], model[name], name)
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
@@ -318,7 +507,9 @@ def main():
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))
         write_mask(best_mask, args.outdir / f"mask-model-{name}.png", (80, 255, 80))
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")
+        best_masks[name] = best_mask
 
+    bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
     missing = [g for g in GATES if g not in report]
     if missing:
