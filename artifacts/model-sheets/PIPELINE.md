@@ -857,3 +857,22 @@ The biped library now comes from KayKit Character Animations 1.1 (CC0, the free 
 same Rig_Medium as the KayKit characters): melee 1H/2H/dual-wield/unarmed, bow (draw + release as one
 motion), guns, magic, tools; `ref_capture.py` films animation-only GLBs on its mannequin (Blender 5:
 an action from another file plays through its slot) and joins clips with `A+B`.
+
+### 18.A Cel texture, organic surfaces, unlit review renders (2026-10-26)
+
+The game draws albedo only, so the hard sheet's flat facets have to live in the texture.
+- **`--style cel|painted`** (`spec_pipeline.py`, default `cel`; `build_unit.py` arg `style=`, default
+  `painted` so old CLI calls rebuild as before). `cel`: a slot image is three flat tone cells (light /
+  mid / dark = x1.20 / x1.00 / x0.68 of the sheet colour); each face maps into the cell given by its
+  world normal (`surfaces.tone_index`: up > 0.55, down < -0.35, else side). No pattern, no gloss.
+  The surface only nudges the tones (`CEL_SURFACE`: glow stays one tone; slime/flesh brighter tops;
+  bark a darker underside). Decal cells and alpha/glow are untouched. `painted` is the old look.
+- **Surfaces** (painted style): `chitin` is matte now (gloss 0.55 -> 0.10), new `bark` (vertical
+  furrows + a knot per tile), `slime` (drip streaks + wet highlight), `flesh` (veins, moist sheen);
+  `wood` reads as three boards with dark joints and per-board grain.
+- **Brief**: the DSL has an explicit surface-by-kind rule (animals chitin/fur/skin, scales only reptile
+  or fish, living tree bark, timber wood, ooze slime, meat flesh, metal only armour and machines).
+- **Unlit review**: `views.make_unlit()` moves the base colour to Emission and zeroes specular, so
+  `render_unit.py` (all views, wc3, walkleft) and `turntable_color.py` show the pure texture colour,
+  as the game does. Pass `lit` to either script for the old key/fill look. Silhouette masks and the
+  matcap `turntable.py` (form only) are unchanged.

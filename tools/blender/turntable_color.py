@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Colour turntable of one unit GLB: workbench, material colours, flat light, orbiting camera.
 
-    blender -b -P tools/blender/turntable_color.py -- <unit.glb> <out_dir> [frames] [size]
+    blender -b -P tools/blender/turntable_color.py -- <unit.glb> <out_dir> [frames] [size] [lit]
 
 Writes <out_dir>/orbit-000.png ... The matcap turntable shows form only; this one shows the
 palette, which is what decides whether a model reads as its faction.
@@ -12,6 +12,9 @@ import sys
 
 import bpy
 import mathutils
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from views import make_unlit  # noqa: E402
 
 D = math.radians
 
@@ -47,6 +50,8 @@ def main():
         lo, hi = bounds()
     centre, extent = (lo + hi) / 2, hi - lo
 
+    if "lit" not in args[2:]:       # default: texture colour only, like the game
+        make_unlit()
     scene = bpy.context.scene
     scene.view_settings.view_transform = "Standard"
     scene.view_settings.look = "None"

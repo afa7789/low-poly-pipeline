@@ -85,12 +85,43 @@ def _scales(u, v, tx, ty):
 def _chitin(u, v, tx, ty):
     ramp = 0.30 + 0.80 * v ** 1.3
     seams = 1.0 - 0.35 * _bump((v * 4) % 1.0, 0.02, 0.0008)
-    return ramp * seams, 0.55 * _bump(v, 0.78, 0.0012)
+    mottle = 1.0 + 0.06 * np.sin(u * 13 + tx) * np.sin(v * 7 + ty)
+    return ramp * seams * mottle, 0.10 * _bump(v, 0.78, 0.02)      # a creature's matte shell, not armour
 
 
 def _wood(u, v, tx, ty):
-    grain = 1.0 + 0.12 * np.sin(u * 40 + 3 * np.sin(v * 6 + tx))
-    return (0.45 + 0.65 * v) * grain, 0.0
+    # worked timber: three vertical boards, a dark joint between them, grain lines
+    # that wander along each board and a slightly different tone per board
+    board = np.floor(u * 3)
+    bu = (u * 3) % 1.0
+    grain = 1.0 + 0.14 * np.sin(bu * 34 + 5 * np.sin(v * 3 + board * 2.1 + tx))
+    joint = 1.0 - 0.45 * np.clip(1 - np.minimum(bu, 1 - bu) / 0.04, 0, 1)
+    tone = 0.92 + 0.08 * np.sin(board * 2.7 + ty)
+    return (0.45 + 0.65 * v) * grain * joint * tone, 0.0
+
+
+def _bark(u, v, tx, ty):
+    # living bark: deep vertical furrows that drift sideways, one dark knot per tile
+    ridge = (0.5 + 0.5 * np.sin(u * 2 * np.pi * 5 + 1.6 * np.sin(v * 3.1 + tx))) ** 2
+    furrow = 1.0 - 0.40 * (1 - ridge)
+    ku, kv = 0.25 + 0.5 * ((tx * 0.37 + ty * 0.61) % 1.0), 0.30 + 0.4 * ((tx * 0.73 + ty * 0.29) % 1.0)
+    knot = 1.0 - 0.45 * _bump(np.hypot((u - ku) * 1.6, v - kv), 0.0, 0.006)
+    return (0.40 + 0.60 * v) * furrow * knot, 0.0
+
+
+def _slime(u, v, tx, ty):
+    # wet ooze: soft body, vertical drip streaks, a broad wet highlight broken by the streaks
+    streak = 1.0 + 0.10 * np.sin(u * 15 + 3 * np.sin(v * 2 + tx))
+    ramp = 0.60 + 0.50 * v
+    sheen = (0.55 * _bump(v, 0.78, 0.006) + 0.35 * _bump(np.hypot(u - 0.3, v - 0.7), 0.0, 0.004))
+    return ramp * streak, sheen * (0.7 + 0.3 * np.sin(u * 9 + ty))
+
+
+def _flesh(u, v, tx, ty):
+    # raw wet meat: blotchy, dark veins wandering across, a faint moist sheen
+    vein = 1.0 - 0.22 * np.exp(-np.sin(u * 11 + 2.5 * np.sin(v * 6 + tx)) ** 2 / 0.02)
+    blotch = 1.0 + 0.08 * np.sin(u * 5 + ty) * np.sin(v * 4 + tx)
+    return (0.50 + 0.55 * v) * vein * blotch, 0.25 * _bump(v, 0.80, 0.008)
 
 
 def _stone(u, v, tx, ty):
@@ -122,7 +153,8 @@ def _glow(u, v, tx, ty):
 PAINTERS = {
     "metal": (_metal, 1.0), "polished": (_polished, 0.6), "skin": (_skin, 0.7),
     "leather": (_leather, 0.6), "cloth": (_cloth, 1.0), "silk": (_silk, 0.3),
-    "scales": (_scales, 0.5), "chitin": (_chitin, 0.2), "wood": (_wood, 1.0),
+    "scales": (_scales, 0.5), "chitin": (_chitin, 0.3), "wood": (_wood, 1.0),
+    "bark": (_bark, 1.0), "slime": (_slime, 0.5), "flesh": (_flesh, 0.5),
     "stone": (_stone, 1.0), "fur": (_fur, 1.0), "plastic": (_plastic, 0.0),
     "glass": (_glass, 0.0), "glow": (_glow, 1.0),
 }
@@ -138,6 +170,30 @@ def paint(surface, rgb, size=256):
     highlight = tint * base + (1 - tint) * np.ones(3)
     out = base * np.asarray(k)[..., None] + np.asarray(gloss)[..., None] * highlight
     return np.clip(out, 0.0, 1.0)
+
+
+# Cel style: the hard sheet's flat facets. One flat tone per face by orientation (light up,
+# mid on the sides, dark underneath), no pattern, no gloss: a slot image is three flat
+# tone cells (index = tone_index) and every face maps into the cell of its tone.
+# A surface only nudges the three multipliers (default CEL_TONES).
+CEL_TONES = (1.20, 1.0, 0.68)
+CEL_SURFACE = {"glow": (1.0, 1.0, 1.0), "slime": (1.30, 1.0, 0.78), "flesh": (1.25, 1.0, 0.72),
+               "bark": (1.12, 0.95, 0.60)}
+
+
+def tone_index(nz):
+    """Cel tone cell of a face whose unit normal has vertical component nz: 0 up, 1 side, 2 down."""
+    return 0 if nz > 0.55 else (2 if nz < -0.35 else 1)
+
+
+def paint_cel(surface, rgb, size=256):
+    """One slot image in cel style: cells 0..2 hold the flat light/mid/dark tone, the
+    others the mid tone (the decal cells are painted over by the caller)."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES)
+    u, v, tx, ty = _cells(size)
+    cell = (ty * GRID + tx).astype(int)
+    k = np.array(tones + (tones[1],) * (GRID * GRID - 3))[cell]
+    return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
 
 
 # Painted features: eyes and similar marks are texture, not geometry. Each is a list of

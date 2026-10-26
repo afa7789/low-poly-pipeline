@@ -64,3 +64,24 @@ def parse_tilts(arg):
         parts = tuple(int(v) for v in value.split("/"))
         out[name] = parts if len(parts) > 1 else parts[0]
     return out
+
+
+def make_unlit():
+    """Review renders show what the game shows: the texture colour, no light. Every
+    material's base colour (texture or value) moves to Emission and the Principled
+    surface is made black and non-specular, so lights, world and gloss add nothing.
+    Alpha is kept. Blender only: imports bpy when called."""
+    import bpy
+    for mat in bpy.data.materials:
+        bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.use_nodes else None
+        if bsdf is None:
+            continue
+        base, emit = bsdf.inputs["Base Color"], bsdf.inputs["Emission Color"]
+        if base.is_linked:
+            mat.node_tree.links.new(base.links[0].from_socket, emit)
+        else:
+            emit.default_value = base.default_value
+        base.default_value = (0.0, 0.0, 0.0, 1.0)
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+        bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        bsdf.inputs["Roughness"].default_value = 1.0

@@ -38,6 +38,7 @@ MATERIALS["lamp"] = MATERIALS["flame"]
 # material -> painted surface (surfaces.py). The n01X slots above are all "metal",
 # so specs written before the palette existed paint exactly as they did.
 SURFACE = {}
+STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_cel); style=cel on the CLI
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -843,6 +844,7 @@ def nearest_part(meta, co):
 def atlas_uvs(body, meta, block, cols, rows):
     """World-planar UVs per face, into the body-slot cell of its material's block.
     Bipeds use TEX_SLOTS; other rig families spread their bones over the same 8 cells."""
+    SF = sibling("surfaces")
     mesh = body.data
     if not mesh.uv_layers:
         mesh.uv_layers.new(name="UVMap")
@@ -859,9 +861,14 @@ def atlas_uvs(body, meta, block, cols, rows):
         bx, by = block[slot_base[poly.material_index]]
         tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
         axis = max(range(3), key=lambda i: abs(poly.normal[i]))
+        if STYLE == "cel":                      # the face's tone cell, sampled at its centre
+            cell = SF.tone_index(normal_w.z)
+            tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
         for li in poly.loop_indices:
             co = mesh.vertices[mesh.loops[li].vertex_index].co
             lu, lv = (co.x * 0.6, co.y * 0.6) if axis == 2 else ((co.x + co.y) * 0.6, co.z * 0.6)
+            if STYLE == "cel":
+                lu = lv = 0.5
             dec = decal_uv(centre_w, normal_w, world @ co)
             if dec:
                 cell, du, dv = dec
@@ -920,7 +927,8 @@ def texturize(body, meta, size=256):
     atlas_uvs(body, meta, block, cols, rows)
     pixels = np.ones((rows * size, cols * size, 4))
     for base, (bx, by) in block.items():
-        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = SF.paint(
+        paint = SF.paint_cel if STYLE == "cel" else SF.paint
+        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = paint(
             SURFACE.get(base, "metal"), MATERIALS[base][:3], size)
         paint_decals(pixels, SF, bx * size, by * size, size)
     img = bpy.data.images.new("tex_atlas", width=cols * size, height=rows * size, alpha=False)
@@ -1148,7 +1156,10 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
+    global STYLE
     for arg in rest:
+        if arg.startswith("style="):  # style=cel|painted
+            STYLE = arg[len("style="):]
         if arg.startswith("atlas="):
             atlas_path = arg[len("atlas="):]
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette

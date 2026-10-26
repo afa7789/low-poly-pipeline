@@ -52,7 +52,7 @@ Kinds and dims, exactly:
 - "wheel": a torus rim. dims = (major_radius, tube_radius).
 - at = (x, y, z) in metres: +y is UP, +z is FORWARD (towards the viewer in the front view), x is right. The unit stands on y = 0, about {height} m tall.
 - LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. {limb_note}
-- material: the name of one palette slot. Declare 3 to 8 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
+- material: the name of one palette slot. Declare 3 to 8 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. SURFACE BY WHAT THE PART IS (a rule, not a suggestion): an animal, insect or arachnid is "chitin" (hard shell), "fur" or "skin" - never "metal", "polished" or "plastic"; "scales" only for a reptile or a fish; a living tree is "bark", worked timber (planks, beams, crates) is "wood"; an ooze or any gooey creature is "slime"; raw meat, tongues and organs are "flesh"; "stone" for rock; "metal"/"polished" only for armour and machines. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
 Sheet colours (code-measured, share of the figure; near-black ink outlines removed): {colours}.
 - PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes) or {{"decal": "eyes8"}} (spider eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face.
 
@@ -741,6 +741,9 @@ def main():
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
     ap.add_argument("--flat", action="store_true",
                     help="skip the procedural painted texture (on by default)")
+    ap.add_argument("--style", choices=("cel", "painted"), default="cel",
+                    help="texture style: cel = flat tone per face like the hard sheet (default); "
+                         "painted = the older painted gloss and pattern")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")
@@ -797,7 +800,7 @@ def main():
     glb = args.out / "model.glb"
     # the first number is what chamfers may spend up to: the budget ceiling, the same
     # one the gate checks (lo + hi let a box-heavy building chamfer itself to 1100+ tris)
-    extra = [] if args.flat else [str(hi), "nofuse", str(hi), "tex"]
+    extra = [] if args.flat else [str(hi), "nofuse", str(hi), "tex", f"style={args.style}"]
     build = subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"),
                             "--", str(spec_path), str(glb)] + extra, capture_output=True, text=True)
     if not glb.exists():
