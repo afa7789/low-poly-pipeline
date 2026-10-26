@@ -345,3 +345,28 @@ class CountFigures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionAuthor(unittest.TestCase):
+    def test_session_model_goes_to_claude_cli_with_every_image(self):
+        from unittest import mock
+        reply = mock.Mock(stdout=json.dumps({"result": '{"parts": []}', "is_error": False}), stderr="")
+        with mock.patch.object(SP.subprocess, "run", return_value=reply) as run, \
+                mock.patch.object(SP, "ask_api") as api:
+            self.assertEqual(SP.ask("session:sonnet", "BRIEF", ["/a/x.png", "/b/y.png"]), '{"parts": []}')
+        api.assert_not_called()
+        argv, prompt = run.call_args.args[0], run.call_args.kwargs["input"]
+        self.assertEqual(argv[:4], ["claude", "-p", "--model", "sonnet"])
+        self.assertIn("1. /a/x.png", prompt)
+        self.assertIn("2. /b/y.png", prompt)
+        self.assertTrue(prompt.startswith("BRIEF"))
+        self.assertEqual(argv.count("--add-dir"), 2)
+
+    def test_api_model_and_cli_errors(self):
+        from unittest import mock
+        with mock.patch.object(SP, "ask_api", return_value="ok") as api:
+            self.assertEqual(SP.ask("google/gemini-4-argon", "B", []), "ok")
+        api.assert_called_once()
+        bad = mock.Mock(stdout=json.dumps({"result": "limit", "is_error": True}), stderr="")
+        with mock.patch.object(SP.subprocess, "run", return_value=bad), self.assertRaises(RuntimeError):
+            SP.ask("session:opus", "B", [])

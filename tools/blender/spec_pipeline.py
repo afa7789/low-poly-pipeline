@@ -379,7 +379,46 @@ def check_drift(args, layout):
     return drift
 
 
+SESSION = "session:"   # --model session:<claude model> = the local Claude Code login, no API credit
+
+
 def ask(model, brief, images):
+    """The spec author's reply to one prompt plus images: a Claude Code session for
+    `session:<model>`, else the ppq.ai chat API."""
+    if model.startswith(SESSION):
+        return ask_session(model[len(SESSION):], brief, images)
+    return ask_api(model, brief, images)
+
+
+def session_command(model, brief, images):
+    """(argv, stdin prompt) of a one-shot `claude -p` that reads the images (Read only) and
+    answers the brief. The prompt goes on stdin: --add-dir would swallow a trailing one."""
+    paths = [str(pathlib.Path(p).resolve()) for p in images]
+    listing = "\n".join(f"{i}. {p}" for i, p in enumerate(paths, 1))
+    prompt = (f"{brief}\n\nThe images, in order (\"image 1\" is the first): read every one with "
+              f"the Read tool before answering.\n{listing}\n\nAnswer with the reply text only.")
+    dirs = sorted({str(pathlib.Path(p).parent) for p in paths})
+    return (["claude", "-p", "--model", model or "opus", "--tools", "Read", "--allowedTools", "Read",
+             "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config",
+             "--output-format", "json"] + [a for d in dirs for a in ("--add-dir", d)], prompt)
+
+
+def ask_session(model, brief, images):
+    import tempfile
+    with tempfile.TemporaryDirectory() as cwd:     # no project CLAUDE.md, hooks or memory
+        argv, prompt = session_command(model, brief, images)
+        out = subprocess.run(argv, input=prompt, cwd=cwd, capture_output=True, text=True,
+                             timeout=1800)
+    try:
+        r = json.loads(out.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"claude -p failed: {(out.stderr or out.stdout)[-300:]}") from None
+    if r.get("is_error"):
+        raise RuntimeError(f"claude -p error: {str(r.get('result'))[-300:]}")
+    return r.get("result") or ""
+
+
+def ask_api(model, brief, images):
     content = [{"type": "text", "text": brief}]
     content += [{"type": "image_url", "image_url": {"url": data_url(p)}} for p in images]
     body = {"model": model, "max_tokens": 9000, "temperature": 0.2,
@@ -894,7 +933,9 @@ def main():
     ap.add_argument("--with-sheet", action="store_true",
                     help="also send the approved sheet to the spec author (A/B against the "
                          "default, where the hard sheet alone is image 1)")
-    ap.add_argument("--model", default="google/gemini-4-argon")
+    ap.add_argument("--model", default="google/gemini-4-argon",
+                    help="spec author: a ppq.ai model id, or session:<opus|sonnet|...> for the "
+                         "local Claude Code login (no API credit)")
     ap.add_argument("--tag", default="argon", help="spec-author label, recorded in review.md")
     ap.add_argument("--rig", default=None, choices=sorted(RF.FAMILIES),
                     help="skeleton family (rig_families.py); default biped, or building "

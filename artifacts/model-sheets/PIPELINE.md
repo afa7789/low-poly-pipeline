@@ -966,3 +966,13 @@ spec marks its prop parts.
   are the spider's (retargeted references with foot IK, keyed combos), so `spider` is
   untouched; `data/unit_anim.tsv` has n01N on `spider_high` and `RIG_TEXT` tells the spec author
   about the arch. Look at it: `python3.14 tools/blender/rig_storyboard.py <out> spider_high`.
+
+### 18.D Spec author on the local Claude Code login (2026-10-26)
+
+`--model session:<opus|sonnet|...>` sends every spec-author call (the first spec, the repairs
+and the per-view passes) to a one-shot `claude -p` instead of the ppq.ai chat API, so it runs
+on the Claude Code login with no API credit. Same brief, same images (listed by path and read
+with the Read tool), same reply parsing; any other `--model` value stays on the API.
+`review.md` records the model as given. The call runs in an empty temp dir with no setting
+sources, so no project CLAUDE.md, hooks or MCP servers reach the spec author. Image generation
+(`generate.py`, nano-banana) stays on the API.
