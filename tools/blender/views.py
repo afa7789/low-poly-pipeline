@@ -66,6 +66,18 @@ def parse_tilts(arg):
     return out
 
 
+def rest_pose():
+    """Every imported armature in its rest pose. The glTF importer activates the first
+    clip (alphabetically "attack") and leaves the rig on its frame 1; since the clips
+    come from retargeted references that frame is a swing, not the spec, and every
+    silhouette and review view measured the swing (n01X 0.87 -> 0.47 on the same spec).
+    Blender only: imports bpy when called."""
+    import bpy
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE":
+            obj.data.pose_position = "REST"
+
+
 def make_unlit():
     """Review renders show what the game shows: the texture colour, no light. Every
     material's base colour (texture or value) moves to Emission and the Principled

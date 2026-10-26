@@ -35,6 +35,9 @@ PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
 ORNAMENT = ("ring", "wheel")
 MATERIAL_SLOTS = (3, 8)   # one atlas holds every slot, so more materials cost no texture
+# animation clips of an animated rig: idle, walk, attack, death, spell, plus attack2/attack3
+# when the unit's combo has them (PIPELINE §17); static rigs and buildings carry none
+CLIPS = (5, 7)
 # Biped landmarks, as fractions of the height, read in the same height bands the sheet
 # measure uses (silhouette.measure): rows 10-30% from the top are the shoulders, 60-80% the
 # fists, the bottom 5% the stance. Targets come from the unit's own sheet (--sheet); the

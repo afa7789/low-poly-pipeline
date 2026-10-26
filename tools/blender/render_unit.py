@@ -15,7 +15,7 @@ import bpy
 import mathutils
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from views import RTS_DEFAULT, VIEWS, camera, make_unlit, parse_tilts, rts_offset  # noqa: E402
+from views import RTS_DEFAULT, VIEWS, camera, make_unlit, parse_tilts, rest_pose, rts_offset  # noqa: E402
 
 D = math.radians
 
@@ -80,6 +80,7 @@ def main():
     tilts = parse_tilts(next((a[5:] for a in argv[2:] if a.startswith("tilt=")), ""))
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    rest_pose()                     # the importer leaves the rig on clip frame 1
     # the importer links a bone-shape helper called Icosphere; it is not part of the
     # model and its unit sphere drags the bounding box, so the camera framed empty air.
     for o in [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name.startswith("Icosphere")]:
@@ -124,6 +125,7 @@ def main():
     if arm and walk:
         arm.animation_data_create()
         arm.animation_data.action = walk
+        arm.data.pose_position = "POSE"
         scene.frame_set(16)
         frame("walkleft", (-8, 0, 0), (90, 0, -90))
     print("rendered", stem, "->", out)

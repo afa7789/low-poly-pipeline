@@ -14,7 +14,7 @@ import bpy
 import mathutils
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from views import make_unlit  # noqa: E402
+from views import make_unlit, rest_pose  # noqa: E402
 
 D = math.radians
 
@@ -38,6 +38,7 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    rest_pose()                     # the importer leaves the rig on clip frame 1
     # the importer links a bone-shape helper called Icosphere; it is not part of the
     # model and its unit sphere drags the bounding box, so the camera framed empty air.
     for o in [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name.startswith("Icosphere")]:

@@ -966,3 +966,15 @@ spec marks its prop parts.
   are the spider's (retargeted references with foot IK, keyed combos), so `spider` is
   untouched; `data/unit_anim.tsv` has n01N on `spider_high` and `RIG_TEXT` tells the spec author
   about the arch. Look at it: `python3.14 tools/blender/rig_storyboard.py <out> spider_high`.
+
+### 18.E Review renders at rest pose; 5-7 clips (2026-10-26)
+
+Found by rebuilding `runs/draft/n01X/hard-v1/spec.json` on today's code: front 0.47 against
+0.87 on the code that built it. The animation library (§17) changed what the first clip's
+frame 1 looks like, and the glTF importer leaves the rig on it, so every silhouette, view
+and turntable measured a swing. `views.rest_pose()` now runs after every import (the
+`walkleft` shot alone switches back to POSE), and the rebuild gives 0.875 / 0.771 / 0.874
+again. The verdict also pinned `anims == 4`; animated rigs now carry 5-7 (`preflight.CLIPS`,
+shared with `check_gates.py --static` for rigs without clips). The §18.B1 zone thresholds
+were calibrated on the swung renders, so they are a floor: at rest the n01X views give
+mean 0.39-0.49 and cover 0.80-0.85.

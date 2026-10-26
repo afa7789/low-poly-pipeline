@@ -38,7 +38,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, MATERIAL_SLOTS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, MATERIAL_SLOTS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -983,7 +983,7 @@ def main():
 
     sil_ok = review(args, glb, layout)
     ok = (not pre.returncode and lo <= tris <= hi and MATERIAL_SLOTS[0] <= len(mats) <= MATERIAL_SLOTS[1] and skins == 1
-          and anims == (0 if args.rig in RF.STATIC else 4)
+          and (anims == 0 if args.rig in RF.STATIC else CLIPS[0] <= anims <= CLIPS[1])
           and smear_pct <= 0.5 and sil_ok)
     verdict = "PASS" if ok else "CHECK"
     (args.out / "review.md").write_text(

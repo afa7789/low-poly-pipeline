@@ -19,7 +19,7 @@ import bpy
 import mathutils
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from views import RTS, TILTED, TILTS, VIEWS, camera, rts_offset  # noqa: E402
+from views import RTS, TILTED, TILTS, VIEWS, camera, rest_pose, rts_offset  # noqa: E402
 
 D = math.radians
 ZONE_VIEWS = ("front", "left", "back")
@@ -60,6 +60,7 @@ def main():
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    rest_pose()                     # the importer leaves the rig on clip frame 1
     for o in [o for o in bpy.context.scene.objects
               if o.type == "MESH" and o.name.startswith("Icosphere")]:
         bpy.data.objects.remove(o, do_unlink=True)
