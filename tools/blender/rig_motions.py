@@ -455,7 +455,7 @@ SLED["rear"] = {"kind": "spell", "impact": 5, "note": "rears: the front lifts an
                 "keys": {1: REST, 5: {"spine.4": (25, 0, 0), "spine.3": (10, 0, 0), "head": (-15, 0, 0)},
                          8: {"spine.4": (25, 0, 0), "spine.3": (10, 0, 0), "head": (-15, 0, 0)}, 10: REST}}
 
-MOTIONS = {"biped": BIPED, "quadruped": QUADRUPED, "spider": SPIDER, "vehicle": VEHICLE, "tracked": TRACKED,
+MOTIONS = {"biped": BIPED, "quadruped": QUADRUPED, "spider": SPIDER, "spider_high": SPIDER, "vehicle": VEHICLE, "tracked": TRACKED,
            "aircraft": AIRCRAFT, "crew": CREW, "pod": POD, "crawler": CRAWLER, "sled": SLED, "hydra": HYDRA}
 
 # ---------------------------------------------------------------- from reference animations
@@ -713,6 +713,7 @@ REF_MOTIONS["spider"].update({
     "lunge": ("attack", "lunges and strikes with the front legs (TheGameAssets spider, CC-BY-4.0)",
               [("n01N", "Spider_Attack_2", "gameassets_spider")]),
 })
+REF_MOTIONS["spider_high"] = REF_MOTIONS["spider"]     # same legs by name; the foot IK bends the arched knee
 
 
 FAMILIES = sorted(f for f in RF.FAMILIES if f not in RF.STATIC)
@@ -812,6 +813,7 @@ DEFAULTS = {
     "quadruped": _slots("idle", "walk", "bite", "death", "keyed_roar"),
     "mounted": _slots("idle", "walk", "chop", "death", "cast"),
     "spider": _slots("idle", "walk", "bite", "death", "keyed_rear_up"),
+    "spider_high": _slots("idle", "walk", "bite", "death", "keyed_rear_up"),
     "drake": _slots("fly", "glide", "bite", "death", "claw"),
     "mounted_flyer": _slots("fly", "glide", "chop", "death", "cast"),
     "bird": _slots("hover", "fly", "bite", "death", "breath"),

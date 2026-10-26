@@ -142,6 +142,12 @@ RIG_TEXT = {
     "spider": "an eight-legged arthropod: abdomen and thorax mass on body, head and fangs on "
               "head, legs leg1..leg8 (upper, lower) radiating around the body, thin, angled "
               "and touching the ground at y = 0",
+    "spider_high": "a long-legged spider: abdomen and thorax mass on body, head and fangs on "
+                   "head, legs leg1..leg8 (upper, lower) radiating around the body. Each leg ARCHES: "
+                   "the upper segment (femur) leaves the body UP and outward, the knee stands about "
+                   "0.55 ABOVE the back line of the body (y about 1.15, the body being y 0.60), and "
+                   "the lower segment (tibia) drops steeply from the knee to the ground at y = 0, "
+                   "landing about 1.1 from the body axis; every segment thin and angular",
     "serpent": "a limbless body: the head on head, the body a chain of tapering segments "
                "spine.1..spine.8 lying low behind it",
     "vehicle": "a machine: hull mass on hull, turret or cab on head, wheels on wheel1..wheel4 "
@@ -649,12 +655,36 @@ def make_brief(args, lo, hi):
                            measured=measured_text(args.rig, measure(args.build)))
 
 
-def ensure_rts(sheet, building=False):
-    """Draw the gameplay-camera concept from the approved sheet when it is missing:
-    the compare, the silhouette sweep and the rts pass all need it. A failed call is
-    reported and the run goes on without the RTS view."""
+RTS_TRIES = 3          # image-to-image draws per RTS view before the warning
+FIGURE_MIN = 0.10      # a blob smaller than this share of the foreground is a shadow or a prop bit
+
+
+def count_figures(mask, min_share=FIGURE_MIN):
+    """Figures drawn in a foreground mask: connected blobs (after a 3 px close, so a thin
+    leg does not detach) holding at least `min_share` of the foreground. A good RTS view
+    is 1; n01N once came out as three spiders."""
+    import numpy as np
+    from scipy import ndimage as ndi
+    lab, n = ndi.label(ndi.binary_dilation(mask, iterations=3))
+    if not n:
+        return 0
+    area = np.bincount(lab.ravel())[1:]
+    return int((area >= min_share * area.sum()).sum())
+
+
+def rts_figures(path):
+    """count_figures of an RTS image on disk, keyed like the silhouette gate."""
+    from silhouette import foreground
+    return count_figures(foreground(path, 512))
+
+
+def ensure_rts(sheet, building=False, force=False):
+    """Draw the gameplay-camera concept from the approved sheet when it is missing (or
+    `force`): the compare, the silhouette sweep and the rts pass all need it. The draw is
+    repeated up to RTS_TRIES times while it shows more than one figure; a failed call or a
+    still-crowded image is reported and the run goes on with it."""
     from silhouette import rts_path
-    if rts_path(sheet).exists():
+    if rts_path(sheet).exists() and not force:
         return True
     sheets = ROOT / "artifacts/model-sheets"
     if building:
@@ -663,12 +693,26 @@ def ensure_rts(sheet, building=False):
         # a hard sheet keeps its facets in the gameplay camera: same angle, same blockout
         hard = "hard" in sheet.stem
         template = TEMPLATES / ("00-template-rts-hard.txt" if hard else "00-template-rts.txt")
-    gen = subprocess.run([sys.executable, str(sheets / "generate.py"), str(template),
-                          "--image", str(sheet), "--out", str(sheet.parent),
-                          "--name", rts_path(sheet).stem, "--resolution", "1K"],
-                         capture_output=True, text=True)
-    print(gen.stdout.strip() or f"rts view not drawn: {gen.stderr.strip()[-200:]}")
-    return rts_path(sheet).exists()
+    for attempt in range(1, RTS_TRIES + 1):
+        gen = subprocess.run([sys.executable, str(sheets / "generate.py"), str(template),
+                              "--image", str(sheet), "--out", str(sheet.parent),
+                              "--name", rts_path(sheet).stem, "--resolution", "1K"],
+                             capture_output=True, text=True)
+        print(gen.stdout.strip() or f"rts view not drawn: {gen.stderr.strip()[-200:]}")
+        if not rts_path(sheet).exists():
+            return False
+        figures = rts_figures(rts_path(sheet))
+        if figures == 1:
+            return True
+        print(f"rts view {rts_path(sheet).name}: {figures} figures (try {attempt}/{RTS_TRIES})")
+    print(f"WARNING: {rts_path(sheet).name} still shows {figures} figures; the rts view may mislead")
+    return True
+
+
+def check_rts(refs=None):
+    """{image name: figures} for every existing RTS view under refs/ (one is right)."""
+    return {f"{p.parent.name}/{p.name}": rts_figures(p)
+            for p in sorted((refs or REFS).glob("*/*-rts.jpg"))}
 
 
 MSHEETS = ROOT / "artifacts/model-sheets"
@@ -708,6 +752,10 @@ def resolve_paths(args):
 
 
 def main():
+    if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
+        for name, n in check_rts().items():
+            print(f"{n} {name}")
+        return
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
     ap.add_argument("--race", required=True)
