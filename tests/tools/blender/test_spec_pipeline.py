@@ -338,6 +338,8 @@ class CountFigures(unittest.TestCase):
         self.assertEqual(SP.count_figures(m), 2)
         m[10:90, 62:64] = True                     # a thin gap is closed: still one blob
         self.assertEqual(SP.count_figures(m), 2)
+        m[85:89, 55:125] = True                    # two figures touching by a leg: still two
+        self.assertEqual(SP.count_figures(m), 2)
         self.assertEqual(SP.count_figures(np.zeros((9, 9), bool)), 0)
 
 

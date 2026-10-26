@@ -726,15 +726,17 @@ def make_brief(args, lo, hi):
 
 RTS_TRIES = 3          # image-to-image draws per RTS view before the warning
 FIGURE_MIN = 0.10      # a blob smaller than this share of the foreground is a shadow or a prop bit
+FIGURE_ERODE = 9   # px at 512: splits n00U's touching spiders, keeps all 21 good RTS at 1
 
 
 def count_figures(mask, min_share=FIGURE_MIN):
-    """Figures drawn in a foreground mask: connected blobs (after a 3 px close, so a thin
-    leg does not detach) holding at least `min_share` of the foreground. A good RTS view
-    is 1; n01N once came out as three spiders."""
+    """Figures drawn in a foreground mask: connected blobs holding at least `min_share` of
+    the foreground, after a FIGURE_ERODE px erosion so figures touching by a leg tip still
+    count apart (loose legs fall under `min_share`). A good RTS view is 1; n01N once came
+    out as three spiders, n00U's hard RTS as three spiders touching legs."""
     import numpy as np
     from scipy import ndimage as ndi
-    lab, n = ndi.label(ndi.binary_dilation(mask, iterations=3))
+    lab, n = ndi.label(ndi.binary_erosion(mask, iterations=FIGURE_ERODE))
     if not n:
         return 0
     area = np.bincount(lab.ravel())[1:]
