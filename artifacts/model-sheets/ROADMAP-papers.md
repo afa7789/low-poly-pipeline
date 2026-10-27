@@ -170,6 +170,8 @@ Regras iguais às da leva 1: medir antes de gatear (regra nova nasce como relat�
 
 # Leva 3 (2026-10-27, noite) — acoplamento apertado: o autor edita, não inventa
 
+**Estado (2026-10-27, madrugada):** F1-F7 integrados (PIPELINE §21), bateria v7 (+ v7-r2 com o vermelho decidindo) e generalidade em n02X (PASS) e hfoo (CHECK). Defaults: massing ligado (4 fatias), fit largo, variants 3, few-shot, vermelho em margem/fit/status. Opt-in: `LATHE_MASSING`, `LEG_GROW`, `--fit-edges`, `--fit-fast`, turntable (só n01X coerente).
+
 Diagnóstico do v6: as áreas vermelhas (sheet sem modelo) e verdes (modelo fora do sheet) ainda são grandes porque
 (1) o autor escreve a massa do zero, (2) caixa/prisma não fazem capuz, manga, abdômen, (3) o fit é estreito
 (3 vistas, dims/at ±10 %), (4) só medimos IoU, não "quanto sobrou vermelho". Ordem nova do pipeline:
