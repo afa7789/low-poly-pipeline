@@ -2968,3 +2968,44 @@ silhouette.py com render real, antes = union, depois = union deformada; tabela c
 - Fora: top/bottom puxados por default (só opt-in), `cotangent` (Laplaciano uniforme; trocar se a malha ganhar anéis regulares no L6-1),
   Chamfer 3D, qualquer termo de aresta interna (L6-12 entra depois deste passo).
 - Papers: Sketch2Mesh 2021 (§3.3 Chamfer de contornos externos, Fig. 2c, Eq. 6), Wiersma 2026 (slivers, recusa de inversão).
+
+### 24.L6-12 Chen/Sketch2Mesh: alinhamento de features ao desenho (2026-10-27) - NEGATIVO, opt-in `--align`
+
+**O que mudou.** `tools/blender/align_features.py <glb> <sheet.jpg> <sheet-hard.jpg> <out.glb>` (python3.14, sem Blender; mesma
+leitura/escrita de GLB do `deform_to_sheet`, que ganhou `transform(glb, out, fn)` extraído de `run`, sem mudar comportamento).
+1. Arestas vivas: arestas da malha soldada com 2 faces e ângulo diedro > 35° (faces de área quase zero não contam).
+2. Por vista (front/left/back, câmeras e espelho de `deform_to_sheet.make_views` sobre o `sheet.jpg`): vértices de arestas vivas cujas
+   DUAS faces olham a câmera (normal · direção da câmera > 0.2; sem teste de oclusão) são projetados no canvas e puxados no
+   plano da vista para o pixel mais próximo de `silhouette.edges(sheet-hard.jpg)` (mesmo canvas de `fit_spec.edge_term`),
+   só se estiver a < 0.06 H, no máximo 0.02 H por passo. Peso do puxão 3 contra "ficar" 1 nos demais; interior pelo mesmo
+   Laplaciano uniforme (`deform_to_sheet.solve`). Solas (2 % H) não mudam de altura.
+3. Passo recusado (tenta 1, 1/2, 1/4) se: vira face, slivers sobem > 2 pp, `flipped` (contagem do gate do mesh_lint, na malha
+   soldada) sobe, qualquer das 5 vistas (f/l/b/top/bottom) cai > 0.005 de IoU contra o `sheet.jpg`, ou a distância média dos
+   vértices de aresta viva às arestas desenhadas (cortada em 0.06 H) não cai. 3 rodadas.
+4. Gancho: `spec_pipeline.ALIGN_FEATURES` (`--align` / `--no-align`), `align_features.apply` logo depois de `deform_to_sheet.apply`
+   em `stage_shape` e em `colour_stage.build_textured`; guarda `clay-prealign.glb` e `clay.align.json`. Só roda com `UNION_BODY`
+   e hard sheet. **Default `False`** (resultado abaixo).
+
+**Prova sem LLM** (união + deformação do L6-5 dos v9-r1 como entrada; Blender `render_wire.py` antes/depois,
+`silhouette.edge_report(sheet-hard.jpg, wire)`; wires lado a lado em `scratchpad/leva6-features/wire-before-after.png`,
+por unidade `<id>/wire-{deformed,aligned}/`):
+
+| unidade | passos/recusas | custo vértice-aresta f/l/b (interno) | edge_chamfer `drawn` f/l/b (hard→wire real) | IoU f/l/b depois-antes | slivers % | flipped |
+|---|---|---|---|---|---|---|
+| n01X | 3/6 | .0120→.0100 / .0137→.0101 / .0124→.0121 | .0290→.0313 / .0274→.0235 / .0295→.0330 | +.002/+.006/+.003 | 23.8→24.0 | 3→3 |
+| n005 | 2/7 | .0248→.0219 / .0236→.0235 / .0206→.0186 | .0163→.0211 / .0151→.0178 / .0209→.0277 | +.004/−.006/+.004 | 29.4→29.3 | 0→0 |
+| n02X | 1/8 | .0208→.0209 / .0218→.0219 / .0233→.0214 | .0300→.0284 / .0472→.0265 / .0433→.0434 | −.005/+.002/−.004 | 24.1→24.1 | 0→0 |
+| hfoo | 1/8 | .0177→.0176 / .0173→.0174 / .0217→.0198 | .0167→.0113 / .0163→.0163 / .0211→.0164 | −.000/+.000/−.001 | 27.7→27.3 | 0→0 |
+
+- IoU das 6 vistas: nenhuma se move mais que .006 (top/bottom/rts ≤ .005). `flipped` não sobe, slivers ±0.4 pp.
+- **Negativo:** o `edge_chamfer` do wire real melhora em 2 de 4 unidades (n02X, hfoo: f/l/b médio −.0074 e −.0034) e fica igual/PIORA nas outras
+  2 (n01X +.0006, n005 +.0048): média das 4 −.0014, dentro do ruído. A métrica é dominada pela triangulação (~700 tris cobrem o
+  canvas com linhas a ~.02 H umas das outras; um deslocamento ≤ 0.02 H de poucos vértices é do tamanho do erro) e o wire real tem
+  linhas de sliver compridas e escolha de espelho que o passo não enxerga. Uma proxy do wire (faces visíveis pintadas de trás para
+  frente, mesmo canvas) tentada como guarda não previu o sinal do wire real (0.007-0.02 contra .016-.047) e foi retirada. Só 1 a 3 de
+  9 passos por unidade são aceitos: o resto bate em `flipped`/IoU/custo.
+- Não feito: occlusão real na visibilidade (só normal); peso maior (WEIGHT 3) e mais rodadas; arestas que o desenho tem e a malha
+  não (nenhuma aresta viva perto: o termo só desloca arestas que já existem; criar faceta é papel do L6-7 / fit).
+- Testes: `tests/tools/blender/test_align_features.py` (arestas vivas, visibilidade, puxão com teto e sola, sem desenho nada
+  se mexe, `apply` só com as chaves). Ruff: sem achados novos.
+- Papers: Chen 2023 §4 (alinhamento de features), Sketch2Mesh 2021 (Chamfer de arestas internas com distance transform).
