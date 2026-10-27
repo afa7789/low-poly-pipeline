@@ -1015,3 +1015,16 @@ Gates, clay rebuilds of the 22 existing specs (7 hard-v1, 14 v2-hard-r1/r2, n01X
 Front/left stay at 0.75/0.65 (no evidence to move them); the new gates sit about 0.05-0.10 under
 the weakest n01X view. All four n01X runs pass; only n005 hard-v1 passes elsewhere (every other
 unit fails at least one view, n01N all six). `--texture` replaces `--style` (kept as an alias).
+
+### 18.G Professional compare (2026-10-26)
+
+`make_compare.py` now draws one grid per run: a row per view (front, left, back, top, bottom,
+rts), columns concept | clay | overlay | textured, a footer per row with the view's numbers
+(IoU, gate, 32 px, L1, tilt, zones) and a header with unit, run, spec author and the verdict per
+stage. Overlay: concept green, model red, hit grey, drawn from `sil/<against>/mask-*`.
+`compare_runs.py <out> <run>...` lays the runs side by side on the same grid (concept first, then
+one column per run; `--show textured|clay|overlay`). Both read only run-directory files (contract
+in the `make_compare.py` docstring); the spec_pipeline call is unchanged. The clay column needs
+`views/<tag>/clay-<view>.png` (rts: `clay-wc3.png`); until S1 writes it the cell is empty with a
+warning. Stage verdicts are read from `review.md` lines naming "stage 1"/"stage 2" with PASS/FAIL
+(older runs show n/a). Text is drawn with Pillow, which `python3.14` must have installed.
