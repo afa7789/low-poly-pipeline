@@ -145,6 +145,109 @@ def concept_panels(path, size=768, layout="unit"):
     return panels
 
 
+# F6 turntable (PIPELINE 21.F6): refs/<id>/sheet-turn.jpg is a 4 x 2 grid read left to right, top row first,
+# one drawing per 45 deg of azimuth from the front (0 = front, 90 = the unit's left, 180 = back, 270 = right).
+TURN_ANGLES = (0, 45, 90, 135, 180, 225, 270, 315)
+TURN_H_TOL = 0.10      # panel heights (all 8) and mirrored-pair widths within +-10 % of the median / of each other
+TURN_MIRROR = 0.85     # IoU of a panel with the mirror of its opposite
+TURN_PAIRS = ((0, 180), (90, 270))   # gated pairs; (45, 315) and (135, 225) are reported only
+
+
+def turn_panels(path, width=1024):
+    """angle -> boolean mask of the 8 panels of a turntable sheet, all in the coordinates of one
+    `width`-wide keyed image (native aspect: a 2:1 sheet is not squeezed square). Rows are split on the
+    widest empty band, each row's 4 columns on its 3 widest empty bands (equal quarters when missing)."""
+    from PIL import Image
+    img = Image.open(path).convert("RGB")
+    rgb = np.asarray(img.resize((width, round(width * img.height / img.width)), Image.LANCZOS), dtype=np.int16)
+    border = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
+    fg = np.abs(rgb - np.median(border, axis=0)).sum(axis=2) > 30
+    h, w = fg.shape
+    rows = [r for r in gaps(fg, 1, 0, h) if r[0] > 0.2 * h and r[1] < 0.8 * h]
+    mid = sum(max(rows, key=lambda r: r[1] - r[0])) // 2 if rows else h // 2
+    panels = {}
+    for r, (y0, y1) in enumerate(((0, mid), (mid, h))):
+        cols = sorted((c for c in gaps(fg, 0, y0, y1) if c[0] > 0.05 * w and c[1] < 0.95 * w),
+                      key=lambda c: c[1] - c[0], reverse=True)[:3]
+        cuts = sorted((a + b) // 2 for a, b in cols) if len(cols) == 3 else [w // 4, w // 2, 3 * w // 4]
+        for c, (x0, x1) in enumerate(zip([0] + cuts, cuts + [w])):
+            full = np.zeros_like(fg)
+            full[y0:y1, x0:x1] = fg[y0:y1, x0:x1]
+            if not full.any():
+                raise SystemExit(f"turntable panel {TURN_ANGLES[r * 4 + c]} is empty after background keying")
+            panels[TURN_ANGLES[r * 4 + c]] = full
+    return panels
+
+
+def turn_check(panels):
+    """Is the turntable one figure? {ok, height_dev, width_dev, mirror, fails}. height_dev = worst panel
+    height vs the median (all 8; the model is told they share one ground line and scale), width_dev = worst
+    width gap inside a gated mirrored pair (the width itself changes with the angle), mirror = IoU of each
+    pair (0/180, 90/270 gated; 45/315, 135/225 reported) of one panel with the left-right flip of the
+    other, both normalized as the view gates do."""
+    boxes = {a: crop(m).shape for a, m in panels.items()}      # (h, w)
+    hs = np.array([boxes[a][0] for a in TURN_ANGLES], float)
+    height_dev = float(np.abs(hs / np.median(hs) - 1).max())
+    width_dev = max(abs(boxes[a][1] / boxes[b][1] - 1) for a, b in TURN_PAIRS)
+    mirror = {f"{a}/{b}": round(iou(normalize(panels[a]), np.fliplr(normalize(panels[b]))), 4)
+              for a, b in TURN_PAIRS + ((45, 315), (135, 225))}
+    fails = []
+    if height_dev > TURN_H_TOL:
+        fails.append("height")
+    if width_dev > TURN_H_TOL:
+        fails.append("width")
+    fails += [f"mirror {a}/{b}" for a, b in TURN_PAIRS if mirror[f"{a}/{b}"] < TURN_MIRROR]
+    return {"ok": not fails, "height_dev": round(height_dev, 4), "width_dev": round(width_dev, 4),
+            "mirror": mirror, "fails": fails}
+
+
+TURN_3Q = (45, 135, 225, 315)    # the three-quarter panels measured against the clay
+TURN_SWEEP, TURN_STEP = 20, 5    # azimuth window around the nominal angle, degrees
+
+
+def turn_azimuths():
+    """Every model azimuth the 3/4 sweep needs: each nominal angle +-TURN_SWEEP; the mirror window
+    (360 - angle) is among them because the four windows are symmetric."""
+    return sorted({(a + d) % 360 for a in TURN_3Q for d in range(-TURN_SWEEP, TURN_SWEEP + 1, TURN_STEP)})
+
+
+def turn_match(concept, model, angle):
+    """(iou, azimuth, side, iou at the nominal azimuth) of one 3/4 panel against the model masks
+    {azimuth: normalized mask}: best over the window of `angle` and of its mirror 360 - angle (which
+    side of the model the sheet's "45" is on is measured, not assumed, as for the RTS view). The
+    masks are never flipped."""
+    best = (-1.0, 0, "own")
+    for side, centre in (("own", angle), ("mirror", 360 - angle)):
+        for d in range(-TURN_SWEEP, TURN_SWEEP + 1, TURN_STEP):
+            azim = (centre + d) % 360
+            score = iou(concept, model[azim])
+            if score > best[0]:
+                best = (score, azim, side)
+    return round(best[0], 4), best[1], best[2], round(max(iou(concept, model[angle]), iou(concept, model[360 - angle])), 4)
+
+
+def turn_report(sheet_turn, glb, outdir):
+    """{angle: {iou, azim, side, iou_nominal}} of the four 3/4 panels of `sheet_turn` against the
+    clay `glb` shot every TURN_STEP deg around each of them (render_silhouette.py turn). Masks and
+    overlays go to outdir/turn/ (mask-concept-<angle>.png, mask-model-<angle>.png, overlay-<angle>.png)
+    for the compare; outdir/turn/turn.json holds the report."""
+    renders = outdir / "turn"
+    subprocess.run(["blender", "-b", "-P", str(HERE / "render_silhouette.py"), "--", str(glb), str(renders),
+                    "turn", *map(str, turn_azimuths())], check=True, capture_output=True, text=True)
+    model = {a: normalize(read_mask(renders / f"{glb.stem}-sil-turn@{a}.png")) for a in turn_azimuths()}
+    panels = turn_panels(sheet_turn)
+    report = {}
+    for angle in TURN_3Q:
+        concept = normalize(panels[angle])
+        score, azim, side, nominal = turn_match(concept, model, angle)
+        report[angle] = {"iou": score, "azim": azim, "side": side, "iou_nominal": nominal}
+        write_mask(concept, renders / f"mask-concept-{angle}.png", (255, 80, 80))
+        write_mask(model[azim], renders / f"mask-model-{angle}.png", (80, 255, 80))
+        write_overlay(concept, model[azim], renders / f"overlay-{angle}.png")
+    (renders / "turn.json").write_text(json.dumps(report, indent=2))
+    return report
+
+
 def row_spans(mask, count):
     """(height, half-width x2 per row as fractions of the height) of a mask, sampled at
     `count` rows from the top to the bottom of the figure."""
@@ -938,6 +1041,8 @@ def main():
     ap.add_argument("--ids", action="store_true",
                     help="glb is the palette-colour rebuild of the shape (no clay grey): only measure its "
                          "colour zones, from the --tilts cameras; writes outdir/zones_clay.json")
+    ap.add_argument("--turn", type=pathlib.Path, default=None,
+                    help="refs/<id>/sheet-turn.jpg: also measure its four 3/4 panels (azimuth sweep), report only")
     ap.add_argument("--space", choices=("legacy", "oklab"), default="legacy",
                     help="colour space of the zone feature (oklab: see PIPELINE 19.C2 for why legacy is the default)")
     ap.add_argument("--tilts", default="",
@@ -991,6 +1096,9 @@ def main():
         bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout,
                                              report_tilts(report)))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
+    if args.turn:
+        print("turn views (3/4 IoU @ azimuth):",
+              {a: (r["iou"], r["azim"]) for a, r in turn_report(args.turn, args.glb, args.outdir).items()})
     gated = [g for g in gates if g in concept]    # a view with no concept image (no RTS draw) is not gated
     missing = [g for g in gated if g not in report]
     if missing:

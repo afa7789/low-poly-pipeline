@@ -1902,3 +1902,33 @@ não usou a folga (mediana de raio .051 -> .046) e o resultado ficou 0.001-0.008
 orçamento de 4000 avaliações). Fica desligado; liga quando houver spec com perna fina (n00U v2-hard-r2 .035 H, v3-stages-r1 .040 H
 são os candidatos; não refitei: a prova pedida é o v6-r3). Saídas: `scratchpad/leva3-f3/refit/` (`fit/fit.json`, `attach.json`).
 Testes: `LegMeasures` (silhouette), `test_leg_w_reports_thin_legs_without_blocking` (preflight), `LegGrowth` (fit), brief (spec_pipeline).
+
+### 21.F6 Turntable 8 vistas: `redo_turntable.py`, `turn_panels`/`turn_check`, varredura de azimute (2026-10-27) - coerente só no n01X; n005 e n00U NEGATIVOS
+
+**O que mudou.** `redo_turntable.py <id> --race R --name N` + `prompts/00-template-turntable.txt`: 1 chamada ao `nano-banana-2-1-edit` (mesmo `generate.py`/chave, 16:9 porque a API não aceita 2:1; ~$0.0036 por chamada, 3 chamadas) com o `sheet.jpg` aprovado como imagem, pedindo `refs/<id>/sheet-turn.jpg`: grade 4x2, lida da esquerda para a direita, fileira de cima primeiro, **0 (frente), 45, 90 (o "left" do sheet), 135 / 180 (costas), 225, 270, 315**, câmera de nível ortográfica, mesma figura, escala e linha de chão, fundo liso. `sheet.jpg` nunca é escrito. O script roda o teste de coerência e grava `sheet-turn.json` (`ok`, números); sai com código 1 se falhar. `--check-only` só reroda o teste.
+- **Layout para o F4:** `silhouette.turn_panels(path)` -> `{ângulo: máscara booleana}` (ângulos em `TURN_ANGLES`, todas na mesma imagem chaveada de 1024 px de largura, aspecto nativo; linhas cortadas na faixa vazia mais larga, colunas nas 3 faixas mais largas, quartos iguais se faltar). Ângulo = azimute do desenho; 90/270 = perfis. O modelo é fotografado com `views.rts_offset(0, azimute)` (azimute da frente para +X); `silhouette.TURN_3Q`, `turn_azimuths()` (36 câmeras) e `turn_match()` são a API.
+- **Coerência `silhouette.turn_check(panels)`:** altura dos 8 painéis dentro de ±10 % da mediana; largura dentro de ±10 % entre 0/180 e entre 90/270 (a largura de um painel muda com o ângulo, então "8 larguras iguais" reprovaria qualquer figura; o par oposto tem de ter a mesma); IoU de cada painel de um par com o espelho do oposto >= 0.85 (0/180 e 90/270 gate; 45/315 e 135/225 só relatados).
+- **Varredura de azimute:** `render_silhouette.py -- glb out turn <az>...` (câmera de nível, só as silhuetas pedidas), `silhouette.turn_report(sheet_turn, glb, outdir)` / `silhouette.py ... --turn refs/<id>/sheet-turn.jpg`: para cada painel 3/4 (45, 135, 225, 315) o melhor IoU do clay em ±20° (passo 5°) em torno do ângulo e do seu espelho (360 - ângulo; que lado do modelo é o "45" do desenho é medido, não suposto, como no RTS); máscaras nunca invertidas. Grava `sil/<against>/turn/{turn.json,mask-*-<ângulo>.png,overlay-<ângulo>.png}`.
+- **Fluxo:** `spec_pipeline.shape_review` chama `turn_views` (só se `sheet-turn.jpg` e `sheet-turn.json` com `ok` existem ao lado do sheet; senão `{}`): `silhouette.json["turn"]` e a linha `turn views 3/4 (report)` no `review.md`; `make_compare.turn_rows` acrescenta uma linha (4 overlays + rodapé `TURN 3/4  45: iou @ azimute ...`). Só relatório, não gate.
+
+**Medida de coerência** (`artifacts/model-sheets/refs/<id>/sheet-turn.json`):
+
+| unidade | altura dev | largura dev | espelho 0/180 | 90/270 | (45/315) | (135/225) | veredito |
+|---|---|---|---|---|---|---|---|
+| n01X | 0.012 | 0.014 | .953 | .961 | .864 | .584 | **OK** |
+| n005 | 0.016 | 0.032 | .942 | **.600** | .621 | .846 | FAIL mirror 90/270 |
+| n00U | 0.050 | 0.018 | **.837** | .898 | .722 | .707 | FAIL mirror 0/180 |
+
+Por que falham: no n005 o desenho 270 repete o 90 (a figura olha para o mesmo lado nos dois perfis, o 270 devia olhar para o outro): o modelo de imagem copiou o perfil em vez de girar. No n00U front x back não são espelho por construção (cabeça x abdômen, .837 < .85): o sheet é coerente a olho, o critério "frente x costas espelhados" é que não vale para uma aranha; o limiar não foi afrouxado. Regra do roteiro: incoerente = negativo, arquivos mantidos (`refs/n005/sheet-turn.*`, `refs/n00U/sheet-turn.*`), o pipeline segue 3+2 nessas duas (o `turn_views` devolve `{}` e o review não ganha a linha). O n01X segue com o turntable.
+
+**Medida 3/4** (clay v6: n01X v6-r1, n005 v6-r1, n00U v6-r3; IoU no azimute do melhor ajuste / no ângulo nominal; provas em `scratchpad/leva3-f6/<id>/turn/`). n005/n00U com sheet incoerente, só para referência:
+
+| clay | 45 | 135 | 225 | 315 | média melhor / nominal |
+|---|---|---|---|---|---|
+| n01X v6-r1 | .805 @335 (esp) / .674 | .799 @155 / .637 | .767 @140 (esp) / .734 | .779 @25 (esp) / .643 | .787 / .672 |
+| n005 v6-r1 (sheet incoerente) | .841 @335 / .768 | .875 @210 (esp) / .840 | .816 @155 (esp) / .745 | .741 @25 (esp) / .679 | .818 / .758 |
+| n00U v6-r3 (sheet incoerente) | .680 @320 / .665 | .674 @225 / .674 | .709 @205 / .657 | .710 @65 / .685 | .693 / .670 |
+
+(esp = lado espelho: o "45" do desenho é o lado -X do modelo, o "left" do sheet.) O n01X 3/4 fica em .77-.81, no nível das vistas 3+2 (.77-.83): o clay v6 não é pior em 3/4 do que nas vistas de gate. A varredura dá +.11 sobre o ângulo nominal e escolhe quase sempre perto do limite da janela (25, 155, 335...): os desenhos 3/4 do modelo de imagem não estão em 45 exatos (nem a "frente" está em 0), então o azimute medido é um deslocamento do desenho, não uma câmera confiável; o F4 deve tratar o azimute como parâmetro do desenho (como o tilt), não fixá-lo.
+
+**O que piorou / limites.** Só 1 de 3 unidades passa o teste de coerência com o prompt atual; os 3/4 só são relatório. Frente x costas espelhados só vale para figuras de simetria esquerda-direita (aranha reprova por construção; um critério por unidade, ex. IoU contra o espelho do próprio painel, seria o passo seguinte). Prompt de 1 chamada sem repetição: o n005 pode passar numa segunda tentativa (custo +$0.004). Teste: `tests/tools/blender/test_turn.py` (ordem dos painéis, subcases de altura/largura/espelho, janelas de azimute, `turn_match`; sem API nem Blender).

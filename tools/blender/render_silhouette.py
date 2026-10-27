@@ -2,6 +2,7 @@
 """Render five orthographic silhouette frames of one GLB, RGBA with transparent film.
 
     blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> [size] [ids]
+    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> turn <azimuth>...
 
 Top and bottom are also rendered at every tilt in views.TILTS, as
 <stem>-sil-top@<tilt>.png, and the gameplay camera at every views.RTS angle as
@@ -66,6 +67,7 @@ def main():
     glb, outdir = args[0], args[1]
     size = int(args[2]) if len(args) > 2 and args[2].isdigit() else 512
     ids = "ids" in args
+    turn = [int(a) for a in args[3:] if a.lstrip("-").isdigit()] if "turn" in args else None
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
@@ -111,6 +113,15 @@ def main():
         print("id renders ->", out)
         return
 
+    if turn is not None:
+        for azim in turn:     # level camera, azimuth from the front toward +X (views.rts_offset at elevation 0)
+            cam.location = centre + mathutils.Vector(rts_offset(0, azim))
+            cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
+            cam.data.ortho_scale = span
+            scene.render.filepath = str(out / f"{stem}-sil-turn@{azim}.png")
+            bpy.ops.render.render(write_still=True)
+        print("turn silhouettes ->", out)
+        return
     shots = [(name, 0, f"{stem}-sil-{name}.png") for name in VIEWS]
     shots += [(name, t, f"{stem}-sil-{name}@{t}.png") for name in TILTED for t in TILTS if t]
     for name, tilt, filename in shots:
