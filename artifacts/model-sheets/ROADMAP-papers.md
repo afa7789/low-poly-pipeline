@@ -419,3 +419,25 @@ L6-3 props ancorados ──────┘                                    L6
 - 8 unidades, compares `clay+wire+overlay+textured`, pareado contra v9 nos 4 eixos, ficha 05, §24 com a tabela.
   Critério de sucesso da leva: pareado ≥ 4-0 "forma contínua" em 6 de 8; vermelho+verde < 8 % em front/left/back em
   6 de 8; componentes do corpo = 1 em 8 de 8.
+
+---
+
+# Leva 7 (2026-10-29) — RTS e laterais
+
+Diagnóstico do v10: front/back passam em 7 de 8; o erro ficou no rts (n00U .617, n017 .692, n00H .232, n010 .547) e
+no left (hfoo .450, n00H .681, n017 .719). Causas: fit/deformação só em front/left/back; rts do sheet gerado à parte
+sem coerência; pernas da aranha/lobo não medidas no rts/top; tronco horizontal em tijolos; prop longo com ângulo
+lido só do left. Prova de cada item: rerodar n00U, n017, n00H, hfoo (e n005 como controle) e comparar com v10.
+
+- **L7-1 seis vistas no fit e na deformação.** `deform_to_sheet` e `fit_spec` puxam também rts (câmera do run:
+  tilt/azimute de `silhouette.json`), top e bottom; pesos por família (`VIEW_WEIGHTS[rig]`: spider/quadruped
+  rts+top+bottom ×2). Guardas: nenhuma das 3 ortográficas cai > 0.01. Meta: rts +0.05 em n00U/n017 sem perder front.
+- **L7-2 coerência do rts.** `silhouette.sheet_report` ganha rts: hull front⊗left⊗top projetado na câmera rts (a que
+  a varredura escolhe) vs o painel; < 0.6 = incoerente (relatório, veredito ignora) e `ensure_rts --redo` regenera o
+  rts com prompt amarrado aos 3 painéis (nano banana, só nas 4 unidades de prova). n00H rts .232 é o caso.
+- **L7-3 pernas no rts e no top.** `measure_spider`/`measure_quadruped`: comprimento, espessura e abertura das pernas
+  lidos também no rts e no top; `massing`: pernas da aranha como `limb` com joelho do top (não do rig fixo), raio
+  por segmento; `fit_spec`: verde do rts (spill) como restrição dura para peças `leg*`. Meta: spill rts n00U 31 % → < 15 %.
+- **L7-4 lathe deitado e prop inclinado.** `lathe_limb`: `axis: z` (anéis ao longo de z) para tronco de
+  quadrúpede/wyrm/drake (massing `_brick` → um lathe deitado por tronco/abdômen); prop longo (lança, pique, clava):
+  ângulo lido de front E left (eixo maior da máscara do prop em cada vista) → `rot` do prop; hfoo left .450 → > .65.
