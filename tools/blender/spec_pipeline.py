@@ -830,6 +830,7 @@ def shape_review(args, glb, layout):
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
+        summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
         summary["gates"] = gates_for(args.rig)
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
@@ -998,6 +999,9 @@ def iou_rows(summary):
             out += "| camera (tilt, rts elev/azim) | " + ", ".join(
                 f"{v} {'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}"
                 for v, t in summary["tilt"].items()) + " |\n"
+    if summary.get("chamfer"):
+        out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
+        out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
     if summary.get("hard"):
         out += row("IoU vs hard", summary["hard"], shape)
     if summary.get("drift"):

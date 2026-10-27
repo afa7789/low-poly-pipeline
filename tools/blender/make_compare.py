@@ -254,12 +254,18 @@ def footer_parts(run, view):
     ok = "n/a" if gate is None else ("PASS" if r["iou"] >= gate else "FAIL")
     parts += [(f"IoU {r['iou']:.3f}", INK),
               (f" gate {'-' if gate is None else gate} {ok}", tone(ok)),
-              (f"   32px {r.get('iou_32', 0):.3f}  L1 {r.get('width_l1', 0):.3f}  tilt {r.get('tilt')}", INK)]
+              (f"   32px {r.get('iou_32', 0):.3f}  L1 {r.get('width_l1', 0):.3f}  SD {r.get('chamfer', 0):.4f}  tilt {r.get('tilt')}", INK)]
     z = r.get("zones")
     if z:
         parts.append((f"   zones mean {z['mean']:.3f} cover {z['cover']:.3f} lost {len(z['lost'])}",
                       FAIL if z.get("fails") else INK))
     return parts
+
+
+def sd_mean(report):
+    """Header part: mean contour chamfer over the measured views (silhouette.chamfer)."""
+    sd = [r["chamfer"] for r in report.values() if "chamfer" in r]
+    return [(f"   SD mean {sum(sd) / len(sd):.4f}", INK)] if sd else []
 
 
 def stage_label(run):
@@ -277,7 +283,7 @@ def header(run, width, title=None):
     d.text((10, 8), title or f"{run['unit']}  run {run['run']}", fill=INK, font=font(24))
     d.text((10, 42), f"author {m.get('author', '?')}   model {m.get('model', '?')}   "
                      f"vs {run['against']} sheet", fill=DIM, font=font(15))
-    draw_parts(d, (10, 66), stage_label(run), font(16))
+    draw_parts(d, (10, 66), stage_label(run) + sd_mean(run["report"]), font(16))
     return img
 
 
