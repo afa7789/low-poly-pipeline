@@ -2,7 +2,7 @@
 """Sheet across runs of one unit: a row per view, the concept first, then one column per run.
 
     python3 tools/blender/compare_runs.py <out.png> <run_dir> [<run_dir> ...]
-        [--against approved|hard] [--show textured|clay|wire|overlay|uv|clay+wire+overlay+textured]
+        [--against approved|hard] [--show textured|clay|wire|overlay|uv|budgets|clay+wire+overlay+textured]
     python3 tools/blender/compare_runs.py --stability <run_a> <run_b>     # noise between two equal runs
 
     e.g. compare_runs.py cmp.png runs/draft/n01X/hard-v1 runs/draft/n01X/v2-hard-r1 ...
@@ -13,6 +13,9 @@ chosen column shows an empty cell and a warning, so older runs still line up. Th
 column comes from the first run's sheet. Footer of each cell: IoU, gate verdict, zones. A last row gives each
 run's form numbers from its GLB (mesh_lint, PIPELINE 24.L6-6): normal_diff mean/p90, fairness, body
 components, slivers. --show defaults to clay+wire+overlay+textured (the wire shows the steps).
+
+--show budgets: the run dirs given hold budgets/<B>/ (spec_pipeline --budgets, PIPELINE 24.L6-10); one clay column per
+budget, the header says tris and slivers.
 
 Score of a run (Zhao 2026: 30 % time, 70 % quality), shown in its header and printed ranked:
 
@@ -44,7 +47,7 @@ import make_compare as MC  # noqa: E402
 import mesh_lint  # noqa: E402
 import review_pair  # noqa: E402
 
-SHOWS = ("textured", "clay", "wire", "overlay", "uv")
+SHOWS = ("textured", "clay", "wire", "overlay", "uv", "budgets")
 DEFAULT_SHOW = "clay+wire+overlay+textured"
 T_MAX = 1200.0       # seconds; f(t) reaches 0 here
 ZONE_FULL = 0.5      # a zone mean of this counts as 1 (the hard-v1 sheets sit near 0.37)
@@ -124,12 +127,29 @@ def pair_text(run):
     return f"  pair vs {pw['A']} " + " ".join(cells)
 
 
+def budget_text(run):
+    """'B 700 tris 703 slivers 4.2 %' from budget.json of a spec_pipeline --budgets directory, or ''."""
+    f = pathlib.Path(run["dir"]) / "budget.json"
+    if not f.exists():
+        return ""
+    b = json.loads(f.read_text())
+    return f"  B {b['budget']} tris {b['tris']} slivers {b['sliver_pct']} %"
+
+
+def budget_dirs(run_dirs):
+    """The budgets/<B> directories (ascending B) of every run dir that has them: one column each."""
+    out = []
+    for d in run_dirs:
+        out += sorted((pathlib.Path(d) / "budgets").glob("*/budget.json"), key=lambda f: int(f.parent.name))
+    return [f.parent for f in out] or list(run_dirs)
+
+
 def run_head(run, width):
     img = Image.new("RGB", (width, MC.HEAD_H), (245, 245, 245))
     d = ImageDraw.Draw(img)
     m = run["meta"]
     d.text((10, 8), run["run"], fill=MC.INK, font=MC.font(22))
-    d.text((10, 40), f"author {m.get('author', '?')}{pair_text(run)}", fill=MC.DIM, font=MC.font(14))
+    d.text((10, 40), f"author {m.get('author', '?')}{pair_text(run)}{budget_text(run)}", fill=MC.DIM, font=MC.font(14))
     st = m.get("stages", {})
     MC.draw_parts(d, (10, 64), [("S1 ", MC.INK), (st.get("1", "n/a"), MC.tone(st.get("1"))),
                                 ("  S2 ", MC.INK), (st.get("2", "n/a"), MC.tone(st.get("2"))),
@@ -235,6 +255,8 @@ def main():
         print(stability(*args.paths))
         return
     args.out, args.runs = args.paths[0], args.paths[1:]
+    if args.show == "budgets":          # one clay column per budget of spec_pipeline --budgets
+        args.runs, args.show = budget_dirs(args.runs), "clay"
     runs = [MC.load_run(r, args.against) for r in args.runs]
     build_sheet(runs, args.show).save(args.out)
     for r in sorted(runs, key=lambda r: -(score_of(r) or (-1,))[0]):

@@ -84,7 +84,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring", "lathe", "limb", "chain", "plate"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, bbox, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, bbox, part_tris, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -1968,6 +1968,9 @@ def main():
     ap.add_argument("--decimate", action="store_true",
                     help="Readiness: decimate the clay 50 %% in Blender and report the IoU lost per 100 tris "
                          "(report only, about 8 s; PIPELINE 20.M10)")
+    ap.add_argument("--budgets", type=lambda t: [int(x) for x in t.split(",")], default=None, metavar="400,700,1000",
+                    help="ablation (Wiersma 2026 Fig. 10): build the --spec at each triangle budget and write the "
+                         "IoU x tris x slivers curve and the knee to review.md; no author, no stage 2 (PIPELINE 24.L6-10)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2001,6 +2004,9 @@ def main():
     # construction sheet: the hard redraw when there is one; the approved sheet judges
     args.build = (args.hard if args.image1 == "hard" and args.hard and args.hard.exists()
                   else args.sheet)
+    if args.budgets:
+        set_rig(args.rig, spider_measure(args))
+        return run_budgets(args, layout)
     args.drift = check_drift(args, layout)
     sheet, refs, tmp = prompt_images(args, args.out / ".." / "..")
     args.refs = refs
@@ -2173,6 +2179,133 @@ def decimate_rows(args, shape):
         return [("IoU lost per 100 tris (decimate 50 %)", "n/a", "-")]
     return [("IoU lost per 100 tris (decimate 50 %)",
              f"{r['lost_per_100_tris']:.4f} (tris {r['tris'][0]} -> {r['tris'][1]}, mean IoU {r['iou'][0]:.3f} -> {r['iou'][1]:.3f})", "-")]
+
+
+SIDES_MAX = 16              # budget ablation: no round part gets more sides than this
+SIDES_KINDS = {"prism": 8, "cyl": 8, "ring": 10, "lathe": lathe_limb.SIDES, "limb": lathe_limb.SIDES,
+               "chain": lathe_limb.SIDES}   # kinds whose `sides` opt buys roundness, with the default
+KNEE_SLOPE = 0.003          # a budget step that buys less IoU than this per 100 tris is past the knee
+BUDGET_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+
+
+def lift_sides(spec, budget):
+    """The spec with `sides` raised by 2 on its biggest round parts, one at a time, while the
+    preflight estimate stays within `budget`: the same spec spent on a larger budget (Wiersma
+    2026 Fig. 10 ablation). Boxes and 4-sided frustums keep their shape; a spec already at or
+    over the budget comes back unchanged."""
+    parts = [list(p[:5]) + [dict(p[5])] for p in spec["parts"]]
+    tris = sum(part_tris(p) for p in parts)
+    order = sorted((i for i, p in enumerate(parts) if p[1] in SIDES_KINDS), key=lambda i: -max(parts[i][2]))
+    grown = True
+    while grown and order:
+        grown = False
+        for i in order:
+            opts = parts[i][5]
+            n = int(opts.get("sides", SIDES_KINDS[parts[i][1]]))
+            if n >= SIDES_MAX:
+                continue
+            before = part_tris(parts[i])
+            opts["sides"] = n + 2
+            gain = part_tris(parts[i]) - before
+            if tris + gain > budget:
+                opts["sides"] = n
+                continue
+            tris, grown = tris + gain, True
+    return {**spec, "parts": parts}
+
+
+def budget_curve(rows):
+    """[(budget, tris, iou, sliver_pct, lost_per_100)] ascending by real tris; `lost_per_100` is the
+    mean IoU the step down from the next row lost per 100 tris removed (None on the last row)."""
+    rows = sorted(rows, key=lambda r: r["tris"])
+    out = []
+    for r, nxt in zip(rows, rows[1:] + [None]):
+        lost = None if nxt is None or nxt["tris"] <= r["tris"] else 100 * (nxt["iou"] - r["iou"]) / (nxt["tris"] - r["tris"])
+        out.append((r["budget"], r["tris"], r["iou"], r["sliver_pct"], lost))
+    return out
+
+
+def knee_of(rows):
+    """The budget at the knee of the IoU x tris curve: the smallest one whose step up to the next
+    buys less than KNEE_SLOPE IoU per 100 tris (the last row when no step does). None without rows."""
+    curve = budget_curve(rows)
+    return next((b for b, _, _, _, lost in curve if lost is not None and lost < KNEE_SLOPE),
+                curve[-1][0] if curve else None)
+
+
+def budget_build(spec, args, budget, bdir):
+    """One budget of the ablation, in bdir (laid out like a run, so compare_runs reads it): the spec
+    with its sides lifted to `budget`, built as clay with the chamfer budget, collapse-decimated to
+    `budget` when the build lands over it, measured against the approved sheet. Returns the row:
+    budget, tris, iou (mean), iou_views, uncovered (mean), sliver_pct, seconds; None when no GLB came out."""
+    bdir.mkdir(parents=True, exist_ok=True)
+    t0 = time.monotonic()
+    spec = lift_sides(spec, budget)
+    path, raw, glb = bdir / "spec.json", bdir / "raw.glb", bdir / "clay.glb"
+    path.write_text(json.dumps(spec, indent=2))
+    tool("build_unit.py", path, raw, str(budget), "nofuse", str(budget), "clay",
+         *cut_hull.args(spec, args.sheet, args.kind, bdir), blender=True)
+    if not raw.exists():
+        return None
+    tris = mesh_lint.lint_tris(raw)
+    if tris > budget:
+        tool("decimate_glb.py", raw, glb, budget / tris, blender=True)
+    else:
+        shutil.copy(raw, glb)
+    if not glb.exists():
+        return None
+    saved, args.out = args.out, bdir
+    try:
+        _, report = silhouette_vs(args, glb, layout_of(args.kind), args.sheet, "approved")
+    finally:
+        args.out = saved
+    seconds = time.monotonic() - t0
+    view_dir = bdir / "views" / args.id
+    tool("render_unit.py", glb, view_dir, tilt_arg(report), "lit", blender=True)
+    if (view_dir / "clay-wc3.png").exists():
+        shutil.copy(view_dir / "clay-wc3.png", view_dir / "clay-rts.png")
+    ious = {v: r["iou"] for v, r in report.items()}
+    red = [r["uncovered"] for r in report.values() if "uncovered" in r]
+    row = {"budget": budget, "tris": mesh_lint.lint_tris(glb), "iou": sum(ious.values()) / len(ious), "iou_views": ious,
+           "uncovered": sum(red) / len(red) if red else 0.0, "sliver_pct": mesh_lint.lint(glb)["sliver_pct"],
+           "seconds": round(seconds, 1)}
+    (bdir / "budget.json").write_text(json.dumps(row, indent=2))
+    (bdir / "review.md").write_text(f"# {args.id} \u2014 run b{budget} (budgets)\n\n- kind: {args.kind}\n"
+                                    f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n")
+    return row
+
+
+def budgets_section(args, rows):
+    """`## Budgets`: the IoU x tris x slivers table of the ablation, the IoU lost per 100 tris of each
+    step, and the knee as the recommended BUDGETS ceiling for the kind."""
+    curve = {c[0]: c for c in budget_curve(rows)}
+    body = "".join(
+        f"| {r['budget']} | {r['tris']} | {r['iou']:.3f} | " + " / ".join(f"{r['iou_views'].get(v, 0):.3f}" for v in BUDGET_VIEWS)
+        + f" | {r['uncovered']:.3f} | {r['sliver_pct']} % | {r['seconds']:.0f} s | "
+        + ("-" if curve[r["budget"]][4] is None else f"{curve[r['budget']][4]:.4f}") + " |\n"
+        for r in sorted(rows, key=lambda r: r["tris"]))
+    return ("## Budgets\n\n| budget | tris | mean IoU | " + " / ".join(BUDGET_VIEWS) + " | uncovered | slivers | time | IoU lost per 100 tris vs next |\n"
+            f"|---|---|---|---|---|---|---|---|\n{body}\n"
+            f"recommended BUDGETS[{args.kind!r}] ceiling (knee, step < {KNEE_SLOPE} IoU per 100 tris): **{knee_of(rows)}** "
+            f"(now {BUDGETS[args.kind][1]})\n")
+
+
+def run_budgets(args, layout):
+    """--budgets: the --spec built at every budget (budgets/<B>/, run-shaped, kept), measured, and the
+    curve written to review.md and budgets.json. No author, no repair, no stage 2."""
+    if not args.spec:
+        raise SystemExit("--budgets needs --spec: it ablates a spec that already exists")
+    spec = {**parse_spec(args.spec.read_text()), "rig": args.rig}
+    rows = [r for b in args.budgets if (r := budget_build(spec, args, b, args.out / "budgets" / str(b)))]
+    if not rows:
+        raise SystemExit("--budgets: no budget built")
+    (args.out / "budgets.json").write_text(json.dumps(rows, indent=2))
+    (args.out / "review.md").write_text(
+        f"# {args.id} \u2014 run {args.run or args.out.name} ({args.tag})\n\n- kind: {args.kind}\n- spec: {args.spec}\n\n"
+        f"{budgets_section(args, rows)}")
+    print(f"{args.id}\tbudgets {','.join(str(r['budget']) for r in rows)}\ttris {','.join(str(r['tris']) for r in rows)}\t"
+          f"iou {','.join(f'{r['iou']:.3f}' for r in rows)}\tknee {knee_of(rows)}")
+    return 0
 
 
 def final_status(args, verdict, lint_bad):
