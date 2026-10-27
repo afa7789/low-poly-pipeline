@@ -128,10 +128,14 @@ def ring_points(r0, r1, height, n=SIDES):
                            np.stack([r1 * np.cos(a), r1 * np.sin(a), np.full(n, height / 2)], 1)])
 
 
-def frustum_points(dims, top, shift):
+def frustum_points(dims, top, shift, sides=4):
     w, h, d = dims
     sx, sz = top
     dx, dz = shift
+    if sides > 4:                   # a rounded frustum: an n-gon inscribed in the w x d box
+        a = np.arange(sides) * 2 * math.pi / sides
+        lo = np.stack([w / 2 * np.cos(a), d / 2 * np.sin(a), np.full(sides, -h / 2)], 1)
+        return np.concatenate([lo, lo * [sx, sz, 1] + [dx, dz, h]])
     lo = [(-w / 2, -d / 2, -h / 2), (w / 2, -d / 2, -h / 2), (w / 2, d / 2, -h / 2), (-w / 2, d / 2, -h / 2)]
     hi = [(-w / 2 * sx + dx, -d / 2 * sz + dz, h / 2), (w / 2 * sx + dx, -d / 2 * sz + dz, h / 2),
           (w / 2 * sx + dx, d / 2 * sz + dz, h / 2), (-w / 2 * sx + dx, d / 2 * sz + dz, h / 2)]
@@ -177,11 +181,11 @@ def local_shape(kind, dims, opts):
         pts = ring_points(dims[0], dims[1], dims[2], int(opts.get("sides", 8)))
         return scaled(pts, opts), euler_matrix(base[0] + rx, base[1] - rz, base[2] + ry + D(float(opts.get("spin", 0))))
     if kind == "frustum":
-        pts = frustum_points(dims, opts.get("top", (1.0, 1.0)), opts.get("shift", (0.0, 0.0)))
+        pts = frustum_points(dims, opts.get("top", (1.0, 1.0)), opts.get("shift", (0.0, 0.0)), int(opts.get("sides", 4)))
         return scaled(pts, opts), euler_matrix(rx, -rz, ry + D(float(opts.get("spin", 0))))
     if kind == "cyl":
         up = opts.get("axis", "fwd") == "up"
-        return ring_points(dims[0], dims[0], dims[1]), np.eye(3) if up else euler_matrix(D(90), 0, 0)
+        return ring_points(dims[0], dims[0], dims[1], int(opts.get("sides", 8))), np.eye(3) if up else euler_matrix(D(90), 0, 0)
     if kind in ("wheel", "ring"):
         radius, half = (dims[0] + dims[1], dims[1]) if kind == "wheel" else (dims[0], dims[2] / 2)
         tilt = euler_matrix(D(float(opts.get("tilt", 0.0))), 0, 0)

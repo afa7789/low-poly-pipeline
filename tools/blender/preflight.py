@@ -43,7 +43,7 @@ import numpy as np
 import lathe_limb
 
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
-BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
+BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28,
              "dome": 28, "ring": 144, "lathe": 68, "limb": 32}
 CUT_TRIS = 60   # a part cut by the sheet silhouette (cut_hull.py), upper end of the measured range
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
@@ -414,8 +414,8 @@ def part_tris(part):
     _, kind, dims, _, _, opts = part
     if opts.get("cut") == "sheet":      # two <= 8-gon extrusions intersected: 42-61 tris measured (PIPELINE 19.B4)
         return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
-    if kind == "prism":
-        return 4 * int(opts.get("sides", 8)) - 4
+    if kind in ("prism", "cyl") or (kind == "frustum" and int(opts.get("sides", 4)) > 4):
+        return 4 * int(opts.get("sides", 8 if kind != "frustum" else 4)) - 4
     if kind in ("lathe", "limb", "chain", "plate"):
         return lathe_limb.tris(kind, opts)
     if kind != "ring":

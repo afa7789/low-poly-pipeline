@@ -44,12 +44,22 @@ LATHE_MASSING = False
 # MEASURED_JOINTS puts the knee and the elbow where the sheet's width step is (silhouette.joint_measures) instead
 # of midway: n01X +0.002 mean IoU, n005 -0.004 (2026-10-28, PIPELINE 22.L4-6), so it stays off.
 MEASURED_JOINTS = False
-KIND_FOR = {"head": "frustum", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
+# LIMB_KNEE: a limb whose knee/elbow the sheet shows (silhouette.joint_measures) is one `limb` part bent at
+# that joint (PIPELINE 23.L5-5), not two prisms meeting at the midpoint. Measured alone it lost 0.003 (n01X) and
+# 0.008 (n005) mean IoU, so it stays off; the emitter is tested and waits for a better joint measure (L5-1).
+LIMB_KNEE = False
+KNEE_FRAC = (0.15, 0.85)    # lathe_limb: where along from..to the knee ring may sit
+KIND_FOR = {"head": "lathe", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
             "arm": "prism", "leg": "prism", "shell": "frustum", "tail": "chain", "neck": "chain"}
 if LATHE_MASSING:
     KIND_FOR.update(head="lathe", torso="lathe", pelvis="lathe", shell="lathe")
 LATHE_RINGS = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # profile samples per role (lathe_limb.PROFILE_RANGE)
-LATHE_SIDES = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # a head of 6x6 costs 68 tris, a torso of 8x8 124
+LATHE_SIDES = {"torso": 8, "shell": 8, "head": 8, "pelvis": 8}   # a head of 8 sides x 6 rings costs 92 tris, a torso of 8x8 124
+# round cross-sections (PIPELINE 23.L5-5): boots and fists (and, opt-in, trunk slices) are 8-gons inscribed in the box the
+# sheet gives (frustum "sides"), 4 * sides - 4 tris instead of 12; 4 = the old box.
+TRUNK_SIDES = {}     # {"torso": 8, "pelvis": 8}: octagonal slices. Off: top spill -0.07/-0.07 (n01X/n005) but bottom IoU -0.04 (n005)
+#                      and n01X bottom spill 0.145 -> 0.221 (over the 0.20 cap, stage 1 PASS -> FAIL), 2026-10-27
+FOOT_SIDES = 8          # boots and fists
 # stack height per role (frustum stacks). Halved on 2026-10-27: 8/5/5/5 read as a pile of ledges
 # (n005 v7-r1) and measured alone the IoU moved by at most 0.02 (runs leva3-massing-few).
 SLICES = {"head": 3, "torso": 4, "pelvis": 3, "shell": 3}
@@ -216,7 +226,7 @@ def _frustum_stack(role, bone, slot, g):
         sx, sz = np.clip([wb / max(wa, 1e-3), db / max(da, 1e-3)], 0.3, 3.0)
         h = yb - ya + JOINT * g["y1"]    # joints overlap, so the 1/256 grid snap and the rig never open a gap
         parts.append([bone, "frustum", [r3(wa), r3(h), r3(da)], [r3(g.get("xc", 0.0)), r3((ya + yb) / 2), r3(za)],
-                      slot, {"top": [r3(sx), r3(sz)], "shift": [0, r3(zb - za)]}])
+                      slot, {"top": [r3(sx), r3(sz)], "shift": [0, r3(zb - za)], **({"sides": g["sides"]} if g.get("sides", 4) > 4 else {})}])
     return parts
 
 
@@ -257,13 +267,26 @@ def _chain_run(role, bone, slot, g):
              {"bones": g["bones"], "sides": CHAIN_SIDES, "profile_axis": "left"}]]
 
 
-EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run}
+def _limb_bent(role, bone, slot, g):
+    """One `limb` from g["a"] to g["b"] bent at the point g["knee"]; radii g["r"] = (top, knee, base). The
+    knee ring sits where the measured joint projects on the axis, the rest of the offset goes in dx/dz/dy."""
+    a, b, k = (np.array(g[x], float) for x in ("a", "b", "knee"))
+    axis = b - a
+    frac = float(np.clip(np.dot(k - a, axis) / max(float(np.dot(axis, axis)), 1e-9), *KNEE_FRAC))
+    off = k - (a + frac * axis)
+    return [[bone, "limb", [r3(r) for r in g["r"]], [0, 0, 0], slot,
+             {"from": [r3(v) for v in a], "to": [r3(v) for v in b],
+              "knee": [r3(frac), r3(off[0]), r3(off[2]), r3(off[1])], "sides": min(g.get("sides", SIDES), lathe_limb.SIDES_RANGE[1])}]]
+
+
+EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run, "limb": _limb_bent}
 
 
 def emit(role, bone, slot, geometry):
-    """The parts of one role, built with the kind KIND_FOR says; a kind without an emitter (a
-    swap to lathe/limb before its emitter is registered) falls back to the one that exists."""
-    kind = KIND_FOR[role] if KIND_FOR[role] in EMIT else ("prism" if "a" in geometry else "frustum")
+    """The parts of one role, built with the kind KIND_FOR says (a limb with a measured joint: `limb`);
+    a kind without an emitter (a swap before its emitter is registered) falls back to the one that exists."""
+    kind = "limb" if "knee" in geometry else KIND_FOR[role]
+    kind = kind if kind in EMIT else ("prism" if "a" in geometry else "frustum")
     return EMIT[kind](role, bone, slot, geometry)
 
 
@@ -421,15 +444,16 @@ def landmarks(front, H, m):
     return {"shoulder": y_sh, "hip": y_hip, "neck": y_neck,
             "fist": y_sh - m["arm_length"] * math.cos(math.radians(m["arm_angle"])) * H,
             "pelvis": y_hip + 0.22 * (y_neck - y_hip), "boot": max(m["boot_height"] * H, 0.05 * H),
-            **{joint: m[key] * H if MEASURED_JOINTS and key in m else None for joint, key in (("knee", "knee_h"), ("elbow", "elbow_h"))}}
+            **{joint: m[key] * H if (MEASURED_JOINTS or LIMB_KNEE) and key in m else None for joint, key in (("knee", "knee_h"), ("elbow", "elbow_h"))}}
 
 
 def trunk_parts(front, side, lm, H, labels_for, cap=None):
     """Head, torso and pelvis stacks; `cap` (a back-mounted prop is listed): the depth cap of torso and head."""
     head = labels_for(lm["neck"], H, -0.5 * H, 0.5 * H)
     parts = emit("head", "head", head, stack_geometry(front, side, lm["neck"] - 0.02 * H, H, depth_cap=cap and cap + 0.3))
+    parts[-1][5]["decal"] = "sheet"     # the face is always the sheet's own (PIPELINE 18.J, 23.L5-5): two eyes, not a slit
     for role, bone, y0, y1 in (("torso", "spine", lm["pelvis"], lm["neck"]), ("pelvis", "pelvis", lm["hip"], lm["pelvis"])):
-        g = stack_geometry(front, side, y0 - 0.02 * H, y1 + 0.02 * H, torso=lm["fist"], depth_cap=cap)
+        g = stack_geometry(front, side, y0 - 0.02 * H, y1 + 0.02 * H, torso=lm["fist"], depth_cap=cap) | {"sides": TRUNK_SIDES.get(role, 4)}
         parts += emit(role, bone, labels_for(y0, y1, -0.3 * H, 0.3 * H), g)
     return parts
 
@@ -442,10 +466,14 @@ def arm_parts(front, side, lm, H, labels_for, sides, reach):
     for sgn, tag in ((1, "L"), (-1, "R")):
         pt = lambda p: (sgn * p[0], p[1], z)   # noqa: E731
         slot = labels_for(lm["fist"], lm["shoulder"], 0.0, sgn * H)
-        for bone, a, b, radii in (("arm", sh, el, (1.1 * r_up, r_up)), ("forearm", el, wr, (r_lo, 1.15 * r_lo))):
-            parts += emit("arm", f"{bone}.{tag}", slot, {"a": pt(a), "b": pt(b), "r": radii, "sides": sides})
+        if LIMB_KNEE and lm["elbow"] is not None:
+            parts += emit("arm", f"arm.{tag}", slot, {"a": pt(sh), "b": pt(wr), "knee": pt(el),
+                                                      "r": (1.1 * r_up, (r_up + r_lo) / 2, 1.15 * r_lo), "sides": sides})
+        else:
+            for bone, a, b, radii in (("arm", sh, el, (1.1 * r_up, r_up)), ("forearm", el, wr, (r_lo, 1.15 * r_lo))):
+                parts += emit("arm", f"{bone}.{tag}", slot, {"a": pt(a), "b": pt(b), "r": radii, "sides": sides})
         parts.append([f"forearm.{tag}", "frustum", [r3(2.3 * r_lo), r3(2.1 * r_lo), r3(2.1 * r_lo)],
-                      [r3(sgn * wr[0]), r3(wr[1] - 1.05 * r_lo), r3(z)], slot, {"top": [1.0, 1.0], "shift": [0, 0]}])
+                      [r3(sgn * wr[0]), r3(wr[1] - 1.05 * r_lo), r3(z)], slot, {"top": [1.0, 1.0], "shift": [0, 0], "sides": FOOT_SIDES}])
     return parts
 
 
@@ -460,12 +488,16 @@ def leg_parts(front, side, lm, H, labels_for, sides):
     for sgn, tag in ((1, "L"), (-1, "R")):
         pt = lambda p: (sgn * p[0], p[1], p[2])   # noqa: E731
         slot = labels_for(0.0, lm["hip"], min(0.0, sgn * 0.5 * H), max(0.0, sgn * 0.5 * H))
-        parts += emit("leg", f"thigh.{tag}", slot, {"a": pt(hip), "b": pt(knee), "r": (r_th * 1.05, r_th * 0.9), "sides": sides})
-        parts += emit("leg", f"shin.{tag}", slot, {"a": pt(knee), "b": pt((ankle[0], ankle[1] + 0.02 * H, ankle[2])),
-                                                    "r": (r_sh * 0.95, r_sh), "sides": sides})
+        low = pt((ankle[0], ankle[1] + 0.02 * H, ankle[2]))
+        if LIMB_KNEE and lm["knee"] is not None:
+            parts += emit("leg", f"thigh.{tag}", slot, {"a": pt(hip), "b": low, "knee": pt(knee), "sides": sides,
+                                                         "r": (r_th * 1.05, (0.9 * r_th + 0.95 * r_sh) / 2, r_sh)})
+        else:
+            parts += emit("leg", f"thigh.{tag}", slot, {"a": pt(hip), "b": pt(knee), "r": (r_th * 1.05, r_th * 0.9), "sides": sides})
+            parts += emit("leg", f"shin.{tag}", slot, {"a": pt(knee), "b": low, "r": (r_sh * 0.95, r_sh), "sides": sides})
         parts.append([f"foot.{tag}", "frustum", [r3(foot_w), r3(bh), r3(zhi - zlo)],
                       [r3(sgn * foot[0]), r3(bh / 2), r3((zlo + zhi) / 2)], slot,
-                      {"top": [0.9, 0.8], "shift": [0, r3(-0.04 * (zhi - zlo))]}])
+                      {"top": [0.9, 0.8], "shift": [0, r3(-0.04 * (zhi - zlo))], "sides": FOOT_SIDES}])
     return parts
 
 

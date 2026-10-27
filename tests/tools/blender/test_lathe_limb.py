@@ -28,10 +28,11 @@ def limb(bone="thigh.L", dims=(0.2, 0.15, 0.1), **opts):
 class Geometry(unittest.TestCase):
     def test_tris(self):
         for name, kind, opts, want in [
-                ("lathe default", "lathe", {}, 68),
+                ("lathe default (8 sides)", "lathe", {}, 92),
+                ("lathe 6 sides, 6 rings", "lathe", {"sides": 6}, 68),
                 ("lathe 8 sides, 5 rings", "lathe", {"sides": 8, "profile": [1] * 5}, 76),
-                ("limb 6", "limb", {}, 32),
-                ("limb 8", "limb", {"sides": 8}, 44)]:
+                ("limb default (8 sides)", "limb", {}, 44),
+                ("limb 6", "limb", {"sides": 6}, 32)]:
             with self.subTest(name):
                 self.assertEqual(LL.tris(kind, opts), want)
                 self.assertEqual(PF.part_tris(["b", kind, [1, 1], [0, 0, 0], "iron", opts]), want)
@@ -44,7 +45,7 @@ class Geometry(unittest.TestCase):
 
     def test_limb_knee_and_box(self):
         rings = LL.limb_rings((0.2, 0.15, 0.1), LEG)
-        self.assertEqual([len(r) for r in rings], [6, 6, 6])
+        self.assertEqual([len(r) for r in rings], [8, 8, 8])
         knee = np.mean(rings[1], axis=0)
         self.assertTrue(np.allclose(knee, (0.3, 0.5, 0.15), atol=1e-6))
         lo, hi = PF.bbox(limb())
@@ -147,7 +148,7 @@ class Chain(unittest.TestCase):
                 self.assertEqual(LL.tris("chain", part[5]), want)
                 self.assertEqual(PF.part_tris(part), want)
         rings = LL.chain_rings("tail.1", (0.22, 0.17, 0.11, 0.04), {"bones": 3})
-        self.assertEqual([len(r) for r in rings], [6] * 4)
+        self.assertEqual([len(r) for r in rings], [8] * 4)
         for ring, joint, r in zip(rings, joints, (0.22, 0.17, 0.11, 0.04)):
             self.assertTrue(np.allclose(np.mean(ring, axis=0), joint, atol=1e-6))
             self.assertAlmostEqual(max(np.linalg.norm(np.array(q) - joint) for q in ring), r, 6)
