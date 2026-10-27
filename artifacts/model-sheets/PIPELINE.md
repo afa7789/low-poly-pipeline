@@ -1458,3 +1458,30 @@ script **não** entra no `review.md` e fica como experimento. O CLIP separa unid
 texto +0.042, rank 1/7), mas não mede fidelidade de forma: renders low-poly de qualquer unidade ficam em cosine ~0.80-0.89 entre si,
 e o gate de silhueta já captura o que o CLIP não vê. Texto negativo é esperado (nomes de raça/papel dominam, não a forma).
 Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda só na CLI).
+
+## 20. Leva 2 (2026-10-27)
+
+### 20.E15 Arestas internas do hard sheet, facetas no brief, Chamfer no review (2026-10-27) - budget_split por saliência NEGATIVO, desligado
+
+**O que mudou.** `silhouette.edges(path, mask)`: Sobel do luma suavizado (sigma 1), limiar relativo (30 % do percentil 99 do painel, então sombra mole fica de fora), menos um anel de 7 px na borda da máscara (o contorno não é aresta interna), fechamento de 1 px (a linha de tinta dá duas cristas). `edge_bands(hard, shoulder_frac)`: por faixa (cabeça acima do ombro, torso até o quadril, pernas, os mesmos cortes de `band_areas`) devolve `salience` (parcela dos pixels de aresta), `facets` (mediana de linhas de aresta cruzadas por uma linha de varredura, mais 1) e `direction` (vertical/horizontal/mixed, por abertura 9x1 vs 1x9 com razão 1.5). `measure` ganhou `shoulder_frac`. `spec_pipeline.facet_text` põe a linha `FACETS drawn on the hard sheet's front view ...` no `measured_text` (só biped); `make_brief` calcula as bordas do `args.build`. `silhouette.edge_chamfer/edge_report`: Chamfer entre `edges(hard)` e o `wire-<view>.png` do clay (ambos recortados na caixa da figura e ajustados ao mesmo canvas; melhor dos dois espelhos). Linha nova no review: `edge chamfer hard->wire (/H)` (= `drawn`: distância média de uma aresta desenhada à aresta de wire mais próxima), e `silhouette.json` guarda também `extra` (wire -> desenho; grande por construção, o wire traz a triangulação).
+
+**Números (hard sheet).** Facetas por faixa (cabeça/torso/pernas): n01X 3/7/5, n005 5/7/5, hfoo 3/6/4. Salience: n01X 0.03/0.43/0.54, n005 0.21/0.37/0.42, hfoo 0.13/0.48/0.39. Direção: quase tudo `mixed` (as linhas fechadas dão quadros, 9x1 e 1x9 empatam); só a cabeça do n01X deu `horizontal`. Então "torso: 6 facetas verticais" do roadmap virou "torso: 7 facets" sem direção na maioria dos casos: a direção por abertura morfológica não separa.
+
+Chamfer hard->wire por vista (front/left/back/top/bottom, /H do canvas) nos rebuilds sem LLM: n01X hard-v1 0.011/0.009/0.011/0.010/0.011 (extra 0.016-0.029); n005 v4-oneshot-r1 0.013/0.013/0.012/0.021/0.020 (extra 0.024-0.034); hfoo hard-v1 0.008/0.018/0.010/0.011/0.011 (extra 0.025-0.030). O wire é denso, então `drawn` é pequeno sempre; só vale como comparação entre runs de uma unidade (n005 top/bottom 2x as outras vistas: o desenho faceta onde o modelo não). Sinal, não gate. Silhueta de n01X hard-v1 no rebuild: 0.870/0.770/0.869, PASS (referência 0.875/0.771/0.874).
+
+**budget_split com 50 % área + 50 % saliência: pior, ligado só por `preflight.SPLIT_SALIENCE = True` (padrão False).** Nos 49 specs biped de `runs/draft` com sheet (um spec por run; os 63 do glob incluem não-biped), FAIL do `budget_split`:
+
+| pesos área / saliência / prior | FAIL (de 49) | n01X hard-v1 |
+|---|---|---|
+| 0.5 / 0 / 0.5 (atual) | 16 | passa |
+| 0.5 / 0.5 / 0 (roadmap) | 45 | falha (head 10 % vs 0-12 %, legs 29 % vs 31-73 %) |
+| 0.34 / 0.33 / 0.33 | 30 | passa |
+| 0.4 / 0.2 / 0.4 | 26 | passa |
+| 0.25 / 0.25 / 0.5 | 8 | passa |
+
+Causa: densidade de aresta desenhada põe ~50 % nas pernas (tinta de bota e canela), mas pernas são cilindros e custam ~0.4x da área em tris; o prior fixo existe por isso. Com taxa de FAIL de 45/49 a regra nem poderia virar gate. A última linha (menos falhas) só alarga as faixas; não adotada sem evidência de que pega spec ruim. Mantido o comportamento antigo; `targets_from` já traz `edge_head/body/legs` quando o `sheet-hard.jpg` existe.
+
+**Brief do n005 (linha nova).** `FACETS drawn on the hard sheet's front view (...): head: 5 facets; torso: 7 facets; legs: 5 facets.` Brief completo: `scratchpad/leva2-e15/brief-n005.txt`. Efeito sobre o autor não medido (sem LLM nesta rodada).
+
+**O que piorou/ficou.** Sheet escuro sobre fundo escuro (casaco do n005) perde linhas: mapa de arestas esparso no torso; olhar `edges-n005.png`. Provas: `scratchpad/leva2-e15/edges-{n01X,n005,hfoo}.png` (linha 1 painel do hard sheet, linha 2 `edges`, linha 3 wire do clay, colunas front/left/back/top/bottom).
+

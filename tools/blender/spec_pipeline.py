@@ -245,6 +245,17 @@ def rig_text(family):
             f"only to the limbs this body has. {EXTRA_BONES}")
 
 
+def facet_text(m):
+    """One line per band of the hard sheet's drawn facets (silhouette.edge_bands), or ''."""
+    bands = m.get("edges")
+    if not bands:
+        return ""
+    rows = [f"{b}: {v['facets']} facets{'' if v['direction'] == 'mixed' else ' ' + v['direction']}"
+            for b, v in bands.items()]
+    return ("\nFACETS drawn on the hard sheet's front view (edge lines a horizontal cut crosses, plus "
+            "one; a facet is a flat face, so a band with more of them needs more sides): " + "; ".join(rows) + ".")
+
+
 def measured_text(family, m):
     """Code-derived proportions of the sheet, as the brief states them."""
     profile = ", ".join(f"{v:.2f}" for v in m["front_width_profile"])
@@ -262,7 +273,7 @@ def measured_text(family, m):
             f"{m['head_width']} H, neck width {m['neck_width']} H,\n"
             f"arms hang {m['arm_angle']} degrees out from vertical (A-pose when positive), "
             f"shoulder tip to fist {m['arm_length']} H.\n"
-            f"Front silhouette width profile, top to bottom, in 5% steps: {profile}.")
+            f"Front silhouette width profile, top to bottom, in 5% steps: {profile}." + facet_text(m))
 
 
 OUTLINE_NOTE = {"front": "x right of the centre line", "left": "z forward (the way the feet point)",
@@ -920,6 +931,10 @@ def shape_review(args, glb, layout):
     # lit: an unlit grey solid is one flat blob; the form has to read in the review image
     tool("render_unit.py", glb, view_dir, tilt_arg(report), "lit", blender=True)
     tool("render_wire.py", glb, view_dir, tilt_arg(report), blender=True)     # wire-<view>.png, compare column
+    if summary.get("approved") and args.build.exists():
+        from silhouette import edge_report
+        summary["edges"] = edge_report(args.build, view_dir)     # hard-sheet edges vs the clay's wire
+        (args.out / "silhouette.json").write_text(json.dumps(summary, indent=2))
     gameplay = view_dir / f"{glb.stem}-wc3.png"        # render_unit's name for the rts view
     if gameplay.exists():
         shutil.copy(gameplay, view_dir / f"{glb.stem}-rts.png")
@@ -1074,6 +1089,10 @@ def make_brief(args, lo, hi):
     from silhouette import measure, sheet_colours
     limb_note, rig_note = rig_text(args.rig)
     sheet_m = measure(args.sheet)
+    if args.rig == "biped" and args.build.exists():
+        from silhouette import edge_bands
+        sheet_m["edges"] = edge_bands(args.build, sheet_m["shoulder_frac"])
+        sheet_m.update({f"edge_{g}": sheet_m["edges"][b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
     dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
                      surfaces=", ".join(SURFACES),
                      colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
@@ -1175,6 +1194,8 @@ def iou_rows(summary):
     if summary.get("chamfer"):
         out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
+    if summary.get("edges"):
+        out += row("edge chamfer hard->wire (/H)", {v: r["drawn"] for v, r in summary["edges"].items()}, shape)
     if summary.get("hard"):
         out += row("IoU vs hard", summary["hard"], shape)
     if summary.get("drift"):

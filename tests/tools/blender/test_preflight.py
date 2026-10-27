@@ -263,6 +263,15 @@ class BudgetSplit(unittest.TestCase):
         self.assertGreater(wide_head[0][1], n01x[0][1])
         self.assertTrue(all(lo <= hi for lo, hi in n01x))
 
+    def test_salience_replaces_the_prior_only_when_switched_on(self):
+        t = {**PF.N01X_TARGETS, "edge_head": 0.5, "edge_body": 0.3, "edge_legs": 0.2}
+        self.assertEqual(PF.split_bands(t), PF.split_bands(PF.N01X_TARGETS))
+        PF.SPLIT_SALIENCE = True
+        try:
+            self.assertNotEqual(PF.split_bands(t), PF.split_bands(PF.N01X_TARGETS))
+        finally:
+            PF.SPLIT_SALIENCE = False
+
     def test_ornament_is_not_a_head_cost(self):
         wheel = ["head", "ring", [0.3, 0.05, 0.02], [0, 2, 0], "iron", {"sides": 10}]
         torso = ["spine", "box", [1, 1, 1], [0, 1, 0], "iron", {}]

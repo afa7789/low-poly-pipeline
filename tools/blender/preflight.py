@@ -76,6 +76,7 @@ HEAD_BAND = (0.6, 1.4)
 GROUPS = ("head", "body", "legs")
 SPLIT_PRIOR = (0.13, 0.63, 0.24)
 SPLIT_AREA_WEIGHT = 0.5
+SPLIT_SALIENCE = False  # True: the other half is the hard sheet's edge density per band, not the prior. Off: it fails 45/49 biped specs and n01X hard-v1 (PIPELINE §20.E15)
 SPLIT_REL = 0.25     # +-25% around the target ...
 SPLIT_SLACK = 0.08   # ... and this much absolute, so a small group is not judged to the tri
 SYM_TOL = 0.05       # twin dims within 5%, mirrored rot within 5 degrees
@@ -90,7 +91,8 @@ def group_of(bone):
 def split_bands(targets):
     """[(low, high)] share of the tris for each of GROUPS, from the sheet's band areas."""
     area = [targets[f"area_{g}"] for g in GROUPS]
-    mid = [SPLIT_AREA_WEIGHT * a + (1 - SPLIT_AREA_WEIGHT) * q for a, q in zip(area, SPLIT_PRIOR)]
+    other = [targets[f"edge_{g}"] for g in GROUPS] if SPLIT_SALIENCE and "edge_head" in targets else SPLIT_PRIOR
+    mid = [SPLIT_AREA_WEIGHT * a + (1 - SPLIT_AREA_WEIGHT) * q for a, q in zip(area, other)]
     return [(max((1 - SPLIT_REL) * m - SPLIT_SLACK, 0.0), (1 + SPLIT_REL) * m + SPLIT_SLACK) for m in mid]
 
 
@@ -168,7 +170,13 @@ def targets_from(sheet):
         return dict(N01X_TARGETS)
     from silhouette import measure
     m = measure(pathlib.Path(sheet))
-    return {k: float(m[k]) for k in N01X_TARGETS}
+    targets = {k: float(m[k]) for k in N01X_TARGETS}
+    hard = pathlib.Path(sheet).with_name("sheet-hard.jpg")
+    if hard.exists():       # edge density per band (head, body = torso, legs) of the hard sheet
+        from silhouette import edge_bands
+        bands = edge_bands(hard, m["shoulder_frac"])
+        targets.update({f"edge_{g}": bands[b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
+    return targets
 
 
 HULL_MAX = 0.25      # a part may sit this much of its box outside the sheet's visual hull
