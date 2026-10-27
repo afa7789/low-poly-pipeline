@@ -6,7 +6,10 @@
 lint(glb) -> dict of measurements; failing(lint, textured) -> the names of the gates that fail.
 Only the gates in GATES are enforced (flipped normals, UV range, one atlas, feet on the
 ground, root scale 1; image_size <= 512 stays a report: the 5-8 material atlas is 768 px); the rest is reported until the runs calibrate it (PIPELINE §19.A1).
-Papers: Chen 2023 (manifold, self-intersection), Wiersma 2026 (slivers), Begemann & Hutson 2026
+Form (PIPELINE §24.L6-6): normal_diff (Chen 2023: angle between the normals of the two faces on an edge;
+a slice step is a 90 degree peak), fairness (Wiersma 2026: mean |inner angle - 60|), components_body
+(components without the props), sliver_pct.
+Papers: Chen 2023 (manifold, self-intersection, normal difference), Wiersma 2026 (slivers, fairness), Begemann & Hutson 2026
 (technical matrix), MeshGPT 2024 (compactness, face area), EdgeRunner 2024 (orientation,
 degenerates, components; watertight is NOT required: a unit is a union of closed parts).
 """
@@ -22,6 +25,8 @@ import tempfile
 import numpy as np
 
 SLIVER_DEG = 10.0      # smallest triangle angle under this is a sliver (Wiersma 2026)
+SLIVER_MAX = 5.0       # final-use: at most this share (%) of slivers
+NORMAL_BANDS = (5, 15, 30, 60, 100)   # normal_diff histogram edges (degrees): 6 bands
 WELD = 1e-5            # vertices closer than this are one vertex when counting edges
 RASTER = 1024          # UV overlap raster
 DECAL_CELLS = range(8, 16)   # build_unit.paint_decals: cells 8+i of each 4x4 block
@@ -35,6 +40,9 @@ GATES = {
     "images == 1": (lambda m: m["images"] == 1, True),
     "abs(min_y) <= 0.01 H": (lambda m: abs(m["pivot"]["min_y"]) <= 0.01 * m["pivot"]["height"], False),
     "root_scale == 1": (lambda m: abs(m["root_scale"] - 1) < 1e-3, False),
+    # form (L6-6): one body (props are their own components) and few slivers; they hold final-use back
+    "components_body == 1": (lambda m: m["components_body"] <= 1, False),
+    "sliver_pct < 5": (lambda m: m["sliver_pct"] < SLIVER_MAX, False),
 }
 
 
@@ -74,27 +82,101 @@ def geometry(doc, blob):
 
 def angles_min(p):
     """Smallest angle (degrees) of each triangle p[F,3,3]."""
+    return angles(p).min(1)
+
+
+def angles(p):
+    """The three inner angles (degrees) of each triangle p[F,3,3]."""
     e = np.stack([p[:, 1] - p[:, 0], p[:, 2] - p[:, 1], p[:, 0] - p[:, 2]], 1)
     ln = np.maximum(np.linalg.norm(e, axis=2), 1e-12)
     cos = -np.einsum("fid,fid->fi", e, np.roll(e, 1, 1)) / (ln * np.roll(ln, 1, 1))
-    return np.degrees(np.arccos(np.clip(cos, -1, 1))).min(1)
+    return np.degrees(np.arccos(np.clip(cos, -1, 1)))
+
+
+def welded(pos, tri):
+    """(triangles on welded vertex ids without the collapsed ones, their index into `tri`, vertex count)."""
+    _, weld = np.unique(np.round(pos / WELD).astype(np.int64), axis=0, return_inverse=True)
+    t = weld.reshape(-1)[tri]
+    ok = (t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])
+    return t[ok], np.flatnonzero(ok), int(weld.max()) + 1
 
 
 def topology(pos, tri):
     """(boundary edges, non-manifold edges, components) on welded vertices."""
     from scipy.sparse import coo_matrix
     from scipy.sparse.csgraph import connected_components
-    _, weld = np.unique(np.round(pos / WELD).astype(np.int64), axis=0, return_inverse=True)
-    t = weld.reshape(-1)[tri]
-    t = t[(t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])]
+    t, _, n = welded(pos, tri)
     edges = np.sort(np.concatenate([t[:, [0, 1]], t[:, [1, 2]], t[:, [2, 0]]]), axis=1)
     uniq, count = np.unique(edges, axis=0, return_counts=True)
-    n = weld.max() + 1
     graph = coo_matrix((np.ones(len(uniq)), (uniq[:, 0], uniq[:, 1])), shape=(n, n))
     used = np.zeros(n, bool)
     used[t.ravel()] = True
     comps = connected_components(graph, directed=False)[1][used]
     return int((count == 1).sum()), int((count > 2).sum()), int(len(np.unique(comps)))
+
+
+def normal_diff(pos, tri):
+    """Angle (degrees) between the geometric normals of the two faces on each edge that exactly two
+    faces share (welded vertices; collapsed faces ignored): a smooth surface sits near 0, a slice
+    step at 90. Empty array when no edge qualifies."""
+    t, idx, _ = welded(pos, tri)
+    p = pos[tri[idx]]
+    n = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+    n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-20)
+    edges = np.sort(np.concatenate([t[:, [0, 1]], t[:, [1, 2]], t[:, [2, 0]]]), axis=1)
+    face = np.tile(np.arange(len(t)), 3)
+    _, inv, count = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
+    order = np.argsort(inv.reshape(-1), kind="stable")
+    pair = order[np.flatnonzero(count[inv.reshape(-1)[order]] == 2)].reshape(-1, 2)
+    cos = np.einsum("fd,fd->f", n[face[pair[:, 0]]], n[face[pair[:, 1]]])
+    return np.degrees(np.arccos(np.clip(cos, -1, 1)))
+
+
+def body_components(pos, tri, prop_tri, props):
+    """Components of the welded mesh without the props: a component whose every triangle wears a
+    prop_* material is a prop; with none of those (clay is one material) `props` (the prop parts in
+    attach.json, each its own component after the union) are taken off the count. 0 for an empty mesh."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    t, idx, n = welded(pos, tri)
+    if not len(t):
+        return 0
+    graph = coo_matrix((np.ones(3 * len(t)), (t.ravel(), np.roll(t, 1, 1).ravel())), shape=(n, n))
+    label = connected_components(graph, directed=False)[1][t[:, 0]]
+    comps = np.unique(label)
+    flagged = prop_tri[idx]
+    by_material = sum(bool(flagged[label == c].all()) for c in comps)
+    return max(len(comps) - (by_material or props), 1)
+
+
+def prop_tris(doc):
+    """Per triangle (same order as geometry()): its material is named prop_*."""
+    mats = doc.get("materials", [])
+    out = []
+    for m in doc["meshes"]:
+        for p in m["primitives"]:
+            name = mats[p["material"]].get("name", "") if "material" in p else ""
+            out.append(np.full(doc["accessors"][p["indices"]]["count"] // 3, name.startswith("prop_")))
+    return np.concatenate(out)
+
+
+def attach_props(glb):
+    """Prop parts listed in the attach.json beside the GLB (build_unit writes <stem>-attach.json for a
+    trial, attach.json for clay/model.glb); 0 without the file."""
+    stem = pathlib.Path(glb).stem
+    f = pathlib.Path(glb).with_name("attach.json" if stem in ("clay", "model") else f"{stem}-attach.json")
+    return len(json.loads(f.read_text()).get("props", [])) if f.exists() else 0
+
+
+def form(pos, tri, live_area):
+    """normal_diff {mean, p90, hist: 6 shares in %} and fairness (mean |inner angle - 60|, degrees)."""
+    nd = normal_diff(pos, tri)
+    hist = np.histogram(nd, (0, *NORMAL_BANDS, 180.001))[0] if len(nd) else np.zeros(len(NORMAL_BANDS) + 1)
+    p = pos[tri][live_area]
+    return ({"mean": round(float(nd.mean()), 2) if len(nd) else 0.0,
+             "p90": round(float(np.percentile(nd, 90)), 2) if len(nd) else 0.0,
+             "hist": [round(100.0 * float(h) / max(len(nd), 1), 1) for h in hist]},
+            round(float(np.abs(angles(p) - 60).mean()), 2) if len(p) else 0.0)
 
 
 def cover_map(uv, tri, wh, cols, rows):
@@ -209,6 +291,8 @@ def lint(glb):
            "nonmanifold_edges": nonmanifold, "components": comps, "materials": len(doc.get("materials", [])),
            "images": len(doc.get("images", [])),
            "pivot": {"min_y": float(pos[:, 1].min()), "height": height}, "root_scale": root_scale(doc)}
+    out["normal_diff"], out["fairness"] = form(pos, tri, live)
+    out["components_body"] = body_components(pos, tri, prop_tris(doc), attach_props(glb))
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
     out["atlas_kb"] = atlas_kb(doc)
     out.update(uv_report(uv, tri, out["image_size"], p, area))

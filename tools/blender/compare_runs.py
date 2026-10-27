@@ -2,7 +2,7 @@
 """Sheet across runs of one unit: a row per view, the concept first, then one column per run.
 
     python3 tools/blender/compare_runs.py <out.png> <run_dir> [<run_dir> ...]
-        [--against approved|hard] [--show textured|clay|wire|overlay|uv|clay+overlay+textured]
+        [--against approved|hard] [--show textured|clay|wire|overlay|uv|clay+wire+overlay+textured]
     python3 tools/blender/compare_runs.py --stability <run_a> <run_b>     # noise between two equal runs
 
     e.g. compare_runs.py cmp.png runs/draft/n01X/hard-v1 runs/draft/n01X/v2-hard-r1 ...
@@ -10,7 +10,9 @@
 Same grid and same per-run input contract as make_compare.py (read its docstring): a run
 directory with review.md, sil/<against>/ and views/<tag>/. A run missing the files of the
 chosen column shows an empty cell and a warning, so older runs still line up. The concept
-column comes from the first run's sheet. Footer of each cell: IoU, gate verdict, zones.
+column comes from the first run's sheet. Footer of each cell: IoU, gate verdict, zones. A last row gives each
+run's form numbers from its GLB (mesh_lint, PIPELINE 24.L6-6): normal_diff mean/p90, fairness, body
+components, slivers. --show defaults to clay+wire+overlay+textured (the wire shows the steps).
 
 Score of a run (Zhao 2026: 30 % time, 70 % quality), shown in its header and printed ranked:
 
@@ -43,6 +45,7 @@ import mesh_lint  # noqa: E402
 import review_pair  # noqa: E402
 
 SHOWS = ("textured", "clay", "wire", "overlay", "uv")
+DEFAULT_SHOW = "clay+wire+overlay+textured"
 T_MAX = 1200.0       # seconds; f(t) reaches 0 here
 ZONE_FULL = 0.5      # a zone mean of this counts as 1 (the hard-v1 sheets sit near 0.37)
 W_TIME, W_QUALITY = 0.3, 0.7
@@ -96,6 +99,17 @@ def cell_footer(run, view):
     if z:
         parts.append((f"  zones {z['mean']:.2f}/{z['cover']:.2f}", MC.INK))
     return parts
+
+
+def form_parts(run):
+    """Footer parts of the run's form numbers (4 of mesh_lint.lint on its GLB), or a note without a GLB."""
+    try:
+        m = mesh_lint.lint(run_glb(run["dir"]))
+    except StopIteration:
+        return [("form: no GLB", MC.DIM)]
+    nd = m["normal_diff"]
+    return [(f"form  nd {nd['mean']:.1f}/{nd['p90']:.0f}  fair {m['fairness']:.1f}  "
+             f"body {m['components_body']}  slivers {m['sliver_pct']:.1f}%", MC.INK)]
 
 
 def pair_text(run):
@@ -160,7 +174,12 @@ def build_sheet(runs, show):
         for i, r in enumerate(runs):
             MC.draw_parts(d, ((1 + i * n) * w + 10, 6), cell_footer(r, view), MC.font(15))
         rows += [MC.join(cells), foot]
-    return MC.stack(rows)
+    foot = Image.new("RGB", (width, MC.FOOT_H), (245, 245, 245))
+    d = ImageDraw.Draw(foot)
+    d.text((10, 6), "FORM", fill=MC.INK, font=MC.font(15))
+    for i, r in enumerate(runs):
+        MC.draw_parts(d, ((1 + i * n) * w + 10, 6), form_parts(r), MC.font(15))
+    return MC.stack(rows + [foot])
 
 
 def sample_surface(glb, n=STAB_POINTS, seed=0):
@@ -207,7 +226,7 @@ def main():
     ap.add_argument("paths", nargs="+", type=pathlib.Path, help="out.png then runs; with --stability: the two runs")
     ap.add_argument("--stability", action="store_true")
     ap.add_argument("--against", choices=("approved", "hard"), default="approved")
-    ap.add_argument("--show", default="textured",
+    ap.add_argument("--show", default=DEFAULT_SHOW,
                     help="column(s) per run: " + "|".join(SHOWS) + ', or several joined by "+" (clay+overlay+textured)')
     args = ap.parse_args()
     if args.stability:

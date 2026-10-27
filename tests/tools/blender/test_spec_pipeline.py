@@ -749,6 +749,20 @@ class RedDecides(unittest.TestCase):
              "uncovered": {"front": 0.10, "left": 0.20}}
         self.assertAlmostEqual(SP.margin_of(s), 0.20 - SP.RED_W * 0.15)
 
+    def test_form_cost_lowers_margin_and_blocks_a_fit(self):
+        """PIPELINE 24.L6-6: slivers + mean normal_diff / 90 counted next to the red"""
+        m = {"sliver_pct": 10.0, "normal_diff": {"mean": 45.0}}
+        self.assertAlmostEqual(SP.form_cost(m), 0.6)
+        s = {"approved": {"front": 0.85}, "gates": {"front": 0.75}}
+        self.assertAlmostEqual(SP.margin_of({**s, "form": 0.6}), 0.10 - SP.FORM_W * 0.6)
+        gates = {"front": 0.75}
+        prev, cur = {"front": 0.80, "form": 0.50}, {"front": 0.82, "form": 0.70}
+        self.assertFalse(SP.fit_accepted(prev, cur, gates, (None, None)))        # +0.02 IoU, +0.2 form
+        self.assertTrue(SP.fit_accepted(prev, {**cur, "form": 0.50}, gates, (None, None)))
+        self.assertIn("| componentes do corpo (sem props) | 1 |", SP.form_block(
+            {"normal_diff": {"mean": 45.0, "p90": 90.0, "hist": [1, 2, 3, 4, 5, 6]}, "fairness": 20.0,
+             "components_body": 1, "sliver_pct": 10.0}))
+
     def test_fit_refused_when_red_grows(self):
         gates = {"front": 0.75}
         prev, cur = {"front": 0.80, "red": 0.10}, {"front": 0.85, "red": 0.10 + SP.RED_SLIP + 0.01}

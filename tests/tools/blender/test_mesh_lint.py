@@ -71,13 +71,33 @@ class Lint(unittest.TestCase):
         m = L.lint(glb(self.tmp / "d.glb"))
         self.assertEqual(L.failing(m, textured=True), ["images == 1"])
 
+    def test_form_of_a_cube(self):
+        """12 box edges at 90 degrees, 6 diagonals at 0; the inner angles are 45/45/90"""
+        m = L.lint(glb(self.tmp / "a.glb"))
+        self.assertEqual(m["normal_diff"], {"mean": 60.0, "p90": 90.0, "hist": [33.3, 0.0, 0.0, 0.0, 66.7, 0.0]})
+        self.assertEqual((m["fairness"], m["components_body"]), (20.0, 1))
+
+    def test_props_are_not_body_components(self):
+        pos = np.vstack([np.array(CUBE, float), np.array(CUBE, float) + 5])
+        tri = np.array(TRIS + [(a + 8, b + 8, c + 8) for a, b, c in TRIS])
+        none = np.zeros(len(tri), bool)
+        by_material = none.copy()
+        by_material[12:] = True
+        for name, flagged, props, want in (("two boxes", none, 0, 2), ("attach.json lists one prop", none, 1, 1),
+                                           ("prop_* material", by_material, 0, 1), ("never below one", none, 5, 1)):
+            with self.subTest(name):
+                self.assertEqual(L.body_components(pos, tri, flagged, props), want)
+
     def test_committed_run_calibration(self):
         run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
         if not run.exists():
             self.skipTest("run not checked out")
         m = L.lint(run)
         self.assertEqual((m["tris"], m["flipped"], m["images"], m["uv_out_of_range"]), (620, 0, 1, 0))
-        self.assertEqual(L.failing(m, textured=True), [])
+        # the union (L6-4) is not integrated yet: 32 boxes, so only the body gate fails (PIPELINE 24.L6-6)
+        self.assertEqual(L.failing(m, textured=True), ["components_body == 1"])
+        self.assertEqual((m["components"], m["components_body"]), (32, 32))
+        self.assertAlmostEqual(m["normal_diff"]["mean"], 48.64, 1)
 
 
 class Status(unittest.TestCase):

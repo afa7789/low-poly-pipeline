@@ -29,9 +29,10 @@ def fake_shoot(glb, tilt, out, lit):
 
 class Pair(unittest.TestCase):
     def test_parse_vote(self):
-        ok = 'sure {"sheet": "left", "sheet_why": "a", "artist": "right", "artist_why": "b", "wc3": "left"}'
+        ok = 'sure {"sheet": "left", "sheet_why": "a", "artist": "right", "artist_why": "b", "wc3": "left", "form": "right"}'
         self.assertEqual(RP.parse_vote(ok)["artist"], "right")
-        for bad in ("no json", '{"sheet": "middle", "artist": "left", "wc3": "left"}', '{"sheet": "left", "artist": "left"}', "{oops}"):
+        for bad in ("no json", '{"sheet": "middle", "artist": "left", "wc3": "left", "form": "left"}',
+                    '{"sheet": "left", "artist": "left", "wc3": "left"}', "{oops}"):
             with self.subTest(bad=bad):
                 self.assertIsNone(RP.parse_vote(bad))
 
@@ -39,22 +40,26 @@ class Pair(unittest.TestCase):
         self.assertEqual(RP.sides(), [True, True, False, False])
 
     def test_tally_line_gate_and_demote(self):
-        def vote(sheet, artist, wc3, sides):
+        def vote(sheet, artist, wc3, sides, form="B"):
             """picks (A/B) and the physical side of each axis"""
-            return {"sheet": sheet, "artist": artist, "wc3": wc3,
+            sides = (*sides, sides[1])
+            return {"sheet": sheet, "artist": artist, "wc3": wc3, "form": form,
                     **{f"{a}_side": d for a, d in zip(RP.AXES, sides)}}
 
         L, R = "left", "right"
         votes = [vote("A", "B", "B", (L, R, R)), vote("A", "B", "A", (R, L, L)),
                  vote("B", "B", "B", (L, R, R)), vote("A", "B", "A", (R, L, L))]
         r = {"A": "v4", **RP.tally(votes)}
-        self.assertEqual(RP.line(r), "pairwise vs v4: sheet A 3-1, artist B 4-0, wc3 tie 2-2")
-        self.assertFalse(RP.lost(r))                       # 1 of 3 lost
-        lost2 = RP.tally([vote("A", "A", "B", (L, R, L)), vote("A", "A", "B", (R, L, R))] * 2)
-        self.assertTrue(RP.lost({"A": "v4", **lost2}))     # sheet + artist lost, wc3 won
+        self.assertEqual(RP.line(r), "pairwise vs v4: sheet A 3-1, artist B 4-0, wc3 tie 2-2, form B 4-0")
+        self.assertFalse(RP.lost(r))                       # 1 of 4 lost
+        lost2 = RP.tally([vote("A", "A", "B", (L, R, L), "A"), vote("A", "A", "B", (R, L, R), "A")] * 2)
+        self.assertTrue(RP.lost({"A": "v4", **lost2}))     # sheet + artist + form lost, wc3 won
         self.assertEqual(RP.tally(votes[:3])["sheet"]["winner"], "A")   # 3 valid votes: no tie possible
         one_axis = {"sheet": {"winner": "B"}, "artist": {"winner": "A"}, "wc3": {"winner": "tie"}}
         self.assertFalse(RP.lost(one_axis))
+        two_of_four = {**one_axis, "wc3": {"winner": "B"}, "form": {"winner": "A"}}
+        self.assertFalse(RP.lost(two_of_four))             # 2-2 over four axes is not a loss
+        self.assertTrue(RP.lost({**two_of_four, "wc3": {"winner": "A"}}))
         old = {"sheet": {"winner": "A"}, "artist": {"winner": "A"}}
         self.assertTrue(RP.lost(old))                      # result written before the wc3 axis
         biased = RP.tally([vote("A", "A", "A", (L, L, L)), vote("A", "B", "B", (L, L, L)),
@@ -103,7 +108,7 @@ class Pair(unittest.TestCase):
             self.assertEqual(CR.pair_text(run), "  pair vs v7 S B3-1 R B3-1 W tie2-2")
 
     def test_ask_vote_retries_once(self):
-        good = '{"sheet": "left", "artist": "left", "wc3": "right"}'
+        good = '{"sheet": "left", "artist": "left", "wc3": "right", "form": "left"}'
         self.assertEqual(RP.ask_vote(mock.Mock(side_effect=["??", good]), "m", "i")["sheet"], "left")
         self.assertIsNone(RP.ask_vote(mock.Mock(side_effect=["??", RuntimeError("x")]), "m", "i"))
 
@@ -122,7 +127,7 @@ class Pair(unittest.TestCase):
                 left_is_a = RP.sides()[int(images[0].stem[-1])]   # votes run in threads
                 side = "left" if left_is_a else "right"
                 return json.dumps({"sheet": side, "sheet_why": "x", "artist": side, "artist_why": "y",
-                                   "wc3": side, "wc3_why": "z"})
+                                   "wc3": side, "wc3_why": "z", "form": side, "form_why": "w"})
 
             panels = {"front": png(tmp / "p/f.png"), "rts": png(tmp / "p/r.png")}
             with mock.patch.object(RP, "shoot", fake_shoot), mock.patch.object(RP, "sheet_panels", return_value=panels):
