@@ -224,6 +224,23 @@ class JointPlace(unittest.TestCase):
         self.assertEqual(self.rule(self.parts(0.5), {}), [])
         self.assertEqual(self.rule([], {"knee_h": 0.5}), [])
 
+    def test_vlm_joints_compare_all_types(self):
+        parts = [["head", "box", [0.2, 0.4, 0.2], [0, 0.8, 0], "iron", {}],
+                 ["thigh.L", "box", [0.1, 0.3, 0.1], [0, 0.45, 0], "iron", {}]]
+        boxes = {id(p): PF.bbox(p) for p in parts}
+        own = PF.own_joints(parts, boxes, 1.0)
+        self.assertEqual((round(own["head_top"], 2), round(own["chin"], 2), round(own["hip"], 2)), (1.0, 0.6, 0.6))
+        (rule, ok, detail), = PF.joint_checks(parts, boxes, 1.0, {"vlm_joints": {"head_top": 1.0, "hip": 0.8, "wrist": 0.4}})
+        self.assertEqual((rule, ok, detail.startswith("2 joints"), "hip 0.60 H (sheet 0.80, +/-0.06) - OUT" in detail),
+                         ("joint_place", True, True, True))
+
+    def test_parts_joints_reads_the_sheets_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "parts.json").write_text(json.dumps({"H": 2.0, "joints": {
+                "knee.L": {"xyz": [0, 0.5, 0]}, "knee.R": {"xyz": [0, 0.7, 0]}, "elbow.L": {"xyz": None}}}))
+            self.assertEqual(PF.parts_joints(pathlib.Path(tmp) / "sheet.jpg"), {"knee": 0.3})
+            self.assertEqual(PF.parts_joints(pathlib.Path(tmp) / "x" / "sheet.jpg"), {})
+
     def test_limb_gives_its_knee_point(self):
         limb = [["thigh.L", "limb", [0.1, 0.1, 0.1], [0, 0.5, 0], "iron", {"from": [0, 1.0, 0], "to": [0, 0, 0], "knee": [0.6, 0, 0]}]]
         self.assertAlmostEqual(PF.joint_height(limb, {id(limb[0]): PF.bbox(limb[0])}, 1.0, "knee_h"), 0.4)
