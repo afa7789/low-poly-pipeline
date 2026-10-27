@@ -371,7 +371,7 @@ def load_parts(doc):
 def part_tris(part):
     _, kind, dims, _, _, opts = part
     if opts.get("cut") == "sheet":      # two <= 8-gon extrusions intersected: 42-61 tris measured (PIPELINE 19.B4)
-        return CUT_TRIS
+        return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
     if kind == "prism":
         return 4 * int(opts.get("sides", 8)) - 4
     if kind != "ring":

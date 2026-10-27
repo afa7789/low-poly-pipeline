@@ -497,6 +497,10 @@ def cut_part(bone, mat_name, idx):
     mod.object = other
     bpy.ops.object.modifier_apply(modifier=mod.name)
     bpy.data.objects.remove(other, do_unlink=True)
+    if cut.get("dissolve"):             # a building's base volume: merge the coplanar triangles
+        dis = obj.modifiers.new("Dissolve", "DECIMATE")
+        dis.decimate_type, dis.angle_limit = "DISSOLVE", D(1.0)
+        bpy.ops.object.modifier_apply(modifier=dis.name)
     obj.name = f"{bone}_{idx}"
     obj.data.materials.clear()          # the boolean leaves an empty slot behind
     obj.data.materials.append(material(mat_name))

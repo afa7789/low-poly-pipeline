@@ -60,6 +60,7 @@ import time
 import urllib.error
 import urllib.request
 
+import building_hull
 import cut_hull
 import mesh_lint
 import review_pair
@@ -1084,6 +1085,19 @@ def turntable(args, glb):
     subprocess.run(["rm", "-rf", str(frames)], check=False)
 
 
+def hull_for(args, layout):
+    """The base volume part of --hull (building_hull.hull_part, built to out/hull.glb so its
+    triangles are counted), or None without the flag. Only a building sheet has the elevations."""
+    if not args.hull:
+        return None
+    if layout != "building":
+        raise SystemExit("--hull needs --kind building|large: only a building sheet has the elevations")
+    from silhouette import concept_panels
+    part = building_hull.hull_part(concept_panels(args.sheet, layout=layout), args.height or RF.top(args.rig))
+    part[5]["hull"]["tris"] = building_hull.export(part, args.out, args.kind)
+    return part
+
+
 def make_brief(args, lo, hi):
     """The spec brief for this sheet: the unit brief, or the building brief for a
     static rig, both around the same part DSL and code-measured numbers."""
@@ -1101,7 +1115,8 @@ def make_brief(args, lo, hi):
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
                            measured=measured_text(args.rig, sheet_m) + outline_text(sheet_m)
-                           + split_text(args.rig, sheet_m, lo, hi) + props_text(load_props(args.id)))
+                           + split_text(args.rig, sheet_m, lo, hi) + props_text(load_props(args.id))
+                           + (building_hull.brief_text(args.hull_part) if args.hull_part else ""))
 
 
 RTS_TRIES = 3          # image-to-image draws per RTS view before the warning
@@ -1278,6 +1293,8 @@ def stage_one(args, brief, images, tmp, layout):
     else:
         specs = [(1, {**parse_spec(ask(args.model, brief, images)),
                       "rig": args.rig})]
+    if args.hull_part:        # the base volume is code's, whatever the author wrote
+        specs = [(k, building_hull.with_hull(spec, args.hull_part)) for k, spec in specs]
     args.times["gen"] = time.monotonic() - t0
     for p in tmp:
         p.unlink(missing_ok=True)
@@ -1365,6 +1382,9 @@ def main():
                     help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
+    ap.add_argument("--hull", action="store_true",
+                    help="building kinds: the base volume is the sheet's front x left hull "
+                         "(building_hull.py); the author only writes roof and props (PIPELINE 20.L13)")
     ap.add_argument("--fit", action="store_true",
                     help="after repair/passes and before the final build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
                          "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
@@ -1408,6 +1428,7 @@ def main():
     sheet, refs, tmp = prompt_images(args, args.out / ".." / "..")
     args.refs = refs
     set_rig(args.rig)
+    args.hull_part = hull_for(args, layout)
     brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
                       props=load_props(args.id))
     spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs], tmp, layout)
