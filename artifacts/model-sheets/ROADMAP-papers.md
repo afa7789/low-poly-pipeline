@@ -424,6 +424,8 @@ L6-3 props ancorados ──────┘                                    L6
 
 # Leva 7 (2026-10-29) — RTS e laterais
 
+**Estado (2026-10-29):** L7-2 (coerência do rts, `--redo-rts`) e L7-4 (lathe deitado default; `LEAN_PROPS` opt-in) integrados e medidos na bateria v11 (n017 PASS, juiz 4-0); L7-3 integrado opt-in (`TOP_LEGS`, `LEG_SPILL_W`); L7-1 e L7-5 integrados depois da bateria (ver §25). Pendente: recalibrar `budget` com os kinds novos (n005 cai por 764 tris com a melhor forma do projeto).
+
 Diagnóstico do v10: front/back passam em 7 de 8; o erro ficou no rts (n00U .617, n017 .692, n00H .232, n010 .547) e
 no left (hfoo .450, n00H .681, n017 .719). Causas: fit/deformação só em front/left/back; rts do sheet gerado à parte
 sem coerência; pernas da aranha/lobo não medidas no rts/top; tronco horizontal em tijolos; prop longo com ângulo

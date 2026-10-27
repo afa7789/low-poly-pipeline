@@ -3061,6 +3061,16 @@ Rebuild textured (`--texture cel`) e clay de `runs/draft/{n01X,n005,n02X,hfoo}/v
 
 ## 25. Leva 7 (2026-10-29)
 
+RTS e laterais. Bateria `v11-r1` (4 unidades de prova, pareada contra v10) com L7-2 (coerência do rts) e L7-4 (lathe
+deitado) integrados; L7-3 opt-in; L7-1 e L7-5 integrados depois da bateria. Imagens em `history/2026-10-29-v11/`.
+
+| unidade | v10 f/l/b · rts | v11 f/l/b · rts | veredito | juiz v11 × v10 |
+|---|---|---|---|---|
+| n005 | .909/.926/.909 · .862 | .909/.935/.905 · .872 | CHECK (tris 764 > 700) | empates; form v11 3-1 |
+| n00U | .833/.739/.832 · .617 | .843/.700/.840 · .630 | CHECK (rts) | v10 4-0 |
+| hfoo | .858/.450/.858 · .648 | .855/.530/.849 · .652 | CHECK (left: lança) | v11 4-0 sheet |
+| n017 | .872/.719/.807 · .692 | **.882/.746/.830** · .671 | **PASS** (1º quadrúpede) | **v11 4-0 nos 4** |
+
 ### 25.L7-2 Coerência do rts: hull front x left na câmera do jogo, `--redo-rts` (2026-10-27)
 
 - **Mudou:** `silhouette.sheet_report` ganha `coherence.rts` e `rts_cam`: o hull front⊗left (64³, `hull_voxels`) é projetado
