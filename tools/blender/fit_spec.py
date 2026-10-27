@@ -38,6 +38,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cut_hull  # noqa: E402
 import lathe_limb  # noqa: E402
+import parts_fit  # noqa: E402
 import preflight  # noqa: E402
 import rig_families as RF  # noqa: E402
 import silhouette  # noqa: E402
@@ -50,6 +51,9 @@ ATTACHED_RANGE = 0.20   # a part connected to its parent may move its dims this 
 ROT_RANGE = 20.0        # degrees a `rot` axis may move
 ROT_BONES = ("arm", "forearm", "hand", "thigh", "shin", "foot", "leg")   # bone name prefixes whose parts turn
 ZONE_W = 0.1            # objective weight of the colour-zone term (1 - share of a part inside its zone)
+PART_W = 0.2            # ... of the part-mask term (1 - share of a part's visible projection inside its part, L5-4)
+PART_POOR = 0.85         # a part with less than this share inside its part mask is moved even if no view fails
+DEPTH_W = 0.3           # cost of each depth pair (A in front of B) that does not hold, as LOOSE_W
 MAX_SECONDS = 150.0     # wall-clock budget of one fit (the unit's budget is 3 min with the clay trials)
 FAST_EVALS = 1500       # --fit-fast: the classic 3 views, no rot, no zones
 CUT_BONES = ("spine", "pelvis", "body", "abdomen")
@@ -104,6 +108,13 @@ def cam_candidates(view):
 
 
 # ---------------------------------------------------------------- the proxy
+def spec_centre(part):
+    """Centre of a part's outline in spec axes (right, up, forward)."""
+    w = part_points(part)
+    c = (w.min(axis=0) + w.max(axis=0)) / 2
+    return float(c[0]), float(c[2]), float(-c[1])
+
+
 def spec_to_blender(p):
     """Spec (right, up, forward) -> Blender (x, y, z), as build_unit.bp."""
     return np.array([p[0], -p[2], p[1]], float)
@@ -297,6 +308,7 @@ class Zones:
         names, centres, _ = silhouette.zone_palette(sheet)
         rgb = silhouette.read_rgba(sheet, 768)[..., :3] / 255.0
         panels = silhouette.concept_panels(sheet)
+        self.centres = centres
         self.labels = {v: silhouette.mode_filter(silhouette.normalize(
             silhouette.zone_labels(rgb, panels[v], centres, ink=True))) for v in views if v in panels}
         self.zone_of = {}
@@ -331,19 +343,25 @@ class Zones:
 class Proxy:
     """Scores a parts list against the concept masks of the views being fitted."""
 
-    def __init__(self, concept, views, cams=None, zones=None, hard=None):
+    def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None):
         self.concept, self.views, self.cams, self.zones, self.hard = concept, views, cams or {}, zones, hard
+        self.partfit = partfit      # parts_fit.PartTerms: part masks and depth pairs (L5-4)
         # the concept's contour and its distance map never change: silhouette.chamfer, halved
         self.edge = {v: edge_of(m) for v, m in concept.items()}
         self.dist = {v: distance_transform_edt(~e) for v, e in self.edge.items()}
 
     def hulls(self, world, views=None):
-        """{view: outline} of one part's world points."""
-        return {v: hull2d(np.stack(project(v, world, self.cams.get(v)), 1)) for v in views or self.views}
+        """{view: outline} of one part's world points, plus "near": {view: nearness to that camera} (L5-4)."""
+        out = {v: hull2d(np.stack(project(v, world, self.cams.get(v)), 1)) for v in views or self.views}
+        return out | {"near": {v: float((f(world).min() + f(world).max()) / 2) for v, f in parts_fit.NEAR.items()}}
+
+    def hull_list(self, parts, cache=None):
+        """[hulls() per part]; `cache` {part index: hulls()} spares the frozen parts."""
+        return [cache[i] if cache and i in cache else self.hulls(part_points(p)) for i, p in enumerate(parts)]
 
     def outlines(self, parts, cache=None):
-        """{view: [outline per part]}; `cache` {part index: hulls()} spares the frozen parts."""
-        hulls = [cache[i] if cache and i in cache else self.hulls(part_points(p)) for i, p in enumerate(parts)]
+        """{view: [outline per part]}"""
+        hulls = self.hull_list(parts, cache)
         return {v: [h[v] for h in hulls] for v in self.views}
 
     def masks(self, parts, cache=None):
@@ -369,12 +387,26 @@ class Proxy:
     def ious(self, parts, cache=None):
         return {v: round(self.view_score(v, m)[0], 4) for v, (m, _) in self.masks(parts, cache).items()}
 
+    def polygons(self, outs):
+        """{view: pixel outline per part} on each view's canvas, for the views parts.json has boxes for."""
+        return {v: [to_px(o, canvas_of(outs[v])) for o in outs[v]] for v in self.partfit.views}
+
+    def part_shares(self, parts, free, cache=None):
+        """{(part, view): share of the part's visible projection inside its part mask} (L5-4)."""
+        hulls = self.hull_list(parts, cache)
+        outs = {v: [h[v] for h in hulls] for v in self.views}
+        return self.partfit.shares(free, hulls, self.polygons(outs))
+
     def loss(self, parts, cache=None, free=()):
-        outs = self.outlines(parts, cache)
+        hulls = self.hull_list(parts, cache)
+        outs = {v: [h[v] for h in hulls] for v in self.views}
         scores = {v: self.view_score(v, raster(o)[0]) for v, o in outs.items()}
         total = sum((1 - i) + CHAMFER_W * c for i, c, _ in scores.values()) / len(scores)
         if self.zones and free:
             total += ZONE_W * self.zones.term(parts, free, outs, {v: f for v, (_, _, f) in scores.items()})
+        if self.partfit and free:
+            total += PART_W * self.partfit.term(free, hulls, self.polygons(outs))
+            total += DEPTH_W * len(self.partfit.broken(hulls))
         if self.hard:                                                # --fit-edges (PIPELINE 21.F7)
             total += EDGE_W * sum(edge_term(o, self.hard[v]) for v, o in outs.items() if v in self.hard) / max(len(outs), 1)
         return total
@@ -667,6 +699,10 @@ class Objective:
         if worse or loose - c["loose0"]:
             return PENALTY + len(worse) + len(loose - c["loose0"])
         moving = {j: self.proxy.hulls(part_points(cand[j])) for j in self.free}
+        pf = self.proxy.partfit
+        order = pf.broken(self.proxy.hull_list(cand, self.cache | moving)) if pf else set()
+        if order - c["order0"]:           # a depth pair that held no longer does (L5-4: hard)
+            return PENALTY + len(order - c["order0"])
         f = self.proxy.loss(cand, self.cache | moving, self.free) + LOOSE_W * len(loose)
         f += c["joint_w"] * joint_term(cand, c["targets"], c["height"]) if c["joint_w"] else 0.0
         if f < self.best["f"]:           # Powell can end on a worse point across the penalty cliffs
@@ -773,12 +809,34 @@ def baked(parts, sheet):
     return out
 
 
+def attach_parts(proxy, doc, sheet, parts, height, wide, wanted, parts_path):
+    """Give the proxy its colour zones (a palette, or a parts.json to read) and, when `wanted` and the sheet
+    has a parts.json (or `parts_path` names one), the part masks and depth pairs (PIPELINE 23.L5-4)."""
+    parts_doc = parts_fit.load(sheet, parts_path) if wide and wanted else None
+    if wide and pathlib.Path(sheet).exists() and (doc.get("palette") or parts_doc):
+        proxy.zones = Zones(sheet, doc, proxy.views)
+    if parts_doc:
+        centres = [spec_centre(p) for p in parts]
+        proxy.partfit = parts_fit.PartTerms(parts, centres, sheet, parts_doc, proxy.zones, height)
+    return parts_doc
+
+
+def misplaced(proxy, parts):
+    """Indices of the parts whose visible projection leaves their part mask (share < PART_POOR) and of the
+    parts that must be nearer the camera than another and are not: they move even when every view passes."""
+    pf = proxy.partfit
+    shares = proxy.part_shares(parts, range(len(parts)))
+    return {i for (i, _), s in shares.items() if s < PART_POOR} | {i for i, _ in pf.broken(proxy.hull_list(parts))}
+
+
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
-        seconds=MAX_SECONDS, hard=None, joints=False, stages=None):
+        seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
     top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec.
+    `partfit` (opt-in: PIPELINE 23.L5-4 measured it neutral on the silhouettes) uses refs/<id>/parts.json, or `parts_path`, when there is one: part masks and depth order (PIPELINE 23.L5-4).
+    `depth` (opt-in, needs partfit) starts from Depth Anything's z and occlusion order (depth_map.py, PIPELINE 23.L5-4b).
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
     (PIPELINE 22.L4-3); None is the single Powell over every parameter."""
     t0 = time.monotonic()
@@ -793,24 +851,35 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     failing = [v for v in proxy.views if v in gates and before.get(v, 1.0) < gates[v] + margin]
     report = {"views": list(proxy.views), "cams": proxy.cams, "before": before, "after": before,
               "failing": failing, "free": 0, "evals": 0, "changed": False}
-    if not parts or not failing:
+    if not parts:
         return doc, report
-    free = touched(proxy, parts, proxy.masks(parts), failing)
+    height = max(max(b[1][1] for b in map(preflight.bbox, parts)), 1e-6)
+    attach_parts(proxy, doc, sheet, parts, height, wide, partfit, parts_path)
+    if depth and proxy.partfit:
+        import depth_map
+        parts, report["depth"] = depth_map.depth_init(parts, proxy.partfit, parts_fit.load(sheet, parts_path),
+                                                      depth_map.disparity(sheet), height, [spec_centre(p) for p in parts])
+    free = touched(proxy, parts, proxy.masks(parts), failing) if failing else []
+    if proxy.partfit:
+        free = sorted({*free, *misplaced(proxy, parts)})
+        report["assoc"] = proxy.partfit.assoc
+    if not free:
+        return doc, report
     groups = groups_of(parts, free)
     hood = hood_index(parts)
     # the anchor: a part that was connected to its parent stays connected (hard); each one that
     # was not costs LOOSE_W, so the fit can reconnect it
     parent_of = RF.parents(doc.get("rig", "biped"), doc.get("bones"))
     loose0 = loose_of(parts, parent_of)
-    height = max(max(b[1][1] for b in map(preflight.bbox, parts)), 1e-6)
     extra, bounds = search_space(parts, groups, hood, parent_of, loose0, wide, sheet_leg_w(doc, sheet), height)
-    if wide and pathlib.Path(sheet).exists() and doc.get("palette"):
-        proxy.zones = Zones(sheet, doc, proxy.views)
     targets, props = preflight.targets_from(sheet), preflight.load_props(pathlib.Path(sheet).parent.name)
     ctx = {"kind": kind, "targets": targets, "props": props, "parent_of": parent_of, "loose0": loose0,
-           "held": broken_rules(parts, doc, kind, targets, props), "extra": extra,
+           "held": broken_rules(parts, doc, kind, targets, props), "extra": extra, "order0": set(),
            "height": height, "joint_w": JOINT_W if joints else 0.0,
            "max_evals": max_evals or (MAX_EVALS if wide else FAST_EVALS), "deadline": time.monotonic() + seconds}
+    if proxy.partfit:
+        ctx["order0"] = proxy.partfit.broken(proxy.hull_list(parts))
+        report["depth_pairs"] = [len(proxy.partfit.pairs), len(ctx["order0"])]
     objective = Objective(proxy, doc, parts, groups, free, ctx)
     start = proxy.loss(parts, free=free) + LOOSE_W * len(loose0)
     masks = stage_masks(parts, groups, extra, stages) if stages else None
@@ -841,11 +910,17 @@ def main():
                     help="the hard sheet: adds the edge term (hard-sheet inner edges vs part outlines)")
     ap.add_argument("--fit-joints", action="store_true",
                     help="adds the joint term (knee and elbow height vs the sheet's width step)")
+    ap.add_argument("--depth", action="store_true",
+                    help="start from Depth Anything V2 small's z and occlusion order (needs parts.json; PIPELINE 23.L5-4b)")
+    ap.add_argument("--fit-parts", action="store_true", help="use refs/<id>/parts.json: part masks and depth order (L5-4)")
+    ap.add_argument("--parts", type=pathlib.Path, default=None,
+                    help="a parts.json other than the one beside the sheet (implies --fit-parts)")
     args = ap.parse_args()
     doc = json.loads(args.spec.read_text())
     views = tuple(args.views.split(",")) if args.views else None
     out, report = fit(doc, args.sheet, args.kind, views, args.margin, wide=not args.fast,
-                      tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard, joints=args.fit_joints)
+                      tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard, joints=args.fit_joints,
+                      partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts, depth=args.depth)
     args.out.write_text(json.dumps(out, indent=2))
     print(json.dumps(report))
     return 0
