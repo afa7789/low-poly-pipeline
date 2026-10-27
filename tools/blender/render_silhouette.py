@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render five orthographic silhouette frames of one GLB, RGBA with transparent film.
 
-    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> [size]
+    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> [size] [ids]
 
 Top and bottom are also rendered at every tilt in views.TILTS, as
 <stem>-sil-top@<tilt>.png, and the gameplay camera at every views.RTS angle as
@@ -10,6 +10,10 @@ Top and bottom are also rendered at every tilt in views.TILTS, as
 The silhouette is the only thing that survives at 32 px, so it gets its own render
 pass: flat white geometry, no lights, no background. `silhouette.py` compares these
 masks with the concept panels.
+
+`ids`: the GLB is the stage 1 shape rebuilt with the spec's palette (one flat colour per
+material, no texture): only the flat-colour zone shots are written, and they are the "ID"
+render silhouette.py --ids compares with the sheet's colour zones.
 """
 import math
 import pathlib
@@ -60,7 +64,8 @@ def zones(scene, cam, centre, out, stem):
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     glb, outdir = args[0], args[1]
-    size = int(args[2]) if len(args) > 2 else 512
+    size = int(args[2]) if len(args) > 2 and args[2].isdigit() else 512
+    ids = "ids" in args
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
@@ -100,6 +105,11 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stem = pathlib.Path(glb).stem
     span = max(extent) * 1.15
+    if ids:
+        cam.data.ortho_scale = span
+        zones(scene, cam, centre, out, stem)
+        print("id renders ->", out)
+        return
 
     shots = [(name, 0, f"{stem}-sil-{name}.png") for name in VIEWS]
     shots += [(name, t, f"{stem}-sil-{name}@{t}.png") for name in TILTED for t in TILTS if t]

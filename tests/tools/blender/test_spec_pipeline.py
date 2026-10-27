@@ -235,6 +235,18 @@ class HardFirst(unittest.TestCase):
         self.assertIn("IoU vs hard", rows)
         self.assertNotIn("drift", rows)
 
+    def test_zones_clay_rows_and_failed_build(self):
+        from unittest import mock
+        z = {"front": {"mean": 0.6, "cover": 0.9, "lost": []}}
+        rows = SP.iou_rows({"approved": {"front": 0.8}, "zones_clay": z})
+        self.assertIn("| zones_clay mean (report) | 0.600 / - / - / - / - / - |", rows)
+        self.assertIn("| zones_clay cover (report) | 0.900 / ", rows)
+        args = mock.Mock(out=pathlib.Path(self.id()), kind="mass", sheet="s", rig=None)
+        with mock.patch.object(SP, "tool"), mock.patch.object(SP.cut_hull, "args", return_value=[]), \
+                mock.patch.object(pathlib.Path, "read_text", return_value="{}"), \
+                mock.patch.object(pathlib.Path, "mkdir"):
+            self.assertEqual(SP.zones_clay("spec.json", args, "unit", {}), {})   # no ids.glb: report-only
+
     def test_iou_rows_show_sd_mean(self):
         rows = SP.iou_rows({"approved": {"front": 0.8}, "chamfer": {"front": 0.02, "left": 0.04}})
         self.assertIn("| SD mean | 0.0300 |", rows)

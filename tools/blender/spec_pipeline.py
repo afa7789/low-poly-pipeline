@@ -926,6 +926,32 @@ def shape_review(args, glb, layout):
     return sil_ok, report
 
 
+ZONES_CLAY_BLOCKING = False   # report only until calibrated on the runs (PIPELINE 20.N3)
+
+
+def zones_clay(spec_path, args, layout, tilts):
+    """{view: {mean, cover, lost}}: the clay shape rebuilt with the spec's palette (one flat
+    colour per material, no texture) and compared with the sheet's colour zones, from the
+    cameras stage 1 chose. Is the part of material X where the sheet has colour X? {} when the
+    build or the measure fails: it is a report, never a stop."""
+    work = args.out / "sil" / "ids"
+    work.mkdir(parents=True, exist_ok=True)
+    glb, hi = work / "ids.glb", str(BUDGETS[args.kind][1])
+    spec = json.loads(pathlib.Path(spec_path).read_text())
+    tool("build_unit.py", spec_path, glb, hi, "nofuse", hi,
+         *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
+    if not glb.exists():
+        return {}
+    done = tool("silhouette.py", args.sheet, glb, work, "--layout", layout, "--ids",
+                "--tilts", ",".join(f"{v}:{t}" for v, t in tilts.items() if v != "rts"))
+    print(done.stdout.strip())
+    try:
+        zones = json.loads((work / "zones_clay.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    return {v: {k: z[k] for k in ("mean", "cover", "lost")} for v, z in zones.items()}
+
+
 def stage_shape(spec_path, args, layout):
     """Stage 1: preflight, clay build, rig/budget stats and the shape gates on the spec at
     `spec_path`. Returns a dict: ok, glb (clay GLB or None), tilts (tilts_of), checks
@@ -952,6 +978,9 @@ def stage_shape(spec_path, args, layout):
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
     sil_ok, report = shape_review(args, glb, layout)
+    if args.summary.get("approved"):
+        args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report))
+        (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
     # the preflight counts estimated tris; the GLB may land a few over the round ceiling
     # (n005 v5-fit-r2: preflight PASS, GLB 704 vs 700). TRI_SLACK keeps that from failing stage 1.
     checks = {"preflight": not pre.returncode, "tris": lo <= tris <= hi * (1 + TRI_SLACK), "skins": skins == 1,
@@ -1175,6 +1204,9 @@ def iou_rows(summary):
     if summary.get("chamfer"):
         out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
+    for key in ("mean", "cover"):
+        if summary.get("zones_clay"):
+            out += row(f"zones_clay {key} (report)", {v: z[key] for v, z in summary["zones_clay"].items()}, shape)
     if summary.get("hard"):
         out += row("IoU vs hard", summary["hard"], shape)
     if summary.get("drift"):
