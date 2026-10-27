@@ -11,6 +11,11 @@ and sheet-props.jpg ride along when present); the run lands in runs/draft/<id>/<
 Triangle budgets, WC3 SD standard (see PIPELINE.md §6):
     mass unit 400-700 · hero 900-1600 · standard building 600-800 · town hall / large 2000-3000
 
+Stage 0, massing (massing.py, PIPELINE.md section 21.F1): before the author, code reads the sheet's
+silhouettes and the rig and writes a pre-spec, one mass per bone; it is built and measured alone
+(<out>/massing/) and goes into the brief as JSON, so the author EDITS it instead of writing the
+mass. --no-massing keeps the old brief.
+
 Two stages, in sequence (PIPELINE.md section 18.F):
 
     stage 1, shape (this file, stage_shape): the spec is repaired/refined and built in CLAY
@@ -64,6 +69,7 @@ import urllib.request
 import building_hull
 import cut_hull
 import lathe_limb
+import massing
 import mesh_lint
 import review_pair
 import rig_families as RF
@@ -366,6 +372,14 @@ def rig_table():
         length = sum((tail[i] - head[i]) ** 2 for i in range(3)) ** 0.5
         lines.append(f"  {name:10} head {head} tail {tail} midpoint {tuple(round(v, 2) for v in mid)} length {length:.2f}")
     return "\n".join(lines)
+
+
+EDIT_NOTE = """
+
+EDIT MODE - the mass is already built. A deterministic stage read the sheet's silhouettes and the rig and wrote the spec below: one mass per bone, its palette the sheet's colour zones (z1, z2...). Do not re-measure proportions: they come from the sheet. Return the whole spec as JSON: keep every part unless the sheet says otherwise; add props, decals and materials (rename the slots to what the part is and choose their surface); at most {changes} changes (a change is a part added, removed or edited). The part-count rule above does not apply to this spec; the triangle budget does.
+
+{pre}"""
+EDIT_CHANGES = 8
 
 
 REFINE = """You are refining a low-poly Blender part spec so it matches ONE view of its approved concept.
@@ -1628,19 +1642,76 @@ def resolve_paths(args):
     args.out = rundir / args.run
 
 
+def massing_spec(args):
+    """Stage 0: the pre-spec dict (through parse_spec, so it is on the grid and checked like an
+    author's), or None with --no-massing, --spec, a family without a massing, or a sheet it cannot read."""
+    if args.no_massing or args.spec or args.rig not in massing.FAMILIES:
+        return None
+    try:
+        return parse_spec(json.dumps(massing.build(args.sheet, args.rig, args.race, args.build)))
+    except (ValueError, IndexError, SystemExit) as err:
+        print(f"massing: skipped, {err}")
+        return None
+
+
+def massing_stage(args, layout):
+    """The pre-spec built and measured alone in <out>/massing/ (the same stage 1 as any spec), so
+    review.md says what the author started from. The numbers land in args.massing_report."""
+    out = args.out / "massing"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "spec.json").write_text(json.dumps(args.pre_spec, indent=2))
+    saved, args.out = args.out, out
+    try:
+        shape = stage_shape(out / "spec.json", args, layout)
+        add_times(args, shape)
+    finally:
+        args.out = saved
+    args.massing_report = {"iou": args.summary.get("approved", {}), "gates": args.summary.get("gates", {}),
+                           "ok": shape["ok"], "failed": shape["failed"], "tris": shape["tris"],
+                           "rules": rules_of(shape["pre"])}
+
+
+def rules_of(pre):
+    """'passed/total' of a preflight stdout's '<n>/<m> rules pass' line, '-' when it has none."""
+    m = re.search(r"(\d+)/(\d+) rules", pre)
+    return f"{m.group(1)}/{m.group(2)}" if m else "-"
+
+
+def author_brief(args, brief, layout):
+    """The brief the author gets: with a pre-spec, stage 0 runs here (built and measured alone) and the
+    brief ends with the EDIT note and the pre-spec; without one, the brief as it is."""
+    if not args.pre_spec:
+        return brief
+    massing_stage(args, layout)
+    return brief + EDIT_NOTE.format(changes=EDIT_CHANGES, pre=json.dumps(args.pre_spec))
+
+
+def note_edit(args, spec):
+    """Record in the massing report what the author did to the pre-spec (nothing without a pre-spec)."""
+    if args.pre_spec:
+        args.massing_report["edit"] = edit_changes(args.pre_spec, spec)
+
+
+def edit_changes(pre, spec):
+    """(parts of `spec` that are new or edited, parts of `pre` that are gone): what the author did to the pre-spec."""
+    return (sum(p not in pre["parts"] for p in spec["parts"]), sum(p not in spec["parts"] for p in pre["parts"]))
+
+
 def stage_one(args, brief, images, tmp, layout):
     """Everything up to the approved stage 1: ask the author (N times with --variants, the best
     one wins), repair/passes, stage_shape. Returns (spec, shape); args.times holds the clock."""
     args.times = {"gen": 0.0, "build": 0.0, "passes": 0.0, "colour": 0.0, "n_passes": 0}
+    brief_author = author_brief(args, brief, layout)
     t0 = time.monotonic()
     # --spec resumes from an approved spec: only the refinement passes call the model
     if args.spec:
         specs = [(1, {**parse_spec(args.spec.read_text()), "rig": args.rig})]
     elif args.variants > 1:
-        specs = author_specs(args, brief, images)
+        specs = author_specs(args, brief_author, images)
     else:
-        specs = [(1, {**parse_spec(ask(args.model, brief, images, SPEC_SCHEMA, parse_spec)),
+        specs = [(1, {**parse_spec(ask(args.model, brief_author, images, SPEC_SCHEMA, parse_spec)),
                       "rig": args.rig})]
+    note_edit(args, specs[0][1])
     if args.hull_part:        # the base volume is code's, whatever the author wrote
         specs = [(k, building_hull.with_hull(spec, args.hull_part)) for k, spec in specs]
     args.times["gen"] = time.monotonic() - t0
@@ -1750,6 +1821,9 @@ def main():
     ap.add_argument("--no-fewshot", action="store_true",
                     help="leave the worked spec -> render example out of the author's prompt "
                          "(PIPELINE 21.F5)")
+    ap.add_argument("--no-massing", action="store_true",
+                    help="skip stage 0: the author writes the mass from scratch (old brief) instead of editing "
+                         "the deterministic pre-spec of massing.py (PIPELINE 21.F1)")
     ap.add_argument("--variants", type=int, default=3,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
                          "variants/<k>/, kept) and go on with the one with the largest sum of "
@@ -1792,6 +1866,7 @@ def main():
     set_rig(args.rig)
     args.hull_part = hull_for(args, layout)
     set_rig(args.rig, spider_measure(args))
+    args.pre_spec = massing_spec(args)
     brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
                       props=load_props(args.id))
     brief, shots = with_fewshot(brief, args, 2 + len(refs))
@@ -1838,6 +1913,22 @@ def verdict_of(shape, colour):
     if not shape["ok"] or (colour is not None and not colour[0]):
         return "CHECK"
     return "SHAPE-PASS" if colour is None else "PASS"
+
+
+def massing_section(args):
+    """review.md: the pre-spec alone (stage 0): IoU per view against the approved sheet, preflight rules,
+    tris, and what the author changed in it. Empty without a pre-spec."""
+    r = getattr(args, "massing_report", None)
+    if not r:
+        return ""
+    views = ("front", "left", "back", "top", "bottom", "rts")
+    iou = " / ".join(f"{r['iou'][v]:.3f}" if v in r["iou"] else "-" for v in views)
+    edit = ("" if "edit" not in r else
+            f"| author edit | {r['edit'][0]} parts new or edited, {r['edit'][1]} dropped (of {len(args.pre_spec['parts'])}) |\n")
+    return (f"## Stage 0 - massing alone (massing/)\n\n| item | value |\n|---|---|\n| views | {' / '.join(views)} |\n"
+            f"| IoU vs approved (massing alone) | {iou} |\n"
+            f"| stage 1 gates | {'PASS' if r['ok'] else 'FAIL: ' + ', '.join(r['failed'])} |\n"
+            f"| preflight rules | {r['rules']} |\n| tris | {r['tris']} |\n{edit}\n")
 
 
 def stage1_section(args, shape):
@@ -1963,7 +2054,7 @@ def write_review(args, shape, colour, verdict):
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
-        f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
+        f"{massing_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
