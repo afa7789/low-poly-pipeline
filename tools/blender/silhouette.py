@@ -1546,6 +1546,71 @@ def coupling(concept, model):
             "spill": round(float(spill.sum() / max(m.sum(), 1)), 4), "bands": bands, "red": red}
 
 
+PROP_PAD = 2           # px: a prop's mask grows this much, so the body's outline stops short of the prop's edge
+BODY_PAD = 0.02        # a body part's parts.json box grows this much (fraction of the panel) before it claims pixels from a prop's box
+PROP_BIG = 0.25        # a prop's box over this share of the panel (a diagonal spear's) is mostly figure: the body boxes are cut out of it
+PROP_KEEP = 0.5        # a compact prop keeps its mask only when this share of it lies outside the body's boxes
+PROP_MIN = 40          # px: a prop mask smaller than this is not a prop on this view
+PROP_NEAR = 6          # px: model spill this close to a prop's mask is the prop's
+
+
+def prop_masks(sheet, view, layout="unit", panels=None):
+    """{prop name: normalized canvas mask} of the props drawn in `view` of the sheet (PIPELINE 25.L7-5): the panel's
+    pixels inside the prop's parts.json box and outside every body part's box (a diagonal spear's box covers the
+    figure), grown PROP_PAD px. {} without a refs/<id>/parts.json or a box for that view. `panels`: concept_panels()."""
+    import parts_fit
+    from scipy.ndimage import binary_dilation
+    doc = parts_fit.load(sheet)
+    fig = (panels or concept_panels(pathlib.Path(sheet), layout=layout)).get(view)
+    if not doc or fig is None:
+        return {}
+    pad = lambda b: [max(b[0] - BODY_PAD, 0), max(b[1] - BODY_PAD, 0), b[2] + BODY_PAD, b[3] + BODY_PAD]  # noqa: E731
+    body = np.zeros((CANVAS_H, CANVAS_W), bool)
+    for p in doc["parts"]:
+        if not p.get("prop") and view in p.get("box2d", {}):
+            body |= parts_fit.part_mask(fig, pad(p["box2d"][view]))
+    out = {}
+    for p in doc["parts"]:
+        if p.get("prop") and view in p.get("box2d", {}):
+            whole = parts_fit.part_mask(fig, p["box2d"][view])
+            b = p["box2d"][view]
+            m = whole & ~body
+            if (b[2] - b[0]) * (b[3] - b[1]) <= PROP_BIG and m.sum() < PROP_KEEP * whole.sum():
+                continue         # a compact prop mostly inside the body's boxes (goggles, a belt) is not in the outline
+            if m.sum() >= PROP_MIN:
+                out[p["name"]] = binary_dilation(m, iterations=PROP_PAD)
+    return out
+
+
+def body_mask(sheet, view, layout="unit", panels=None):
+    """The view's normalized panel mask minus its props' masks: what the body (not what it carries) looks like.
+    The whole panel when the view has no prop mask."""
+    panels = panels or concept_panels(pathlib.Path(sheet), layout=layout)
+    props = prop_masks(sheet, view, layout, panels)
+    whole = normalize(panels[view])
+    return whole & ~np.any(list(props.values()), axis=0) if props else whole
+
+
+def coupling_split(concept, model, props):
+    """`uncovered` / `spill` of coupling() told apart as body and props (`props`: boolean union of the view's prop
+    masks): uncovered = sheet pixels bare, by whether the sheet pixel is in a prop mask, as shares of the sheet;
+    spill = model outside the sheet, by whether it is within PROP_NEAR px of a prop mask, as shares of the model.
+    Each pair sums to the coupling() total; the gate stays on the total."""
+    from scipy.ndimage import binary_dilation
+    c, m = concept.astype(bool), model.astype(bool)
+    bare, spill = c & ~m, m & ~c
+    near = binary_dilation(props, iterations=PROP_NEAR)
+    share = lambda x, total: round(float(x.sum() / max(total.sum(), 1)), 4)  # noqa: E731
+    return {"uncovered_body": share(bare & ~props, c), "uncovered_prop": share(bare & props, c),
+            "spill_body": share(spill & ~near, m), "spill_prop": share(spill & near, m)}
+
+
+def split_of(sheet, view, layout, panels, concept, model):
+    """coupling_split() of one view, {} when the sheet has no prop mask there (no parts.json, or no box for the view)."""
+    props = prop_masks(sheet, view, layout, panels)
+    return coupling_split(concept, model, np.any(list(props.values()), axis=0)) if props else {}
+
+
 def red_text(red):
     """'band 5 (0.62-0.75 H), 9 % of sheet; largest piece x -0.10..+0.10 H, y 0.60..0.70 H (4 % of sheet)'."""
     text = f"band {red['band']} ({red['lo']:.2f}-{red['hi']:.2f} H), {100 * red['share']:.0f} % of sheet"
@@ -1653,6 +1718,7 @@ def main():
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
                         "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask),
+                        **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
         report[name]["incoherent"] = name in waived

@@ -84,6 +84,22 @@ class TestDeform(unittest.TestCase):
         self.assertLessEqual(np.abs(new - POS).max(), 4 * D.STEP * 2.0 + 1e-9)       # 0.05 H a step, 4 rounds
         self.assertTrue(np.all(new[:8, 2] == 0))                                    # the sole stays on the ground
 
+    def test_body_and_props_pull_to_their_own_outline(self):
+        """a spear drawn beside the figure: the body's targets are off the spear, a prop's on it, a component
+        that is in no prop's mask keeps the whole outline"""
+        spear = np.zeros((S.CANVAS_H, S.CANVAS_W), bool)
+        spear[20:200, 300:306] = True
+        concept = panel(1.0) | spear
+        view = D.View("front", np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), 1, concept, True, {"spear": spear})
+        xy, owner = np.array([[200.0, 100.0], [302.0, 100.0], [100.0, 100.0]]), np.array([0, 1, 2])
+        self.assertEqual(D.target_keys(view, xy, owner, 0).tolist(), [0, -1, -1])      # default: a prop keeps the whole outline
+        with mock.patch.object(D, "PROPS_OWN_MASK", True):
+            self.assertEqual(D.target_keys(view, xy, owner, 0).tolist(), [0, 1, -1])
+        self.assertLess(view.goal(0)[1][100, 250], 290)           # the body's nearest outline point is not the spear
+        self.assertGreaterEqual(view.goal(1)[1][100, 250], 300)   # the spear's is
+        self.assertEqual(D.target_keys(D.View("front", view.ru, view.rv, 1, concept, True), np.zeros((2, 2)), np.array([0, 1]), 0).tolist(),
+                         [-1, -1])                                # no prop masks: unchanged
+
     def test_guard_view_refuses(self):
         # top (a guard here) wants a 1.0 footprint: the front pull may not make it worse than GUARD
         panels = {"front": panel(1.15), "top": panel(1.0, 1.0)}

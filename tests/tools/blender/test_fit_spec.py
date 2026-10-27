@@ -62,6 +62,22 @@ class Proxy(unittest.TestCase):
         self.assertEqual(F.Proxy(concept, VIEWS).ious(parts), {v: 1.0 for v in VIEWS})
 
 
+class BodySplit(unittest.TestCase):
+    def test_props_are_scored_on_their_own_mask(self):
+        """the sheet draws a body and a spear: the body parts are scored against the body mask and the spear
+        against the spear mask (a spear counted as body would be spill against the body mask)"""
+        body, spear = box("b", (1, 2, 1), (0, 1, 0)), box("b", (0.1, 2, 0.1), (0.9, 1, 0), prop="spear")
+        outs = F.Proxy({}, ("front",)).outlines([body, spear])["front"]
+        canvas = F.canvas_of(outs)
+        label = silhouette.normalize(np.where(F.raster(outs)[0], F.raster(outs[1:], canvas)[0] + 1, 0))   # 2 = the spear
+        whole, held = label > 0, label == 2
+        proxy = F.Proxy({"front": whole}, ("front",))
+        edge = F.edge_of(whole & ~held)
+        proxy.split["front"] = (whole & ~held, held, edge, F.distance_transform_edt(~edge))
+        self.assertGreater(proxy.score_view("front", outs, [False, True])[0], 0.95)
+        self.assertLess(proxy.score_view("front", outs, [False, False])[0], 0.95)
+
+
 class Mirror(unittest.TestCase):
     def test_pairs(self):
         left = ["arm.L", "prism", [0.2, 0.1, 0.5], [0.5, 1, 0], "iron",

@@ -501,3 +501,31 @@ class SheetCoherenceTest(unittest.TestCase):
         self.assertIn("asymmetric in the front view (r_sym 0.78)", S.sheet_text(bad))
         self.assertIn("top panel disagrees", S.sheet_text(bad))
         self.assertIn("top-vs-hull 0.52 (incoherent)", S.sheet_line(bad))
+
+
+class BodyOnly(unittest.TestCase):
+    """PIPELINE 25.L7-5: the body's mask is the panel minus its props'."""
+    SHEET = ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
+
+    @unittest.skipUnless(SHEET.exists(), "hfoo sheet")
+    def test_masks(self):
+        panels = S.concept_panels(self.SHEET)
+        props = S.prop_masks(self.SHEET, "left", panels=panels)
+        body, whole = S.body_mask(self.SHEET, "left", panels=panels), S.normalize(panels["left"])
+        for name, want in [("pike is a prop", "trench pike" in props), ("pike mask is thin", props["trench pike"].sum() < 0.5 * whole.sum()),
+                           ("body has no prop pixel", not (body & props["trench pike"]).any()),
+                           ("body is most of the panel", 0.5 * whole.sum() < body.sum() < whole.sum())]:
+            with self.subTest(name):
+                self.assertTrue(want)
+        self.assertEqual(S.prop_masks(self.SHEET, "top", panels=panels), {})       # no box for the view
+        self.assertTrue((S.body_mask(self.SHEET, "top", panels=panels) == S.normalize(panels["top"])).all())
+
+    def test_split_sums_to_total(self):
+        concept, model = np.zeros((256, 384), bool), np.zeros((256, 384), bool)
+        concept[10:200, 100:200] = True
+        model[10:200, 120:230] = True
+        props = np.zeros_like(concept)
+        props[:, 150:190] = True
+        got, tot = S.coupling_split(concept, model, props), S.coupling(concept, model)
+        self.assertAlmostEqual(got["uncovered_body"] + got["uncovered_prop"], tot["uncovered"], places=3)
+        self.assertAlmostEqual(got["spill_body"] + got["spill_prop"], tot["spill"], places=3)

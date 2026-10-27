@@ -24,6 +24,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage, sparse
+from scipy.sparse.csgraph import connected_components
 from scipy.sparse.linalg import spsolve
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -44,6 +45,8 @@ UNTANGLE = 8          # rounds of pulling the vertices of turned faces back towa
 SLIVER_AREA = 0.30    # unflip: a turned face under this share of the median area has its winding swapped
 TINY = 0.02           # a face under this share of the median area is a sliver whose orientation does not count
 SOLE = 0.02           # vertices this close to the ground (H) keep their height: the pivot stays put
+PROP_OWN = 0.3        # a component is a prop's when this share of its vertices lies in the prop's mask
+PROPS_OWN_MASK = False  # NEGATIVE (25.L7-5): a prop pulled only toward its own mask cost n005 left -0.02..-0.03 IoU; props keep the whole outline
 SS = 2                # supersampling of the PIL raster
 GUARD = 0.01          # no view may end more than this under its IoU at the start
 
@@ -107,8 +110,22 @@ class View:
     """One camera of the sheet: image axes (ru right, rv up, unit vectors of the Z-up frame), the mirror
     that matched the panel, the panel (normalised) and whether the view pulls the mesh or only guards it."""
 
-    def __init__(self, name, ru, rv, mirror, concept, active):
+    def __init__(self, name, ru, rv, mirror, concept, active, props=None):
         self.name, self.ru, self.rv, self.mirror, self.concept, self.active = name, ru, rv, mirror, concept, active
+        self.props = list((props or {}).values())       # the prop masks of this view (silhouette.prop_masks); [] = no split
+        self.allowed = {0: concept & ~np.any(self.props, axis=0)} if self.props else {}
+        self.allowed |= {i + 1: m for i, m in enumerate(self.props)}
+        self.goals = {}
+
+    def goal(self, key):
+        """(iy, ix) of the nearest point of the sheet's outline that key may be pulled to (PIPELINE 25.L7-5): key 0
+        the body (the outline outside the props' masks), i the i-th prop's mask, len(props) + 1 any prop, -1 the
+        whole outline. None when that outline has no pixel."""
+        if key not in self.goals:
+            edge = boundary(self.concept)
+            edge = edge & self.allowed[key] if key >= 0 else edge
+            self.goals[key] = ndimage.distance_transform_edt(~edge, return_indices=True)[1] if edge.any() else None
+        return self.goals[key]
 
     def uv(self, pos):
         return np.stack([pos @ self.ru, pos @ self.rv], 1)
@@ -167,15 +184,38 @@ def solve(lap, target, a, b):
     return np.stack([spsolve(system, a * target[:, k]) for k in range(target.shape[1])], 1)
 
 
-def pull(concept, model_mask, xy):
-    """Canvas displacement of each vertex toward the sheet's outline, 0 off the model's contour."""
-    ch, cw = model_mask.shape
-    on = boundary(model_mask)
-    px = np.clip(np.floor(xy).astype(int), 0, [cw - 1, ch - 1])
-    near = ndimage.distance_transform_edt(~on)[px[:, 1], px[:, 0]] <= CONTOUR_PX
-    iy, ix = ndimage.distance_transform_edt(~boundary(concept), return_indices=True)[1]
-    goal = np.stack([ix[px[:, 1], px[:, 0]], iy[px[:, 1], px[:, 0]]], 1) + 0.5
-    move = goal - xy
+def pixels(xy, shape):
+    return np.clip(np.floor(xy).astype(int), 0, [shape[1] - 1, shape[0] - 1])
+
+
+def target_keys(view, xy, owner, body):
+    """Which outline each vertex is pulled to (View.goal): the body component the body's, every other component
+    (a prop) the mask of the prop most of its vertices lie in, else (a prop the sheet does not show here) -1: the whole outline,
+    as before; -1 too when the view has no props."""
+    keys = np.full(len(xy), -1)
+    if not view.props:
+        return keys
+    px = pixels(xy, view.concept.shape)
+    keys[owner == body] = 0
+    for c in set(owner[owner != body].tolist()):
+        mine = owner == c
+        hits = [m[px[mine, 1], px[mine, 0]].mean() for m in view.props]
+        keys[mine] = int(np.argmax(hits)) + 1 if PROPS_OWN_MASK and max(hits) >= PROP_OWN else -1
+    return keys
+
+
+def pull(view, model_mask, xy, keys):
+    """Canvas displacement of each vertex toward the sheet's outline that its key allows, 0 off the model's contour."""
+    px = pixels(xy, model_mask.shape)
+    near = ndimage.distance_transform_edt(~boundary(model_mask))[px[:, 1], px[:, 0]] <= CONTOUR_PX
+    move = np.zeros_like(xy)
+    for key in set(keys.tolist()):
+        goal, sel = view.goal(key), keys == key
+        if goal is None:
+            near[sel] = False
+            continue
+        iy, ix = goal
+        move[sel] = np.stack([ix[px[sel, 1], px[sel, 0]], iy[px[sel, 1], px[sel, 0]]], 1) + 0.5 - xy[sel]
     near &= np.linalg.norm(move, axis=1) <= REACH * S.CANVAS_H
     return np.where(near[:, None], move, 0.0), near
 
@@ -192,7 +232,7 @@ def clamp(d, limit):
     return d * np.minimum(1.0, limit / np.maximum(np.linalg.norm(d, axis=1), 1e-12))[:, None]
 
 
-def step_view(pos, tri, lap, view, band, height, ground):
+def step_view(pos, tri, lap, view, band, height, ground, owner=None, body=0):
     """The welded positions after one deformation step in `view`."""
     xy, mask, s = view_state(pos, tri, view)
     wb = band_weights(view.concept, mask, band)
@@ -200,7 +240,7 @@ def step_view(pos, tri, lap, view, band, height, ground):
         wb = np.ones_like(wb)
     mid = (np.arange(S.BANDS) + 0.5) / S.BANDS
     w = np.interp((pos[:, 2] - pos[:, 2].min()) / height, mid, wb)
-    move, near = pull(view.concept, mask, xy)
+    move, near = pull(view, mask, xy, target_keys(view, xy, owner if owner is not None else np.zeros(len(pos), int), body))
     d = clamp(np.stack([move[:, 0] / s * view.mirror, -move[:, 1] / s], 1), STEP * height)
     d = clamp(solve(lap, d, PULL * w * near, ANCHOR * (1 - w) + 1e-3), STEP * height)
     world = d[:, :1] * view.ru + d[:, 1:] * view.rv
@@ -252,6 +292,8 @@ def measure(pos, tri, views):
         mask = view_state(pos, tri, view)[1]
         c = S.coupling(view.concept, mask)
         out[view.name] = {"iou": round(S.iou(view.concept, mask), 4), "uncovered": c["uncovered"], "spill": c["spill"]}
+        if view.props:      # body / props told apart (25.L7-5); the gate stays on the totals
+            out[view.name].update(S.coupling_split(view.concept, mask, np.any(view.props, axis=0)))
     return out
 
 
@@ -288,7 +330,7 @@ def candidates(name, panel):
             yield (*tilted_axes(name, tilt), concept)
 
 
-def make_views(pos, tri, panels, pulling):
+def make_views(pos, tri, panels, pulling, props=None):
     """Views of the sheet: the pulling ones (`pulling` names) and the guards (the other top/bottom). The mirror
     of each (and tilt / turn of top/bottom) is the one whose raster matches the panel best, like silhouette.py."""
     views = []
@@ -298,14 +340,19 @@ def make_views(pos, tri, panels, pulling):
         score = lambda o, m: S.iou(o[2], view_state(pos, tri, View(name, o[0], o[1], m, o[2], True))[1])  # noqa: E731
         best = max(((o, m) for o in options for m in (1, -1)), key=lambda om: score(*om))
         (ru, rv, concept), mirror = best
-        views.append(View(name, ru, rv, mirror, concept, name in pulling))
+        views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name)))
     return views
 
 
-def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None):
+def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None):
     """(new welded Z-up positions, report). Rounds of one step per pulling view, each refused when it makes things
-    worse. `nor`: the welded Z-up vertex normals, the facing of the zero-area faces (None: their own)."""
-    views = make_views(pos, tri, panels, pulling)
+    worse. `nor`: the welded Z-up vertex normals, the facing of the zero-area faces (None: their own).
+    `props`: {view: {prop name: mask}} (silhouette.prop_masks): the body (the largest welded component) is pulled only
+    toward the outline outside them, each other component toward its own prop's (PIPELINE 25.L7-5)."""
+    views = make_views(pos, tri, panels, pulling, props)
+    owner = connected_components(sparse.coo_matrix((np.ones(len(tri) * 2), (np.r_[tri[:, 0], tri[:, 1]], np.r_[tri[:, 1], tri[:, 2]])),
+                                                   shape=(len(pos), len(pos))), directed=False)[1]
+    body = int(np.argmax(np.bincount(owner)))
     ref = reference(pos, tri, np.zeros_like(pos) if nor is None else nor)
     height = float(np.ptp(pos[:, 2]))
     ground = pos[:, 2] < pos[:, 2].min() + SOLE * height
@@ -318,7 +365,7 @@ def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None):
     cur = pos
     for _ in range(iters):
         for view in [v for v in views if v.active]:
-            full = untangle(ref, cur, step_view(cur, tri, lap, view, band, height, ground), tri)
+            full = untangle(ref, cur, step_view(cur, tri, lap, view, band, height, ground, owner, body), tri)
             tries = [cur + k * (full - cur) for k in DAMP]
             best = next((t for t in tries if accept(cur, t, tri, views, ref, floor, limit)), None)
             report["refused"] += best is None
@@ -417,10 +464,11 @@ def transform(glb, out, fn):
     return report
 
 
-def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit"):
+def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit", split=True):
     """Deform `glb` onto the sheet and write `out`; returns the report (before / after per view, slivers)."""
     panels = sheet_panels(sheet, views, layout)
-    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor))
+    props = {v: S.prop_masks(sheet, v, layout, panels) for v in views if v in panels} if split else {}
+    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor, props))
     pathlib.Path(out).with_suffix(".deform.json").write_text(json.dumps(report, indent=2))
     return report
 
@@ -442,10 +490,11 @@ def main():
     ap.add_argument("sheet")
     ap.add_argument("out")
     ap.add_argument("--views", default="front,left,back")
+    ap.add_argument("--no-split", action="store_true", help="the whole outline for every vertex, body and props (before 25.L7-5)")
     ap.add_argument("--iters", type=int, default=4)
     ap.add_argument("--band", type=parse_band, default=None, help="deform only this height range, e.g. 0.4-0.7")
     a = ap.parse_args()
-    r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.band)
+    r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.band, split=not a.no_split)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
         print(f"{v:6} IoU {b['iou']:.3f} -> {f['iou']:.3f}  red {b['uncovered']:.3f} -> {f['uncovered']:.3f}  "
