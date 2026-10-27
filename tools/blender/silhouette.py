@@ -996,8 +996,9 @@ def chamfer(a, b):
 BANDS = 8              # height bands of the coupling report (0 = feet)
 BLOB_OPEN = 2          # px an opening removes from the red before its largest piece is boxed (contour slivers)
 # Coupling gates (PIPELINE 21.F7): share of the sheet the model leaves bare / of the model
-# outside the sheet. Report only until calibrated on the stored runs.
-COUPLING_BLOCKING = False
+# outside the sheet. Switched on 2026-10-28 (user: "pode ligar tudo"): the v7-r2 runs sit at
+# 8-17 % uncovered on the critical views, under the caps; a run over them is a CHECK now.
+COUPLING_BLOCKING = True
 # Proposed caps (best runs n01X v5-fit-r1 / v13, n005 v5-fit-r2 / v6-r4, rounded up +0.03; PIPELINE 21.F7).
 # 10 of the 23 IoU-passing runs would be flagged (> 1/3), so they stay a report.
 UNCOVERED_MAX = {"front": 0.15, "left": 0.20, "back": 0.15, "top": 0.25, "bottom": 0.25, "rts": 0.20}

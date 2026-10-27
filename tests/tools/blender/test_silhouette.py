@@ -252,10 +252,10 @@ class Coupling(unittest.TestCase):
         got = S.coupling(self.sheet, self.sheet)
         self.assertEqual((got["uncovered"], got["spill"], got["red"]["blob"]), (0.0, 0.0, None))
         bad = {"uncovered": 0.9, "spill": 0.0}
-        self.assertTrue(S.coupling_ok("front", bad))                 # report only by default
-        with unittest.mock.patch.object(S, "COUPLING_BLOCKING", True):
-            self.assertFalse(S.coupling_ok("front", bad))
-            self.assertTrue(S.coupling_ok("front", got))
+        self.assertFalse(S.coupling_ok("front", bad))                # a gate since 2026-10-28
+        self.assertTrue(S.coupling_ok("front", got))
+        with unittest.mock.patch.object(S, "COUPLING_BLOCKING", False):
+            self.assertTrue(S.coupling_ok("front", bad))             # report only when switched off
 
 
 class Outline(unittest.TestCase):
