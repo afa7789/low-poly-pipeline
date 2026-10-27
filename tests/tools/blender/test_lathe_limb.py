@@ -132,6 +132,54 @@ def chain(bone="tail.1", bones=3, dims=(0.22, 0.17, 0.11, 0.04), **opts):
     return [bone, "chain", list(dims), [0, 0, 0], "iron", {"bones": bones, **opts}]
 
 
+RINGS = [[0.5, 0.4, 0.0, 0.0, 0.0], [1.0, 0.6, 0.1, 0.0, 0.25], [0.8, 0.5, 0.2, 0.1, 1.0]]
+
+
+class RingProfile(unittest.TestCase):
+    """L6-1 (PIPELINE 24.L6-1): a profile of [w, d, zc, xc, t] rings is one continuous surface."""
+
+    def test_rings_follow_w_d_centre_and_height(self):
+        rings = LL.lathe_rings((0.5, 1.0), (1, 2, 3), {"profile": RINGS, "sides": 8})
+        self.assertEqual([len(r) for r in rings], [8, 8, 8])
+        self.assertEqual([round(r[0][1], 3) for r in rings], [1.5, 1.75, 2.5])         # y = at.y - h/2 + t h
+        mid = np.array(rings[1])
+        self.assertAlmostEqual(mid[:, 0].max() - mid[:, 0].min(), 1.0, 3)                # x radius r*w
+        self.assertAlmostEqual(mid[:, 2].max() - mid[:, 2].min(), 0.6, 3)                # z radius r*d
+        self.assertAlmostEqual(mid[:, 2].mean(), 3 + 0.5 * 0.1, 3)                       # centre z = at.z + r*zc
+
+    def test_corner_fills_the_box_from_above(self):
+        flat = np.array(LL.lathe_rings((0.5, 1.0), (0, 0, 0), {"profile": RINGS, "corner": 1.0})[1])
+        self.assertAlmostEqual(abs(flat[1][0]), 0.5, 3)           # the diagonal vertex reaches the box's corner
+        self.assertAlmostEqual(flat[1][2], 0.05 + 0.3, 3)
+
+    def test_tris_and_box(self):
+        part = lathe(profile=RINGS)
+        self.assertEqual(PF.part_tris(part), 2 * 8 * 2 + 12)
+        lo, hi = PF.bbox(part)
+        self.assertAlmostEqual(hi[1] - lo[1], 0.6, 3)
+
+    def test_validate(self):
+        for name, opts, ok in [
+                ("rings", {"profile": RINGS}, True),
+                ("rings without t", {"profile": [q[:4] for q in RINGS]}, True),
+                ("t falls", {"profile": [RINGS[1], RINGS[0], RINGS[2]]}, False),
+                ("two rings", {"profile": RINGS[:2]}, False),
+                ("w too wide", {"profile": [[9, 0.5, 0, 0], *[q[:4] for q in RINGS[1:]]]}, False),
+                ("ring of 3 numbers", {"profile": [[1, 1, 0]] * 4}, False),
+                ("corner out of range", {"profile": RINGS, "corner": 2}, False)]:
+            with self.subTest(name):
+                self.assertEqual(LL.bad_opts("lathe", (0.4, 0.6), opts) is None, ok)
+
+    def test_fit_scales_w_and_d_and_keeps_the_centre(self):
+        part = lathe(profile=[list(q) for q in RINGS])
+        F.apply_profile(part, [1.0, 0.0, -1.0, 0.0], False, 2.0)
+        (w0, d0, z0, *_), (w1, d1, *_), (w2, *_) = part[5]["profile"]
+        self.assertAlmostEqual(w0, 0.5 * 1.15, 3)
+        self.assertEqual((w1, d1), (1.0, 0.6))
+        self.assertEqual((z0, part[5]["profile"][2][2]), (0.0, 0.2))
+        self.assertEqual(sum(F.extra_size(part, n) for n in F.extras_of(part)), 4)
+
+
 class Chain(unittest.TestCase):
     """PIPELINE 22.L4-1: one sweep along rig bones, a ring per joint."""
 

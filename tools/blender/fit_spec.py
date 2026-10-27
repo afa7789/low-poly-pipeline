@@ -519,6 +519,11 @@ def apply_profile(part, values, mirror, height):
     """A lathe's profile radii and squash moved by PROFILE_RANGE x values (PIPELINE 21.F2)."""
     opts = part[5]
     prof = opts.get("profile") or []
+    if lathe_limb.is_ring_profile(prof):      # rings [w, d, zc, xc(, t)]: w and d by the ring's value, d by the last one (squash's role) too
+        deep = 1 + PROFILE_RANGE * values[len(prof)]
+        opts["profile"] = [[clip(q[0] * (1 + PROFILE_RANGE * s), 0.05, lathe_limb.RING_MAX),
+                            clip(q[1] * (1 + PROFILE_RANGE * s) / deep, 0.05, lathe_limb.RING_MAX), *q[2:]] for q, s in zip(prof, values)]
+        return
     opts["profile"] = [clip(v * (1 + PROFILE_RANGE * s), 0.05, lathe_limb.PROFILE_MAX) for v, s in zip(prof, values)]
     opts["squash"] = clip(float(opts.get("squash", 1.0)) * (1 + PROFILE_RANGE * values[len(prof)]), 0.5, 2.0)
 

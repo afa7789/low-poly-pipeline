@@ -42,6 +42,19 @@ FAMILIES = ("biped", "spider", "spider_high", "quadruped", "wyrm", "drake")
 # measured alone it lost 0.03-0.06 on left/top/bottom (n01X) with no gain on the spider (2026-10-27).
 # LATHE_MASSING flips head/torso/pelvis/shell to the lathe emitters for a one-surface look.
 LATHE_MASSING = False
+# STACK_LATHE (PIPELINE 24.L6-1): head, torso, pelvis (and the spider's shell) are ONE lathe each whose rings [w, d, zc, xc, t]
+# sit at the breakpoints the stack would have cut at and carry the sheet's width, depth and depth centre there: neighbouring
+# slices share a ring, so no ledge. False = the frustum stacks of before.
+STACK_LATHE = True
+RING_ROLES = ("head", "torso", "pelvis")
+# SHELL_RINGS: the spider bones built as ONE ring lathe instead of their slabs. Measured alone on n00U (2026-10-27): "body" too
+# (the whole shell) left 0.681 -> 0.637 (a lathe is upright: the slabs' belly and back lines are gone) for top/bottom +0.02, so it
+# stays slabs; abdomen and head: IoU 0.676 -> 0.677 (neutral), tris 608 -> 656, components 40 -> 36 (PIPELINE 24.L6-1).
+SHELL_RINGS = ("abdomen", "head")
+HEAD_RINGS = 5           # rings of a head or a mask read from parts.json's box
+RING_CORNER_HEAD = 0.5   # corner of a head's rings: rounder than a trunk's
+RING_OVERLAP = 0.05      # a ring stack grows by this share of its height at each end: head, torso and pelvis overlap at 80 % of their boxes
+RING_CORNER = 1.0        # lathe_limb opts corner of a trunk ring: an 8-gon seen from above fills 71 % of the sheet's box, this 91 %
 # MEASURED_JOINTS puts the knee and the elbow where the sheet's width step is (silhouette.joint_measures) instead
 # of midway: n01X +0.002 mean IoU, n005 -0.004 (2026-10-28, PIPELINE 22.L4-6), so it stays off.
 MEASURED_JOINTS = False
@@ -234,6 +247,29 @@ def _frustum_stack(role, bone, slot, g):
     return parts
 
 
+def _ring_stack(role, bone, slot, g):
+    """One lathe from y0 to y1 whose rings sit at the breakpoints of g["w"], g["d"], g["zc"] (the cuts a frustum stack
+    would make): ring [w, d, zc, xc, t] in units of r = the widest half width, centre offsets from the mean depth centre.
+    A continuous surface through the same widths, depths and centres, 8 sides, flat caps."""
+    ys = np.linspace(g["y0"], g["y1"], 41)
+    cuts = list(breakpoints(ys, [np.array([g[k](y) for y in ys]) for k in ("w", "d", "zc")], g.get("n", SLICES.get(role, 1))))
+    while len(cuts) < lathe_limb.RING_RANGE[0]:
+        gap = max(range(len(cuts) - 1), key=lambda i: cuts[i + 1] - cuts[i])
+        cuts.insert(gap + 1, (cuts[gap] + cuts[gap + 1]) / 2)
+    pad = 0.03 * (g["y1"] - g["y0"])
+    rows = [tuple(g[k](min(max(y, g["y0"] + pad), g["y1"] - pad)) for k in ("w", "d", "zc")) for y in cuts]
+    r = max(max(w for w, _, _ in rows) / 2, 1e-3)
+    zref = float(np.mean([z for _, _, z in rows]))
+    ext = RING_OVERLAP * (cuts[-1] - cuts[0])      # the end rings move out so the next trunk part overlaps (a stack's slices did)
+    cuts[0], cuts[-1] = cuts[0] - ext, cuts[-1] + ext
+    h = cuts[-1] - cuts[0]
+    cap = lathe_limb.RING_MAX
+    rings = [[r3(float(np.clip(w / (2 * r), 0.05, cap))), r3(float(np.clip(d / (2 * r), 0.05, cap))), r3((z - zref) / r), 0.0,
+              r3((y - cuts[0]) / max(h, 1e-6))] for y, (w, d, z) in zip(cuts, rows)]
+    return [[bone, "lathe", [r3(r), r3(h)], [r3(g.get("xc", 0.0)), r3((cuts[0] + cuts[-1]) / 2), r3(zref)],
+             slot, {"profile": rings, "sides": LATHE_SIDES.get(role, 8), "corner": RING_CORNER}]]
+
+
 def _prism_limb(role, bone, slot, g):
     """One tapered prism from g["a"] to g["b"], radii g["r"] = (at a, at b)."""
     r0, r1 = g["r"]
@@ -306,7 +342,7 @@ def _limb(role, bone, slot, g):
     return _limb_bent(role, bone, slot, g) if "knee" in g else _limb_leg(role, bone, slot, g)
 
 
-EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run,
+EMIT = {"frustum": _frustum_stack, "ring": _ring_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run,
         "slab": _brick, "limb": _limb, "plate": _plate_wing}
 
 
@@ -314,6 +350,8 @@ def emit(role, bone, slot, geometry):
     """The parts of one role, built with the kind KIND_FOR says (a limb with a measured joint: `limb`);
     a kind without an emitter (a swap before its emitter is registered) falls back to the one that exists."""
     kind = "limb" if "knee" in geometry else KIND_FOR[role]
+    if STACK_LATHE and role in RING_ROLES and "w" in geometry:
+        kind = "ring"
     kind = kind if kind in EMIT else ("prism" if "a" in geometry else "frustum")
     return EMIT[kind](role, bone, slot, geometry)
 
@@ -587,12 +625,35 @@ def box_profile(part, front, side):
     return [r3(float(np.clip(window_width(v, y, a[0], a[1], e) / max(full, 1e-3), 0.25, 1.0))) for y in ys]
 
 
+def box_rings(part, front, side):
+    """Rings [w, d, zc, xc, t] (lathe_limb) of a head or a mask read inside the part's box: the front view's width
+    and the side view's depth and depth centre (cut to the box) at HEAD_RINGS heights, in units of r = half the box's width."""
+    (wx, _, wz), ctr = box_dims(part)
+    lo, hi = part["box3d"]
+    r = max(wx / 2, 1e-3)
+    e = EDGE * front.n * front.s
+    cols = (front.cx + lo[0] / front.s, front.cx + hi[0] / front.s)
+    rings = []
+    for t in np.linspace(0.0, 1.0, HEAD_RINGS):
+        y = lo[1] + (0.03 + 0.94 * t) * (hi[1] - lo[1])
+        w = window_width(front, y, *cols, e) or wx
+        a, b = side.span(y - e, y + e)
+        a, b = max(a, lo[2]), min(b, hi[2])
+        a, b = (a, b) if b - a > 0.25 * wz else (lo[2], hi[2])
+        rings.append([r3(float(np.clip(w / (2 * r), 0.25, 1.0))), r3(float(np.clip((b - a) / (2 * r), 0.25, lathe_limb.RING_MAX))),
+                      r3((a + b) / 2 / r - ctr[2] / r), 0.0, r3(t)])
+    return rings
+
+
 def lathe_part(part, slot, front, side, sides):
     """A head, a mask or a tank: a lathe in the part's box (x radius = half its width, squash = width / depth),
-    hexagonal like the band massing's head: an octagonal tank tips budget_split (legs under 19 %)."""
+    hexagonal like the band massing's head: an octagonal tank tips budget_split (legs under 19 %). A head or a mask
+    (not a prop) is one ring lathe with the sheet's width, depth and depth centre per ring (STACK_LATHE)."""
     size, ctr = box_dims(part)
     opts = {"profile": box_profile(part, front, side), "squash": r3(float(np.clip(size[0] / max(size[2], 1e-3), 0.5, 2.0))),
             "sides": LATHE_SIDES["head"]}
+    if STACK_LATHE and not part.get("prop"):
+        opts = {"profile": box_rings(part, front, side), "sides": LATHE_SIDES["head"], "corner": RING_CORNER_HEAD}
     if part.get("role") in ("head", "face"):
         opts["decal"] = "sheet"     # the face is always the sheet's own (PIPELINE 18.J, 23.L5-5): two eyes, not a slit
     return [[part["bone"], "lathe", [r3(size[0] / 2), r3(size[1])], [r3(c) for c in ctr], slot, opts]]
@@ -902,10 +963,11 @@ def touch(parts, props):
     for bone in preflight.floating_parts(parts, parent_of, preflight.OVERLAP_SHRINK):
         group = {bone, parent_of[bone]}
         for p in (q for q in parts if q[0] == bone and id(q) not in props):
-            near = [q for q in parts if q[0] in group and q is not p]
+            near = [q for q in parts if q[0] in group and q is not p and id(q) not in props]
             c = np.array(preflight.centre(p))
-            q = min(near, key=lambda q: np.linalg.norm(np.array(preflight.centre(q)) - c))
-            move(p, gap_move(p, q, preflight.OVERLAP_SHRINK))
+            if near:
+                q = min(near, key=lambda q: np.linalg.norm(np.array(preflight.centre(q)) - c))
+                move(p, gap_move(p, q, preflight.OVERLAP_SHRINK))
 
 
 def failing_rules(parts, targets):
@@ -1116,7 +1178,9 @@ def _shell(sheet, panels, front, H, labels_for, hips_z):
         if bone == "abdomen" and z[1] > hips_z:      # a slab over the leg hips is the body's: the legs hang from it
             bone = "body"
         parts += _slab(bone, slot, z, (ybot, ytop), width, dome)
-    return _shell_lathes(parts, dome) if KIND_FOR["shell"] == "lathe" else parts
+    if KIND_FOR["shell"] == "lathe":
+        return _shell_lathes(parts, dome)
+    return _shell_ring_bones(parts, dome) if STACK_LATHE and SHELL_RINGS else parts
 
 
 def _shell_lathes(slabs, dome):
@@ -1141,6 +1205,30 @@ def _shell_lathes(slabs, dome):
         out.append([bone, "lathe", [r3(r), r3(ytop - ybot)], [0, r3((ybot + ytop) / 2), r3((z0 + z1) / 2)],
                     mine[0][4], {"profile": profile, "squash": r3(squash), "sides": 8}])
     return out
+
+
+def _shell_ring_bones(slabs, dome):
+    """The slabs of the SHELL_RINGS bones merged, per bone, into one ring lathe (a ring at each DOME_AT level, x radius = the
+    dome's share of the widest slab, z radius = half the bone's length, r = the longer of the two so every ring is <= 1);
+    the slabs of the other bones stay."""
+    out = [p for p in slabs if p[0] not in SHELL_RINGS]
+    for bone in SHELL_RINGS:
+        mine = [p for p in slabs if p[0] == bone]
+        if not mine:
+            continue
+        width = max(p[2][0] for p in mine)
+        z0, z1 = min(p[3][2] - p[2][2] / 2 for p in mine), max(p[3][2] + p[2][2] / 2 for p in mine)
+        ybot, ytop = min(p[3][1] - p[2][1] / 2 for p in mine), max(p[3][1] + p[2][1] / 2 for p in mine)
+        out.append(_shell_ring(bone, mine[0][4], width, (z0, z1), (ybot, ytop), dome))
+    return out
+
+
+def _shell_ring(bone, slot, width, z, y, dome):
+    (z0, z1), (ybot, ytop) = z, y
+    r = max(width, z1 - z0, 1e-3) / 2
+    rings = [[r3(max(width * dome(ybot + t * (ytop - ybot)), 0.05) / (2 * r)), r3((z1 - z0) / (2 * r)), 0.0, 0.0, r3(t)] for t in DOME_AT]
+    return [bone, "lathe", [r3(r), r3(ytop - ybot)], [0, r3((ybot + ytop) / 2), r3((z0 + z1) / 2)], slot,
+            {"profile": rings, "sides": 8, "corner": RING_CORNER}]
 
 
 def _slab(bone, slot, z, y, width, dome):
