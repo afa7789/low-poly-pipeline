@@ -30,7 +30,8 @@ VIEWS = ["front", "left", "back", "top"]
 GATES = {"front": 0.75, "left": 0.65, "back": 0.70, "top": 0.65, "bottom": 0.65, "rts": 0.70}
 ZONE_GATED = ("front", "left")   # views whose colour-zone numbers can fail the gate
 # Colour zones (PIPELINE §18): what the silhouette cannot see inside the contour.
-ZONE_VIEWS = ("front", "left", "back")
+ZONE_VIEWS = ("front", "left", "back", "top", "bottom")
+ZONE_GATED = ZONE_VIEWS   # all five views gate the colour (PIPELINE §18.F)
 PIECE_MIN = 0.005      # a zone piece under this share of the figure is noise, not a part
 INK = 0.15             # sheet pixels this dark are outline, not a zone
 ZONE_GATES = {"mean": 0.08, "cover": 0.30}   # gated views; the lowest of the 7 hard-v1 is 0.100 / 0.368
@@ -351,17 +352,20 @@ def zone_report(concept, model, names):
             "zones": zones, "pieces": pieces}
 
 
-def zone_views(sheet, renders, stem, silhouettes, layout="unit"):
-    """view -> zone_report for front/left/back: the sheet and the model's flat-colour
+def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None):
+    """view -> zone_report for front/left/back/top/bottom: the sheet and the model's flat-colour
     render, both in the sheet's own zones and normalized like the silhouettes.
-    `silhouettes` maps view -> the model mask best_match chose (picks the mirror)."""
+    `silhouettes` maps view -> the model mask best_match chose (picks the mirror);
+    `tilts` maps top/bottom -> the tilt that mask was shot at, so the colour is shot from
+    the same camera."""
     names, centres = zone_palette(sheet)
     rgb = read_rgba(sheet, 768)[..., :3] / 255.0
     panels = concept_panels(sheet, layout=layout)
     out = {}
     for view in ZONE_VIEWS:
-        path = renders / f"{stem}-zone-{view}.png"
-        if view not in silhouettes or not path.exists():
+        tilt = (tilts or {}).get(view)
+        path = renders / f"{stem}-zone-{view}{f'@{tilt}' if tilt else ''}.png"
+        if view not in silhouettes or view not in panels or not path.exists():
             continue
         shot = read_rgba(path, 512)
         lit, mask = shot[..., :3] / 255.0, shot[..., 3] > 16
@@ -373,7 +377,7 @@ def zone_views(sheet, renders, stem, silhouettes, layout="unit"):
 
 
 def zone_gate(report, zones):
-    """Attach each view's zone report to the silhouette report and print it. On the gated
+    """Attach each view's zone report to the silhouette report and print it. On the ZONE_GATED
     views a mean or cover under ZONE_GATES fails (returned: how many views); a lost zone
     only warns, it is the passes' acceptance that must not make one."""
     bad = 0
@@ -396,6 +400,19 @@ def best_match(concept, tilted, name):
             if score > best[0]:
                 best = (score, variant, tilt)
     return best
+
+
+def pin_tilts(model, tilts):
+    """model_panels() reduced to the cameras in `tilts` ({view: tilt}): top/bottom at that tilt
+    only, the RTS view at that (elevation, azimuth) only. The colour stage measures the cameras
+    the shape stage chose; a free sweep there could pick another camera for the same model."""
+    return {view: {cam: m for cam, m in cams.items() if cam == tilts[view]} if view in tilts else cams
+            for view, cams in model.items()}
+
+
+def report_tilts(report):
+    """{view: tilt} of the top/bottom/rts cameras a silhouette report matched."""
+    return {view: r["tilt"] for view, r in report.items() if r.get("tilt")}
 
 
 def crop(mask):
@@ -479,6 +496,9 @@ def main():
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--shape", action="store_true",
                     help="stage 1 (clay): silhouette gates only, no colour zones")
+    ap.add_argument("--tilts", default="",
+                    help="pin the top/bottom/rts cameras, e.g. top:10,bottom:20,rts:35/30 "
+                         "(the colour stage reuses the shape stage's cameras)")
     args = ap.parse_args()
     if args.measure:
         print(json.dumps(measure(args.sheet), indent=2))
@@ -495,6 +515,9 @@ def main():
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     model = model_panels(renders, args.glb.stem)
+    if args.tilts:
+        from views import parse_tilts
+        model = pin_tilts(model, parse_tilts(args.tilts))
 
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
     report, bad, best_masks = {}, 0, {}
@@ -515,7 +538,8 @@ def main():
         best_masks[name] = best_mask
 
     if not args.shape:
-        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout))
+        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout,
+                                             report_tilts(report)))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
     gated = [g for g in GATES if g in concept]    # a view with no concept image (no RTS draw) is not gated
     missing = [g for g in gated if g not in report]

@@ -1060,6 +1060,8 @@ def main():
                          "panels projected on the model")
     ap.add_argument("--shape-only", action="store_true",
                     help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
+    ap.add_argument("--colour-pass", type=int, default=0,
+                    help="stage 2 colour-pass tries when the zone gate fails (palette/decals only)")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")

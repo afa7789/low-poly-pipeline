@@ -176,7 +176,7 @@ def paint(surface, rgb, size=256):
 # mid on the sides, dark underneath), no pattern, no gloss: a slot image is three flat
 # tone cells (index = tone_index) and every face maps into the cell of its tone.
 # A surface only nudges the three multipliers (default CEL_TONES).
-CEL_TONES = (1.20, 1.0, 0.68)
+CEL_TONES = (1.08, 1.0, 0.90)   # measured on the 7 v2-hard-r2 renders: render luma / sheet luma 0.95 side, 1.0 top (PIPELINE §18.F)
 CEL_SURFACE = {"glow": (1.0, 1.0, 1.0), "slime": (1.30, 1.0, 0.78), "flesh": (1.25, 1.0, 0.72),
                "bark": (1.12, 0.95, 0.60)}
 
