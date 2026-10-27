@@ -64,6 +64,8 @@ Seis geradores de ossos: `BIPED`, `_legs(n)`, `QUADRUPED`, `_chain`, `_wings`, `
 **L4-3 fit hierárquico.** `fit_spec.fit()` ganha `stages=("trunk","limbs","profiles")`, cada estágio = `free` filtrado, orçamento 1/3; `spec_pipeline.fit_accepted` ganha `VIEW_FLOOR[rig]`. Prova: `fit/before.json` ×3 unidades, tabela antes/F4/hierárquico (IoU 6 vistas no clay real, soma de margens, evals, s); critério: ≥ F4 em margens com ≤ 2/3 das avaliações no n00U.
 
 ## E. Experimento 3 caminhos (n00U, mesma sheet, câmeras, gates)
+
+> **Decisão do usuário (2026-10-27): o caminho "IA" não será executado, nem como registro.** Fica só baseline × procedural. O texto abaixo é mantido como registro da avaliação de viabilidade.
 | caminho | run | custo |
 |---|---|---|
 | baseline | `--spec runs/draft/n00U/v6-r1/fit/before.json --no-repair --shape-only --fit` (= F4) | 3 min, $0 |
