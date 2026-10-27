@@ -1,4 +1,5 @@
 """python3 -m unittest discover -s tests/tools/blender"""
+import os
 import pathlib
 import sys
 import json
@@ -82,7 +83,8 @@ class Build(unittest.TestCase):
     def test_biped_prespec_passes_the_preflight(self):
         sheet = REFS / "n01X/sheet.jpg"
         spec = M.build(sheet, "biped", "Mech")
-        self.assertTrue(RF.required("biped") <= {p[0] for p in spec["parts"]})
+        have = {p[0] for p in spec["parts"]} | {b for p in spec["parts"] if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], RF.required("biped")) or ()}
+        self.assertTrue(RF.required("biped") <= have)           # n01X has a parts.json: legs are limbs
         self.assertGreaterEqual(sum(PF.part_tris(p) for p in spec["parts"]), 400)
         doc = {"rig": "biped", "palette": spec["palette"]}
         checks = PF.checks_of(spec["parts"], doc, "mass", PF.targets_from(sheet), PF.load_props("n01X"), sheet)
@@ -94,33 +96,98 @@ class Build(unittest.TestCase):
 
 @unittest.skipUnless((REFS / "n005/sheet-hard.jpg").exists(), "needs the n005 sheet")
 class PartsBuild(unittest.TestCase):
-    """PIPELINE 23.L5-2: refs/<id>/parts.json drives the pre-spec; without it the band massing is unchanged."""
+    """PIPELINE 23.L5-2 / 23.L5-2b: refs/<id>/parts.json drives the pre-spec; without it the band massing is unchanged."""
+
+    def setUp(self):
+        self.sheet, self.hard = REFS / "n005/sheet.jpg", REFS / "n005/sheet-hard.jpg"
+        self.doc = json.loads((FIXTURES / "parts-n005.json").read_text())
 
     def test_one_piece_per_part_and_no_parts_is_the_band_massing(self):
-        sheet, doc = REFS / "n005/sheet-hard.jpg", json.loads((FIXTURES / "parts-n005.json").read_text())
-        band = M.build(sheet, "biped", "Human", parts=False)
-        self.assertEqual(M.build(sheet, "biped", "Human"), band)         # no refs/n005/parts.json: nothing changes
-        spec = M.build(sheet, "biped", "Human", parts=doc)
-        kinds = {p[1] for p in spec["parts"]}
-        self.assertLessEqual({"lathe", "limb", "prism", "box", "frustum"}, kinds)
+        band = M.build(self.sheet, "biped", "Human", self.hard, parts=False)
+        spec = M.build(self.sheet, "biped", "Human", self.hard, parts=self.doc)
+        self.assertLessEqual({"lathe", "limb", "prism", "box", "frustum"}, {p[1] for p in spec["parts"]})
         tank = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine"]
         self.assertEqual(len(tank), 1)                                    # the tank is its own lathe on the spine
         self.assertLess(tank[0][3][2], -0.5)                              # behind the torso
         self.assertTrue(any(p[1] == "box" and p[0] == "forearm.L" for p in spec["parts"]))   # the held weapon
+        self.assertNotEqual(spec, band)
+        self.assertTrue(M.PARTS_MASSING)                                  # on by default: parts.json of the sheet's folder is read
 
-    def test_half_written_parts_fall_back(self):
-        sheet, doc = REFS / "n005/sheet-hard.jpg", json.loads((FIXTURES / "parts-n005.json").read_text())
-        doc["parts"] = [q for q in doc["parts"] if q["role"] != "leg"]
-        self.assertEqual(M.build(sheet, "biped", "Human", parts=doc), M.build(sheet, "biped", "Human", parts=False))
+    def test_a_group_parts_json_lacks_comes_from_the_band_massing(self):
+        self.doc["parts"] = [q for q in self.doc["parts"] if q["role"] != "leg"]
+        band = M.build(self.sheet, "biped", "Human", self.hard, parts=False)["parts"]
+        got = M.build(self.sheet, "biped", "Human", self.hard, parts=self.doc)["parts"]
+        legs = lambda parts: [(p[0], p[1], p[5]["from"], p[5]["to"]) for p in parts if p[0].split(".")[0] in ("thigh", "shin")]   # noqa: E731
+        self.assertEqual(legs(got), legs(band))
+        self.assertTrue(any(p[1] == "lathe" and p[0] == "head" for p in got))   # the head is still the part's lathe
 
     def test_limb_knee_comes_from_the_joints(self):
-        doc = json.loads((FIXTURES / "parts-n005.json").read_text())
-        leg = next(q for q in doc["parts"] if q["bone"] == "thigh.L")
-        part = M.limb_part(leg, "z1", doc, 8, ("hip", "knee", "ankle"))[0]
+        leg = next(q for q in self.doc["parts"] if q["bone"] == "thigh.L")
+        part = M.limb_part(leg, "z1", self.doc, 8, ("hip", "knee", "ankle"))[0]
         self.assertEqual(part[1], "limb")
         knee = M.lathe_limb.knee_of(part[5])
-        for got, want in zip(knee, doc["joints"]["knee.L"]["xyz"]):
+        for got, want in zip(knee, self.doc["joints"]["knee.L"]["xyz"]):
             self.assertAlmostEqual(got, want, 2)
+
+    def test_non_bipeds_never_read_parts_json(self):
+        saved, M.load_parts = M.load_parts, lambda sheet: self.fail("a spider read parts.json")
+        try:
+            self.assertTrue(M.build(REFS / "n00U/sheet.jpg", "spider")["parts"])
+        finally:
+            M.load_parts = saved
+
+
+class Conform(unittest.TestCase):
+    """PIPELINE 23.L5-2b: the VLM's boxes are made symmetric, centred and cut to the sheet before they become parts."""
+
+    def doc(self):
+        j = lambda x, y: {"xyz": [x, y, 0.0]}   # noqa: E731
+        return {"H": 2.0, "joints": {"shoulder.L": j(0.6, 1.5), "shoulder.R": j(-0.4, 1.5), "elbow.L": j(0.7, 1.0), "elbow.R": j(-0.5, 1.0),
+                                     "wrist.L": j(0.7, 0.6), "wrist.R": j(-0.5, 0.6), "head_top": j(0.1, 2.0)},
+                "parts": [{"name": "arm L", "role": "arm", "bone": "arm.L", "box3d": [[0.5, 1.0, -0.1], [0.9, 1.5, 0.1]]},
+                          {"name": "arm R", "role": "arm", "bone": "arm.R", "box3d": [[-0.9, 1.0, -0.3], [-0.1, 1.5, 0.3]]},
+                          {"name": "pike", "role": "prop", "bone": "forearm.R", "prop": True, "box3d": [[-0.6, 0.1, 0], [-0.5, 1.9, 0.1]]}]}
+
+    def test_centred_mirrored_and_the_better_read_side_wins(self):
+        S = M.symmetric_doc(self.doc())
+        self.assertAlmostEqual(S["joints"]["shoulder.L"]["xyz"][0], 0.5)           # centre line was 0.1 off
+        self.assertEqual(S["joints"]["shoulder.R"]["xyz"][0], -S["joints"]["shoulder.L"]["xyz"][0])
+        self.assertEqual(S["joints"]["head_top"]["xyz"][0], 0.0)
+        arms = {p["bone"]: p["box3d"] for p in S["parts"] if p["role"] == "arm"}
+        self.assertEqual(arms["arm.R"], [[-arms["arm.L"][1][0], 1.0, -0.3], [-arms["arm.L"][0][0], 1.5, 0.3]])   # R holds its elbow, L does not
+        self.assertEqual(len([p for p in S["parts"] if p["role"] == "prop"]), 1)    # a prop is moved, not mirrored
+        self.assertAlmostEqual(next(p for p in S["parts"] if p["role"] == "prop")["box3d"][0][0], -0.7)
+
+    def test_a_part_past_the_band_ceiling_moves_in(self):
+        part = ["forearm.R", "box", [0.1, 1.8, 0.1], [-0.9, 1.0, 0.0], "z1", {"asym": True}]
+        targets = {"shoulder_span": 0.4, "fist_span": 0.4, "stance": 0.4}
+        M.clamp_widths([part, ["head", "box", [0.2, 0.2, 0.2], [0.0, 1.9, 0.0], "z1", {}]], targets)
+        self.assertLessEqual(-PF.bbox(part)[0][0], M.MARGIN * (1 + PF.TOLERANCE) * 0.4 * 2.0 / 2 + 1e-6)
+
+    def test_budget_split_trades_sides(self):
+        targets = {"area_head": 0.1, "area_body": 0.4, "area_legs": 0.5}
+        legs = [["thigh.L", "limb", [0.1, 0.1, 0.1], [0, 0, 0], "z1", {"sides": 6, "from": [0, 1, 0], "to": [0, 0, 0]}]]
+        arms = [["arm.L", "prism", [0.1, 0.1, 1], [0, 0, 0], "z1", {"sides": 10, "from": [0, 1, 0], "to": [0, 0, 0]}] for _ in range(6)]
+        head = [["head", "lathe", [0.2, 0.3], [0, 2, 0], "z1", {"sides": 6, "profile": [1] * 6}]]
+        groups = {"head": head, "trunk": [], "arms": arms, "legs": legs, "props": []}
+        M.balance(groups, targets)
+        self.assertGreater(legs[0][5]["sides"], 6)                                  # the legs, far under their band, took sides
+
+
+@unittest.skipUnless(os.environ.get("SLOW") and (REFS / "n02X/sheet.jpg").exists(), "SLOW=1: the 4 biped sheets, ~15 s")
+class RealParts(unittest.TestCase):
+    """PIPELINE 23.L5-2b: the real parts.json of the four bipeds clears every preflight rule, with no group falling back."""
+
+    def test_preflight_passes_on_the_four_bipeds(self):
+        import spec_pipeline as SP
+        for unit in ("n005", "n01X", "n02X", "hfoo"):
+            with self.subTest(unit):
+                sheet = REFS / unit / "sheet.jpg"
+                spec = SP.parse_spec(json.dumps(M.build(sheet, "biped", "Human", REFS / unit / "sheet-hard.jpg")))
+                parts, doc = spec["parts"], spec
+                RF.scale_rig("biped", None)
+                checks = PF.checks_of(parts, doc, "mass", PF.targets_from(sheet), PF.load_props(unit), sheet)
+                self.assertEqual([n for n, ok, _ in checks if not ok], [])
 
 
 class Joints(unittest.TestCase):
