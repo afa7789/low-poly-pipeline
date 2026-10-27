@@ -1056,24 +1056,39 @@ def fit_accepted(prev, cur, gates, problems):
 
 
 def fit_stage(spec, args):
-    """--fit: fit_spec on the first spec, then build the original and the fitted clay for real
-    and keep the fitted one only if fit_accepted. The two trials land in <run>/fit/."""
+    """--fit: fit_spec on the first spec, then build the original, the fitted and the fitted-with-cut-
+    toggled clay for real and keep the best one that passes fit_accepted against the one before it
+    (PIPELINE 21.F4: `cut: sheet` is decided here, not guessed by the author). The trials land in <run>/fit/."""
     import fit_spec
     from silhouette import gates_for
-    fitted, report = fit_spec.fit(spec, args.sheet, args.kind)
+    fitted, report = fit_spec.fit(spec, args.sheet, args.kind, wide=not args.fit_fast, tilts=run_tilts(args))
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
-    if not report["changed"]:
+    if report["changed"]:
+        ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
+    base = fitted if report["changed"] else spec
+    toggled = None if args.fit_fast else fit_spec.toggle_cut(base)
+    candidates = [(n, c) for n, c in (("after", fitted if report["changed"] else None), ("cut", toggled)) if c]
+    if not candidates:
         return spec
-    ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
     work = args.out / "fit"
     work.mkdir(parents=True, exist_ok=True)
-    (prev, prev_problem, _), (cur, cur_problem, _) = (
-        trial(s, args.sheet, args.kind, work, name) for s, name in ((spec, "before"), (fitted, "after")))
-    ok = fit_accepted(prev, cur, gates_for(args.rig), (prev_problem, cur_problem))
-    (work / "fit.json").write_text(json.dumps({**report, "real": {"before": prev, "after": cur}, "accepted": ok},
-                                              indent=2))
-    print(f"fit: real clay {prev} -> {cur}: {'accepted' if ok else 'rejected, original kept'}")
-    return fitted if ok else spec
+    best, chosen = trial(spec, args.sheet, args.kind, work, "before"), ("before", spec)
+    real = {"before": best[0]}
+    for name, cand in candidates:
+        cur = trial(cand, args.sheet, args.kind, work, name)
+        real[name] = cur[0]
+        if fit_accepted(best[0], cur[0], gates_for(args.rig), (best[1], cur[1])):
+            best, chosen = cur, (name, cand)
+    (work / "fit.json").write_text(json.dumps({**report, "real": real, "accepted": chosen[0] != "before",
+                                               "chosen": chosen[0]}, indent=2))
+    print(f"fit: real clay {real} -> {chosen[0]}")
+    return chosen[1]
+
+
+def run_tilts(args):
+    """The top/bottom/rts cameras this run's approved silhouette chose, when it has measured one."""
+    path = args.out / "sil" / "approved" / "silhouette.json"
+    return tilts_of(json.loads(path.read_text())) if path.exists() else None
 
 
 def silhouette_vs(args, glb, layout, sheet, name):
@@ -1634,6 +1649,8 @@ def main():
                     help="(default) after repair/passes and before the final build, fit dims/at to the "
                          "sheet's silhouettes (fit_spec.py, PIPELINE 19.D1, 20.N12)")
     ap.add_argument("--no-fit", dest="fit", action="store_false", help="skip the numeric fit")
+    ap.add_argument("--fit-fast", action="store_true",
+                    help="the classic fit: front/left/back, dims and at, no cut test (about a third of the time)")
     ap.add_argument("--variants", type=int, default=1,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
                          "variants/<k>/, kept) and go on with the one with the largest sum of "

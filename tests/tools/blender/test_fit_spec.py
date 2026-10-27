@@ -108,6 +108,88 @@ class Fit(unittest.TestCase):
         self.assertEqual(report["failing"], [])
 
 
+class Wide(unittest.TestCase):
+    """PIPELINE 21.F4: swept cameras, rot, wide dims, zones, the cut toggle, the budget"""
+
+    def test_project(self):
+        """top tilts toward the front (v = y cos + z sin), bottom mirrors y; rts at 0 deg elevation and
+        azimuth 0 is the front camera; at azimuth 90 the camera sits on +x and sees y as its right"""
+        p = np.array([[1.0, 2.0, 3.0]])
+        for name, view, cam, want in [("top 0", "top", 0, (1, 2)), ("top 30", "top", 30, (1, 2 * 0.866 + 3 * 0.5)),
+                                      ("bottom 30", "bottom", 30, (1, -2 * 0.866 + 3 * 0.5)),
+                                      ("rts front", "rts", (0, 0), (1, 3)), ("turn 90", "turn90", 90, (2, 3))]:
+            with self.subTest(name):
+                u, v = F.project(view, p, cam)
+                self.assertTrue(np.allclose((u[0], v[0]), want, atol=1e-3), (u, v))
+
+    def test_rot_extra(self):
+        """a hand takes a rot of up to ROT_RANGE deg per axis; its twin turns (right, -up, -forward)"""
+        hand = ["hand.L", "box", [1, 1, 1], [0.5, 1, 0], "iron", {"rot": [0, 0, 10]}]
+        self.assertEqual(F.extras_of(hand), ("rot",))
+        self.assertEqual(F.extras_of(["spine", "box", [1, 1, 1], [0, 1, 0], "iron", {}]), ())
+        self.assertEqual(F.extras_of(["arm.L", "prism", [1, 1, 1], [0, 0, 0], "iron", {"from": [0] * 3, "to": [1] * 3}]), ())
+        self.assertEqual(F.extras_of(["spine", "box", [1, 1, 1], [0, 1, 0], "iron", {}], hood=True), ("rot",))
+        x = [0, 0, 0, 0, 0, 0, 1, 0, -1]
+        self.assertEqual(F.moved(hand, x, 2.0, extra=("rot",))[5]["rot"], [F.ROT_RANGE, 0, 10 - F.ROT_RANGE])
+        self.assertEqual(F.moved(hand, x, 2.0, mirror=True, extra=("rot",))[5]["rot"], [F.ROT_RANGE, 0, 10 + F.ROT_RANGE])
+        self.assertEqual(len(F.bounds_of(hand, False, False, ("rot",))), 3 + 3 + 3)
+
+    def test_wide_dims(self):
+        """attached parts move their dims by 20 %, a no-grow part still only shrinks"""
+        part = box("arm.L", (1, 2, 1), (0, 1, 0))
+        self.assertEqual(F.bounds_of(part, False, True)[:3], [(-2, 2)] * 3)
+        self.assertEqual(F.bounds_of(part, True, True)[:3], [(-1, 0), (-2, 2), (-1, 0)])
+
+    def test_toggle_cut(self):
+        """cut goes on the largest plain torso/pelvis/hood part, off everywhere when any part has it"""
+        doc = {"parts": [box("spine", (1, 2, 1), (0, 1, 0)), box("spine", (0.2, 0.2, 0.2), (0, 1, 0)),
+                         box("arm.L", (1, 2, 1), (0, 1, 0)), box("pelvis", (1, 1, 1), (0, 1, 0), rot=[0, 0, 5])]}
+        on = F.toggle_cut(doc)
+        self.assertEqual([p[5].get("cut") for p in on["parts"]], ["sheet", None, None, None])
+        self.assertNotIn("cut", doc["parts"][0][5], "the input is not edited")
+        self.assertEqual([p[5].get("cut") for p in F.toggle_cut(on)["parts"]], [None] * 4)
+        self.assertIsNone(F.toggle_cut({"parts": [box("arm.L", (1, 1, 1), (0, 1, 0))]}))
+
+    def test_zone_share(self):
+        """a part lying half in its zone scores one half, a flipped view reads the labels mirrored"""
+        zones = F.Zones.__new__(F.Zones)
+        labels = np.zeros((silhouette.CANVAS_H, silhouette.CANVAS_W), np.int16)
+        labels[:, :silhouette.CANVAS_W // 2] = 1
+        zones.labels = {"front": labels}
+        outline = np.array([[0, 0], [2, 0], [2, 2], [0, 2]], float)
+        canvas = F.canvas_of([outline])           # fills the canvas height, centred
+        wide = np.array([[-1, 0], [1, 0], [1, 2], [-1, 2]], float)
+        for flipped, want in [(False, 0.5), (True, 0.5)]:
+            self.assertAlmostEqual(zones.share("front", wide, F.canvas_of([wide]), 1, flipped), want, places=1)
+        self.assertGreater(canvas[2], 0)
+        left = np.array([[-1, 0], [-0.1, 0], [-0.1, 2], [-1, 2]], float)
+        both = [left, np.array([[0.1, 0], [1, 0], [1, 2], [0.1, 2]], float)]
+        self.assertAlmostEqual(zones.share("front", left, F.canvas_of(both), 1, False), 1.0, places=1)
+        self.assertAlmostEqual(zones.share("front", left, F.canvas_of(both), 1, True), 0.0, places=1)
+
+    def test_turn_panels_only_when_the_sheet_has_them(self):
+        self.assertEqual(F.turn_masks(pathlib.Path("/nonexistent/sheet.jpg")), {})
+        mask = np.zeros((20, 10), bool)
+        mask[2:18, 3:7] = True
+        with mock.patch.object(F.silhouette, "turn_panels", create=True, return_value={0: mask, 45: mask}), \
+                mock.patch.object(pathlib.Path, "exists", return_value=True):
+            self.assertEqual(list(F.turn_masks(pathlib.Path("sheet.jpg"))), ["turn45"])
+
+    def test_budget_stops_the_search(self):
+        """no time left: the search stops at once and the spec comes back intact"""
+        parts = [box("arm.L", (0.5, 2, 0.5), (0, 1, 0))]
+        shapes = F.Proxy({}, VIEWS).outlines([box("arm.L", (0.9, 2, 0.9), (0, 1, 0))])
+        panels = {v: F.raster(shapes[v])[0] for v in VIEWS}
+        doc = {"parts": parts, "rig": "biped"}
+        with mock.patch.object(F.silhouette, "concept_panels", return_value=panels), \
+                mock.patch.object(F.preflight, "targets_from", return_value={}), \
+                mock.patch.object(F.preflight, "load_props", return_value=[]), \
+                mock.patch.object(F, "broken_rules", return_value=set()):
+            out, report = F.fit(doc, pathlib.Path("sheet.jpg"), seconds=0)
+        self.assertIs(out, doc)
+        self.assertEqual(report["evals"], 0)
+
+
 class FitAccepted(unittest.TestCase):
     GATES = {"front": 0.75, "left": 0.65}
 

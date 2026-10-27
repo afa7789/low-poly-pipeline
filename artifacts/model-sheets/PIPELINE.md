@@ -1867,3 +1867,65 @@ Papers: Sketch2Mesh 2021 (Eq. 6: refinar só perto da região que falha), MeshGP
   Peças editáveis por passe: 8-16 de 28-29 (28-57 %). Autor: 4 pedidos novos e 4 de `fbb2fc0f` (`--no-repair`, só autor), 8/8 viram spec sem reenvio, taxa de spec malformado 0/4 contra 0/4: **o schema não mede ganho com `session:opus`**, que já devolvia JSON válido; o ganho esperado é no Gemini, e lá o schema não existe (ver acima), só o reenvio.
 - **Piorou / pendente.** (1) N pequeno: 9 patches, nenhum tocou peça congelada; não provo que o `[FROZEN]` segura um modelo mais solto, só que `opus` respeita a lista, e o `apply_patch` cobre o caso nos testes. (2) A diferença de passes aceitos (3/9 contra 0/4) é ruído de LLM, não prova de ganho. (3) Nas runs de n005 as regras do repair eram globais (`shoulder_span`, `fist_span`, `budget_split`): o repair nunca congelou nada; mapear `shoulder_span`/`fist_span` aos ossos `arm`/`forearm` é o próximo passo se o repair parcial importar. (4) A banda usa a altura do modelo; um conceito com adereço alto (capuz, antena) desloca as faixas. (5) O `[FROZEN]` custa linhas no prompt, não tokens de imagem.
 - **Testes.** `test_spec_pipeline.py`: `AuthorSchema` (flag do CLI, `structured_output`, `json_object` e fallback 400, reenvio uma vez) e `FrozenParts` (bones das regras, `set`/`drop`/`add` fora da lista, faixas sobre máscaras sintéticas, marcação `[FROZEN]`).
+
+## 21. Leva 3 (2026-10-27)
+
+### 21.F4 Fit largo: rot, top/bottom/rts, dims 20 % ligadas, zonas, `cut` decidido pelo fit (2026-10-27)
+- **O que mudou** (`fit_spec.py`, `spec_pipeline.fit_stage`; `--fit` continua default, `--fit-fast` = fit clássico):
+  - **Vistas no objetivo:** front/left/back + top/bottom/rts (`WIDE_VIEWS`). `project(view, pts, cam)` projeta
+    ortográfico como `views.camera`/`rts_offset`: top `v = y cos t + z sin t`, bottom `v = -y cos t + z sin t`, rts e
+    painéis de turntable por câmera olhando o centro. A câmera: a do `silhouette.json` do run quando ele existe
+    (`run_tilts`), senão varredura (`TILTS`, `RTS`) pelo IoU do proxy do spec inicial (`Proxy.pick_cams`, ~0.4 s).
+  - **`rot` (+-20 graus por eixo, eixos do DSL):** peças dos ossos arm/forearm/hand/thigh/shin/foot/leg e a maior peça de
+    `head` (capuz), que não sejam from/to (esses ignoram `rot`). O gêmeo `.R` gira `(right, -up, -forward)`.
+  - **Parâmetros por tipo:** `PARAMS[kind]` lista os nomes extras (hoje `("rot",)` em box/prism/frustum/dome) e
+    `EXTRAS[nome]` diz tamanho, quando vale e como mexe na peça. Kind novo (lathe/limb de F2) só acrescenta entradas.
+  - **Dims 20 %** (`ATTACHED_RANGE`) para peça cujo osso tem pai e não está solto a 80 % (`loose0`); o resto continua
+    10 %; spine/pelvis/body/abdomen e o capuz continuam só encolhendo x/z. A âncora (§20.N12) não mudou.
+  - **Zonas** (`Zones`, `ZONE_W = 0.1`): por peça móvel e vista, fração da projeção dentro da zona do sheet (`zone_labels`
+    do sheet, com tinta) do material da peça (cor do `palette` -> zona mais próxima). Peso pequeno por desenho.
+  - **`cut: sheet`:** o proxy não modela o corte, então `fit_stage` constrói o clay real do original, do ajustado e do
+    ajustado com `fit_spec.toggle_cut` (corte tirado se há algum; senão no maior box/prism/frustum liso de
+    spine/pelvis/body/abdomen e no capuz, no máximo 3) e fica com o melhor por `fit_accepted` em cadeia (soma de margens,
+    deslize 0.02, regras do preflight). `fit.json` ganha `real.cut` e `chosen`.
+  - **Orçamento:** `MAX_EVALS` 4000 e `MAX_SECONDS = 150` (`Stop` na função objetivo; o melhor ponto vale). `--fit-fast`:
+    3 vistas, sem rot/zonas/dims 20 %, 1500 avaliações, sem teste de `cut` (~40 s).
+  - **Turntable (F6):** `turn_masks` lê `refs/<id>/sheet-turn.jpg` só se existir e se `silhouette.turn_panels(path)`
+    for chamável e devolver `{azimute em graus (0 = frente): máscara}`; os painéis a 45/135/225/315 entram no objetivo
+    como `turn<az>`, azimute varrido +-20 (passos de 10). Sem o arquivo (hoje), ignorado: **não medido**, só teste unitário.
+- **Proxy x render, top/bottom/rts** (33 runs de `runs/draft`, 99 pares, `scratchpad/leva3-f4/validate.py`): com a tilt do
+  `silhouette.json` correlação **0.996**, erro médio 0.006, viés -0.002; com a tilt varrida pelo proxy 0.996, 0.006,
+  -0.0006 (mesma qualidade, então sem o `silhouette.json` a varredura serve).
+- **Prova sem LLM** (`spec_pipeline --spec runs/draft/<id>/v6-r1/fit/before.json --no-repair --shape-only`, clay real das
+  6 vistas; saídas em `scratchpad/leva3-f4/<id>/`). antes = spec do autor; v6 = o `fit.json` guardado (fit clássico);
+  F4 = escolhido (n005 `after`, n00U e n01X `cut`):
+
+  | | front | left | back | top | bottom | rts | soltas (attach) |
+  |---|---|---|---|---|---|---|---|
+  | n005 antes | .724 | .780 | .774 | .715 | .780 | .810 | 2 |
+  | n005 v6 | .816 | .810 | .868 | .723 | .775 | .838 | 1 |
+  | n005 **F4** | .826 | .806 | .869 | .763 | .805 | .859 | 1 |
+  | n00U antes | .706 | .690 | .707 | .653 | .618 | .641 | 0 |
+  | n00U v6 (rejeitado) | .780 | .686 | .789 | .640 | .618 | .641 | 0 |
+  | n00U **F4** | .783 | .705 | .790 | .707 | .675 | .659 | 0 |
+  | n01X antes | .707 | .787 | .709 | .759 | .793 | .763 | 0 |
+  | n01X v6 | .790 | .828 | .791 | .789 | .835 | .796 | 0 |
+  | n01X **F4** | .816 | .832 | .817 | .834 | .857 | .812 | 0 |
+
+  Tempo do fit (só a busca, 6 fits em paralelo): n005 114 s (2577 avaliações), n01X 71 s (2161), n00U 153 s (3084, parou
+  no orçamento); `--fit-fast` 37-42 s (1500). Pipeline inteiro (3 clays do `fit_stage` + build final + sil), 3 unidades em
+  paralelo: 125-213 s por unidade.
+  `cut` real, por unidade (soma das margens): n005 ajustado .826/.806/.869/.763/.805/.859 contra com corte
+  .804/.820/.857/.770/.821/.849, o ajustado ganha (rts e front); n00U o corte recupera left (.665 -> .705); n01X o corte
+  ganha front/back/top (+.004).
+- **Zonas (ablação, `ZONE_W` 0 contra 0.1, fração média das peças dentro da zona do material):** n005 .647 -> .659, n00U
+  .318 -> .329, n01X .347 -> .358, e o IoU não paga: front n005 .839 -> .830, n01X .829 -> .828, n00U ~igual. Ganho de
+  +0.01 em fração, dentro do ruído; o peso fica em 0.1. A fração é baixa (.3-.66) porque o mapeamento material -> zona
+  é a cor do `palette` contra 4 centros k-means do sheet, e muitas peças pequenas cruzam duas zonas.
+- **O que piorou / limites:** o n00U `after` sem corte perdeu left (.690 -> .665) ao ganhar front/back: quem salvou foi o
+  teste de `cut`. n005 continua com 1 solta (foot.R) como no fit antigo (vem do spec do autor). O `rot` não foi isolado
+  numa ablação própria (as 6 vistas melhoram juntas; `rot` e dims 20 % entram na mesma busca). n00U rts .659 segue
+  abaixo do gate 0.70 e o veredito dele é CHECK (stage 1 FAIL só por rts). O n00U gasta o orçamento de 150 s.
+  O teste de `cut` custa 1 clay a mais (~60 s) por unidade.
+- Papers: Sketch2Mesh 2021 (contorno 2D multi-vista, só onde falha), Wiersma 2026 (restrições duras: regras do preflight e
+  ligação ao pai), MeshGPT 2024 (congelar o que já está bom: peças fora da faixa não entram na busca).
