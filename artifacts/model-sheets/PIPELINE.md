@@ -2374,3 +2374,43 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Sheets novos (sem modelo, o detector não roda): leitura visual.** n017 (lobo): top head-up, bottom head-up (como o n01N). n00H (wyrm): top head-up, bottom head-up. n010 (drake): top e bottom com a cabeça à ESQUERDA (girados 90°, não 180°): não resolvido, o detector só testa 180° e a rotação de 90° fica para quando houver modelo. Quando houver modelo dessas unidades o detector decide sozinho; esperado n017/n00H top girar, bottom não.
 - **Pendente.** Luma L1 da zona top do n01N piorou ao girar (o shading do modelo não gira com o painel); `make_compare` e `fit_spec` ainda leem o painel top sem rotação; `cut_hull.top_flipped` (leitura de perfil do plate) não foi unificado, usa as caixas das peças e continua independente.
 - **Testes.** `test_silhouette.py::PanelOrientation` (gira só o painel claramente invertido; painel simétrico fica; `oriented` gira antes do crop).
+
+## 23. Leva 5 (2026-10-28)
+
+### 23.L5-1 Segmentação semântica do sheet: juntas e partes em 2D, triangulação para 3D (2026-10-27)
+
+`tools/blender/segment_sheet.py <id> [--rig ...] [--masks] [--reply parts-reply.json]`. **Uma** chamada ao VLM por sheet (`spec_pipeline.ask`, `session:opus`, schema JSON estrito + `check_reply` com um reenvio): front e left do `sheet.jpg` aprovado (`split_sheet.split`), cada painel com régua 0-1 desenhada (grade a cada 0.1, y para cima) e a card (parágrafo `Redesign` do compendium + `prompts/<id>/props.json`). O VLM só aponta: juntas da família (biped 14 = cabeça/queixo + 6 tipos x L/R; spider raiz+joelho x 8 pernas; quadruped cabeça/focinho/cauda + 4 pernas x raiz/joelho/pé; demais: 5 pontos genéricos), caixa 2D por parte (com `role`, `bone`, `prop`, `anchor`, `depth_hint`) e a lista de identidade. O código faz o resto: x do front, z do left (mesmo quadro de `massing.View`/`side_of`: metros do spec, +z para onde os pés apontam), y = média (gap > 0.05 H vai para `incoherent`, não é escondido); junta `.R` que o left esconde pega o z do gêmeo `.L` (`z_from: "mirror"`); `depth_order` = sinal e faixa (0.04 / 0.12 H) do z do centro da parte contra o torso, ou o `depth_hint` do VLM quando o left não mostra a parte (`depth_src`); `zone` = zona de cor de maior *lift* dentro de caixa x silhueta (uma peça cinza sobre casaco escuro é a zona rara, não a dominante); `--masks` grava caixa x zona x figura em `refs/<id>/parts/<parte>-<vista>.png` (quadrado 768). Saídas versionadas: `refs/<id>/parts.json` (contrato do brief + `incoherent`, `joints_read`, `meta` com segundos e tokens), `parts-reply.json` (a resposta crua: `--reply` retriangula sem chamar o VLM), `parts-overlay.png`.
+
+`preflight.joint_place` lê `refs/<id>/parts.json` (`parts_joints`, `targets["vlm_joints"]`) e compara os 8 tipos (cabeça, queixo, ombro, cotovelo, punho, quadril, joelho, tornozelo; `own_joints` lê o topo/fundo das caixas das peças nos ossos) em vez dos 2 do degrau de largura. Sem o arquivo: comportamento antigo. Continua só relatório (`JOINT_BLOCKING = False`).
+
+**Prova (olhei os 8 overlays em `refs/<id>/parts-overlay.png`).** Juntas: `xyz` = lidas nas duas vistas; `1 vista` = só uma; `na silhueta` = pontos 2D que caem sobre a figura.
+
+| unidade | rig | juntas xyz / 1 vista / nenhuma (esperadas) | na silhueta | incoerências | partes | s | tokens saída |
+|---|---|---|---|---|---|---|---|
+| n005 | biped | 14 / 0 / 0 (14) = 8/8 tipos | 21/22 | 2 | 18 | 35.8 | 4020 |
+| n01X | biped | 14 / 0 / 0 = 8/8 | 22/22 | 2 | 20 | 35.8 | 4074 |
+| n02X | biped | 14 / 0 / 0 = 8/8 | 23/24 | 2 | 21 | 44.0 | 4981 |
+| hfoo | biped | 14 / 0 / 0 = 8/8 | 22/22 | 6 | 15 | 35.7 | 3780 |
+| n00U | spider | 6 / 8 / 2 (16) | 20/20 | 3 | 13 | 30.9 | 3314 |
+| n017 | quadruped | 8 / 7 / 0 (15) | 21/23 | 6 | 13 | 35.3 | 3603 |
+| n00H | generic | 4 / 1 / 0 (5) | 8/9 | 1 | 7 | 19.8 | 1960 |
+| n010 | generic | 4 / 0 / 1 (5) | 7/8 | 3 | 17 | 44.5 | 5292 |
+
+Custo por sheet: 20-45 s, 2-5 mil tokens de saída, ~6-13 mil de cache criado e ~6-16 mil lidos (sessão, sem crédito de API); 1 chamada, 0 reenvios. Os 3 sheets novos (n017, n00H, n010) funcionaram sem card de props (n017 tem `props.json`; os três têm o parágrafo do compendium).
+
+O que o VLM acertou / errou (a olho):
+- **n005.** Certo: capuz, máscara (com o focinho/mangueira), tanque com z -0.83..-0.23 contra o torso (`depth_order` -2: atrás), máscara na frente do capuz (+1), joelho/quadril/cotovelo/cabeça a menos de 0.03 H do desenho, lanterna, bolsa e vaporizador no front. Errado: o vaporizador sai cortado na borda do painel; vaporizador/lanterna/bolsa não aparecem no left, então `box3d` é `null` e a profundidade vem do `depth_hint`; punho L com 0.09 H de gap front x left; caixas de braço do left frouxas.
+- **n01X.** Quase tudo certo nas duas vistas (cabeça-volante, ombreiras, pistões, fornalha); gaps 0.056-0.067 H (pelve, canela); fornalha sem caixa no left.
+- **n02X.** Certo: clava, óculos, respirador, placa de ombro com o X, pano da fusível; o braço L fica cortado na borda do painel (cotovelo/punho L no limite); caixas de antebraço do left frouxas.
+- **hfoo.** Certo: capacete, mochila, lanterna, plaquinha; a lança diagonal vira uma caixa que cobre a diagonal inteira no left (caixa 3D enorme: uma caixa alinhada ao eixo não descreve prop inclinado); 6 incoerências de 0.056-0.08 H (cabeça/queixo/capacete: a régua do left leu 0.03 H mais baixo).
+- **n00U (spider).** Certo: carapaça, boné-lanterna, olhos, presas, cefalotórax. Errado/limite: oito pernas não se separam em front+left (as pernas escondem umas às outras): 6 de 16 juntas com xyz, 8 numa vista só, 2 nulas; a numeração das pernas é a do rig (dica em texto), mas a identidade de cada uma no desenho é incerta. Não serve para ancorar perna a perna sem a vista top.
+- **n017 (lobo).** Certo: cabeça, rabo, arreio laranja, patas; pernas traseiras só no left (7 juntas numa vista). Errado: caixa de torso do front invade a cabeça (gap front x left 0.138 H, arreio 0.171 H: o front vê o peito, o left o corpo todo).
+- **n00H.** Certo: cabeça-concha, asas, hoses, válvula da cauda (só no left); `hose_body_upper` com gap 0.10 H (o front vê o S de frente).
+- **n010 (drake).** Certo: asas, colar, lâmpada, exaustor; pernas do front com gap 0.123 H; sem a junta `wing_root`/`snout` equivalente no front (1 nula).
+- **Zona.** Em casaco todo escuro (n005) as partes escuras caem na mesma zona (#2E2F31); o tanque, o vaporizador e a mão pegam o cinza (#5D6568). A zona só distingue o que a paleta distingue.
+
+`joint_place` (relatório) antes -> depois nos specs existentes: n005 `v4-oneshot-r1` 1 junta (cotovelo 0.51 contra 0.47) -> 8 juntas (cabeça 1.00/0.99, quadril 0.50/0.49, joelho 0.22/0.20 dentro; queixo, ombro, cotovelo, punho, tornozelo OUT); n01X `hard-v1` 1 (joelho) -> 8 (cabeça, queixo, cotovelo, quadril, joelho dentro; ombro, punho, tornozelo OUT). Esses OUT são em parte definição crua do lado do modelo (`own_joints`: o topo do braço é a ombreira, o fundo do antebraço inclui punho/arma, o fundo da canela é o chão sob a bota), não só erro do modelo: por isso fica relatório; calibrar antes de virar gate (taxa de FAIL com 8 juntas é alta).
+
+- **Negativo/limites.** (1) Precisão do VLM na régua: ±0.03-0.06 H por vista (daí `COHERENT = 0.05` marcar 1-6 itens por sheet). (2) Prop inclinado (lança) e prop só visível no front (n005) não têm caixa 3D fiável. (3) Spider: 6/16. (4) Zona não discrimina partes da mesma cor. (5) Os painéis do `split` sobrepõem a borda da vista vizinha (o left do n005 mostra um pedaço do prop do front); o VLM ignorou, mas o painel ideal seria a máscara do `concept_panels`.
+- **Fora do item.** Nenhum consumidor além de `joint_place` lê o `parts.json` ainda (L5-2/3/4/6).
+- **Testes.** `test_segment_sheet.py` (triangulação com quadro linear: xyz, gap, espelho, caixa 3D, `depth_order`; `check_reply`; schema; ponta a ponta no n005 com VLM stub) e 2 casos em `test_preflight.py::JointPlace`.

@@ -188,17 +188,64 @@ def joint_height(parts, boxes, height, key):
     return (min(ups) + max(los)) / 2 / height if ups and los else None
 
 
+def own_joints(parts, boxes, height):
+    """{joint type: height in H} of the unit's own head top, chin, shoulder, elbow, wrist, hip, knee and
+    ankle, read from the parts' boxes (a type with no part on its bones is left out)."""
+    def on(*bones):
+        return [boxes[id(p)] for p in parts if p[0] in bones]
+
+    def long(bones):    # a forearm part, not the hand: the hand is under 0.15 H on its longest side
+        bs = on(*bones)
+        return [b for b in bs if max(b[1][k] - b[0][k] for k in range(3)) >= 0.15 * height] or bs
+    head, arm, fore = on("head"), on("arm.L", "arm.R"), long(("forearm.L", "forearm.R"))
+    thigh, shin = on("thigh.L", "thigh.R"), on("shin.L", "shin.R")
+    got = {"head_top": max((b[1][1] for b in head), default=None), "chin": min((b[0][1] for b in head), default=None),
+           "shoulder": max((b[1][1] for b in arm), default=None), "wrist": min((b[0][1] for b in fore), default=None),
+           "hip": max((b[1][1] for b in thigh), default=None), "ankle": min((b[0][1] for b in shin), default=None)}
+    out = {k: v / height for k, v in got.items() if v is not None}
+    for name, key in (("elbow", "elbow_h"), ("knee", "knee_h")):
+        h = joint_height(parts, boxes, height, key)
+        if h is not None:
+            out[name] = h
+    return out
+
+
+def parts_joints(sheet):
+    """{joint type: height in H} the VLM segmentation of the sheet (refs/<id>/parts.json, L5-1) read, the two
+    sides averaged; {} when the sheet has none."""
+    path = pathlib.Path(sheet).with_name("parts.json")
+    if not path.exists():
+        return {}
+    doc = json.loads(path.read_text())
+    ys = {}
+    for name, j in doc["joints"].items():
+        if j.get("xyz"):
+            ys.setdefault(name.split(".")[0], []).append(j["xyz"][1] / doc["H"])
+    return {k: sum(v) / len(v) for k, v in ys.items()}
+
+
 def joint_checks(parts, boxes, height, targets):
     """joint_place: each joint the sheet shows lies within JOINT_TOL H of the unit's own; nothing for a
-    joint the sheet does not show. [(rule, passed, detail)] (a report while JOINT_BLOCKING is False)."""
+    joint the sheet does not show. With the sheet's parts.json (targets["vlm_joints"]) all eight joint types
+    are compared, else only the knee and elbow the width steps give. [(rule, passed, detail)] (a report
+    while JOINT_BLOCKING is False)."""
+    if targets.get("vlm_joints"):
+        own = own_joints(parts, boxes, height)
+        rows = [(k, own[k], want) for k, want in targets["vlm_joints"].items() if k in own]
+        return joint_rows(rows)
     rows = [(k, joint_height(parts, boxes, height, k), targets[k]) for k in JOINT_KEYS if k in targets]
     rows = [(k, got, want) for k, got, want in rows if got is not None]
+    return joint_rows([(k[:-2], got, want) for k, got, want in rows])
+
+
+def joint_rows(rows):
+    """The joint_place row of [(joint, got, want)] in H, [] without any."""
     if not rows:
         return []
     bad = [k for k, got, want in rows if abs(got - want) > JOINT_TOL]
     return [("joint_place", not bad or not JOINT_BLOCKING,
-             ", ".join(f"{k[:-2]} {got:.2f} H (sheet {want:.2f}, +/-{JOINT_TOL})" + (" - OUT" if k in bad else "")
-                       for k, got, want in rows))]
+             f"{len(rows)} joints: " + ", ".join(f"{k} {got:.2f} H (sheet {want:.2f}, +/-{JOINT_TOL})" + (" - OUT" if k in bad else "")
+                                                 for k, got, want in rows))]
 
 
 def targets_from(sheet):
@@ -209,6 +256,7 @@ def targets_from(sheet):
     m = measure(pathlib.Path(sheet))
     targets = {k: float(m[k]) for k in N01X_TARGETS}
     targets.update({k: float(m[k]) for k in JOINT_KEYS if k in m})   # only the joints the drawing shows
+    targets["vlm_joints"] = parts_joints(sheet)       # L5-1: all eight joint types when the sheet was segmented
     hard = pathlib.Path(sheet).with_name("sheet-hard.jpg")
     if hard.exists():       # edge density per band (head, body = torso, legs) of the hard sheet
         from silhouette import edge_bands
