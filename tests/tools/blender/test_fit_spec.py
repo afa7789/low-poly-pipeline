@@ -62,6 +62,18 @@ class Proxy(unittest.TestCase):
         self.assertEqual(F.Proxy(concept, VIEWS).ious(parts), {v: 1.0 for v in VIEWS})
 
 
+class LegSpill(unittest.TestCase):
+    def test_a_leg_outside_the_rts_costs_and_a_leg_inside_does_not(self):
+        legs = [["leg1.upper", "box", [0.2, 1, 0.2], [0, 0.5, 0], "iron", {}]]
+        outs = {"rts": [np.array([[0, 0], [1, 0], [1, 1], [0, 1]], float)]}
+        proxy = F.Proxy({"rts": np.zeros((silhouette.CANVAS_H, silhouette.CANVAS_W), bool)}, ("rts",))
+        self.assertAlmostEqual(F.leg_spill(proxy, legs, outs, False), 1.0 - F.LEG_SPILL)       # nothing of it on the sheet
+        proxy.concept["rts"][:] = True
+        self.assertEqual(F.leg_spill(proxy, legs, outs, False), 0.0)
+        self.assertEqual(F.leg_spill(proxy, [["torso", *legs[0][1:]]], outs, False), 0.0)      # only leg* parts
+        self.assertEqual(F.leg_spill(proxy, legs, {"front": outs["rts"]}, False), 0.0)          # no rts view
+
+
 class Mirror(unittest.TestCase):
     def test_pairs(self):
         left = ["arm.L", "prism", [0.2, 0.1, 0.5], [0.5, 1, 0], "iron",

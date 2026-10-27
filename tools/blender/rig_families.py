@@ -20,6 +20,7 @@ quadruped + rider). A spec may add its own prop bones with "bones" (with_extras)
 mast, a second head or a counterweight never needs a family of its own.
 """
 import math
+import statistics
 import sys
 
 # name, parent, head, tail  (x right, y up, z forward)
@@ -87,6 +88,28 @@ def _legs_measured(by, hip_r, knee_r, knee_y, foot_r, phase=math.pi / 8):
     return bones
 
 
+# TOP_LEGS (PIPELINE 25.L7-3): the 8 legs follow the sheet's top panel (angle, reach, bend per leg: silhouette.leg_branches) instead of
+# the regular ring _legs_measured lays out. Off: top/bottom IoU +.10 on n00U massing alone, but front/left/back -.002/-.024/-.017 and rts -.05.
+TOP_LEGS = False
+SHELL_Z = 0.065      # the shell's centre sits this many zs behind the hips' ring (massing._shell): the top panel's body centre goes there
+HIP_IN = 0.85        # a hip sits this share of the way from the body centre to where the leg leaves the body in the top panel
+
+
+def _legs_top(legs, H, by, knee_y, zc):
+    """The legs from silhouette.leg_branches rows [angle, base x/z, knee x/z, tip x/z, radius] (fractions of H about the body's
+    centre, z to the head): leg i takes the measured leg nearest its ring angle, the ring's cyclic order kept."""
+    ring = [(22.5 + 45 * i) % 360 for i in range(8)]
+    gap = lambda a, b: abs((a - b + 180) % 360 - 180)   # noqa: E731
+    measured = sorted(legs, key=lambda r: r[0] % 360)
+    shift = min(range(8), key=lambda s: sum(gap(measured[(j + s) % 8][0], ring[j]) for j in range(8)))
+    bones = []
+    for i in range(8):
+        _, bx, bz, kx, kz, tx, tz, _r = measured[(i + shift) % 8]
+        hip, knee, foot = (HIP_IN * bx * H, by, zc + HIP_IN * bz * H), (kx * H, knee_y, zc + kz * H), (tx * H, 0.04, zc + tz * H)
+        bones += [(f"leg{i + 1}.upper", "body", hip, knee), (f"leg{i + 1}.lower", f"leg{i + 1}.upper", knee, foot)]
+    return bones
+
+
 def scale_spider(family, m):
     """Replace FAMILIES[family] (spider or spider_high) by a skeleton built from the sheet's
     measures (silhouette.measure_spider, fractions of H) and return it. Same bones and names as
@@ -99,7 +122,8 @@ def scale_spider(family, m):
              ("body", "root", (0, by, -0.15 * zs), (0, by + 0.02, 0.35 * zs)),
              ("head", "body", (0, by - 0.02, 0.35 * zs), (0, by - 0.08, 0.72 * zs)),
              ("abdomen", "body", (0, by + 0.06, -0.15 * zs), (0, H, -0.85 * zs))]
-    table += _legs_measured(by, 0.9 * m["body_r"] * H, m["knee_r"] * H, knee_y, m["foot_r"] * H)
+    table += (_legs_top(m["legs"], H, by, knee_y, -SHELL_Z * zs) if TOP_LEGS and "legs" in m else
+              _legs_measured(by, 0.9 * m["body_r"] * H, m["knee_r"] * H, knee_y, m["foot_r"] * H))
     FAMILIES[family] = table
     _drop_caches()
     return table
@@ -109,6 +133,10 @@ def spider_leg_len(m):
     """hip -> knee -> foot length of a scaled spider's leg, fractions of H."""
     hip, by = 0.9 * m["body_r"], (1 + m["body_under"]) / 2
     kh = max(m["knee_h"], m["body_under"] / 2)
+    if TOP_LEGS and "legs" in m:    # the top panel's own legs (_legs_top): the median of hip-knee-foot over the 8
+        foot_y = 0.04 / SPIDER_H
+        return float(statistics.median([math.dist((HIP_IN * bx, by, HIP_IN * bz), (kx, kh, kz)) + math.dist((kx, kh, kz), (tx, foot_y, tz))
+                                for _, bx, bz, kx, kz, tx, tz, _r in m["legs"]]))
     return math.hypot(m["knee_r"] - hip, by - kh) + math.hypot(m["foot_r"] - m["knee_r"], kh)
 
 

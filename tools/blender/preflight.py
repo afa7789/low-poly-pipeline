@@ -879,7 +879,21 @@ LEG_W_BAND = (0.6, 1.4)   # leg radius within +-40% of the sheet's leg_w (report
 def leg_radius(part):
     """Mean radius of a spider leg part: a prism tapers from dims[0] to dims[1]."""
     d = part[2]
+    if part[1] == "limb":      # dims are the radii at the top, the knee and the foot (PIPELINE 25.L7-3)
+        return sum(d) / 3
     return (d[0] + d[1]) / 2 if part[1] == "prism" else SPAN_RADIUS.get(part[1], lambda d: max(d[0], d[2]) / 2)(d)
+
+
+def leg_length(part):
+    """Length of a spider leg part along its bone: from -> to, through the knee when it is a `limb` (hip-knee-foot, PIPELINE 25.L7-3: a
+    limb on leg.upper spans the whole leg, so the chord alone reads short)."""
+    a, b = part[5].get("from"), part[5].get("to")
+    if not (a and b):
+        return 0.0
+    if part[1] != "limb":
+        return math.dist(a, b)
+    knee = lathe_limb.knee_of(part[5])
+    return math.dist(a, knee) + math.dist(knee, b)
 
 
 def spider_checks(parts, boxes, height, m):
@@ -893,9 +907,7 @@ def spider_checks(parts, boxes, height, m):
     reach = max([max(abs(boxes[id(p)][i][a]) for i in (0, 1) for a in (0, 2)) for p in legs] or [0.0]) / height
     per_leg = {}
     for p in legs:
-        a, b = p[5].get("from"), p[5].get("to")
-        if a and b:
-            per_leg[p[0].split(".")[0]] = per_leg.get(p[0].split(".")[0], 0.0) + math.dist(a, b)
+        per_leg[p[0].split(".")[0]] = per_leg.get(p[0].split(".")[0], 0.0) + leg_length(p)
     length = sorted(per_leg.values())[len(per_leg) // 2] / height if per_leg else 0.0
     rows = [("spider_body", width, 2 * m["body_r"], "body+abdomen width", SPIDER_BAND),
             ("spider_reach", reach, max(m["knee_r"], m["foot_r"]), "leg reach from the axis", SPIDER_BAND),

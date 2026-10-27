@@ -798,6 +798,49 @@ def leg_measures(views):
             "leg_taper": round(float(np.median(w[-third:]) / np.median(w[:third])), 2)}
 
 
+LEGS = 8              # a spider's legs
+LEG_MIN_AREA = 0.6    # a branch under this share of the median branch area is a fang or a palp, not a leg
+LEG_SPEC = 0.002      # a speck under this share of the panel is noise
+
+
+def leg_branches(top, k):
+    """[[angle, base x, base z, knee x, knee z, tip x, tip z, radius]] of the legs of a spider's top panel
+    (cropped, head up), sorted by angle (degrees, 0 = +x, 90 = the head); metres-free: fractions of H (`k` per pixel), from the
+    centre of the body's bounding box (the legs opened away), x right, z toward the head. A leg is a branch of the mask
+    outside the body; the knee is the chord's 0.6 point pushed sideways by the branch's mean offset from the chord
+    (PIPELINE 25.L7-3). None unless exactly LEGS branches are left (touching legs merge: the rig's ring stays)."""
+    from scipy import ndimage
+    body = thin_opened(top)
+    ys, xs = np.nonzero(body)
+    cy, cx = (ys.min() + ys.max()) / 2, (xs.min() + xs.max()) / 2
+    lab, n = ndimage.label(top & ~ndimage.binary_dilation(body, iterations=2))
+    near = ndimage.distance_transform_edt(~body)
+    found = []
+    for i in range(1, n + 1):
+        yy, xx = np.nonzero(lab == i)
+        if len(yy) >= LEG_SPEC * top.size:
+            found.append((yy, xx))
+    if len(found) < LEGS:
+        return None
+    floor = LEG_MIN_AREA * float(np.median([len(f[0]) for f in found]))
+    found = [f for f in found if len(f[0]) >= floor]
+    if len(found) != LEGS:
+        return None
+    out = []
+    for yy, xx in found:
+        b, t = int(np.argmin(near[yy, xx])), int(np.argmax(np.hypot(xx - cx, yy - cy)))
+        base, tip = np.array([xx[b], yy[b]], float), np.array([xx[t], yy[t]], float)
+        chord = tip - base
+        length = max(float(np.hypot(*chord)), 1.0)
+        side = np.array([-chord[1], chord[0]]) / length
+        dev = float(np.mean((np.stack([xx, yy], 1) - base) @ side))
+        knee = base + 0.6 * chord + dev * side
+        pt = lambda p: [round(float((p[0] - cx) * k), 3), round(float((cy - p[1]) * k), 3)]   # noqa: E731
+        ang = math.degrees(math.atan2(cy - tip[1], tip[0] - cx))
+        out.append([round(ang, 1), *pt(base), *pt(knee), *pt(tip), round(len(yy) / length / 2 * k, 3)])
+    return sorted(out)
+
+
 def measure_spider(sheet, size=768):
     """Spider proportions of the approved sheet, fractions of the front view's height H
     (L14, PIPELINE section 20): the numbers rig_families.scale_spider builds the rig from.
@@ -825,7 +868,8 @@ def measure_spider(sheet, size=768):
             "body_under": round(1 - under / back.shape[0], 3),
             "knee_h": round(1 - knee / (len(half) - 1), 3), "knee_r": round(float(half[knee]), 3),
             "foot_r": round(float(max(half[-4:])), 3),
-            **(leg_measures([(front, h), (top, 1 / k)]) or {})}
+            **(leg_measures([(front, h), (top, 1 / k)]) or {}),
+            **({"legs": legs} if (legs := leg_branches(top, k)) else {})}
 
 
 # ---- quadruped, wyrm, drake (PIPELINE 22.L4-4b). Numbers are fractions of H, the figure's height in the

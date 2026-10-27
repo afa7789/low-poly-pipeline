@@ -3,6 +3,7 @@ import math
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
 
@@ -162,6 +163,22 @@ class ScaledSpider(unittest.TestCase):
                 self.assertAlmostEqual(knee[1], 0.45 * RF.SPIDER_H)
         finally:
             RF.FAMILIES.update(fixed)
+
+    @mock.patch.object(RF, "TOP_LEGS", True)
+    def test_top_legs_stand_at_their_measured_feet(self):
+        """each ring leg takes the measured leg nearest its angle, feet where the top panel has them"""
+        legs = [[22.5 + 45 * i + 10, 0.2, 0.1, 0.4, 0.2, 0.5 + 0.01 * i, 0.3, 0.04] for i in range(8)]
+        fixed = list(RF.FAMILIES["spider"])
+        try:
+            table = RF.scale_spider("spider", {**self.M, "legs": legs})
+            self.assertEqual([b[0] for b in table], [b[0] for b in fixed])
+            feet = {b[0]: b[3] for b in table if b[0].endswith(".lower")}
+            for i, row in enumerate(legs):
+                self.assertAlmostEqual(feet[f"leg{i + 1}.lower"][0], row[5] * RF.SPIDER_H)
+            self.assertGreater(RF.spider_leg_len({**self.M, "legs": legs}), 0.3)
+        finally:
+            RF.FAMILIES["spider"] = fixed
+            RF._drop_caches()
 
     def test_leg_length_is_hip_knee_foot(self):
         self.assertGreater(RF.spider_leg_len(self.M), 0.6)

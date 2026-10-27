@@ -466,6 +466,13 @@ class SpiderRules(unittest.TestCase):
         self.assertTrue(all("OUT" in got[r][1] for r in got))
         self.assertIn("vs sheet", got["spider_leg"][1])
 
+    def test_a_limb_leg_counts_through_its_knee(self):
+        """a limb from hip to foot with the knee far off the chord is longer than its chord"""
+        limb = ["leg1.upper", "limb", [0.05, 0.05, 0.05], [0, 0, 0], "iron",
+                {"from": [0, 0, 0], "to": [0, 0, 1.0], "knee": [0.5, 0.5, 0.0, 0.0]}]
+        self.assertAlmostEqual(PF.leg_length(limb), 2 * math.hypot(0.5, 0.5))
+        self.assertAlmostEqual(PF.leg_length(["b", "prism", [1, 1, 1], [0, 0, 0], "iron", {"from": [0, 0, 0], "to": [0, 0, 2]}]), 2.0)
+
     def test_leg_w_reports_thin_legs_without_blocking(self):
         parts = spider_spec()["parts"]
         r = PF.leg_radius([p for p in parts if p[0].startswith("leg")][0])
