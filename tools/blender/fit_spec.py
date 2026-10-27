@@ -315,6 +315,9 @@ def apply(parts, groups, x, height):
         out[i] = moved(parts[i], x[k:k + n], height)
         if j is not None:
             out[j] = moved(parts[j], x[k:k + n], height, mirror=True)
+            out[j][2] = list(out[i][2])      # twins share dims exactly: the grid snap rounds each
+            k += n                           # side on its own and preflight `symmetry` allows 5 %
+            continue
         k += n
     return out
 
