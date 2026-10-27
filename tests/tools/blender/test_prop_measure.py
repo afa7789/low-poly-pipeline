@@ -69,6 +69,26 @@ class Match(unittest.TestCase):
         self.assertEqual(n, 1)
 
 
+class Crops(unittest.TestCase):
+    def test_one_crop_per_drawing_left_to_right(self):
+        import tempfile
+        from PIL import Image
+        img = Image.new("RGB", (400, 400), (200, 200, 200))
+        img.paste((40, 40, 40), (260, 100, 340, 300))      # right, tall
+        img.paste((90, 60, 20), (40, 150, 120, 200))       # left, wide
+        with tempfile.TemporaryDirectory() as tmp:
+            sheet = pathlib.Path(tmp) / "props.png"
+            img.save(sheet)
+            crops = P.crop_props(sheet, tmp, "c")
+            self.assertEqual(len(crops), 2)
+            sizes = []
+            for c in crops:
+                with Image.open(c) as im:
+                    sizes.append(im.size)
+            self.assertGreater(sizes[0][0], sizes[0][1])      # the wide one is on the left
+            self.assertGreater(sizes[1][1], sizes[1][0])
+
+
 def norm(mask):
     return P.S.normalize(mask)
 

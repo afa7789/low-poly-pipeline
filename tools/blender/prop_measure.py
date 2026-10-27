@@ -67,6 +67,29 @@ def sheet_props(path, size=384):
     return [S.normalize(c) for c in S.components(fg) if c.sum() >= PROP_AREA * fg.size]
 
 
+def crop_props(path, out_dir, stem, size=384, pad=0.05, px=512):
+    """Write one PNG per drawing of the props sheet, left to right, each cut from the
+    full-resolution sheet with a margin. Returns the paths."""
+    from PIL import Image
+    sheet = Image.open(path).convert("RGB")
+    fg = S.foreground(path, size)
+    boxes = []
+    for c in S.components(fg):
+        if c.sum() < PROP_AREA * fg.size:
+            continue
+        ys, xs = np.where(c)
+        boxes.append((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    paths = []
+    for n, (x0, y0, x1, y1) in enumerate(sorted(boxes), start=1):
+        m = pad * max(x1 - x0, y1 - y0)
+        box = [max(v, 0) for v in (x0 - m, y0 - m)] + [min(v, size) for v in (x1 + m, y1 + m)]
+        crop = sheet.crop(tuple(round(v * sheet.width / size) for v in box))
+        crop.thumbnail((px, px))
+        paths.append(pathlib.Path(out_dir) / f"{stem}-{n}.png")
+        crop.save(paths[-1])
+    return paths
+
+
 def orientations(mask):
     """The mask as drawn, turned by 90 degree steps, and mirrored: 8 normalized variants."""
     m = S.crop(mask)

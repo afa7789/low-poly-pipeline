@@ -68,7 +68,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, ground_fix, load_props, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -251,8 +251,23 @@ def measured_text(family, m):
             "do not\nre-guess them): "
             f"shoulder span {m['shoulder_span']} H, fist-to-fist span {m['fist_span']} H,\n"
             f"foot-to-foot stance {m['stance']} H, chest body depth {m['body_depth']} H, "
-            f"foot length {m['foot_length']} H.\n"
+            f"foot length {m['foot_length']} H, boot height {m['boot_height']} H, head width "
+            f"{m['head_width']} H, neck width {m['neck_width']} H,\n"
+            f"arms hang {m['arm_angle']} degrees out from vertical (A-pose when positive), "
+            f"shoulder tip to fist {m['arm_length']} H.\n"
             f"Front silhouette width profile, top to bottom, in 5% steps: {profile}.")
+
+
+def props_text(props):
+    """The unit's props in the order they are drawn on the props sheet (left to right)."""
+    if not props:
+        return ""
+    lines = [f"{n}. {p['name']} - {p['where']}; on bone {' or '.join(p['bones'])}; "
+             f"longest side {p['extent'][0]}-{p['extent'][1]} H"
+             for n, p in enumerate(props, start=1)]
+    return ("\nPROPS OF THIS UNIT, left to right on the props sheet. Build ONE part (or group of "
+            "parts) per prop, on the bone named, sized as listed - the preflight rule "
+            "props_present fails a prop with no part of its own:\n" + "\n".join(lines))
 
 
 def set_rig(family):
@@ -359,11 +374,18 @@ HARD_FIRST = ("Image 1 is the faceted (hard) redraw of the approved design: ever
               "faces from it.")
 
 
-def with_refs(brief, refs, hard_first=False):
+PROP_NOTE = "is a close crop of the prop '{name}' from the props sheet: {where}."
+
+
+def with_refs(brief, refs, hard_first=False, props=()):
     """Append one line per extra reference image, numbered the way the brief already
-    numbers images (image 1 is the construction sheet: the hard one when it exists)."""
+    numbers images (image 1 is the construction sheet: the hard one when it exists).
+    The n-th "prop" reference is the n-th entry of `props` (preflight.load_props)."""
     lines = [HARD_FIRST] if hard_first else []
-    lines += [f"Image {i} {REF_NOTES[kind]}" for i, (kind, _) in enumerate(refs, start=2)]
+    crops = iter(props)
+    notes = [PROP_NOTE.format(**next(crops)) if kind == "prop" else REF_NOTES[kind]
+             for kind, _ in refs]
+    lines += [f"Image {i} {note}" for i, note in enumerate(notes, start=2)]
     if not lines:
         return brief
     return brief + "\nREFERENCE IMAGES\n" + "\n".join(lines) + "\n"
@@ -386,7 +408,23 @@ def prompt_images(args, work):
     if args.with_sheet and args.build != args.sheet:
         wanted.insert(0, ("approved", args.sheet))
     refs = [(kind, small(src, f"ref-{kind}")) for kind, src in wanted if src and src.exists()]
+    refs += [("prop", p) for p in prop_crops(args, work)]
     return first, refs, [first] + [p for _, p in refs]
+
+
+def prop_crops(args, work):
+    """One crop per prop of the unit's props sheet, left to right, when the sheet's drawings
+    match the unit's props.json one to one; else none (the whole sheet is still image N)."""
+    if not (args.props and args.props.exists() and load_props(args.id)):
+        return []
+    from prop_measure import crop_props
+    crops = crop_props(args.props, work, f".prop-{args.tag}-{args.id}")
+    if len(crops) == len(load_props(args.id)):
+        return crops
+    print(f"props sheet has {len(crops)} drawings, props.json {len(load_props(args.id))}: no crops")
+    for p in crops:
+        p.unlink(missing_ok=True)
+    return []
 
 
 def check_drift(args, layout):
@@ -857,7 +895,7 @@ def make_brief(args, lo, hi):
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
-                           measured=measured_text(args.rig, measure(args.sheet)))
+                           measured=measured_text(args.rig, measure(args.sheet)) + props_text(load_props(args.id)))
 
 
 RTS_TRIES = 3          # image-to-image draws per RTS view before the warning
@@ -1095,7 +1133,8 @@ def main():
     sheet, refs, tmp = prompt_images(args, args.out / ".." / "..")
     args.refs = refs
     set_rig(args.rig)
-    brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet)
+    brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
+                      props=load_props(args.id))
     # --spec resumes from an approved spec: only the refinement passes call the model
     spec = (parse_spec(args.spec.read_text()) if args.spec
             else parse_spec(ask(args.model, brief, [sheet] + [p for _, p in refs])))

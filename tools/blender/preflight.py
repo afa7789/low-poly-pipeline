@@ -17,6 +17,9 @@ Rules (each one exists because an iteration failed on it):
   head_top       the head may rise over the shoulders as far as the sheet's shoulder line
                  sits below its top (+0.05 H); an ornamented head at least 0.25 H
   ornament_cost  head-wheel geometry <= 22% of the triangle budget (v9: 15% on spokes)
+  boot_height    boot height 0.7-1.6 x the sheet's, head_width 0.6-1.4 x the sheet's
+  props_present  one part per prop of prompts/<id>/props.json, on one of its bones, as long as
+                 the prop's extent bracket (fractions of H); a presence check, not a shape one
   ground         no part below y = 0
   overlap        each distal limb segment intersects its parent (no floating pieces)
   box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
@@ -47,7 +50,37 @@ BANDS = {"shoulder_span": (0.70, 0.90), "fist_span": (0.20, 0.40), "stance": (0.
 TOLERANCE = 0.15
 FOOT_MOST = 1.4     # boot length ceiling, x the sheet's foot length (floor is 0.8 x)
 N01X_TARGETS = {"shoulder_span": 0.635, "fist_span": 0.863, "stance": 0.506,
-                "foot_length": 0.228, "head_clear": 0.25}
+                "foot_length": 0.228, "head_clear": 0.25, "boot_height": 0.07, "head_width": 0.237}
+# floor and ceiling of the boot height and the head width, x the sheet's own (lesson 2026-10-26:
+# every mass rule has both; the sheet is the approved one, never the hard)
+BOOT_BAND = (0.7, 1.6)
+HEAD_BAND = (0.6, 1.4)
+
+
+PROPS_DIR = pathlib.Path(__file__).resolve().parents[2] / "artifacts/model-sheets/prompts"
+
+
+def load_props(unit):
+    """The unit's props [{name, where, bones, extent: [min, max] in H}] in the order they are
+    drawn on its props sheet (left to right), or [] when it carries none."""
+    path = PROPS_DIR / unit / "props.json"
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+def props_missing(parts, boxes, height, props):
+    """Names of the props with no part of their own: each prop claims one unclaimed part on
+    one of its bones whose longest side lies in its extent bracket (a part serves one prop)."""
+    used, missing = set(), []
+    for prop in props:
+        lo, hi = prop["extent"]
+        hit = next((i for i, p in enumerate(parts) if i not in used and p[0] in prop["bones"]
+                    and lo <= max(boxes[id(p)][1][k] - boxes[id(p)][0][k] for k in range(3)) / height <= hi),
+                   None)
+        if hit is None:
+            missing.append(prop["name"])
+        else:
+            used.add(hit)
+    return missing
 
 
 def targets_from(sheet):
@@ -209,6 +242,9 @@ def biped_checks(parts, boxes, height, targets):
         need, most = 0.8 * targets["foot_length"], FOOT_MOST * targets["foot_length"]
         # a ceiling too: with only a floor the repair pass kept growing the boot (n005 v3 ended
         # with a 2.1 m boot, 77% of the height) and nothing asked it to shrink
+        lo, hi = (BOOT_BAND[0] * targets["boot_height"], BOOT_BAND[1] * targets["boot_height"])
+        checks.append(("boot_height", lo <= fh <= hi,
+                       f"{fh:.3f} H (sheet {targets['boot_height']:.3f}, want {lo:.3f}-{hi:.3f})"))
         checks.append(("feet_mass", fh >= 0.045 and need <= fl <= most,
                        f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f}, "
                        f"want {need:.2f}-{most:.2f})"))
@@ -224,6 +260,10 @@ def biped_checks(parts, boxes, height, targets):
 
     head = [b for p, b in ((p, boxes[id(p)]) for p in parts) if p[0] == "head"]
     if head:
+        hw = max(max(abs(b[0][0]), abs(b[1][0])) for b in head) * 2 / height
+        lo, hi = (HEAD_BAND[0] * targets["head_width"], HEAD_BAND[1] * targets["head_width"])
+        checks.append(("head_width", lo <= hw <= hi,
+                       f"{hw:.3f} H (sheet {targets['head_width']:.3f}, want {lo:.3f}-{hi:.3f})"))
         head_top = max(b[1][1] for b in head)
         shoulder_top = max((boxes[id(p)][1][1] for p in parts if p[0].startswith("arm.")),
                            default=head_top)
@@ -278,6 +318,13 @@ def main():
     if family == "biped":
         checks += biped_checks(parts, boxes, height,
                                targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
+
+    props = load_props(pathlib.Path(sys.argv[3]).parent.name) if len(sys.argv) > 3 else []
+    if props:
+        lost = props_missing(parts, boxes, height, props)
+        checks.append(("props_present", not lost,
+                       f"missing: {lost or 'none'} (one part per prop, on its bone, sized like the "
+                       "props sheet; see props.json)"))
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:

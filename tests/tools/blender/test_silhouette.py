@@ -148,5 +148,24 @@ class ZoneParts(unittest.TestCase):
         self.assertAlmostEqual(float(out[9, 0] @ S.LUMA), 0.9, delta=0.05)
 
 
+class SheetMeasures(unittest.TestCase):
+    def test_boot_height_is_the_long_rows_above_the_ground(self):
+        side = np.zeros((100, 100), bool)
+        side[20:100, 40:50] = True          # shin, 10 wide
+        side[90:100, 40:70] = True          # boot: the last 10 rows are 30 wide
+        self.assertAlmostEqual(S.boot_height(side, 1.0), 0.1, delta=0.03)
+
+    def test_arm_angle_is_positive_when_the_arms_swing_out(self):
+        out = np.full(201, 0.3)
+        out[40:130] = np.linspace(0.3, 0.7, 90)         # the outline widens down the arm
+        angle, length = S.arm_measures(out, 40)
+        self.assertGreater(angle, 0)
+        self.assertGreater(length, 0.3)
+
+    def test_head_is_the_widest_top_row_and_neck_the_narrowest_below(self):
+        spans = np.array([0.0, 0.2, 0.25, 0.25, 0.1, 0.1, 0.5, 0.6, 0.6, 0.6])
+        self.assertEqual(S.head_measures(spans, 8), (0.25, 0.1))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -182,6 +182,18 @@ class HardFirst(unittest.TestCase):
     def test_no_refs_no_note_leaves_the_brief(self):
         self.assertEqual(SP.with_refs("BRIEF", []), "BRIEF")
 
+    def test_prop_crops_are_named_from_props_json_in_order(self):
+        props = [{"name": "tank", "where": "on the back"}, {"name": "lamp", "where": "on the hip"}]
+        text = SP.with_refs("B", [("prop", None), ("prop", None)], props=props)
+        self.assertLess(text.index("'tank'"), text.index("'lamp'"))
+        self.assertIn("Image 3 is a close crop of the prop 'lamp'", text)
+
+    def test_props_text_lists_bone_and_size_or_nothing(self):
+        self.assertEqual(SP.props_text([]), "")
+        text = SP.props_text([{"name": "tank", "where": "on the back", "bones": ["spine"],
+                               "extent": [0.25, 0.55]}])
+        self.assertIn("1. tank - on the back; on bone spine; longest side 0.25-0.55 H", text)
+
     def test_approved_ref_says_it_is_the_contract(self):
         self.assertIn("contract", SP.with_refs("B", [("approved", None)]))
 
