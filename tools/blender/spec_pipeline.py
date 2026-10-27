@@ -50,6 +50,7 @@ own stage ends, every output is still written.
 """
 import argparse
 import base64
+import collections
 import json
 import pathlib
 import re
@@ -72,7 +73,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, ground_fix, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, bbox, ground_fix, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -333,7 +334,7 @@ IoU: each part must match the size of the same part in image 1.
 
 Current spec, one part per line, index first - [bone, kind, dims, at, material, opts]:
 {parts}
-
+{freeze}
 Return ONLY a JSON object, no prose, no code fences:
 {{"set": {{"<index>": [bone, kind, dims, at, material, opts]}}, "add": [[...]], "drop": [index, ...], "why": "<one sentence>"}}
 Change at most {limit} parts in total. Same bones, kinds, materials and coordinate convention as
@@ -372,7 +373,7 @@ PREFLIGHT
 
 Current spec, one part per line, index first - [bone, kind, dims, at, material, opts]:
 {parts}
-
+{freeze}
 Return ONLY a JSON object, no prose, no code fences:
 {{"set": {{"<index>": [bone, kind, dims, at, material, opts]}}, "add": [[...]], "drop": [index, ...], "why": "<one sentence>"}}
 Change at most {limit} parts in total. Same rules as the original brief below.
@@ -486,17 +487,62 @@ def check_drift(args, layout):
 SESSION = "session:"   # --model session:<claude model> = the local Claude Code login, no API credit
 
 
-def ask(model, brief, images):
+# JSON Schemas of the author's replies. Both CLIs that take one validate it as draft-07/2020-12 in
+# strict mode, which has no tuple form: a part is "6 positions of string, array or object" and
+# validate() types them after. The ppq.ai chat API ignores response_format json_schema and the
+# native Gemini response_schema/generationConfig (PIPELINE §20.S1), so there the schema is
+# `json_object` + the brief's own text + one resend with the error.
+PART_SCHEMA = {"type": "array", "minItems": 6, "maxItems": 6,
+               "items": {"anyOf": [{"type": "string"}, {"type": "array"}, {"type": "object"}]}}
+SPEC_SCHEMA = {
+    "type": "object", "required": ["palette", "parts"],
+    "properties": {
+        "palette": {"type": "object", "additionalProperties": {
+            "type": "object", "required": ["surface", "color"], "additionalProperties": False,
+            "properties": {"surface": {"enum": sorted(SURFACES)},
+                           "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+                           "alpha": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}}}},
+        "parts": {"type": "array", "minItems": 1, "items": PART_SCHEMA},
+        "bones": {"type": "array", "maxItems": 3, "items": {"type": "array"}}}}
+PATCH_SCHEMA = {
+    "type": "object", "required": ["set", "add", "drop", "why"],
+    "properties": {"set": {"type": "object", "additionalProperties": PART_SCHEMA},
+                   "add": {"type": "array", "items": PART_SCHEMA},
+                   "drop": {"type": "array", "items": {"type": "integer"}},
+                   "why": {"type": "string"}}}
+BAD_REPLY = (ValueError, IndexError, KeyError, TypeError)   # json.JSONDecodeError is a ValueError
+STATS = collections.Counter()    # asked / resent / frozen (resends caused by a frozen-part edit)
+RESEND = ("\n\nYOUR PREVIOUS REPLY WAS REJECTED: {err}\nReply again with the whole corrected JSON "
+          "object, nothing else.\nPREVIOUS REPLY:\n{reply}")
+
+
+def ask(model, brief, images, schema=None, check=None):
     """The spec author's reply to one prompt plus images: a Claude Code session for
-    `session:<model>`, else the ppq.ai chat API."""
-    if model.startswith(SESSION):
-        return ask_session(model[len(SESSION):], brief, images)
-    return ask_api(model, brief, images)
+    `session:<model>`, else the ppq.ai chat API. `schema` is the JSON Schema of the reply;
+    `check(reply)` raises BAD_REPLY on a reply the caller would refuse, and costs one resend
+    that quotes the error."""
+    def send(text):
+        if model.startswith(SESSION):
+            return ask_session(model[len(SESSION):], text, images, schema)
+        return ask_api(model, text, images, schema)
+    STATS["asked"] += 1
+    reply = send(brief)
+    if check is None:
+        return reply
+    try:
+        check(reply)
+    except BAD_REPLY as err:
+        STATS["resent"] += 1
+        STATS["frozen"] += "frozen" in str(err)
+        print(f"resend: {err}")
+        return send(brief + RESEND.format(err=err, reply=reply[:3000]))
+    return reply
 
 
-def session_command(model, brief, images):
+def session_command(model, brief, images, schema=None):
     """(argv, stdin prompt) of a one-shot `claude -p` that reads the images (Read only) and
-    answers the brief. The prompt goes on stdin: --add-dir would swallow a trailing one."""
+    answers the brief. The prompt goes on stdin: --add-dir would swallow a trailing one.
+    `schema` rides as --json-schema: the reply then comes back as structured_output."""
     paths = [str(pathlib.Path(p).resolve()) for p in images]
     listing = "\n".join(f"{i}. {p}" for i, p in enumerate(paths, 1))
     prompt = (f"{brief}\n\nThe images, in order (\"image 1\" is the first): read every one with "
@@ -504,13 +550,14 @@ def session_command(model, brief, images):
     dirs = sorted({str(pathlib.Path(p).parent) for p in paths})
     return (["claude", "-p", "--model", model or "opus", "--tools", "Read", "--allowedTools", "Read",
              "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config",
-             "--output-format", "json"] + [a for d in dirs for a in ("--add-dir", d)], prompt)
+             "--output-format", "json"] + (["--json-schema", json.dumps(schema)] if schema else [])
+            + [a for d in dirs for a in ("--add-dir", d)], prompt)
 
 
-def ask_session(model, brief, images):
+def ask_session(model, brief, images, schema=None):
     import tempfile
     with tempfile.TemporaryDirectory() as cwd:     # no project CLAUDE.md, hooks or memory
-        argv, prompt = session_command(model, brief, images)
+        argv, prompt = session_command(model, brief, images, schema)
         out = subprocess.run(argv, input=prompt, cwd=cwd, capture_output=True, text=True,
                              timeout=1800)
     try:
@@ -519,19 +566,32 @@ def ask_session(model, brief, images):
         raise RuntimeError(f"claude -p failed: {(out.stderr or out.stdout)[-300:]}") from None
     if r.get("is_error"):
         raise RuntimeError(f"claude -p error: {str(r.get('result'))[-300:]}")
+    if r.get("structured_output") is not None:
+        return json.dumps(r["structured_output"])
     return r.get("result") or ""
 
 
-def ask_api(model, brief, images):
-    content = [{"type": "text", "text": brief}]
-    content += [{"type": "image_url", "image_url": {"url": data_url(p)}} for p in images]
-    body = {"model": model, "max_tokens": 9000, "temperature": 0.2,
-            "messages": [{"role": "user", "content": content}]}
+def post_chat(body):
     req = urllib.request.Request("https://api.ppq.ai/v1/chat/completions",
                                  data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {api_key()}",
                                           "Content-Type": "application/json"})
-    r = json.load(urllib.request.urlopen(req, timeout=900))
+    return json.load(urllib.request.urlopen(req, timeout=900))
+
+
+def ask_api(model, brief, images, schema=None):
+    content = [{"type": "text", "text": brief}]
+    content += [{"type": "image_url", "image_url": {"url": data_url(p)}} for p in images]
+    body = {"model": model, "max_tokens": 9000, "temperature": 0.2,
+            "messages": [{"role": "user", "content": content}]}
+    if schema:
+        body["response_format"] = {"type": "json_object"}   # the only one ppq.ai honours
+    try:
+        r = post_chat(body)
+    except urllib.error.HTTPError as err:
+        if err.code != 400 or "response_format" not in body:    # a model that refuses json_object
+            raise
+        r = post_chat({k: v for k, v in body.items() if k != "response_format"})
     m = r["choices"][0]["message"]
     return m.get("content") or m.get("reasoning_content") or ""
 
@@ -604,9 +664,27 @@ def check_palette(palette):
     return palette
 
 
-def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
+Editable = collections.namedtuple("Editable", "indices bands height")
+# indices: the parts a patch may set or drop; bands: [(lo, hi)] fractions of the body height an
+# added part must touch (None: an added part may go anywhere); height: the spec's height in metres
+
+
+def check_editable(editable, sets, drops, added):
+    """ValueError unless a patch stays inside the parts (and height bands) left editable."""
+    frozen = sorted({int(i) for i in (*sets, *drops)} - editable.indices)
+    if frozen:
+        raise ValueError(f"patch edits frozen parts {frozen}: only {sorted(editable.indices)} may change")
+    for part in added:
+        lo, hi = bbox(part)[0][1], bbox(part)[1][1]
+        if editable.bands and not any(hi >= a * editable.height and lo <= b * editable.height
+                                      for a, b in editable.bands):
+            raise ValueError(f"added part {part[0]} lies outside the failing height bands, which are frozen")
+
+
+def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=(), editable=None):
     """A refinement reply edits a few parts by index; the rest of the spec is untouched,
-    so one view cannot rewrite the mass split another view already fixed."""
+    so one view cannot rewrite the mass split another view already fixed. With `editable`
+    only those parts change: the others are frozen (PIPELINE §20.S1)."""
     patch = json_object(txt)
     sets, adds = patch.get("set", {}), patch.get("add", [])
     drops = {int(i) for i in patch.get("drop", [])}
@@ -617,6 +695,8 @@ def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
         out[int(i)] = part
     out = [p for i, p in enumerate(out) if i not in drops] + list(adds)
     parts = validate(normalise(out), palette, extra)["parts"]
+    if editable:
+        check_editable(editable, sets, drops, parts[len(parts) - len(adds):])
     ground_fix(parts)
     snap_parts(parts, RIG, extra)
     return parts, patch.get("why", "")
@@ -722,14 +802,78 @@ def tilt_arg(report):
                               if r.get("tilt"))
 
 
-def numbered(spec):
-    """The spec as a refinement prompt shows it: the fixed palette, then indexed parts."""
-    lines = [f"  {i}: {json.dumps(p)}" for i, p in enumerate(spec["parts"])]
+def numbered(spec, editable=None):
+    """The spec as a refinement prompt shows it: the fixed palette, then indexed parts,
+    the frozen ones marked."""
+    lines = [f"  {i}: {json.dumps(p)}" + ("   [FROZEN]" if editable and i not in editable.indices else "")
+             for i, p in enumerate(spec["parts"])]
     if spec.get("bones"):
         lines.insert(0, f"  extra bones (fixed): {json.dumps(spec['bones'])}")
     if spec.get("palette"):
         lines.insert(0, f"  palette (fixed - use only these slot names): {json.dumps(spec['palette'])}")
     return "\n".join(lines)
+
+
+BANDS = 8                              # height bands the silhouette is cut into
+BAND_IOU = 0.65                        # a band under this IoU is where the view fails
+BAND_VIEWS = {"front", "left", "back", "right"}   # rts/top/bottom/roof have no height axis
+NAMES_PARTS = {"ground", "overlap", "decal_place", "symmetry", "outside_hull"}   # rules whose detail lists bones
+FAIL_LINE = re.compile(r"^\s+(\w+)\s+FAIL\s+(.*)$", re.M)
+
+
+def failing_bands(sil, view):
+    """[(lo, hi)] bottom to top, as fractions of the body height from the ground: the bands of
+    a side view where the model's mask meets the concept's under BAND_IOU (silhouette.py writes
+    both, normalised to the same height, so a row is the same slice of body in each). [] when the
+    view has no height axis or `sil` has no masks."""
+    import numpy as np
+    from silhouette import iou, read_mask
+    paths = [sil / f"mask-{who}-{view}.png" for who in ("concept", "model")]
+    if view not in BAND_VIEWS or not all(q.exists() for q in paths):
+        return []
+    concept, model = (read_mask(q) for q in paths)
+    rows = np.where((concept | model).any(axis=1))[0]
+    if not len(rows):
+        return []
+    edges = np.linspace(rows[0], rows[-1] + 1, BANDS + 1).astype(int)
+    return [(1 - (i + 1) / BANDS, 1 - i / BANDS) for i in range(BANDS - 1, -1, -1)
+            if iou(concept[edges[i]:edges[i + 1]], model[edges[i]:edges[i + 1]]) < BAND_IOU]
+
+
+def band_editable(parts, bands):
+    """The parts whose box reaches into a failing band, or None (nothing to freeze) when no band
+    fails or every part touches one."""
+    if not bands:
+        return None
+    boxes = [bbox(p) for p in parts]
+    height = max(b[1][1] for b in boxes)
+    hit = {i for i, b in enumerate(boxes)
+           if any(b[1][1] >= lo * height and b[0][1] <= hi * height for lo, hi in bands)}
+    return Editable(hit, bands, height) if 0 < len(hit) < len(parts) else None
+
+
+def rule_editable(parts, problem):
+    """The parts a preflight report points at: the bones named in the detail of its failing rules.
+    None (everything editable) when one failing rule is global (budget, box_ceiling, ...) or names
+    no part: the repair then needs the whole spec."""
+    fails = FAIL_LINE.findall(problem or "")
+    if not fails or any(name not in NAMES_PARTS for name, _ in fails):
+        return None
+    words = {w.rstrip(".") for _, detail in fails for w in re.findall(r"[A-Za-z_][\w.]*", detail)}
+    hit = {i for i, q in enumerate(parts) if q[0] in words or q[0].rsplit(".", 1)[0] in words}
+    return Editable(hit, None, 0.0) if 0 < len(hit) < len(parts) else None
+
+
+def freeze_text(editable):
+    """The prompt's FROZEN paragraph ('' when nothing is frozen)."""
+    if not editable:
+        return ""
+    where = ("" if not editable.bands else " (the parts touching the height bands where this view "
+             "fails: " + ", ".join(f"{lo:.0%}-{hi:.0%}" for lo, hi in editable.bands) + " of the height, "
+             "from the ground)")
+    return (f"\nEDITABLE parts: {sorted(editable.indices)}{where}. Every other part is marked [FROZEN]: "
+            "it already matches, and a patch that sets or drops one" +
+            (", or adds a part outside those bands," if editable.bands else "") + " is rejected.\n")
 
 
 def repair(spec, args, brief, work, panels):
@@ -741,12 +885,13 @@ def repair(spec, args, brief, work, panels):
         if problem is None:
             break
         print(f"repair {k}: preflight fails\n{problem.strip()}")
-        prompt = REPAIR.format(problem=problem, parts=numbered(spec),
+        edit = rule_editable(spec["parts"], problem)
+        prompt = REPAIR.format(problem=problem, parts=numbered(spec, edit), freeze=freeze_text(edit),
                                limit=REPAIR_EDITS, brief=brief)
+        patch = lambda txt: apply_patch(spec["parts"], txt, REPAIR_EDITS, spec.get("palette"),
+                                        extra_names(spec), edit)
         try:
-            cand, _ = apply_patch(spec["parts"], ask(args.model, prompt,
-                                  [panels["front"], panels["left"]]), REPAIR_EDITS,
-                                  spec.get("palette"), extra_names(spec))
+            cand, _ = patch(ask(args.model, prompt, [panels["front"], panels["left"]], PATCH_SCHEMA, patch))
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             print(f"repair {k}: rejected reply: {err}")
             continue
@@ -830,15 +975,17 @@ def run_passes(spec, args, brief, views):
             "failing": sorted(failing_rules(problem)), "zones": zone_scores(zones)}]
     print(f"pass 0 sheet  {scores}  preflight {'PASS' if problem is None else 'FAIL'}")
     for n, view in enumerate(views, 1):
+        edit = band_editable(spec["parts"], failing_bands(work / f"{best}-sil", view))
         prompt = REFINE.format(view=view, scores=scores, axes=AXES[view],
-                               parts=numbered(spec),
+                               parts=numbered(spec, edit), freeze=freeze_text(edit),
                                limit=PASS_EDITS, brief=brief)
         shot = RENDER_NAME.get(view, view)
         images = [panels[view], work / f"{best}-views" / f"{best}-{shot}.png",
                   work / f"{best}-sil" / f"overlay-{view}.png"]
         try:
-            cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images),
-                                    palette=spec.get("palette"), extra=extra_names(spec))
+            patch = lambda txt: apply_patch(spec["parts"], txt, palette=spec.get("palette"),
+                                            extra=extra_names(spec), editable=edit)
+            cand, why = patch(ask(args.model, prompt, images, PATCH_SCHEMA, patch))
             cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.sheet, args.kind,
                                                 work, f"pass{n}")
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
@@ -848,10 +995,13 @@ def run_passes(spec, args, brief, views):
             spec, scores, problem, zones, best = ({**spec, "parts": cand}, cur, cur_problem,
                                                   cur_zones, f"pass{n}")
         log.append({"pass": n, "view": view, "why": why, "scores": cur, "accepted": ok,
+                    "editable": sorted(edit.indices) if edit else None, "of": len(spec["parts"]),
                     "preflight": cur_problem is None, "failing": sorted(failing_rules(cur_problem)),
                     "zones": zone_scores(cur_zones)})
         print(f"pass {n} {view:5} {'ACCEPT' if ok else 'reject'} {cur}  {why}")
     (work / "passes.json").write_text(json.dumps(log, indent=2))
+    (work / "asked.json").write_text(json.dumps(dict(STATS)))
+    print(f"asked {dict(STATS)}")
     return spec
 
 
@@ -975,7 +1125,7 @@ def author_specs(args, brief, images):
     of (k, spec); a reply that does not parse is logged and dropped. Raises when none does."""
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(args.variants) as pool:
-        replies = [pool.submit(ask, args.model, brief, images) for _ in range(args.variants)]
+        replies = [pool.submit(ask, args.model, brief, images, SPEC_SCHEMA, parse_spec) for _ in range(args.variants)]
     specs = []
     for k, fut in enumerate(replies, 1):
         try:
@@ -1254,7 +1404,7 @@ def stage_one(args, brief, images, tmp, layout):
     elif args.variants > 1:
         specs = author_specs(args, brief, images)
     else:
-        specs = [(1, {**parse_spec(ask(args.model, brief, images)),
+        specs = [(1, {**parse_spec(ask(args.model, brief, images, SPEC_SCHEMA, parse_spec)),
                       "rig": args.rig})]
     args.times["gen"] = time.monotonic() - t0
     for p in tmp:

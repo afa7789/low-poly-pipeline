@@ -469,6 +469,111 @@ class SessionAuthor(unittest.TestCase):
             SP.ask("session:opus", "B", [])
 
 
+class AuthorSchema(unittest.TestCase):
+    def test_session_gets_the_schema_and_returns_structured_output(self):
+        from unittest import mock
+        out = {"result": "prose", "structured_output": {"set": {}, "add": [], "drop": [], "why": "x"},
+               "is_error": False}
+        with mock.patch.object(SP.subprocess, "run", return_value=mock.Mock(stdout=json.dumps(out), stderr="")) as run:
+            reply = SP.ask("session:opus", "B", [], SP.PATCH_SCHEMA)
+        argv = run.call_args.args[0]
+        self.assertEqual(json.loads(argv[argv.index("--json-schema") + 1]), SP.PATCH_SCHEMA)
+        self.assertEqual(json.loads(reply)["why"], "x")
+        self.assertNotIn("--json-schema", SP.session_command("opus", "B", [])[0])
+
+    def test_api_asks_for_json_object_and_falls_back_on_400(self):
+        from unittest import mock
+        ok = {"choices": [{"message": {"content": "{}"}}]}
+        err = SP.urllib.error.HTTPError("u", 400, "bad", {}, None)
+        with mock.patch.object(SP, "post_chat", side_effect=[err, ok]) as post:
+            self.assertEqual(SP.ask_api("m", "B", [], SP.SPEC_SCHEMA), "{}")
+        self.assertEqual(post.call_args_list[0].args[0]["response_format"], {"type": "json_object"})
+        self.assertNotIn("response_format", post.call_args_list[1].args[0])
+        with mock.patch.object(SP, "post_chat", return_value=ok) as post:
+            SP.ask_api("m", "B", [])
+        self.assertNotIn("response_format", post.call_args.args[0])
+
+    def test_rejected_reply_is_resent_once_with_the_error(self):
+        from unittest import mock
+        def check(txt):
+            if txt == "bad":
+                raise ValueError("patch edits frozen parts [1]")
+        SP.STATS.clear()
+        with mock.patch.object(SP, "ask_api", side_effect=["bad", "good"]) as api:
+            self.assertEqual(SP.ask("m", "BRIEF", [], SP.PATCH_SCHEMA, check), "good")
+        self.assertIn("frozen parts [1]", api.call_args.args[1])
+        self.assertEqual((SP.STATS["asked"], SP.STATS["resent"], SP.STATS["frozen"]), (1, 1, 1))
+        with mock.patch.object(SP, "ask_api", side_effect=["bad", "bad", "x"]) as api:
+            SP.ask("m", "BRIEF", [], SP.PATCH_SCHEMA)
+            self.assertEqual(api.call_count, 1)   # no check, no resend
+
+    def test_schemas_describe_a_real_reply(self):
+        part = PARTS[0]
+        self.assertEqual(SP.SPEC_SCHEMA["properties"]["parts"]["items"], SP.PART_SCHEMA)
+        self.assertEqual((SP.PART_SCHEMA["minItems"], SP.PART_SCHEMA["maxItems"]), (len(part), len(part)))
+        json.dumps(SP.SPEC_SCHEMA)   # goes on the command line
+
+
+class FrozenParts(unittest.TestCase):
+    PARTS = PARTS + [["thigh.L", "prism", [0.2, 0.15, 0.9], [0.2, 0.45, 0], "iron", {}],
+                     ["thigh.R", "prism", [0.2, 0.15, 0.9], [-0.2, 0.45, 0], "iron", {}]]
+    LOW = SP.Editable({3, 4}, [(0.0, 0.3)], 3.0)    # the legs: below 0.9 m of 3.0
+
+    def test_rule_editable_names_the_bones_of_the_failing_rules(self):
+        bad = "  ground      FAIL  below y=0: ['thigh.L']\n  budget  PASS  ok\n"
+        self.assertEqual(SP.rule_editable(self.PARTS, bad).indices, {3})
+        sym = "  symmetry  FAIL  ['thigh: 1 parts left, 0 right']\n"
+        self.assertEqual(SP.rule_editable(self.PARTS, sym).indices, {3, 4})
+        for problem in (None, "  budget  FAIL  900 tris\n", bad + "  box_ceiling  FAIL  boxes\n",
+                        "  ground  FAIL  below y=0: ['tail']\n"):
+            with self.subTest(problem=problem):
+                self.assertIsNone(SP.rule_editable(self.PARTS, problem))
+
+    def test_patch_outside_the_editable_parts_is_rejected(self):
+        leg = ["thigh.L", "prism", [0.2, 0.15, 0.8], [0.2, 0.4, 0], "iron", {}]
+        head = ["head", "box", [0.3, 0.2, 0.2], [0, 2.4, 0], "brass", {}]
+        parts, _ = SP.apply_patch(self.PARTS, reply({"set": {"3": leg}}), editable=self.LOW)
+        self.assertEqual(len(parts), 5)
+        for patch in ({"set": {"1": head}}, {"drop": [0]}, {"add": [head]}):
+            with self.subTest(patch=patch), self.assertRaisesRegex(ValueError, "frozen|outside"):
+                SP.apply_patch(self.PARTS, reply(patch), editable=self.LOW)
+        low_add = ["thigh.R", "box", [0.1, 0.1, 0.1], [-0.2, 0.1, 0.1], "iron", {}]
+        SP.apply_patch(self.PARTS, reply({"add": [low_add]}), editable=self.LOW)
+        SP.apply_patch(self.PARTS, reply({"set": {"1": head}}), editable=SP.Editable({1}, None, 0.0))
+        SP.apply_patch(self.PARTS, reply({"add": [head]}), editable=SP.Editable({1}, None, 0.0))
+
+    def test_failing_bands_and_the_parts_that_touch_them(self):
+        import tempfile
+        import numpy as np
+        from PIL import Image
+        concept = np.zeros((512, 512), bool)
+        concept[40:480, 200:300] = True
+        model = concept.copy()
+        model[300:480, 200:300] = False            # the model has no legs: the lowest bands fail
+        model[300:480, 200:210] = True
+        with tempfile.TemporaryDirectory() as tmp:
+            for who, m in (("concept", concept), ("model", model)):
+                rgba = np.zeros((512, 512, 4), np.uint8)
+                rgba[m] = 255
+                Image.fromarray(rgba).save(f"{tmp}/mask-{who}-front.png")
+                Image.fromarray(rgba).save(f"{tmp}/mask-{who}-rts.png")
+            bands = SP.failing_bands(pathlib.Path(tmp), "front")
+            self.assertEqual(SP.failing_bands(pathlib.Path(tmp), "rts"), [])     # no height axis
+            self.assertEqual(SP.failing_bands(pathlib.Path(tmp), "left"), [])    # no masks
+        self.assertTrue(bands and max(hi for _, hi in bands) <= 0.5 and min(lo for lo, _ in bands) == 0.0)
+        edit = SP.band_editable(self.PARTS, bands)
+        self.assertEqual(edit.indices, {3, 4})                                   # the legs, not torso or head
+        self.assertIsNone(SP.band_editable(self.PARTS, []))
+        self.assertIsNone(SP.band_editable(self.PARTS, [(0.0, 1.0)]))            # all touch: nothing frozen
+
+    def test_prompt_marks_the_frozen_parts(self):
+        text = SP.numbered({"parts": self.PARTS}, self.LOW)
+        self.assertEqual([("[FROZEN]" in ln) for ln in text.splitlines()], [True, True, True, False, False])
+        self.assertIn("[3, 4]", SP.freeze_text(self.LOW))
+        self.assertEqual(SP.freeze_text(None), "")
+        self.assertNotIn("[FROZEN]", SP.numbered({"parts": self.PARTS}))
+
+
 class BestOfN(unittest.TestCase):
     def fake_shape(self, margins):
         """stage_shape stub: writes clay.glb in args.out and reports the next margin."""

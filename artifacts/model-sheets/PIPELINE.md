@@ -1458,3 +1458,29 @@ script **não** entra no `review.md` e fica como experimento. O CLIP separa unid
 texto +0.042, rank 1/7), mas não mede fidelidade de forma: renders low-poly de qualquer unidade ficam em cosine ~0.80-0.89 entre si,
 e o gate de silhueta já captura o que o CLIP não vê. Texto negativo é esperado (nomes de raça/papel dominam, não a forma).
 Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda só na CLI).
+
+## 20. Leva 2 (2026-10-27)
+
+### 20.S1 Autor com schema, repair/REFINE parcial com peças congeladas (S1+S3+M11, 2026-10-27)
+Papers: Sketch2Mesh 2021 (Eq. 6: refinar só perto da região que falha), MeshGPT 2024 (completion = congelar o que está bom e gerar o resto; vocabulário fechado = gramática de decodificação).
+- **Schema (S1).** `ask(model, brief, images, schema=None, check=None)`. `SPEC_SCHEMA` (palette com `surface` enum e `color` `#RRGGBB`, `parts` = array de arrays de 6 posições, `bones` até 3) para o autor e `PATCH_SCHEMA` (`set`/`add`/`drop`/`why`) para repair e passes.
+  - `claude -p`: `--json-schema` existe; o CLI valida em strict mode (draft-07) e a API exige 2020-12, então **não há forma de tupla** (`prefixItems` é recusado pelo CLI, `items: [..]` pela API): a peça é "array de exatamente 6 itens string/array/objeto" e `validate()` tipa as posições. A resposta vem em `structured_output` (usado quando presente, senão `result`).
+  - ppq.ai (Gemini): medido com `google/gemini-3.8-flash` e um pedido tentador a escrever prosa. `response_format: json_schema` (OpenAI) e `response_mime_type`/`response_schema`/`generationConfig` (nativos) **são aceitos sem erro e ignorados** (resposta em prosa ou vazia). Só `response_format: {"type": "json_object"}` é honrado, sem schema. Então o caminho API manda `json_object` (HTTP 400 de um modelo que não aceita: repete sem ele) e confia na validação.
+  - Em qualquer backend: `check(reply)` (o `parse_spec`/`apply_patch` do chamador) que falha custa **1 reenvio** com o erro e a resposta anterior no prompt (`RESEND`); o contador `STATS` (asked/resent/frozen) vai para `asked.json` ao lado de `passes.json`.
+- **Peças congeladas (S3+M11).** `Editable(indices, bands, height)`.
+  - REFINE: `failing_bands(sil, view)` corta as máscaras conceito/modelo (já normalizadas à mesma altura por `silhouette.normalize`) em 8 faixas de altura e marca as de IoU < `BAND_IOU = 0.65`; `band_editable` deixa editável a peça cuja caixa (`preflight.bbox`) toca uma faixa que falha. Só front/left/back/right (rts/top/bottom/roof não têm eixo de altura: nada congelado). Nenhuma faixa falha, ou todas as peças tocam uma: nada congelado.
+  - REPAIR: `rule_editable` pega os ossos nomeados no detalhe das regras que falham, só das regras que listam ossos (`ground`, `overlap`, `decal_place`, `symmetry`, `outside_hull`). Regra global (`budget`, `budget_split`, `box_ceiling`, `shoulder_span`...) ou nome sem peça: tudo editável.
+  - O prompt lista `EDITABLE parts: [...]` e marca as demais linhas `[FROZEN]`; `apply_patch(..., editable=)` rejeita `set`/`drop` fora do conjunto e `add` fora das faixas (`ValueError`, que dispara o reenvio).
+  - Limiar: com 0.75 a vista front do n005 v5-oneshot-r1 deixava 52-85 % das peças editáveis (pouco congelado); 0.65 deixa 12-64 % (um caso de 100 %, 5 de 12 vistas sem faixa falha); 0.55 quase nunca falha (v5-fit-r3, v5-oneshot-r1, v4-oneshot-r1, v3-stages-r1 de n005, `sil/approved`, front/left/back).
+- **Medida (`session:opus`, n005, `--passes front[,left,back,rts] --shape-only`).** Prova em `runs/draft/n005/leva2-s1-r{1,2,3}/` (`passes/*/passes.json` tem `editable`/`of` por passe; `asked.json`). r1 parte do autor com schema; r2 e r3 partem do mesmo spec de r1 (`pass0.json`). Base: o código de `fbb2fc0f` no mesmo spec (`scratchpad/leva2-s1/`).
+
+  | | patches | rejeitados "fora da lista" | reenvios | passes aceitos | vista que passava e caiu |
+  |---|---|---|---|---|---|
+  | novo r1 (front) | 1 | 0 | 0 | 1/1 | nenhuma (front .741 -> .772, back .790 -> .828, left -.0002) |
+  | novo r2 (4 vistas) | 4 | 0 | 0 | 1/4 | nenhuma (final front .742 left .782 back .795) |
+  | novo r3 (4 vistas) | 4 | 0 | 0 | 2/4 | nenhuma (top .698 -> .721, rts .777 -> .817) |
+  | base (4 vistas) | 4 | n/a | n/a | 0/4 | nenhuma (`accepted()` já protege) |
+
+  Peças editáveis por passe: 8-16 de 28-29 (28-57 %). Autor: 4 pedidos novos e 4 de `fbb2fc0f` (`--no-repair`, só autor), 8/8 viram spec sem reenvio, taxa de spec malformado 0/4 contra 0/4: **o schema não mede ganho com `session:opus`**, que já devolvia JSON válido; o ganho esperado é no Gemini, e lá o schema não existe (ver acima), só o reenvio.
+- **Piorou / pendente.** (1) N pequeno: 9 patches, nenhum tocou peça congelada; não provo que o `[FROZEN]` segura um modelo mais solto, só que `opus` respeita a lista, e o `apply_patch` cobre o caso nos testes. (2) A diferença de passes aceitos (3/9 contra 0/4) é ruído de LLM, não prova de ganho. (3) Nas runs de n005 as regras do repair eram globais (`shoulder_span`, `fist_span`, `budget_split`): o repair nunca congelou nada; mapear `shoulder_span`/`fist_span` aos ossos `arm`/`forearm` é o próximo passo se o repair parcial importar. (4) A banda usa a altura do modelo; um conceito com adereço alto (capuz, antena) desloca as faixas. (5) O `[FROZEN]` custa linhas no prompt, não tokens de imagem.
+- **Testes.** `test_spec_pipeline.py`: `AuthorSchema` (flag do CLI, `structured_output`, `json_object` e fallback 400, reenvio uma vez) e `FrozenParts` (bones das regras, `set`/`drop`/`add` fora da lista, faixas sobre máscaras sintéticas, marcação `[FROZEN]`).
