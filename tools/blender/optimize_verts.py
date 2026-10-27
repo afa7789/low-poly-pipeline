@@ -31,7 +31,7 @@ from functools import cached_property
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy import ndimage, sparse
+from scipy import sparse
 from scipy.sparse.csgraph import connected_components
 from scipy.sparse.linalg import spsolve
 
