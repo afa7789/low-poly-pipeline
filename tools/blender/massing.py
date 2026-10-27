@@ -22,6 +22,7 @@ an emitter in EMIT is built by it; `lathe` and `limb` (F2) become one entry in e
 """
 import argparse
 import fnmatch
+import functools
 import json
 import math
 import pathlib
@@ -507,13 +508,9 @@ def biped(sheet, H, labels_for, sides=SIDES):
 # ---- parts.json (PIPELINE 23.L5-2): one piece per semantic part, from the part's 3D box
 
 PARTS_FILE = "parts.json"
-PARTS_MASSING = False      # read refs/<id>/parts.json by default (see build)
+PARTS_MASSING = True       # read refs/<id>/parts.json by default (see build); PIPELINE 23.L5-2b
 PROP_LATHE = ("tank", "cylinder", "bottle", "canister", "barrel")   # a prop named so is a lathe, any other a box
 LATHE_ROLES = ("head", "mask")
-# An arm as ONE limb (elbow from joints) makes preflight's shoulder_span/fist_span read the whole arm's box in the
-# shoulder band (n005: 0.79 vs the sheet's 0.46, 2026-10-27, PIPELINE 23.L5-2), so arms stay two prisms joined at
-# the elbow; flip to try the limb.
-ARM_LIMB = False
 RING_ROWS = 6            # profile samples of a lathe read from the sheet inside the part's box
 
 
@@ -561,7 +558,7 @@ def lathe_part(part, slot, front, side, sides):
               "sides": LATHE_SIDES["head"]}]]
 
 
-def stack_part(part, slot, front, side, fist):
+def stack_part(part, slot, front, side, fist, centre=None):
     """Torso or pelvis: the band stack, but every width, depth and centre is cut to the part's box."""
     (wx, h, wz), ctr = box_dims(part)
     lo, hi = part["box3d"]
@@ -570,8 +567,36 @@ def stack_part(part, slot, front, side, fist):
     g["w"] = lambda y: min(w(y), wx)
     g["d"] = lambda y: min(d(y), wz)
     g["zc"] = lambda y: float(np.clip(zc(y), lo[2] + g["d"](y) / 2, hi[2] - g["d"](y) / 2))
-    g["xc"] = ctr[0]
+    g["xc"] = ctr[0] if centre is None else centre
     return emit(part["role"], part["bone"], slot, g)
+
+
+# ---- parts.json made robust (PIPELINE 23.L5-2b): the VLM's boxes give position and order; sizes come from the sheet
+
+BODY_ROLES = ("head", "torso", "pelvis", "arm", "hand", "leg", "foot")   # a "prop" flag on these is the VLM's doubt, not a prop
+GROUP_OF = {"head": "head", "spine": "trunk", "pelvis": "trunk", "arm": "arms", "forearm": "arms",
+            "thigh": "legs", "shin": "legs", "foot": "legs"}
+ORDER = ("head", "trunk", "arms", "legs")
+# rule -> the groups whose band massing may stand in, first culprit first
+CULPRIT = {"shoulder_span": ("arms", "trunk"), "fist_span": ("arms",), "stance": ("legs",), "boot_height": ("legs",),
+           "feet_mass": ("legs",), "shin_mass": ("legs",), "head_width": ("head",), "head_top": ("head", "trunk")}
+SEGMENT_JOINTS = {("arm", "arm"): ("shoulder", "elbow"), ("arm", "forearm"): ("elbow", "wrist"), ("hand", "forearm"): ("wrist",),
+                  ("leg", "thigh"): ("hip", "knee", "ankle"), ("leg", "shin"): ("knee", "ankle"), ("foot", "foot"): ("ankle",)}
+MARGIN = 0.97            # a clamped width lands this share inside the preflight's ceiling
+HEAD_FIT = (0.7, 1.3)    # a head wider or narrower than HEAD_BAND (0.6-1.4) of the sheet's is cut to these
+HAND_MAX = 0.2           # a hand or a fist is at most this share of H
+R_FAT = 1.2              # a limb is at most this many times the radius the sheet shows
+FOOT_FIT = (0.9, 1.25)   # foot length / the sheet's, kept inside preflight's 0.8-1.4
+BOOT_FIT = (0.85, 1.2)   # boot height / the sheet's, kept inside BOOT_BAND (0.7-1.6)
+TOUCH = 0.002            # metres a part is pushed past the gap to its parent
+
+
+def is_prop(part):
+    return bool(part.get("prop")) and part["role"] not in BODY_ROLES
+
+
+def bone_side(bone):
+    return bone[-1] if bone[-2:] in (".L", ".R") else None
 
 
 def joint_xyz(doc, name, tag):
@@ -583,47 +608,110 @@ def joint_xyz(doc, name, tag):
     return [-other["xyz"][0], other["xyz"][1], other["xyz"][2]] if other else None
 
 
-def prism_arm(part, slot, doc, sides, reach):
-    """An arm as the band massing draws it (upper arm and forearm prisms), but through the joints of parts.json.
-    Shoulder and elbow stay `reach` metres from the centre line at the arm's outer edge (as arm_geometry does:
-    preflight's shoulder_span reads the box of every part in the shoulder band)."""
-    tag = part["bone"].split(".")[-1]
-    a, k, b = (joint_xyz(doc, n, tag) for n in ("shoulder", "elbow", "wrist"))
-    if None in (a, k, b):
-        return []
+def figure_dx(joints):
+    """How far the figure's centre line sits from x = 0 in parts.json (hfoo: 0.13 m): the median midpoint of the
+    joints that come in .L/.R pairs."""
+    xs = {n: j["xyz"][0] for n, j in joints.items() if j.get("xyz")}
+    mids = [(x + xs[n[:-2] + ".R"]) / 2 for n, x in xs.items() if n.endswith(".L") and n[:-2] + ".R" in xs]
+    return float(np.median(mids)) if mids else 0.0
+
+
+def symmetric_joints(raw):
+    """{name: [x, y, z]}: every .L/.R pair averaged and mirrored (+x on .L), a joint on the centre line on x = 0."""
+    out = {}
+    for name, xyz in raw.items():
+        base = name[:-2] if bone_side(name) else None
+        if base is None:
+            out[name] = [0.0, xyz[1], xyz[2]]
+            continue
+        twins = [raw[t] for t in (base + ".L", base + ".R") if t in raw]
+        x, y, z = (float(np.mean([abs(t[0]) if i == 0 else t[i] for t in twins])) for i in range(3))
+        out[base + ".L"], out[base + ".R"] = [x, y, z], [-x, y, z]
+    return out
+
+
+def shifted(part, dx):
+    """The part with its box moved by -dx along x."""
+    lo, hi = part["box3d"]
+    return {**part, "box3d": [[lo[0] - dx, lo[1], lo[2]], [hi[0] - dx, hi[1], hi[2]]]}
+
+
+def on_side(part, tag):
+    """The part on side `tag`: its box mirrored when it was read on the other side."""
+    lo, hi = part["box3d"]
+    box = part["box3d"] if part["bone"][-1] == tag else [[-hi[0], lo[1], lo[2]], [-lo[0], hi[1], hi[2]]]
+    return {**part, "bone": f"{part['bone'][:-2]}.{tag}", "box3d": box}
+
+
+def reads_joints(part, raw, slack):
+    """(joints of the part's segment inside its box, its volume): the side that reads better has the larger pair."""
+    lo, hi = part["box3d"]
+    names = SEGMENT_JOINTS.get((part["role"], part["bone"].split(".")[0]), ())
+    joints = [raw.get(f"{n}.{part['bone'][-1]}") for n in names]
+    hit = sum(bool(j) and all(lo[i] - slack <= j[i] <= hi[i] + slack for i in range(3)) for j in joints)
+    return hit, math.prod(hi[i] - lo[i] for i in range(3))
+
+
+def symmetric_doc(doc):
+    """parts.json with the figure centred on x = 0, every .L/.R pair of joints averaged and every pair of
+    body parts the twin of its better-read side (the one whose box holds more of its joints, then the
+    larger): a biped is built mirrored, and the VLM reads each side from a different angle."""
+    raw = {n: j["xyz"] for n, j in doc["joints"].items() if j.get("xyz")}
+    dx = figure_dx(doc["joints"])
+    centred = {n: [xyz[0] - dx, xyz[1], xyz[2]] for n, xyz in raw.items()}
+    pairs, rest = {}, []
+    for part in (shifted(p, dx) for p in doc["parts"] if p.get("box3d")):
+        if bone_side(part["bone"]) and not is_prop(part):
+            pairs.setdefault((part["role"], part["bone"].split(".")[0]), []).append(part)
+        else:
+            rest.append(part)
+    slack = 0.03 * doc["H"]
+    for twins in pairs.values():
+        best = max(twins, key=lambda p: reads_joints(p, centred, slack))
+        rest += [on_side(best, t) for t in "LR"]
+    sym = symmetric_joints(centred)
+    return {**doc, "joints": {n: {"xyz": v} for n, v in sym.items()}, "parts": rest}
+
+
+def pick(doc, role, base, tag=None):
+    """The non-prop part of `role` on bone `base` (side `tag`), or None."""
+    bone = base if tag is None else f"{base}.{tag}"
+    return next((p for p in doc["parts"] if p["role"] == role and p["bone"] == bone and not is_prop(p)), None)
+
+
+def box_r(part, lo=0.02, hi=0.4):
+    """Radius a limb takes from its part's box: half the thinner of x and z."""
     size, _ = box_dims(part)
-    r = float(np.clip(min(size[0], size[2]) / 2, 0.02, 0.4))
-    cap = lambda p: [math.copysign(min(abs(p[0]), reach - r), p[0]), p[1], p[2]]   # noqa: E731
-    a, k = cap(a), cap(k)
-    return (emit("arm", f"arm.{tag}", slot, {"a": a, "b": k, "r": (1.1 * r, r), "sides": sides})
-            + emit("arm", f"forearm.{tag}", slot, {"a": k, "b": b, "r": (r, 1.1 * r), "sides": sides}))
+    return float(np.clip(min(size[0], size[2]) / 2, lo, hi))
 
 
-def limb_part(part, slot, doc, sides, names):
+def limb_part(part, slot, doc, sides, names, radii=None):
     """An arm or a leg: one limb from the first joint to the last with the knee at the middle one (the elbow
-    and the knee of parts.json), radius = half the thinner of the box's x and z."""
+    and the knee of parts.json), radii = (top, knee, base), the box's r by default."""
     tag = part["bone"].split(".")[-1]
     a, k, b = (joint_xyz(doc, n, tag) for n in names)
     if None in (a, k, b):
         return []
-    size, _ = box_dims(part)
-    r = float(np.clip(min(size[0], size[2]) / 2, 0.02, 0.4))
+    r = box_r(part)
+    top, mid, base = radii or (1.05 * r, 0.95 * r, r)
     ab = [b[i] - a[i] for i in range(3)]
     f = float(np.clip(sum((k[i] - a[i]) * ab[i] for i in range(3)) / max(sum(v * v for v in ab), 1e-6), 0.2, 0.8))
     off = [k[i] - a[i] - f * ab[i] for i in range(3)]
-    return [[part["bone"], "limb", [r3(1.05 * r), r3(0.95 * r), r3(r)], [0, 0, 0], slot,
+    return [[part["bone"], "limb", [r3(top), r3(mid), r3(base)], [0, 0, 0], slot,
              {"from": [r3(v) for v in a], "to": [r3(v) for v in b], "knee": [r3(f), r3(off[0]), r3(off[2]), r3(off[1])],
               "sides": min(sides, lathe_limb.SIDES_RANGE[1])}]]
 
 
 def block_part(part, slot):
-    """A foot, a hand or a prop that is no lathe: one frustum (feet and hands) or box in the part's box."""
+    """A prop that is no lathe: one box in the part's box."""
     size, ctr = box_dims(part)
     bone = part["bone"].replace("hand.", "forearm.")     # a prop held in the hand rides the forearm bone
-    if part.get("prop"):
-        return [[bone, "box", [r3(v) for v in size], [r3(c) for c in ctr], slot, {"asym": True}]]
-    return [[bone, "frustum", [r3(v) for v in size], [r3(c) for c in ctr], slot,
-             {"top": [0.9, 0.8], "shift": [0, 0]} if part["role"] == "foot" else {"top": [1.0, 1.0], "shift": [0, 0]}]]
+    lo, hi = part["box3d"]
+    if size[0] < 0.1 * size[1] and size[2] > 0.4 * size[1]:    # a leaning pole (hfoo's pike): its box is the diagonal's, draw the diagonal
+        a, b = [ctr[0], lo[1], lo[2]], [ctr[0], hi[1], hi[2]]   # ponytail: always leaning forward as it rises; flip by depth when a sheet leans back
+        return [[bone, "prism", [r3(size[0] / 2), r3(size[0] / 2), r3(math.dist(a, b))], [0, 0, 0], slot,
+                 {"sides": 6, "from": [r3(v) for v in a], "to": [r3(v) for v in b], "asym": True}]]
+    return [[bone, "box", [r3(v) for v in size], [r3(c) for c in ctr], slot, {"asym": True}]]
 
 
 def part_slot(part, palette, labels_for):
@@ -642,27 +730,248 @@ def is_lathe(part):
     return bool(part.get("prop")) and any(w in part["name"] for w in PROP_LATHE)
 
 
-def parts_biped(doc, front, side, palette, labels_for, sides, reach=9.0):
-    """The pre-spec parts of a biped from parts.json, in the order of the file (a part with a role this
-    massing does not know is skipped)."""
-    fist = min((j["xyz"][1] for n, j in doc["joints"].items() if n.startswith("wrist")), default=0.0)
+def head_part(S, fit):
+    """The head as one box: the union of the non-prop parts on the head bone (hood and mask), centred on x = 0, its
+    width cut to HEAD_FIT of the sheet's head width when it would fail the preflight's head_width."""
+    heads = [p for p in S["parts"] if p["bone"] == "head" and not is_prop(p)]
+    if not heads:
+        return None
+    lo = [min(p["box3d"][0][i] for p in heads) for i in range(3)]
+    hi = [max(p["box3d"][1][i] for p in heads) for i in range(3)]
+    w, want = hi[0] - lo[0], fit["head_w"]
+    if not preflight.HEAD_BAND[0] * want <= w <= preflight.HEAD_BAND[1] * want:
+        w = float(np.clip(w, HEAD_FIT[0] * want, HEAD_FIT[1] * want))
+    lead = next((p for p in heads if p["role"] == "head"), heads[0])
+    return {**lead, "box3d": [[-w / 2, lo[1], lo[2]], [w / 2, hi[1], hi[2]]]}
+
+
+def trunk_group(S, front, side, slot_of, fit):
     out = []
-    for part in doc["parts"]:
-        if not part.get("box3d"):        # segment_sheet leaves a prop seen in one view without a box
-            continue
-        slot, role = part_slot(part, palette, labels_for), part["role"]
-        if is_lathe(part):
-            out += lathe_part(part, slot, front, side, sides)
-        elif role in ("torso", "pelvis"):
-            out += stack_part(part, slot, front, side, fist)
-        elif role == "arm":
-            out += (limb_part(part, slot, doc, sides, ("shoulder", "elbow", "wrist")) if ARM_LIMB
-                    else prism_arm(part, slot, doc, sides, reach))
-        elif role == "leg":
-            out += limb_part(part, slot, doc, sides, ("hip", "knee", "ankle"))
-        elif role in ("foot", "hand", "prop"):
-            out += block_part(part, slot)
+    for part in S["parts"]:
+        if part["role"] in ("torso", "pelvis") and not is_prop(part):
+            out += stack_part(part, slot_of(part), front, side, fit["fist_y"], centre=0.0)
     return out
+
+
+def arm_side(S, tag, slot_of, fit, sides):
+    """One arm: the upper arm and forearm prisms from the shoulder through the elbow to the wrist, and the hand.
+    Radii are the box's cut to R_FAT x the sheet's free arm; the elbow's outer edge stays inside the sheet's
+    shoulder span, the hand's outer edge on the sheet's fist span."""
+    up, fo, hand = (pick(S, r, b, tag) for r, b in (("arm", "arm"), ("arm", "forearm"), ("hand", "forearm")))
+    a, k, b = (joint_xyz(S, n, tag) for n in ("shoulder", "elbow", "wrist"))
+    if (up or fo) is None or None in (a, k, b):
+        return []
+    sgn = 1 if tag == "L" else -1
+    r_up, r_lo = (min(box_r(up or fo), R_FAT * r) for r in fit["r_arm"])
+    r_lo = min(r_lo, box_r(fo or up))
+    hand_size = [min(v, HAND_MAX * fit["H"]) for v in box_dims(hand)[0]] if hand else [2.3 * r_lo] * 3
+    cap = lambda p, edge: [sgn * min(abs(p[0]), edge), p[1], p[2]]   # noqa: E731
+    a, k = cap(a, fit["reach"] - r_up), cap(k, fit["reach"] - r_up)
+    b = cap(b, MARGIN * fit["fist"] - hand_size[0] / 2)
+    slot = slot_of(up or fo)
+    out = (emit("arm", f"arm.{tag}", slot, {"a": a, "b": k, "r": (1.1 * r_up, r_up), "sides": sides})
+           + emit("arm", f"forearm.{tag}", slot, {"a": k, "b": b, "r": (r_lo, 1.1 * r_lo), "sides": sides}))
+    cy = box_dims(hand)[1][1] if hand else b[1] - 0.5 * hand_size[1]
+    cz = box_dims(hand)[1][2] if hand else b[2]
+    out.append([f"forearm.{tag}", "frustum", [r3(v) for v in hand_size],
+                [r3(b[0]), r3(float(np.clip(cy, b[1] - hand_size[1], b[1]))), r3(cz)], slot_of(hand or up or fo),
+                {"top": [1.0, 1.0], "shift": [0, 0]}])
+    return out
+
+
+def leg_side(S, tag, slot_of, fit, sides):
+    """One leg as one limb through hip, knee and ankle (parts.json's), its radii cut to R_FAT x the sheet's, and the
+    boot: the sheet's height and length, the box's width, under the ankle, the heel where the box has it."""
+    leg = pick(S, "leg", "thigh", tag) or pick(S, "leg", "shin", tag)
+    foot = pick(S, "foot", "foot", tag)
+    ankle = joint_xyz(S, "ankle", tag)
+    if leg is None or foot is None or ankle is None:
+        return []
+    r_th, r_sh = (min(box_r(leg), R_FAT * r) for r in fit["r_leg"])
+    out = limb_part(leg, slot_of(leg), S, sides, ("hip", "knee", "ankle"), (1.05 * r_th, 0.9 * r_th, r_sh))
+    (w, h, d), ctr = box_dims(foot)
+    h = float(np.clip(h, BOOT_FIT[0] * fit["boot"], BOOT_FIT[1] * fit["boot"]))
+    d = float(np.clip(d, FOOT_FIT[0] * fit["foot"], FOOT_FIT[1] * fit["foot"]))
+    w = min(w, 0.25 * fit["H"])
+    z = ctr[2] - box_dims(foot)[0][2] / 2 + d / 2        # the heel stays, the toe grows
+    out.append([foot["bone"], "frustum", [r3(w), r3(h), r3(d)], [r3(ankle[0]), r3(h / 2), r3(z)],
+                slot_of(foot), {"top": [0.9, 0.8], "shift": [0, 0]}])
+    return out
+
+
+def biped_groups(S, front, side, palette, labels_for, sides, fit):
+    """{head, trunk, arms, legs, props}: the pre-spec parts of parts.json by body group; a group is [] when parts.json
+    gives it too little (the caller then uses the band massing's)."""
+    slot_of = lambda p: part_slot(p, palette, labels_for)   # noqa: E731
+    head = head_part(S, fit)
+    props = []
+    for part in S["parts"]:
+        if is_prop(part):
+            props += lathe_prop(part, slot_of(part), front, side, sides) if is_lathe(part) else block_part(part, slot_of(part))
+    return {"head": head_lathe(head, slot_of, front, side, sides), "trunk": trunk_group(S, front, side, slot_of, fit),
+            "arms": sum((arm_side(S, t, slot_of, fit, sides) for t in "LR"), []),
+            "legs": sum((leg_side(S, t, slot_of, fit, sides) for t in "LR"), []), "props": props}
+
+
+def lathe_prop(part, slot, front, side, sides):
+    """A prop that is a lathe (a tank): lathe_part, marked asym like every prop."""
+    out = lathe_part(part, slot, front, side, sides)
+    out[0][5]["asym"] = True
+    return out
+
+
+def head_lathe(head, slot_of, front, side, sides):
+    return lathe_part(head, slot_of(head), front, side, sides) if head else []
+
+
+def move(part, d):
+    """Part moved by the vector d (spec metres), in place: its centre and the ends of a from/to part."""
+    if part[3] is not None:
+        part[3] = [part[3][i] + d[i] for i in range(3)]
+    for end in ("from", "to"):
+        if end in part[5]:
+            part[5][end] = [part[5][end][i] + d[i] for i in range(3)]
+
+
+def clamp_widths(parts, targets):
+    """preflight's shoulder_span, fist_span and stance read the widest part that reaches their height band: a part
+    whose outer edge passes the band's ceiling moves in (a prop held far out by a box read from the wrong side)."""
+    for rule in preflight.BANDS:
+        boxes = [preflight.bbox(p) for p in parts]
+        height = max(b[1][1] for b in boxes)
+        y0, y1 = (v * height for v in preflight.BANDS[rule])
+        cap = MARGIN * (1 + preflight.TOLERANCE) * targets[rule] * height / 2
+        for p, (lo, hi) in zip(parts, boxes):
+            over = max(abs(lo[0]), abs(hi[0])) - cap
+            if over > 0 and lo[0] * hi[0] > 0 and hi[1] >= y0 and lo[1] <= y1:
+                move(p, [-math.copysign(over, lo[0]), 0.0, 0.0])
+
+
+def gap_move(part, other, k):
+    """The vector that brings `part` to `other` with both boxes at k of their size (plus TOUCH), zero on the axes
+    where they already cross."""
+    (al, ah), (bl, bh) = preflight.shrunk(preflight.bbox(part), k), preflight.shrunk(preflight.bbox(other), k)
+    d = [bl[i] - ah[i] + TOUCH if ah[i] < bl[i] else -(al[i] - bh[i] + TOUCH) if bh[i] < al[i] else 0.0 for i in range(3)]
+    return d
+
+
+def touch(parts, props):
+    """Every body part whose 80 % box misses its parent's and its bone's other parts moves to the nearest of them
+    (a prop never moves: it sits where the sheet has it, and the body comes to it)."""
+    parent_of = RF.parents("biped")
+    for bone in preflight.floating_parts(parts, parent_of, preflight.OVERLAP_SHRINK):
+        group = {bone, parent_of[bone]}
+        for p in (q for q in parts if q[0] == bone and id(q) not in props):
+            near = [q for q in parts if q[0] in group and q is not p]
+            c = np.array(preflight.centre(p))
+            q = min(near, key=lambda q: np.linalg.norm(np.array(preflight.centre(q)) - c))
+            move(p, gap_move(p, q, preflight.OVERLAP_SHRINK))
+
+
+def failing_rules(parts, targets):
+    """[(rule, groups that may cause it)]: the preflight's biped rules that fail, by body group."""
+    boxes = {id(p): preflight.bbox(p) for p in parts}
+    height = max(max(b[1][1] for b in boxes.values()), 1e-6)
+    out = [(n, CULPRIT.get(n, ())) for n, ok, _ in preflight.biped_checks(parts, boxes, height, targets) if not ok]
+    out += [("symmetry", (GROUP_OF.get(why.split(":")[0].split(".")[0], "trunk"),)) for why in preflight.asymmetric(parts)]
+    out += [("overlap", (GROUP_OF.get(b.split(".")[0], "trunk"),)) for b in
+            preflight.floating_parts(parts, RF.parents("biped"))]
+    return out
+
+
+def band_groups(parts):
+    """The band massing's parts by body group."""
+    out = {g: [] for g in ORDER}
+    for p in parts:
+        out[GROUP_OF.get(p[0].split(".")[0], "trunk")].append(p)
+    return out
+
+
+def flat(groups):
+    return [p for g in (*ORDER, "props") for p in groups[g]]
+
+
+def tidy(groups, targets):
+    parts = flat(groups)
+    clamp_widths(parts, targets)
+    touch(parts, {id(p) for p in groups["props"]})
+
+
+def settle(groups, band, targets):
+    """Fill the groups parts.json left empty and, rule by rule, swap the group a failing preflight rule blames for the
+    band massing's (one group at a time, culprit first): the rest of the model keeps its parts. `band` builds the band
+    massing's parts when first asked. Returns the groups swapped, in order."""
+    swapped = []
+    for g in ORDER:
+        if not groups[g]:
+            groups[g] = band()[g]
+            swapped.append(g)
+    for _ in ORDER:
+        tidy(groups, targets)
+        blame = [(rule, next((g for g in gs if g not in swapped), None)) for rule, gs in failing_rules(flat(groups), targets)]
+        rule, todo = next(((r, g) for r, g in blame if g), (None, None))
+        if todo is None:
+            break
+        print(f"massing: parts.json fails {rule}: {todo} falls back to the band massing")
+        groups[todo] = band()[todo]
+        swapped.append(todo)
+    return swapped
+
+
+# budget_split knobs, by tri group (head, body, legs): (body group, kinds whose `sides` change, sides range)
+SIDE_KNOBS = (("head", ("lathe",), lathe_limb.SIDES_RANGE), ("arms", ("prism",), (6, 10)), ("legs", ("limb",), lathe_limb.SIDES_RANGE))
+
+
+def resize(parts, kinds, step, span):
+    """`sides` of every part of `kinds` moved by step when it stays inside span; whether any moved."""
+    moving = [p for p in parts if p[1] in kinds and span[0] <= p[5]["sides"] + step <= span[1]]
+    for p in moving:
+        p[5]["sides"] += step
+    return bool(moving)
+
+
+def balance(groups, targets):
+    """budget_split: while a tri group (head, body, legs) is out of its band, take sides off the group farthest over
+    (head lathes, arm prisms, leg limbs) or give them to the one farthest under, whichever has room."""
+    bands = preflight.split_bands(targets)
+    for _ in range(8):
+        shares = preflight.split_shares(flat(groups))
+        pos = [(s - (lo + hi) / 2) / max((hi - lo) / 2, 1e-6) for s, (lo, hi) in zip(shares, bands)]
+        if max(map(abs, pos)) <= 1:
+            return
+        over, under = pos.index(max(pos)), pos.index(min(pos))
+        moves = ((over, -1), (under, 1))
+        if not any(resize(groups[SIDE_KNOBS[g][0]], SIDE_KNOBS[g][1], d, SIDE_KNOBS[g][2]) for g, d in moves):
+            return
+
+
+def parts_prespec(sheet, doc, H, palette, labels_for, sides):
+    """The biped parts of parts.json (PIPELINE 23.L5-2b): symmetric, sized by the sheet's measures, each group that
+    still fails a preflight rule swapped for the band massing's; None only when no group is left of it."""
+    from silhouette import concept_panels, measure
+    panels = concept_panels(sheet)
+    front, side = View(panels["front"], H), side_of(panels["left"], H)
+    front.recentre(0.0, 0.08 * H)
+    m, S = measure(sheet), symmetric_doc(doc)
+    fit = sheet_fit(front, side, H, m, S)
+    groups = biped_groups(S, front, side, palette, labels_for, sides, fit)
+    if not any(groups[g] for g in ORDER):
+        return None
+    targets = preflight.targets_from(sheet)
+    settle(groups, functools.cache(lambda: band_groups(biped(sheet, H, labels_for, sides))), targets)
+    balance(groups, targets)
+    return flat(groups)
+
+
+def sheet_fit(front, side, H, m, S):
+    """What the sheet says of the sizes parts.json's boxes are cut to (metres)."""
+    lm = landmarks(front, H, m)
+    reach = REACH * m["shoulder_span"] * H / 2
+    _, _, _, r_up, r_lo = arm_geometry(front, H, lm["shoulder"], lm["fist"], reach, lm["elbow"])
+    _, _, _, r_th, r_sh, _ = leg_geometry(front, side, H, lm["hip"] + 0.06 * H, lm["boot"], lm["knee"])
+    wrists = [j["xyz"][1] for n, j in S["joints"].items() if n.startswith("wrist")]
+    return {"H": H, "r_arm": (r_up, r_lo), "r_leg": (r_th, r_sh), "boot": max(m["boot_height"], 0.05) * H, "foot": m["foot_length"] * H,
+            "head_w": m["head_width"] * H, "reach": reach, "fist": m["fist_span"] * H / 2, "fist_y": min(wrists, default=0.0)}
 
 
 # ---- spider
@@ -837,23 +1146,6 @@ def placeholder_props(parts, rig, unit, slot):
         out.append([prop["bones"][0], "box", [r3(size), r3(0.6 * size), r3(0.6 * size)],
                     [r3((head[i] + tail[i]) / 2) for i in range(3)], slot, {"asym": True}])
     return out
-
-
-def parts_prespec(sheet, doc, H, palette, labels_for, sides):
-    """The biped parts of parts.json, or None when they leave a required bone without a part (the band
-    massing then stands in: a half-written parts.json must not give a half model)."""
-    from silhouette import concept_panels, measure
-    panels = concept_panels(sheet)
-    front, side = View(panels["front"], H), side_of(panels["left"], H)
-    front.recentre(0.0, 0.08 * H)
-    reach = REACH * measure(sheet)["shoulder_span"] * H / 2
-    parts = parts_biped(doc, front, side, palette, labels_for, sides, reach)
-    covered = {p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], RF.required("biped")) or ()}
-    missing = RF.required("biped") - covered
-    if missing:
-        print(f"massing: parts.json leaves {sorted(missing)} without a part, using the band massing")
-        return None
-    return parts
 
 
 # ---- quadruped, wyrm, drake (PIPELINE 22.L4-4b)
@@ -1060,9 +1352,7 @@ def build(sheet, rig, race="", palette_sheet=None, parts=None):
     def labels_for(y0, y1, x0, x1):
         return names[min(zone_slot(labels, fv, y0, y1, x0, x1), len(centres) - 1)]
 
-    # The parts massing is opt-in (PARTS_MASSING or an explicit `parts` dict): with the real
-    # segment_sheet output it fails symmetry/fist_span/boot_height on the 4 bipeds (2026-10-28).
-    auto = load_parts(sheet) if PARTS_MASSING else None
+    auto = load_parts(sheet) if PARTS_MASSING and rig == "biped" else None
     doc = (auto if parts is None else parts) if rig == "biped" else None
     parts = []
     for sides in {"biped": (SIDES, 10, 12), "quadruped": DETAIL, "wyrm": DETAIL, "drake": DETAIL}.get(rig, (LEG_SIDES, 8, 10)):   # more sides until the pre-spec clears the class floor
