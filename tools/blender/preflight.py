@@ -27,12 +27,17 @@ Rules (each one exists because an iteration failed on it):
                  split (EdgeRunner 2024); the head wheel is counted by ornament_cost
   symmetry       a .L part has its .R twin: same kind, dims (5%) and mirrored rot, unless
                  opts.asym (Wiersma 2026); weapons and shields carry asym
+  outside_hull   per part, the share of its box outside the visual hull of the approved sheet's
+                 front x left silhouettes (64^3 grid) <= 25%; names the part and wide/tall/deep
+                 (Sano 2026). Needs the sheet.
   decal_place    a face decal (eyes, mask...) sits on a head/jaw/face bone, never the chest
 """
 import json
 import math
 import pathlib
 import sys
+
+import numpy as np
 
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
@@ -163,6 +168,99 @@ def targets_from(sheet):
     from silhouette import measure
     m = measure(pathlib.Path(sheet))
     return {k: float(m[k]) for k in N01X_TARGETS}
+
+
+HULL_MAX = 0.25      # a part may sit this much of its box outside the sheet's visual hull
+HULL_GRID = 64
+HULL_SLIDE = 0.12    # how far the panel may slide sideways, x the figure's height
+HULL_PAD = 0.03      # margin around the hull, x the figure's height
+
+
+def hull_masks(sheet, layout="unit"):
+    """[(mask, pad)] for the sheet's front and left: the figure cropped, then grown by HULL_PAD of
+    its height on every side (pad pixels of margin: a plate proud of the body, an ink line), or
+    None when the sheet's panels cannot be read."""
+    from scipy.ndimage import binary_dilation
+    from silhouette import concept_panels, crop
+    try:
+        panels = concept_panels(pathlib.Path(sheet), layout=layout)
+    except SystemExit:
+        return None
+    out = []
+    for name in ("front", "left"):
+        m = crop(panels[name])
+        pad = round(HULL_PAD * m.shape[0])
+        out.append((binary_dilation(np.pad(m, pad), iterations=pad), pad))
+    return out
+
+
+ROUND = ("prism", "cyl", "dome")    # kinds whose cross-section is an ellipse, not the box's corners
+AXIS_ROUND = {"up": (0, 2), "side": (1, 2), "fwd": (0, 1)}   # the two axes the ellipse spans
+
+
+def sample_points(part, cell):
+    """(n, 3) spec-space points filling the part (its rotated box; a round unrotated part keeps
+    its ellipse, a from/to part only its axis, a ring or wheel nothing: its box is mostly air),
+    one per `cell`."""
+    lo, hi = bbox(part)
+    opts = part[5]
+    if part[1] in ORNAMENT:
+        return np.empty((0, 3))
+    if "from" in opts and "to" in opts:
+        t = np.linspace(0, 1, max(int(math.dist(opts["from"], opts["to"]) / cell), 1) + 1)
+        return np.array(opts["from"]) + t[:, None] * (np.array(opts["to"]) - np.array(opts["from"]))
+    axes = [np.linspace(a, b, max(int(math.ceil((b - a) / cell)), 1) + 1) for a, b in zip(lo, hi)]
+    pts = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    if part[1] in ROUND and not any(rot_euler(opts)):
+        a, b = AXIS_ROUND[opts.get("axis", "fwd" if part[1] == "cyl" else "up")]
+        c, h = (np.array(lo) + hi) / 2, np.maximum((np.array(hi) - lo) / 2, 1e-9)
+        pts = pts[((pts[:, a] - c[a]) / h[a]) ** 2 + ((pts[:, b] - c[b]) / h[b]) ** 2 <= 1.0]
+    return pts
+
+
+def view_misses(pts, mask, pad, k, height, centre, mirror=False):
+    """(above, miss) bool per point for one panel: above = over the figure's height, miss = not
+    on the panel's hull. The panel is scaled so the figure is `height` tall, set on `centre`
+    along axis k (mirror: facing the other way), then slid sideways (HULL_SLIDE of the height) to where the fewest points
+    miss: the sheet may carry a weapon or a pose the spec lacks, which skews its box."""
+    mask = mask[:, ::-1] if mirror else mask
+    ppm = (mask.shape[0] - 2 * pad) / height               # pixels per spec metre
+    r = np.rint(mask.shape[0] - pad - pts[:, 1] * ppm - 0.5).astype(int)
+    c0 = (pts[:, k] - centre) * ppm + mask.shape[1] / 2 - 0.5
+    above = r < 0
+    best = None
+    for slide in range(-round(HULL_SLIDE * mask.shape[0]), round(HULL_SLIDE * mask.shape[0]) + 1, 2):
+        c = np.rint(c0 + slide).astype(int)
+        ok = ~above & (r < mask.shape[0]) & (c >= 0) & (c < mask.shape[1])
+        ok[ok] = mask[r[ok], c[ok]]
+        miss = ~ok & ~above
+        if best is None or miss.sum() < best.sum():
+            best = miss
+    return above, best
+
+
+def hull_outside(parts, masks, height):
+    """{bone: (share outside the visual hull, 'wide'|'tall'|'deep')} per part over HULL_MAX.
+    The hull is front[y, x] and left[y, z]: the front's columns run along +x (right), the left's
+    along +z (forward) or -z. Each panel is scaled by the spec's own height and
+    centred on its extent, as silhouette.normalize does to the sheet."""
+    boxes = [bbox(p) for p in parts]
+    centre_of = [(min(b[0][k] for b in boxes) + max(b[1][k] for b in boxes)) / 2 for k in range(3)]
+    clouds = [sample_points(p, height / HULL_GRID) for p in parts]
+    pts = np.concatenate(clouds)
+    cuts = np.cumsum([len(c) for c in clouds])[:-1]
+    (m, pad), (ml, padl) = masks
+    above, wide = view_misses(pts, m, pad, 0, height, centre_of[0])
+    # the left panel faces either way (the biped's toe points right, the spider's head left)
+    _, deep = min((view_misses(pts, ml, padl, 2, height, centre_of[2], flip) for flip in (False, True)),
+                  key=lambda v: v[1].sum())
+    bad = {}
+    for p, up, w, d in zip(parts, *(np.split(a, cuts) for a in (above, wide, deep))):
+        share = float((up | w | d).mean()) if len(up) else 0.0
+        if share > HULL_MAX:
+            votes = {"wide": w.sum(), "deep": d.sum(), "tall": up.sum()}
+            bad[p[0]] = max(bad.get(p[0], (0, "")), (share, max(votes, key=votes.get)))
+    return bad
 
 
 def band_span(boxes, height, band):
@@ -466,6 +564,14 @@ def main():
         lopsided = asymmetric(parts)
         checks.append(("symmetry", not lopsided,
                        f"{lopsided or 'every .L has its .R twin'} (opts.asym exempts a weapon or shield)"))
+
+    masks = hull_masks(sys.argv[3], "building" if family == "building" else "unit") if len(sys.argv) > 3 else None
+    if masks:
+        bad_hull = hull_outside(parts, masks, height)
+        checks.append(("outside_hull", not bad_hull,
+                       ", ".join(f"{b} {s:.0%} outside the sheet's hull, too {d}"
+                                 for b, (s, d) in bad_hull.items())
+                       or f"every part inside the sheet's front x left hull (max {HULL_MAX:.0%} out)"))
 
     props = load_props(pathlib.Path(sys.argv[3]).parent.name) if len(sys.argv) > 3 else []
     if props:
