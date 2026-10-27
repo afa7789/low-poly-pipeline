@@ -790,13 +790,6 @@ def shape_review(args, glb, layout):
     gameplay = view_dir / f"{glb.stem}-wc3.png"        # render_unit's name for the rts view
     if gameplay.exists():
         shutil.copy(gameplay, view_dir / f"{glb.stem}-rts.png")
-    compare = args.out / "compare.png"
-    tool("make_compare.py", args.sheet, view_dir, glb.stem, compare, "--layout", layout)
-    if args.build != args.sheet:
-        # the same renders against the faceted drawing the model was built from: what the
-        # silhouette cannot see (a chest disc, a hood, a club) shows up here
-        tool("make_compare.py", args.build, view_dir, glb.stem, args.out / "compare-hard.png",
-             "--layout", layout)
     return sil_ok, report
 
 
@@ -1190,6 +1183,12 @@ def write_review(args, shape, colour, verdict):
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
         f"approved sheet), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
         f"model.glb, turntable.gif\n")
+    # the review sheets read review.md (header, stage verdicts) and the run's files, so they
+    # come last; compare-hard: the same renders against the faceted drawing the model was
+    # built from, where what the silhouette cannot see (a chest disc, a hood) shows up
+    tool("make_compare.py", "--run", args.out, "--against", "approved", "--out", args.out / "compare.png")
+    if args.build != args.sheet:
+        tool("make_compare.py", "--run", args.out, "--against", "hard", "--out", args.out / "compare-hard.png")
 
 
 if __name__ == "__main__":

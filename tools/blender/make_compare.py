@@ -75,7 +75,7 @@ def parse_review(path):
                            ("judge", "judge (approved sheet)"), ("built", "built from (image 1)")):
             if line.startswith(f"- {label}:"):
                 meta[key] = line.split(":", 1)[1].strip()
-        verdict = re.match(r"verdict:\s*\*\*(\w+)\*\*", line)
+        verdict = re.match(r"verdict:\s*\*\*([\w-]+)\*\*", line)      # PASS, CHECK, SHAPE-PASS
         if verdict:
             meta["verdict"] = verdict[1]
         stage = re.search(r"stage\s*([12])\b.*?\b(PASS|FAIL)\b", line, re.I)
@@ -187,6 +187,8 @@ def render_cell(run, view, clay):
     """Clay or textured render of `view`, or an empty cell naming the missing file."""
     if not run["views"]:
         return empty_cell("no views/ in this run")
+    if not clay and run["stem"] is None:
+        return empty_cell("stage 2 not run")
     shot = RENDER_NAME.get(view, view)
     names = (f"clay-{shot}.png", f"clay-{view}.png") if clay else (f"{run['stem']}-{shot}.png",)
     name = names[0]
