@@ -1461,6 +1461,23 @@ Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda s�
 
 ## 20. Leva 2 (2026-10-27)
 
+Vinte itens (os que ficaram da leva 1 + o que a bateria v5 ensinou), 10 worktrees em paralelo, integrados em
+`feat/models-v2-hard`. Estado por item em `ROADMAP-papers.md` ("Leva 2"). Bateria `v6` nas 3 unidades, autor
+session:opus, tudo ligado por default (`--fit` com âncora, `--pair` contra o melhor v5; imagens em
+`history/2026-10-27-v6/`):
+
+| unidade | v5-fit | v6 (run final) | veredito | pareado v6 × v5 (sheet / artist) |
+|---|---|---|---|---|
+| n01X | .832/.802/.829/.840/.811/.796 | .787/.823/.787/.782/.833/.795 (`v6-r5`) | PASS, prototype-safe | v5 3-0 / v5 3-0 |
+| n005 | .853/.826/.894/.746/.773/.864 | .823/.810/.870/.723/.774/.835 (`v6-r4`) | PASS, final-use | **v6 3-0 / v6 3-0** |
+| n00U | .618/.569/.612/.630/.599/.610 | **.781/.686/.789**/.640/.620/.643 (`v6-r3`) | CHECK (top/bottom/rts) | v5 3-0 / v5 3-0 |
+
+A bateria achou e corrigiu quatro bugs de integração (commits `1e49aea0`, `450cc6a4`, `65d71970`, e o dos gêmeos no
+`fit_spec`): `--pair` não resolvia o nome do run irmão; `validate` media o chão pelo `at` (nos spans é offset) e
+recusava o spec ajustado; `fit_accepted` recusava por 0.01 numa vista que já passava enquanto duas ganhavam 0.08
+(agora soma das margens, deslize máximo 0.02); gêmeos .L/.R saíam com 1 passo de grade de diferença e `symmetry`
+reprovava (o fit copia as dims). Os runs intermediários `v6-r1..r4` ficaram guardados.
+
 ### 20.E15 Arestas internas do hard sheet, facetas no brief, Chamfer no review (2026-10-27) - budget_split por saliência NEGATIVO, desligado
 
 **O que mudou.** `silhouette.edges(path, mask)`: Sobel do luma suavizado (sigma 1), limiar relativo (30 % do percentil 99 do painel, então sombra mole fica de fora), menos um anel de 7 px na borda da máscara (o contorno não é aresta interna), fechamento de 1 px (a linha de tinta dá duas cristas). `edge_bands(hard, shoulder_frac)`: por faixa (cabeça acima do ombro, torso até o quadril, pernas, os mesmos cortes de `band_areas`) devolve `salience` (parcela dos pixels de aresta), `facets` (mediana de linhas de aresta cruzadas por uma linha de varredura, mais 1) e `direction` (vertical/horizontal/mixed, por abertura 9x1 vs 1x9 com razão 1.5). `measure` ganhou `shoulder_frac`. `spec_pipeline.facet_text` põe a linha `FACETS drawn on the hard sheet's front view ...` no `measured_text` (só biped); `make_brief` calcula as bordas do `args.build`. `silhouette.edge_chamfer/edge_report`: Chamfer entre `edges(hard)` e o `wire-<view>.png` do clay (ambos recortados na caixa da figura e ajustados ao mesmo canvas; melhor dos dois espelhos). Linha nova no review: `edge chamfer hard->wire (/H)` (= `drawn`: distância média de uma aresta desenhada à aresta de wire mais próxima), e `silhouette.json` guarda também `extra` (wire -> desenho; grande por construção, o wire traz a triangulação).
