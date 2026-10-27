@@ -69,7 +69,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, ground_fix, load_props, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, ground_fix, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -89,6 +89,7 @@ Sheet colours (code-measured, share of the figure; near-black ink outlines remov
 - PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "eyes2"}} (two eyes), {{"decal": "eyes8"}} (spider eyes), {{"decal": "face"}} (two eyes and a mouth) or {{"decal": "mask"}} (a dark mask with two glowing eyes) or {{"decal": "sheet"}} (the head cut out of the approved sheet itself, projected on that front face: take it when the sheet's face is a distinct painted mask, visor or portrait; size the head part's front face like the sheet's head), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face. A decal goes ONLY on a part bound to the head (head, jaw, rider.head): eyes on the chest or any other bone are rejected.
 - HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back. Paint the face or mask as a decal on the FRONT face of the head part inside the hood, and push that head part slightly forward of the hood's back wall so the hood does not hide it. Never model the eyes as geometry.
 - BOXES: at most a third of the parts may be kind "box"; prefer prism, frustum, dome or cyl for everything else (the preflight rule box_ceiling fails the spec otherwise).
+- SYMMETRY: every part on a `.L` bone has a twin on the `.R` bone with the same kind and dims and the mirrored rot ([rx, -ry, -rz]); the preflight rule symmetry fails the spec otherwise. A weapon, shield or lantern carried on one side is the exception: give it opts {{"asym": true}}.
 """
 
 BUILDING_BRIEF = """You are a technical artist building a low-poly game building in the style of classic Warcraft III. The attached image is a five-view elevation sheet of ONE building: the top row is the front, left and back elevations, the bottom row the right elevation and the roof plan. It is a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: footprint, wall heights, roof line, where each prop sits and where the colour zones are.
@@ -258,6 +259,35 @@ def measured_text(family, m):
             f"arms hang {m['arm_angle']} degrees out from vertical (A-pose when positive), "
             f"shoulder tip to fist {m['arm_length']} H.\n"
             f"Front silhouette width profile, top to bottom, in 5% steps: {profile}.")
+
+
+OUTLINE_NOTE = {"front": "x right of the centre line", "left": "z forward (the way the feet point)",
+                "back": "x right of the centre line, as seen from the front of the unit"}
+
+
+def outline_text(m):
+    """The sheet's simplified silhouette per view as vertices (a, y), in H: the polygon the
+    parts together must fill (Sano 2026: contour -> Douglas-Peucker -> axis snap)."""
+    lines = [f"{view.capitalize()} outline, {OUTLINE_NOTE[view]}, y up from the feet, clockwise from the top: "
+             + " ".join(f"({a:.2f},{y:.2f})" for a, y in poly) for view, poly in m.get("outline", {}).items()]
+    if not lines:
+        return ""
+    return ("\nSILHOUETTE OUTLINES of this sheet (vertices of a polygon, fractions of H, simplified at "
+            "1.2% of H). The union of your parts, seen from that side, must fill each polygon - arms "
+            "and props included, so the A-pose and the lantern are in the vertices:\n" + "\n".join(lines))
+
+
+def split_text(family, m, lo, hi):
+    """Triangle budget per body group (EdgeRunner 2024: faces bucketed by region); the preflight
+    rule budget_split fails a group outside its band. Biped only (the area bands are a biped's)."""
+    if family != "biped" or "area_head" not in m:
+        return ""
+    total = (lo + hi) // 2
+    rows = [f"{g}: {round(a * total)}-{round(b * total)} tris ({a:.0%}-{b:.0%})"
+            for g, (a, b) in zip(GROUPS, split_bands(m))]
+    return (f"\nTRIANGLES PER GROUP of a ~{total} tri unit (head = head/jaw bones, body = spine, pelvis, "
+            "arms and what they hold, legs = thigh/shin/foot; a head wheel is not counted here): "
+            + "; ".join(rows) + ".")
 
 
 def props_text(props):
@@ -545,6 +575,7 @@ def parse_spec(txt):
     RF.with_extras(RIG, extras)                      # ValueError when one does not fit
     spec = validate(normalise(doc.get("parts")), palette, {b[0] for b in extras})
     ground_fix(spec["parts"])                        # stand on y = 0 by construction
+    snap_parts(spec["parts"], RIG, {b[0] for b in extras})   # 1/256 grid, canonical order
     if palette:
         spec["palette"] = palette
     if extras:
@@ -583,6 +614,7 @@ def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
     out = [p for i, p in enumerate(out) if i not in drops] + list(adds)
     parts = validate(normalise(out), palette, extra)["parts"]
     ground_fix(parts)
+    snap_parts(parts, RIG, extra)
     return parts, patch.get("why", "")
 
 
@@ -906,13 +938,15 @@ def make_brief(args, lo, hi):
     static rig, both around the same part DSL and code-measured numbers."""
     from silhouette import measure, sheet_colours
     limb_note, rig_note = rig_text(args.rig)
+    sheet_m = measure(args.sheet)
     dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
                      surfaces=", ".join(SURFACES),
                      colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
-                           measured=measured_text(args.rig, measure(args.sheet)) + props_text(load_props(args.id)))
+                           measured=measured_text(args.rig, sheet_m) + outline_text(sheet_m)
+                           + split_text(args.rig, sheet_m, lo, hi) + props_text(load_props(args.id)))
 
 
 RTS_TRIES = 3          # image-to-image draws per RTS view before the warning

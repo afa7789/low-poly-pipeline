@@ -23,6 +23,10 @@ Rules (each one exists because an iteration failed on it):
   ground         no part below y = 0
   overlap        each distal limb segment intersects its parent (no floating pieces)
   box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
+  budget_split   tris per body group (head, body, legs) within a band around the sheet's own area
+                 split (EdgeRunner 2024); the head wheel is counted by ornament_cost
+  symmetry       a .L part has its .R twin: same kind, dims (5%) and mirrored rot, unless
+                 opts.asym (Wiersma 2026); weapons and shields carry asym
   decal_place    a face decal (eyes, mask...) sits on a head/jaw/face bone, never the chest
 """
 import json
@@ -50,11 +54,80 @@ BANDS = {"shoulder_span": (0.70, 0.90), "fist_span": (0.20, 0.40), "stance": (0.
 TOLERANCE = 0.15
 FOOT_MOST = 1.4     # boot length ceiling, x the sheet's foot length (floor is 0.8 x)
 N01X_TARGETS = {"shoulder_span": 0.635, "fist_span": 0.863, "stance": 0.506,
-                "foot_length": 0.228, "head_clear": 0.25, "boot_height": 0.07, "head_width": 0.237}
+                "foot_length": 0.228, "head_clear": 0.25, "boot_height": 0.07, "head_width": 0.237,
+                "area_head": 0.041, "area_body": 0.455, "area_legs": 0.504}
 # floor and ceiling of the boot height and the head width, x the sheet's own (lesson 2026-10-26:
 # every mass rule has both; the sheet is the approved one, never the hard)
 BOOT_BAND = (0.7, 1.6)
 HEAD_BAND = (0.6, 1.4)
+
+
+# Tris per group of bones (head, body = torso+pelvis+arms+props, legs), as a share of the
+# non-ornament tris. The target blends the sheet's front-silhouette area per band with the
+# corpus prior (area alone is wrong: legs are cylinders, 0.4x their area in tris; the head
+# has a floor). Calibrated on the 6 units / 37 biped specs of runs/draft: n01X hard-v1 and
+# every n01X run that passes the shape gate sit inside (PIPELINE §19.B2).
+GROUPS = ("head", "body", "legs")
+SPLIT_PRIOR = (0.13, 0.63, 0.24)
+SPLIT_AREA_WEIGHT = 0.5
+SPLIT_REL = 0.25     # +-25% around the target ...
+SPLIT_SLACK = 0.08   # ... and this much absolute, so a small group is not judged to the tri
+SYM_TOL = 0.05       # twin dims within 5%, mirrored rot within 5 degrees
+
+
+def group_of(bone):
+    if bone.split(".")[-1].startswith(FACE_BONES):
+        return 0
+    return 2 if is_leg(bone) else 1
+
+
+def split_bands(targets):
+    """[(low, high)] share of the tris for each of GROUPS, from the sheet's band areas."""
+    area = [targets[f"area_{g}"] for g in GROUPS]
+    mid = [SPLIT_AREA_WEIGHT * a + (1 - SPLIT_AREA_WEIGHT) * q for a, q in zip(area, SPLIT_PRIOR)]
+    return [(max((1 - SPLIT_REL) * m - SPLIT_SLACK, 0.0), (1 + SPLIT_REL) * m + SPLIT_SLACK) for m in mid]
+
+
+def split_shares(parts):
+    """Tri share per GROUPS, ornaments left out (ornament_cost owns them)."""
+    tris = [0, 0, 0]
+    for p in parts:
+        if not (p[0] == "head" and p[1] in ORNAMENT):
+            tris[group_of(p[0])] += part_tris(p)
+    total = max(sum(tris), 1)
+    return [v / total for v in tris]
+
+
+def mirror_gap(a, b):
+    """Why twin parts a (.L) and b (.R) are not mirrors of each other, or None."""
+    if a[1] != b[1]:
+        return f"{a[1]} vs {b[1]}"
+    for x, y in zip(a[2], b[2]):
+        if abs(x - y) > SYM_TOL * max(abs(x), abs(y), 1e-6):
+            return f"dims {a[2]} vs {b[2]}"
+    ra, rb = rot_euler(a[5]), rot_euler(b[5])
+    if any(abs(u - v) > 100 * SYM_TOL for u, v in zip(ra, (rb[0], -rb[1], -rb[2]))):
+        return f"rot {list(ra)} vs {list(rb)} (mirror = [rx, -ry, -rz])"
+    return None
+
+
+def asymmetric(parts):
+    """'bone: reason' for every .L/.R part without a mirrored twin on the other side. A part
+    marked opts.asym, or a bone pair where either side has it, is exempt. Twins are matched
+    by (kind, y, z) order inside each bone pair."""
+    bad = []
+    for left in sorted({p[0] for p in parts if p[0].endswith(".L")}):
+        right = left[:-2] + ".R"
+        side = {b: sorted((p for p in parts if p[0] == b), key=lambda p: (p[1], centre(p)[1], centre(p)[2]))
+                for b in (left, right)}
+        if any(isinstance(p[5], dict) and p[5].get("asym") for p in side[left] + side[right]):
+            continue
+        if len(side[left]) != len(side[right]):
+            bad.append(f"{left[:-2]}: {len(side[left])} parts left, {len(side[right])} right")
+            continue
+        bad += [f"{left[:-2]}: {why}" for a, b in zip(side[left], side[right])
+                if (why := mirror_gap(a, b))]
+    return bad
 
 
 PROPS_DIR = pathlib.Path(__file__).resolve().parents[2] / "artifacts/model-sheets/prompts"
@@ -133,6 +206,37 @@ def misplaced_decals(parts):
 
 def is_leg(bone):
     return bone.startswith(("thigh", "shin", "foot", "leg"))
+
+
+GRID = 256   # EdgeRunner 2024 / MeshGPT 2024: coordinates on a 1/256 grid of the height
+
+
+def _snap(v, q):
+    return round(round(v / q) * q, 6)
+
+
+def normalise(parts, family="biped", extra=()):
+    """Canonical form of a spec's parts, in place: at, dims and from/to on a (rig height)/GRID grid (a dim
+    never below one cell), then ordered by the rig's bone order (+ the spec's extra bones), then y, with the .L part
+    right before its .R twin. Same spec in, same bytes out; a mirrored pair stays mirrored."""
+    import rig_families as RF
+    q = RF.top(family) / GRID        # the rig's own height, so a second pass moves nothing
+    for p in parts:
+        opts = p[5] if isinstance(p[5], dict) else {}
+        if p[3] is not None:
+            p[3] = [_snap(v, q) for v in p[3]]
+        p[2] = [max(_snap(v, q), q) if v > 0 else v for v in p[2]]
+        for end in ("from", "to"):
+            if end in opts:
+                opts[end] = [_snap(v, q) for v in opts[end]]
+    order = {name: i for i, name in enumerate([*RF.bones(family), *sorted(extra)])}
+
+    def key(p):
+        base = p[0][:-2] if p[0].endswith((".L", ".R")) else p[0]
+        return (order.get(base, order.get(p[0], len(order))), round(centre(p)[1] / q),
+                p[0].endswith(".R"), centre(p)[0])
+    parts.sort(key=key)
+    return parts
 
 
 def load(path):
@@ -351,6 +455,17 @@ def main():
     if family == "biped":
         checks += biped_checks(parts, boxes, height,
                                targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
+
+    if family == "biped":
+        shares = split_shares(parts)
+        bands = split_bands(targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
+        off = [g for g, s, (lo_s, hi_s) in zip(GROUPS, shares, bands) if not lo_s <= s <= hi_s]
+        checks.append(("budget_split", not off,
+                       ", ".join(f"{g} {s:.0%} ({lo_s:.0%}-{hi_s:.0%})"
+                                 for g, s, (lo_s, hi_s) in zip(GROUPS, shares, bands))))
+        lopsided = asymmetric(parts)
+        checks.append(("symmetry", not lopsided,
+                       f"{lopsided or 'every .L has its .R twin'} (opts.asym exempts a weapon or shield)"))
 
     props = load_props(pathlib.Path(sys.argv[3]).parent.name) if len(sys.argv) > 3 else []
     if props:

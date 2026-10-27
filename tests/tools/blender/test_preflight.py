@@ -226,3 +226,61 @@ class RotatedBox(unittest.TestCase):
         PF.ground_fix([part])
         self.assertAlmostEqual(PF.bbox(part)[0][1], 0.0)
         self.assertAlmostEqual(part[3][1], 0.5)
+
+
+def limb(bone, x, **kw):
+    opts = {"rot": [0, 0, 10 if x > 0 else -10], **kw}
+    return [bone, "prism", [0.1, 0.1, 0.5], [x, 1.5, 0.0], "iron", opts]
+
+
+class Symmetry(unittest.TestCase):
+    def test_mirrored_twins_pass(self):
+        self.assertEqual(PF.asymmetric([limb("arm.L", 0.5), limb("arm.R", -0.5)]), [])
+
+    def test_dims_and_rot_gaps_are_named(self):
+        wide = limb("arm.R", -0.5)
+        wide[2] = [0.2, 0.1, 0.5]
+        self.assertIn("dims", PF.asymmetric([limb("arm.L", 0.5), wide])[0])
+        same_rot = limb("arm.R", -0.5)
+        same_rot[5]["rot"] = [0, 0, 10]
+        self.assertIn("rot", PF.asymmetric([limb("arm.L", 0.5), same_rot])[0])
+
+    def test_asym_and_unpaired_parts(self):
+        held = limb("forearm.R", -0.5)
+        extra = limb("forearm.R", -0.5)
+        pair = [limb("forearm.L", 0.5), held, extra]
+        self.assertIn("1 parts left, 2 right", PF.asymmetric(pair)[0])
+        extra[5]["asym"] = True
+        self.assertEqual(PF.asymmetric(pair), [])
+
+
+class BudgetSplit(unittest.TestCase):
+    def test_band_blends_sheet_area_and_prior(self):
+        n01x = PF.split_bands(PF.N01X_TARGETS)
+        wide_head = PF.split_bands({**PF.N01X_TARGETS, "area_head": 0.3, "area_body": 0.2})
+        self.assertGreater(wide_head[0][1], n01x[0][1])
+        self.assertTrue(all(lo <= hi for lo, hi in n01x))
+
+    def test_ornament_is_not_a_head_cost(self):
+        wheel = ["head", "ring", [0.3, 0.05, 0.02], [0, 2, 0], "iron", {"sides": 10}]
+        torso = ["spine", "box", [1, 1, 1], [0, 1, 0], "iron", {}]
+        self.assertEqual(PF.split_shares([wheel, torso]), [0.0, 1.0, 0.0])
+
+
+class Normalise(unittest.TestCase):
+    def parts(self):
+        return [["foot.R", "box", [0.2, 0.1, 0.4], [-0.3, 0.0501, 0.1], "iron", {}],
+                ["head", "box", [0.5, 0.5, 0.5], [0, 2.5, 0], "iron", {}],
+                ["foot.L", "box", [0.2, 0.1, 0.4], [0.3, 0.0501, 0.1], "iron", {}],
+                ["spine", "prism", [0.3, 0.3, 0.6], [0, 1.4, 0], "iron", {"from": [0, 1.1, 0], "to": [0, 1.7, 0.001]}]]
+
+    def test_grid_order_and_pairs_adjacent(self):
+        out = PF.normalise(self.parts(), "biped")
+        self.assertEqual([p[0] for p in out], ["spine", "head", "foot.L", "foot.R"])
+        q = RF.top("biped") / 256
+        self.assertTrue(all(abs(v / q - round(v / q)) < 1e-3 for p in out for v in p[3]))
+        self.assertEqual(out[2][3][0], -out[3][3][0])
+
+    def test_idempotent_and_order_independent(self):
+        once = PF.normalise(self.parts())
+        self.assertEqual(PF.normalise([list(p) for p in reversed(once)]), once)

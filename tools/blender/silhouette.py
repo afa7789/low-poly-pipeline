@@ -197,6 +197,118 @@ def head_measures(spans, shoulder_row):
     return round(float(above[:cut].max()), 3), round(float(above[int(0.3 * len(above)):].min()), 3)
 
 
+# Sano 2026 (§3.3-3.4): morphology -> exterior contour -> Douglas-Peucker -> axis snap
+OUTLINE_EPS = 0.012     # DP tolerance, fractions of the figure height
+OUTLINE_MAX = 24        # eps grows until the polygon has at most this many vertices
+SNAP_DEG = 4            # an edge this close to vertical or horizontal is made so
+_RING = ((-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1))   # (dy, dx) clockwise
+
+
+def trace(mask):
+    """Boundary pixels (y, x) of the one blob in `mask`: Moore-neighbour walk from the first
+    raster pixel, stopping when the start is reached again."""
+    pad = np.pad(mask, 1)
+    ys, xs = np.nonzero(pad)
+    start = (int(ys[0]), int(xs[0]))
+    path, cur, back = [], start, 6               # the start's west neighbour is background
+    for _ in range(pad.size):
+        path.append(cur)
+        for i in range(1, 9):
+            k = (back + i) % 8
+            nxt = (cur[0] + _RING[k][0], cur[1] + _RING[k][1])
+            if pad[nxt]:
+                bg = (cur[0] + _RING[(k - 1) % 8][0], cur[1] + _RING[(k - 1) % 8][1])
+                back = _RING.index((bg[0] - nxt[0], bg[1] - nxt[1]))
+                break
+        else:
+            break                                # a single pixel
+        if nxt == start:
+            break
+        cur = nxt
+    return [(y - 1, x - 1) for y, x in path]
+
+
+def douglas_peucker(pts, eps):
+    """Open polyline simplified so no dropped point is farther than eps from the kept chord."""
+    pts = np.asarray(pts, float)
+    if len(pts) < 3:
+        return pts
+    a, b = pts[0], pts[-1]
+    d = b - a
+    norm = math.hypot(*d)
+    rel = pts[1:-1] - a
+    dist = np.hypot(*rel.T) if norm == 0 else np.abs(d[0] * rel[:, 1] - d[1] * rel[:, 0]) / norm
+    i = int(np.argmax(dist))
+    if dist[i] <= eps:
+        return np.array([a, b])
+    left, right = douglas_peucker(pts[:i + 2], eps), douglas_peucker(pts[i + 1:], eps)
+    return np.vstack([left[:-1], right])
+
+
+def snap_axes(poly, deg=SNAP_DEG):
+    """Edges within `deg` of vertical or horizontal get both ends on the same x (or y)."""
+    poly = poly.copy()
+    tol = math.tan(math.radians(deg))
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        dx, dy = abs(b[0] - a[0]), abs(b[1] - a[1])
+        if dy and dx <= tol * dy:
+            poly[i][0] = poly[(i + 1) % len(poly)][0] = (a[0] + b[0]) / 2
+        elif dx and dy <= tol * dx:
+            poly[i][1] = poly[(i + 1) % len(poly)][1] = (a[1] + b[1]) / 2
+    return poly
+
+
+def outline(mask, eps=OUTLINE_EPS):
+    """Simplified exterior polygon of a figure mask: [(x/H, y/H)] clockwise on screen, x from
+    the figure's centre line (right positive), y up from the feet, H the figure height.
+    Morphology first (close, fill, largest blob), then Douglas-Peucker on the closed contour."""
+    from scipy import ndimage
+    m = ndimage.binary_fill_holes(ndimage.binary_closing(mask, iterations=2))
+    lab, n = ndimage.label(m)
+    if n > 1:
+        m = lab == (1 + int(np.argmax(np.bincount(lab.ravel())[1:])))
+    ys, xs = np.nonzero(m)
+    h = ys.max() - ys.min() + 1
+    pts = np.array([(x, y) for y, x in trace(m)], float)
+    far = int(np.argmax(np.hypot(*(pts - pts[0]).T)))
+    halves = (pts[:far + 1], np.vstack([pts[far:], pts[:1]]))
+    while True:
+        poly = np.vstack([douglas_peucker(halves[0], eps * h)[:-1], douglas_peucker(halves[1], eps * h)[:-1]])
+        poly = snap_axes(poly)
+        if len(poly) <= OUTLINE_MAX or eps > 0.2:
+            break
+        eps *= 1.25
+    cx = (xs.min() + xs.max()) / 2
+    return [(round(float((x - cx) / h), 3), round(float((ys.max() - y) / h), 3)) for x, y in poly]
+
+
+def band_areas(mask, shoulder_frac):
+    """Share of the front silhouette's area in the head (above the shoulder line), the body
+    (shoulders to hips, half the height) and the legs (below the hips)."""
+    ys = np.where(mask.any(axis=1))[0]
+    rows = mask[ys.min():ys.max() + 1].sum(axis=1)
+    h = len(rows)
+    cut = [int(shoulder_frac * h), h // 2]
+    head, body, legs = rows[:cut[0]].sum(), rows[cut[0]:cut[1]].sum(), rows[cut[1]:].sum()
+    return [round(float(v) / rows.sum(), 3) for v in (head, body, legs)]
+
+
+def outlines(panels):
+    """view -> outline in the spec's axes: front (x, y); left (z, y) with +z the way the feet
+    point; back (x, y) mirrored, since the camera looks from behind."""
+    out = {}
+    for view in ("front", "left", "back"):
+        poly = outline(panels[view])
+        if view == "back":
+            poly = [(-x, y) for x, y in poly]
+        if view == "left":
+            toe = np.mean([x for x, y in poly if y < 0.06] or [0.0])
+            poly = [(-x, y) for x, y in poly] if toe < 0 else poly
+        out[view] = poly
+    return out
+
+
 def measure(sheet, size=768):
     """Code-derived proportions from the five panels, in fractions of front-view H.
     The spec author gets numbers, not adjectives; this is the measurement stage the
@@ -220,7 +332,9 @@ def measure(sheet, size=768):
     shoulder_row = 8 + int(np.argmax(fine[8:60] >= 0.85 * fine[8:60].max()))   # first wide row
     angle, arm_len = arm_measures(fine, shoulder_row)
     head_w, neck_w = head_measures(fine, shoulder_row)
+    area_head, area_body, area_legs = band_areas(panels["front"], shoulder_row / 199)
     return {
+        "area_head": area_head, "area_body": area_body, "area_legs": area_legs,
         "boot_height": round(boot_height(panels["left"], k), 3),
         "head_width": head_w, "neck_width": neck_w,
         "arm_angle": angle, "arm_length": arm_len,
@@ -231,6 +345,7 @@ def measure(sheet, size=768):
         "foot_length": round(max(ls[18:]) * k, 3),
         # the widest top row is the shoulder line: how far below the top it sits
         "head_clear": round(0.05 * max(range(2, 7), key=lambda i: fs[i]), 3),
+        "outline": outlines(panels),
         "front_width_profile": [round(v, 3) for v in fs],
         "left_width_profile": [round(v * k, 3) for v in ls],
     }
