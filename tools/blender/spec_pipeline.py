@@ -474,6 +474,57 @@ def with_refs(brief, refs, hard_first=False, props=()):
     return brief + "\nREFERENCE IMAGES\n" + "\n".join(lines) + "\n"
 
 
+# Few-shot (PIPELINE 21.F5): one approved spec -> render pair per rig family. The images are
+# crops of the run's compare.png (concept | clay front) kept in fewshot/ (runs may move on).
+FEWSHOT_DIR = ROOT / "artifacts/model-sheets/fewshot"
+FEWSHOT = {   # rig family -> (run with the spec, crop, what the run was)
+    "biped": ("n01X/hard-v1", "biped.jpg", "an approved biped (stage 1 PASS)"),
+    "spider": ("n00U/v6-r3", "spider.jpg", "the best spider so far (front/left/back pass, top/bottom "
+                                           "still short: copy its scale and part count, not its flaws)"),
+}
+FEWSHOT_MARK = "\nWORKED EXAMPLE\n"
+FEWSHOT_TEXT = ("Image {n} (left: the concept, right: the clay front render) is {what}, built from "
+                "the spec below. This is what a PASS looks like in this DSL: note the scale of dims "
+                "against H ({h}) and how few parts it takes. Its parts, in the DSL's slots (opts cut down to from/to):\n{parts}\n")
+
+
+def fewshot_summary(spec):
+    """The spec as the example shows it: one line per part in the DSL's own 6 slots, with only
+    the opts that place it (from/to of a limb part) kept; sides, taper and the like dropped."""
+    def r(v):
+        return [round(x, 2) for x in v]
+    def short(opts):
+        return {k: r(opts[k]) for k in ("from", "to") if isinstance(opts, dict) and k in opts}
+    return "\n".join(json.dumps([b, k, r(d), r(a), m, short(o)], separators=(",", ":"))
+                      for b, k, d, a, m, o in spec["parts"])
+
+
+def with_fewshot(brief, args, first):
+    """(brief + the worked example, [its image]); `first` is the number its image gets. Nothing
+    changes for --no-fewshot or a rig family without an example. args.fewshot_cost records the
+    price (about w*h/750 tokens per image, 4 chars per text token)."""
+    shot = FEWSHOT.get(args.rig)
+    if args.no_fewshot or not shot:
+        return brief, []
+    run, crop, what = shot
+    spec = json.loads((ROOT / "artifacts/model-sheets/runs/draft" / run / "spec.json").read_text())
+    text = FEWSHOT_MARK + FEWSHOT_TEXT.format(n=first, what=what, h=round(RF.top(args.rig), 2),
+                                              parts=fewshot_summary(spec))
+    from PIL import Image
+    w, h = Image.open(FEWSHOT_DIR / crop).size
+    args.fewshot_cost = {"run": run, "images": 1, "text_tokens": len(text) // 4, "image_tokens": w * h // 750}
+    return brief + text, [FEWSHOT_DIR / crop]
+
+
+def fewshot_section(args):
+    """review.md: what the worked example added to the author's prompt; empty without one."""
+    c = getattr(args, "fewshot_cost", None)
+    if not c:
+        return ""
+    return (f"## Few-shot\n\nexample: {c['run']}, {c['images']} image (~{c['image_tokens']} tokens) + "
+            f"spec text (~{c['text_tokens']} tokens) per author call\n\n")
+
+
 def prompt_images(args, work):
     """(image 1, [(kind, path)] extra references, temp files) for the spec author.
     The hard sheet is image 1 when it exists - the shapes are built from it - and the
@@ -940,7 +991,7 @@ def repair(spec, args, brief, work, panels):
         print(f"repair {k}: preflight fails\n{problem.strip()}")
         edit = rule_editable(spec["parts"], problem)
         prompt = REPAIR.format(problem=problem, parts=numbered(spec, edit), freeze=freeze_text(edit),
-                               limit=REPAIR_EDITS, brief=brief)
+                               limit=REPAIR_EDITS, brief=brief.split(FEWSHOT_MARK)[0])
         patch = lambda txt: apply_patch(spec["parts"], txt, REPAIR_EDITS, spec.get("palette"),
                                         extra_names(spec), edit)
         try:
@@ -1031,7 +1082,7 @@ def run_passes(spec, args, brief, views):
         edit = band_editable(spec["parts"], failing_bands(work / f"{best}-sil", view))
         prompt = REFINE.format(view=view, scores=scores, axes=AXES[view],
                                parts=numbered(spec, edit), freeze=freeze_text(edit),
-                               limit=PASS_EDITS, brief=brief)
+                               limit=PASS_EDITS, brief=brief.split(FEWSHOT_MARK)[0])
         shot = RENDER_NAME.get(view, view)
         images = [panels[view], work / f"{best}-views" / f"{best}-{shot}.png",
                   work / f"{best}-sil" / f"overlay-{view}.png"]
@@ -1696,10 +1747,13 @@ def main():
     ap.add_argument("--no-fit", dest="fit", action="store_false", help="skip the numeric fit")
     ap.add_argument("--fit-fast", action="store_true",
                     help="the classic fit: front/left/back, dims and at, no cut test (about a third of the time)")
-    ap.add_argument("--variants", type=int, default=1,
+    ap.add_argument("--no-fewshot", action="store_true",
+                    help="leave the worked spec -> render example out of the author's prompt "
+                         "(PIPELINE 21.F5)")
+    ap.add_argument("--variants", type=int, default=3,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
                          "variants/<k>/, kept) and go on with the one with the largest sum of "
-                         "margins over the gates (default 1)")
+                         "margins over the gates (default 3; 1 turns it off)")
     ap.add_argument("--decimate", action="store_true",
                     help="Readiness: decimate the clay 50 %% in Blender and report the IoU lost per 100 tris "
                          "(report only, about 8 s; PIPELINE 20.M10)")
@@ -1740,7 +1794,8 @@ def main():
     set_rig(args.rig, spider_measure(args))
     brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
                       props=load_props(args.id))
-    spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs], tmp, layout)
+    brief, shots = with_fewshot(brief, args, 2 + len(refs))
+    spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs] + shots, tmp, layout)
     colour = None
     if shape["ok"] and not args.shape_only:
         t0 = time.monotonic()
@@ -1907,7 +1962,7 @@ def write_review(args, shape, colour, verdict):
         f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
-        f"{EVALUATION}{timing_section(args)}{variants_section(args)}"
+        f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
         f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
