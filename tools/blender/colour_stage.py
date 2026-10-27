@@ -26,6 +26,7 @@ import subprocess
 import sys
 
 import cut_hull
+import align_features
 import deform_to_sheet
 import silhouette as SIL
 from preflight import BUDGETS, is_prop, load_props, misplaced_decals
@@ -175,6 +176,7 @@ def build_textured(spec, glb_clay, args, glb, work):
         *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
+        align_features.apply(glb, args)
     return glb.exists()
 
 

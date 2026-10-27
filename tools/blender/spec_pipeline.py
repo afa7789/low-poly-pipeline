@@ -68,6 +68,7 @@ import urllib.request
 
 import building_hull
 import cut_hull
+import align_features
 import deform_to_sheet
 import diagnose
 import lathe_limb
@@ -1402,6 +1403,10 @@ def stage_shape(spec_path, args, layout):
     if deformed:
         print(f"deform: {deformed['steps']} steps, {deformed['refused']} refused, "
               f"slivers {deformed['slivers_before']} -> {deformed['slivers_after']}")
+    aligned = align_features.apply(glb, args)         # after the deformation: sharp edges toward the hard sheet's
+    if aligned:
+        print(f"align: {aligned['steps']} steps, {aligned['refused']} refused, edge cost "
+              f"{aligned['cost_before']} -> {aligned['cost_after']}")
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -1986,6 +1991,10 @@ def main():
     ap.add_argument("--budgets", type=lambda t: [int(x) for x in t.split(",")], default=None, metavar="400,700,1000",
                     help="ablation (Wiersma 2026 Fig. 10): build the --spec at each triangle budget and write the "
                          "IoU x tris x slivers curve and the knee to review.md; no author, no stage 2 (PIPELINE 24.L6-10)")
+    ap.add_argument("--align", dest="align", action="store_true", default=ALIGN_FEATURES,
+                    help="pull the unioned body's sharp edges to the hard sheet's inner edges after the "
+                         "deformation (align_features.py, PIPELINE 24.L6-12; off by default: no measured gain)")
+    ap.add_argument("--no-align", dest="align", action="store_false", help="the opposite of --align")
     ap.add_argument("--no-deform", dest="deform", action="store_false", default=DEFORM,
                     help="skip the Sketch2Mesh deformation of the unioned body onto the sheet's outlines "
                          "(deform_to_sheet.py, PIPELINE 24.L6-5)")
@@ -2075,6 +2084,7 @@ VIEW_FLOOR = {None: ("front", "rts"), "spider": ("top", "bottom", "rts"),
               "spider_high": ("top", "bottom", "rts")}   # fit_accepted: the family's critical views never fall > FIT_SLIP
 RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
 FORM_W = 0.5          # fit_accepted / margin_of: form cost (slivers + mean normal_diff / 90), PIPELINE 24.L6-6
+ALIGN_FEATURES = False  # PIPELINE 24.L6-12: sharp edges go to the hard sheet's inner edges after the deformation (--align); NEGATIVE: off
 DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the sheet's outlines (--no-deform)
 # 24.L6-4: the deformation needs the welded body; read build_unit.UNION_BODY from its source (it imports bpy)
 UNION_BODY = bool(re.search(r"^UNION_BODY\s*=\s*True", (ROOT / "tools/blender/build_unit.py").read_text(), re.M))
