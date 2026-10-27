@@ -346,3 +346,14 @@ class SpiderRules(unittest.TestCase):
         self.assertTrue(got["spider_body"][0] and got["spider_reach"][0])      # report only
         self.assertTrue(all("OUT" in got[r][1] for r in got))
         self.assertIn("vs sheet", got["spider_leg"][1])
+
+    def test_leg_w_reports_thin_legs_without_blocking(self):
+        parts = spider_spec()["parts"]
+        r = PF.leg_radius([p for p in parts if p[0].startswith("leg")][0])
+        height = max(PF.bbox(p)[1][1] for p in parts)
+        for name, leg_w, ok in [("matches", r / height, True), ("sheet twice as thick", 2.5 * r / height, False)]:
+            with self.subTest(name):
+                got = self.rules({**self.MEASURE, "leg_w": leg_w})["spider_leg_w"]
+                self.assertTrue(got[0], "report only")
+                self.assertEqual("OUT" in got[1], not ok)
+        self.assertNotIn("spider_leg_w", self.rules(self.MEASURE))

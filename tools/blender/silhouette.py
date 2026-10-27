@@ -463,13 +463,41 @@ def _fill_end(col):
     return first + int(gap[0]) if len(gap) else len(col)
 
 
+def leg_ridge(mask):
+    """(width, distance from the body) of the ridge pixels of the thin parts outside the body
+    (the mask minus its opening by a disc of 0.6 of the thickest radius), in pixels."""
+    from scipy import ndimage
+    r = ndimage.distance_transform_edt(mask).max()
+    n = int(0.6 * r)
+    disc = np.hypot(*np.ogrid[-n:n + 1, -n:n + 1]) <= 0.6 * r
+    body = ndimage.binary_opening(mask, structure=disc)
+    dist = ndimage.distance_transform_edt(mask & ~ndimage.binary_dilation(body, iterations=2))
+    ys, xs = np.where((dist == ndimage.maximum_filter(dist, 5)) & (dist > 1.5))
+    return 2 * dist[ys, xs], ndimage.distance_transform_edt(~body)[ys, xs]
+
+
+def leg_measures(views):
+    """leg_w (median leg radius) and leg_taper (tip / base radius, thirds nearest and farthest from
+    the body) pooled over [(mask, pixels per H)] views, fractions of H; None without thin parts."""
+    pairs = [(w / ppf / 2, a) for m, ppf in views for w, a in [leg_ridge(m)]]
+    w = np.concatenate([p[0] for p in pairs])
+    a = np.concatenate([p[1] / ppf for p, (_, ppf) in zip(pairs, views)])
+    if len(w) < 6:
+        return None
+    w = w[np.argsort(a)]
+    third = len(w) // 3
+    return {"leg_w": round(float(np.median(w)), 3),
+            "leg_taper": round(float(np.median(w[-third:]) / np.median(w[:third])), 2)}
+
+
 def measure_spider(sheet, size=768):
     """Spider proportions of the approved sheet, fractions of the front view's height H
     (L14, PIPELINE section 20): the numbers rig_families.scale_spider builds the rig from.
     body_r / body_len: half width and length of the body seen from the top (the legs are
     opened away); body_under: height of the belly above the ground (back view, where the
     fangs do not hang in the way); knee_h / knee_r: the front view's widest row between the
-    shell and the feet, and half the width there; foot_r: half the width at the feet."""
+    shell and the feet, and half the width there; foot_r: half the width at the feet;
+    leg_w / leg_taper: median leg radius and tip/base ratio (leg_measures, front and top)."""
     from scipy import ndimage
     panels = concept_panels(sheet, size)
     front, back, top = (_crop(panels[v]) for v in ("front", "back", "top"))
@@ -488,7 +516,8 @@ def measure_spider(sheet, size=768):
     return {"body_r": round(float(r * k), 3), "body_len": round(body.shape[0] * k, 3),
             "body_under": round(1 - under / back.shape[0], 3),
             "knee_h": round(1 - knee / (len(half) - 1), 3), "knee_r": round(float(half[knee]), 3),
-            "foot_r": round(float(max(half[-4:])), 3)}
+            "foot_r": round(float(max(half[-4:])), 3),
+            **(leg_measures([(front, h), (top, 1 / k)]) or {})}
 
 
 def read_mask(path):

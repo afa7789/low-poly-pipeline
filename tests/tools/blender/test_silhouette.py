@@ -287,3 +287,21 @@ class MeasureSpider(unittest.TestCase):
         self.assertTrue(0.18 <= m["body_under"] <= 0.30, m)   # belly a quarter of H above the floor
         self.assertTrue(0.5 <= m["foot_r"] <= 0.65, m)        # legs spread over 1.16 H
         self.assertTrue(m["body_len"] > m["body_r"], m)
+        self.assertTrue(0.03 <= m["leg_w"] <= 0.06, m)        # legs about 0.09 H thick
+        self.assertIn("leg_taper", m)
+
+
+class LegMeasures(unittest.TestCase):
+    def test_thin_bars_around_a_disc(self):
+        """a 40 px disc with 6 px bars out of it: leg_w is the bar radius in H, a bar that
+        narrows to the tip has a taper under 1"""
+        import numpy as np
+        yy, xx = np.mgrid[:200, :200]
+        mask = np.hypot(yy - 100, xx - 100) <= 40
+        for k in range(8):
+            mask[96 + k // 4:104 - k // 4, 140 + 8 * k:148 + 8 * k] = True    # right bar, 8 px thick to 6 px
+            mask[96:104, 52 - 8 * k - 8:52 - 8 * k] = True                    # left bar, constant 8 px
+        got = S.leg_measures([(mask, 100.0)])
+        self.assertAlmostEqual(got["leg_w"], 0.04, delta=0.012)
+        self.assertLess(got["leg_taper"], 1.1)
+        self.assertIsNone(S.leg_measures([(np.pad(np.ones((30, 30), bool), 20), 100.0)]))

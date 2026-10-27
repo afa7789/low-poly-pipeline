@@ -68,6 +68,19 @@ class Anchor(unittest.TestCase):
         self.assertEqual(F.loose_of([upper, lower], parents), set())
 
 
+class LegGrowth(unittest.TestCase):
+    def test_thin_leg_may_reach_the_sheet_radius(self):
+        leg = ["leg1.upper", "prism", [0.04, 0.02, 0.4], [0, 0, 0], "body", {"from": [0, 1, 0], "to": [0.4, 0, 0]}]
+        radius = 0.03                       # mean of 0.04 and 0.02
+        for name, part, leg_w, want in [("thin", leg, 0.06, 10.0), ("already thick", leg, 0.02, 1.0),
+                                        ("no measure", leg, None, 1.0),
+                                        ("not a leg", box("body", (1, 1, 1), (0, 0, 0)), 0.06, 1.0)]:
+            with self.subTest(name):
+                self.assertAlmostEqual(F.leg_grow(part, leg_w, 1.0), want)
+        self.assertEqual(F.bounds_of(leg, False, 10.0), [(-1, 10.0), (-1, 10.0), (-1, 1)] + [(-1, 1)] * 3)
+        self.assertEqual(radius, F.preflight.leg_radius(leg))
+
+
 class Fit(unittest.TestCase):
     """fit() on a spec whose torso is half as wide as the sheet's, with the sheet read from the proxy"""
 
