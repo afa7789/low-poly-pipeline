@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+import numpy as np
+
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
@@ -284,3 +286,26 @@ class Normalise(unittest.TestCase):
     def test_idempotent_and_order_independent(self):
         once = PF.normalise(self.parts())
         self.assertEqual(PF.normalise([list(p) for p in reversed(once)]), once)
+
+
+class OutsideHull(unittest.TestCase):
+    """Front 0.4 m wide, left 0.2 m deep, both 1 m tall (pad 0: the masks are the hull)."""
+    masks = [(np.ones((100, 40), bool), 0), (np.ones((100, 20), bool), 0)]
+
+    def box(self, bone, dims, at):
+        return [bone, "box", dims, at, "iron", {}]
+
+    def test_inside_passes_and_names_the_direction(self):
+        body = self.box("spine", [0.4, 1.0, 0.2], [0, 0.5, 0])
+        fat = [self.box("spine", [0.4, 1.0, 0.2], [0, 0.5, 0]), self.box("arm.L", [0.8, 0.1, 0.1], [0, 0.5, 0])]
+        deep = [self.box("spine", [0.4, 1.0, 0.2], [0, 0.5, 0]), self.box("head", [0.1, 0.1, 0.8], [0, 0.5, 0])]
+        self.assertEqual(PF.hull_outside([body], self.masks, 1.0), {})
+        self.assertEqual(PF.hull_outside(fat, self.masks, 1.0)["arm.L"][1], "wide")
+        self.assertEqual(PF.hull_outside(deep, self.masks, 1.0)["head"][1], "deep")
+
+    def test_ornament_has_no_samples_and_leaning_limb_follows_its_axis(self):
+        ring = ["head", "ring", [0.5, 0.05, 0.02], [0, 2, 0], "iron", {}]
+        self.assertEqual(len(PF.sample_points(ring, 0.1)), 0)
+        arm = ["arm.L", "prism", [0.05, 0.05, 1], [0, 0.5, 0], "iron", {"from": [0, 0, 0], "to": [1, 1, 0]}]
+        pts = PF.sample_points(arm, 0.1)
+        self.assertTrue(np.allclose(pts[:, 0], pts[:, 1]))
