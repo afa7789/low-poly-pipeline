@@ -1272,3 +1272,31 @@ Itens do `ROADMAP-papers.md`. Tudo medido sem LLM, nos specs existentes (`runs/d
 - **normalise** (EdgeRunner, MeshGPT). `preflight.normalise(parts, family, extra)`: at/dims/from/to na grade (altura do rig)/256 (dim nunca abaixo de 1 célula); ordem = osso do rig (+ extras), y, L antes de R. Idempotente (grade fixa do rig, não da altura do spec). Chamado em `parse_spec` e `apply_patch`, depois do `ground_fix`.
 - **Medida (53 specs, preflight com o sheet do id).** n01X hard-v1: 17/17 antes, 19/19 agora (as duas regras novas passam). FAIL por regra antes -> depois: `overlap` 3 -> 3, `ground` 10 -> 10 (iguais; a normalise não mexe neles), `symmetry` 0 -> 28, `budget_split` 0 -> 16. Specs com algum FAIL: 35 -> 40; 5 só falham nas regras novas. Aplicar a normalise antes do preflight muda 2 vereditos antigos de `shoulder_span`, um para cada lado (n01I hard-v1 FAIL->PASS, n02X v2-hard-r1 PASS->FAIL; ambos na borda da tolerância).
 - **Piorou / pendente.** `symmetry` dispara em 28 specs antigos, quase sempre arma/lanterna numa mão só (`forearm: 4 parts left, 2 right`) sem `asym`, que não existia: é o comportamento certo, mas o repair precisa do aviso no brief (já está no DSL). `budget_split` pega pernas magras (< 20 %) e corpo inchado (> 71 %); o prior sai de 37 specs de 6 unidades, recalibrar quando houver mais sheets. Não rodei LLM: o efeito no one-shot (menos repair) não foi medido.
+
+### 19.D2 Melhor-de-N no estágio 1: `--variants N` (2026-10-27)
+Papers: EdgeRunner 2024 (Fig. 15: a variância por seed é grande), Zhao 2026 (K variantes + curadoria), Begemann & Hutson 2026 (curadoria automática).
+- **O que mudou.** `spec_pipeline.py --variants N` (default 1 = fluxo de antes). `author_specs` pede N specs ao autor em paralelo (threads; é a parte lenta); resposta que não vira spec é descartada e logada. `best_of_n` roda o estágio 1 (`stage_shape`: preflight + clay + silhueta) em cada um, em série (Blender), cada um em `variants/<k>/` com spec, clay, `sil/`, `views/`, `silhouette.json`. Vence a variante com maior `(estágio 1 ok, soma das margens)`; a margem é `sum(IoU_v - gate_v)` sobre as vistas de `silhouette.gates_for(rig)` (`margin_of`). O vencedor é copiado para a raiz do run, nenhuma variante é apagada. Repair/`--passes`, se ligados, rodam depois, só no vencedor, e o estágio 1 é medido de novo. `review.md` ganha `## Variants` (gates, IoU por vista, margem de cada uma, a escolhida marcada). A função `stage_one` saiu de `main` (complexidade).
+- **Desvio do roadmap.** O desempate é `ok` antes da margem: uma variante que passa todos os gates ganha de uma que falha mesmo com soma maior (a soma deixa um IoU alto compensar uma vista abaixo do gate).
+- **Prova (autor local `session:opus`, sem passes nem repair, `--shape-only`, uma rodada):** `runs/draft/n005/v5-variants-r1/` (variantes em `variants/{1,2,3}/`). Tempo: 89 s para pedir as 3 + preflight, 34 s para os 3 builds.
+
+  | run | front / left / back / top / bottom / rts | gates | soma das margens | preflight |
+  |---|---|---|---|---|
+  | v4-oneshot-r1 (N=1) | .695 / .700 / .746 / .669 / .727 / .817 | 5/6 | +0.254 | PASS |
+  | v5 variante 1 (escolhida) | .686 / .780 / .769 / .784 / .749 / .807 | 5/6 | +0.476 | FAIL |
+  | v5 variante 2 | .703 / .718 / .792 / .751 / .714 / .760 | 5/6 | +0.338 | FAIL |
+  | v5 variante 3 | .719 / .731 / .808 / .699 / .758 / .770 | 5/6 | +0.386 | FAIL |
+
+- **Resultado.** O melhor de 3 tem IoU médio .766 contra .726 do one-shot (margem +0.476 contra +0.254): a variância existe e a escolha a pega. **Mas o gate da frente (.75) continua falhando nas 3** (.686-.719; o v4 tinha .695) e as 3 falham o preflight (`shoulder_span` .71-.73 contra .46 do sheet, `fist_span`; a variante 3 ainda `budget_split` e `overlap`), que o v4 passava. A margem em soma não enxerga o preflight, que só entra no desempate `ok`; como todas falham, a soma decidiu. N=3 numa rodada é uma amostra: não prova ganho no veredito, só no IoU médio. n00U não foi rodado (pedido só n005).
+- **Custo.** N pedidos ao autor (3x créditos no modo API) e N builds de ~11 s. Fica default 1.
+- Fora: pedir as N com temperatura/seed diferentes (o `ask_api` fixa 0.2; no modo `session` a variância vem do próprio modelo).
+
+### 19.E1 Tempos e score ponderado (2026-10-27)
+Papers: Begemann & Hutson 2026 (geração / integração / prontidão medidas à parte), Zhao 2026 (30 % tempo / 70 % qualidade).
+- **`review.md`, `## Timing`** (segundos de parede): `t_gen` = pedir o spec (todas as N variantes) + preflight; `t_build` = Blender + render + silhueta (soma das N variantes); `t_passes` = repair e `--passes` (inclui os builds de teste deles); `t_colour` = estágio 2; e `passes: <n>` (nº de vistas de `--passes`).
+- **`compare_runs.py`** lê essas linhas (`times_of`) e `silhouette.json` do run (`score_of`):
+  `score = 0.3·f(t) + 0.7·g(IoU, zonas)`, `t = t_gen+t_build+t_passes+t_colour`, `f(t) = max(0, 1 − t/1200 s)`,
+  `IoU` = média das vistas contra o sheet aprovado, `zonas` = média das vistas da média de zona, `/0.5` e teto 1;
+  `g = IoU` sem zonas (run só de estágio 1), `g = 0.6·IoU + 0.4·zonas` com zonas. f e g são absolutos em [0, 1]: o score de um run não muda com os vizinhos. Aparece no cabeçalho de cada run do sheet (`score 0.803 (f 0.90 g 0.76, 123 s)`) e a lista ranqueada sai no stdout. Run sem `## Timing` (antes de 2026-10-27) ou sem IoU mostra `score n/a`.
+- **Constantes escolhidas por mim** (o roadmap só dá 0.3/0.7): `T_MAX = 1200 s` (um run completo com autor `session` leva 3-10 min), `ZONE_FULL = 0.5` (hard-v1 fica perto de .37), pesos 0.6/0.4 de IoU/zonas. Mudar em `compare_runs.py`; os testes fixam a fórmula, não os números.
+- **Prova:** `scratchpad/papers-d2e1/cmp.png`, `compare_runs.py ... v4-oneshot-r1 v5-variants-r1 --show clay` imprime `v5-variants-r1 score 0.803 f 0.90 g 0.76 123 s` e `v4-oneshot-r1 score n/a` (o v4 não tem tempos: não inventei).
+- **Limite.** O score só ranqueia o que tem tempo gravado; os runs antigos não entram. O tempo do autor depende da máquina e da fila do `claude -p`, ruído entre runs. As zonas dos runs só de estágio 1 não existem, então um run só de forma e um completo não são comparáveis em g.

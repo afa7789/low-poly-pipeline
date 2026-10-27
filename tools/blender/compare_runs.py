@@ -10,9 +10,23 @@ Same grid and same per-run input contract as make_compare.py (read its docstring
 directory with review.md, sil/<against>/ and views/<tag>/. A run missing the files of the
 chosen column shows an empty cell and a warning, so older runs still line up. The concept
 column comes from the first run's sheet. Footer of each cell: IoU, gate verdict, zones.
+
+Score of a run (Zhao 2026: 30 % time, 70 % quality), shown in its header and printed ranked:
+
+    score = 0.3 * f(t) + 0.7 * g(IoU, zones)
+    t     = t_gen + t_build + t_passes + t_colour   (seconds, from the "## Timing" of review.md)
+    f(t)  = max(0, 1 - t / T_MAX)                   T_MAX = 1200 s: a run that long scores 0 on time
+    IoU   = mean over the views of the IoU vs the approved sheet (silhouette.json)
+    zones = mean over the views of the zone mean, / ZONE_FULL, capped at 1 (stage 2 runs only)
+    g     = IoU                          without zones (a stage 1 run)
+          = 0.6 * IoU + 0.4 * zones      with zones
+Both f and g are absolute, in [0, 1]: a run's score does not depend on which runs sit beside it.
+A run with no Timing section (older than 2026-10-27) or no silhouette numbers has no score.
 """
 import argparse
+import json
 import pathlib
+import re
 import sys
 import tempfile
 
@@ -22,6 +36,33 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import make_compare as MC  # noqa: E402
 
 SHOWS = ("textured", "clay", "wire", "overlay", "uv")
+T_MAX = 1200.0       # seconds; f(t) reaches 0 here
+ZONE_FULL = 0.5      # a zone mean of this counts as 1 (the hard-v1 sheets sit near 0.37)
+W_TIME, W_QUALITY = 0.3, 0.7
+W_IOU, W_ZONES = 0.6, 0.4
+
+
+def times_of(run_dir):
+    """{"gen", "build", "passes", "colour"} seconds from review.md's Timing lines, or None."""
+    review = pathlib.Path(run_dir) / "review.md"
+    text = review.read_text() if review.exists() else ""
+    found = dict(re.findall(r"^- t_(\w+): ([\d.]+) s$", text, re.M))
+    return {k: float(v) for k, v in found.items()} if found else None
+
+
+def score_of(run):
+    """(score, f, g, seconds) of a loaded run, or None without timing or IoU numbers."""
+    times = times_of(run["dir"])
+    path = pathlib.Path(run["dir"]) / "silhouette.json"
+    summary = json.loads(path.read_text()) if path.exists() else {}
+    ious = list((summary.get("approved") or {}).values())
+    if not times or not ious:
+        return None
+    t = sum(times.values())
+    f, iou = max(0.0, 1 - t / T_MAX), sum(ious) / len(ious)
+    zones = [z["mean"] for z in ((summary.get("zones") or {}).get("approved") or {}).values()]
+    g = iou if not zones else W_IOU * iou + W_ZONES * min(1.0, sum(zones) / len(zones) / ZONE_FULL)
+    return W_TIME * f + W_QUALITY * g, f, g, t
 
 
 def column_cell(run, view, show):
@@ -59,7 +100,9 @@ def run_head(run, width):
                                 ("  S2 ", MC.INK), (st.get("2", "n/a"), MC.tone(st.get("2"))),
                                 ("  verdict ", MC.INK), (m.get("verdict", "n/a"), MC.tone(m.get("verdict")))],
                   MC.font(14))
-    d.text((10, 80), f"status {m.get('status', 'n/a')}", fill=MC.INK, font=MC.font(14))
+    sc = score_of(run)
+    shown = "score n/a" if sc is None else f"score {sc[0]:.3f} (f {sc[1]:.2f} g {sc[2]:.2f}, {sc[3]:.0f} s)"
+    d.text((10, 80), f"status {m.get('status', 'n/a')}  {shown}", fill=MC.INK, font=MC.font(14))
     return img
 
 
@@ -103,6 +146,9 @@ def main():
     args = ap.parse_args()
     runs = [MC.load_run(r, args.against) for r in args.runs]
     build_sheet(runs, args.show).save(args.out)
+    for r in sorted(runs, key=lambda r: -(score_of(r) or (-1,))[0]):
+        sc = score_of(r)
+        print(f"{r['run']}\t" + ("score n/a" if sc is None else f"score {sc[0]:.3f}\tf {sc[1]:.2f}\tg {sc[2]:.2f}\t{sc[3]:.0f} s"))
     print("wrote", args.out)
 
 

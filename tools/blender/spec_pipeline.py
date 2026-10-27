@@ -56,6 +56,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -889,7 +890,9 @@ def stage_shape(spec_path, args, layout):
     numbers tris, skins, anims, smear. A failed gate never stops the build: every output is
     still written so there is something to look at."""
     lo, hi = BUDGETS[args.kind]
+    t0 = time.monotonic()
     pre = tool("preflight.py", spec_path, args.kind, args.sheet)
+    t_pre = time.monotonic() - t0
     print(pre.stdout.strip())
     if pre.returncode:
         print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
@@ -899,7 +902,7 @@ def stage_shape(spec_path, args, layout):
         print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
         return {"ok": False, "glb": None, "tilts": {}, "checks": {"build": False},
                 "failed": ["build"], "pre": pre.stdout, "tris": 0, "skins": 0, "anims": 0,
-                "smear": 0.0}
+                "smear": 0.0, "t_pre": t_pre, "t_build": time.monotonic() - t0 - t_pre}
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -910,7 +913,90 @@ def stage_shape(spec_path, args, layout):
     failed = [k for k, v in checks.items() if not v]
     return {"ok": not failed, "glb": glb, "tilts": tilts_of(report), "checks": checks,
             "failed": failed, "pre": pre.stdout, "tris": tris, "skins": skins, "anims": anims,
-            "smear": smear_pct}
+            "smear": smear_pct, "t_pre": t_pre, "t_build": time.monotonic() - t0 - t_pre}
+
+
+def margin_of(summary):
+    """Sum over the views of (IoU vs approved - the view's gate): how far above the stage 1
+    gates a build sits. 0.0 when the silhouette was not measured."""
+    gates = summary.get("gates") or {}
+    return sum(iou - gates[v] for v, iou in (summary.get("approved") or {}).items() if v in gates)
+
+
+def author_specs(args, brief, images):
+    """The N specs of --variants N, asked in parallel (the author is the slow part): a list
+    of (k, spec); a reply that does not parse is logged and dropped. Raises when none does."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(args.variants) as pool:
+        replies = [pool.submit(ask, args.model, brief, images) for _ in range(args.variants)]
+    specs = []
+    for k, fut in enumerate(replies, 1):
+        try:
+            specs.append((k, {**parse_spec(fut.result()), "rig": args.rig}))
+        except (ValueError, IndexError, KeyError, RuntimeError, json.JSONDecodeError) as err:
+            print(f"variant {k}: dropped, {err}")
+    if not specs:
+        raise SystemExit("--variants: no reply parsed into a spec")
+    return specs
+
+
+def add_times(args, shape):
+    """Book one stage_shape run: its preflight is generation, the rest is the build."""
+    args.times["gen"] += shape["t_pre"]
+    args.times["build"] += shape["t_build"]
+
+
+def best_of_n(specs, args, layout):
+    """Stage 1 on every (k, spec) in variants/<k>/, then the winner: the best (stage 1 ok,
+    sum of margins over the gates). Nothing is deleted - the winner is copied into the run dir
+    and every variant stays. Returns (spec, shape); args.summary is the winner's and
+    args.variants_log lists every variant."""
+    out, log, best = args.out, [], None
+    try:
+        for k, spec in specs:
+            args.out = out / "variants" / str(k)
+            args.out.mkdir(parents=True, exist_ok=True)
+            (args.out / "spec.json").write_text(json.dumps(spec, indent=2))
+            shape = stage_shape(args.out / "spec.json", args, layout)
+            add_times(args, shape)
+            row = {"k": k, "ok": shape["ok"], "margin": margin_of(args.summary),
+                   "iou": args.summary.get("approved", {}), "failed": shape["failed"]}
+            log.append(row)
+            if best is None or (row["ok"], row["margin"]) > (best[0]["ok"], best[0]["margin"]):
+                best = (row, spec, shape, args.summary)
+    finally:
+        args.out = out
+    row, spec, shape, args.summary = best
+    row["chosen"] = True
+    args.variants_log = log
+    shutil.copytree(out / "variants" / str(row["k"]), out, dirs_exist_ok=True)
+    if shape["glb"]:
+        shape["glb"] = out / shape["glb"].name
+    return spec, shape
+
+
+def variants_section(args):
+    """review.md: one row per variant, its IoU per view and its margin sum; empty for N=1."""
+    log = getattr(args, "variants_log", None)
+    if not log:
+        return ""
+    rows = "".join(f"| {r['k']}{' (chosen)' if r.get('chosen') else ''} | "
+                   f"{'ok' if r['ok'] else 'fail: ' + ', '.join(r['failed'])} | "
+                   + " / ".join(f"{r['iou'][v]:.3f}" if v in r["iou"] else "-" for v in VIEWS)
+                   + f" | {r['margin']:+.3f} |\n" for r in log)
+    return (f"## Variants (best of {len(log)}, in variants/<k>/)\n\n"
+            f"| k | gates | IoU {' / '.join(VIEWS)} | margin sum |\n|---|---|---|---|\n{rows}\n")
+
+
+def timing_section(args):
+    """review.md: wall seconds per phase and the number of passes (Begemann & Hutson 2026:
+    generation, integration, readiness apart). compare_runs.py reads these lines."""
+    t = getattr(args, "times", None)
+    if not t:
+        return ""
+    return ("## Timing\n\n" + "".join(f"- t_{k}: {t.get(k, 0.0):.1f} s\n"
+                                     for k in ("gen", "build", "passes", "colour"))
+            + f"- passes: {t.get('n_passes', 0)}\n\n")
 
 
 def load_colour_stage():
@@ -1020,6 +1106,9 @@ TEMPLATES = PROMPTS   # shared 00-template-*.txt recipes; prompts/<id>/ holds th
 RUNS = MSHEETS / "runs" / "draft"
 
 
+VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+
+
 def iou_rows(summary):
     """review.md rows: silhouette IoU per view against each sheet, the gates, the cameras
     the sweep chose for top/bottom/rts, and the drift (front/left/back only)."""
@@ -1107,6 +1196,45 @@ def resolve_paths(args):
     args.out = rundir / args.run
 
 
+def stage_one(args, brief, images, tmp, layout):
+    """Everything up to the approved stage 1: ask the author (N times with --variants, the best
+    one wins), repair/passes, stage_shape. Returns (spec, shape); args.times holds the clock."""
+    args.times = {"gen": 0.0, "build": 0.0, "passes": 0.0, "colour": 0.0, "n_passes": 0}
+    t0 = time.monotonic()
+    # --spec resumes from an approved spec: only the refinement passes call the model
+    if args.spec:
+        specs = [(1, {**parse_spec(args.spec.read_text()), "rig": args.rig})]
+    elif args.variants > 1:
+        specs = author_specs(args, brief, images)
+    else:
+        specs = [(1, {**parse_spec(ask(args.model, brief, images)),
+                      "rig": args.rig})]
+    args.times["gen"] = time.monotonic() - t0
+    for p in tmp:
+        p.unlink(missing_ok=True)
+    shape = None
+    if args.variants > 1 and not args.spec:       # best of N: stage 1 on each, the winner goes on
+        spec, shape = best_of_n(specs, args, layout)
+    else:
+        spec = specs[0][1]
+    # the repair pass (preflight failures -> patch) runs even without --passes: it is
+    # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
+    if args.passes or not args.no_repair:
+        views = args.passes.split(",") if args.passes else []
+        t0 = time.monotonic()
+        spec = run_passes(spec, args, brief, views)
+        args.times["passes"], args.times["n_passes"] = time.monotonic() - t0, len(views)
+        shape = None         # the spec changed: its stage 1 is measured again below
+    spec_path = args.out / "spec.json"
+    spec_path.write_text(json.dumps(spec, indent=2))
+
+    # stage 1: forma. A spec that fails here stops: no texture, no turntable, no stage 2.
+    if shape is None:
+        shape = stage_shape(spec_path, args, layout)
+        add_times(args, shape)
+    return spec, shape
+
+
 def main():
     if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
         for name, n in check_rts().items():
@@ -1161,6 +1289,10 @@ def main():
                     help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
+    ap.add_argument("--variants", type=int, default=1,
+                    help="best of N: ask the author for N specs, run stage 1 on each (in "
+                         "variants/<k>/, kept) and go on with the one with the largest sum of "
+                         "margins over the gates (default 1)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -1168,6 +1300,8 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
+    if args.variants < 1:
+        ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
 
     resolve_paths(args)
@@ -1191,24 +1325,12 @@ def main():
     set_rig(args.rig)
     brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
                       props=load_props(args.id))
-    # --spec resumes from an approved spec: only the refinement passes call the model
-    spec = (parse_spec(args.spec.read_text()) if args.spec
-            else parse_spec(ask(args.model, brief, [sheet] + [p for _, p in refs])))
-    spec["rig"] = args.rig
-    for p in tmp:
-        p.unlink(missing_ok=True)
-    # the repair pass (preflight failures -> patch) runs even without --passes: it is
-    # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
-    if args.passes or not args.no_repair:
-        spec = run_passes(spec, args, brief, args.passes.split(",") if args.passes else [])
-    spec_path = args.out / "spec.json"
-    spec_path.write_text(json.dumps(spec, indent=2))
-
-    # stage 1: forma. A spec that fails here stops: no texture, no turntable, no stage 2.
-    shape = stage_shape(spec_path, args, layout)
+    spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs], tmp, layout)
     colour = None
     if shape["ok"] and not args.shape_only:
+        t0 = time.monotonic()
         colour = run_colour(spec, shape, args)
+        args.times["colour"] = time.monotonic() - t0
     verdict = verdict_of(shape, colour)
     write_review(args, shape, colour, verdict)
     stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
@@ -1329,7 +1451,7 @@ def write_review(args, shape, colour, verdict):
         f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
-        f"{EVALUATION}"
+        f"{EVALUATION}{timing_section(args)}{variants_section(args)}"
         f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n"
