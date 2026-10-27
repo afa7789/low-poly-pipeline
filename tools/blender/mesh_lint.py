@@ -11,8 +11,13 @@ Papers: Chen 2023 (manifold, self-intersection), Wiersma 2026 (slivers), Begeman
 degenerates, components; watertight is NOT required: a unit is a union of closed parts).
 """
 import json
+import os
+import pathlib
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 
 import numpy as np
 
@@ -142,6 +147,13 @@ def image_info(doc, blob):
         return (w, h), None
 
 
+def atlas_kb(doc):
+    """Size of the embedded atlas PNG in KB (1 decimal); None without an image."""
+    if not doc.get("images"):
+        return None
+    return round(doc["bufferViews"][doc["images"][0]["bufferView"]]["byteLength"] / 1024, 1)
+
+
 def uv_image(glb, scale=2):
     """PIL image of the atlas with every UV triangle outlined and the pixels covered by 2+
     triangles tinted red (Begemann & Hutson 2026 UV screenshot); None without UVs or atlas.
@@ -198,7 +210,10 @@ def lint(glb):
            "images": len(doc.get("images", [])),
            "pivot": {"min_y": float(pos[:, 1].min()), "height": height}, "root_scale": root_scale(doc)}
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
+    out["atlas_kb"] = atlas_kb(doc)
     out.update(uv_report(uv, tri, out["image_size"], p, area))
+    # atlas pixels laid along the unit's height at the median texel density (report only)
+    out["texel_per_height"] = round(out["texel"]["median"] * height) if out["texel"] else None
     return out
 
 
@@ -216,7 +231,75 @@ def uv_report(uv, tri, size, p, area):
     return {"uv_out_of_range": int(((uv < -1e-4) | (uv > 1 + 1e-4)).any(1).sum()),
             "uv_overlap_pct": overlap, "atlas_used_pct": used,
             "texel": {"min": float(texel.min()), "max": float(texel.max()),
-                      "ratio": float(texel.max() / texel.min())} if len(texel) else None}
+                      "median": float(np.median(texel)), "ratio": float(texel.max() / texel.min())} if len(texel) else None}
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+IMPORT_SRC = ROOT / "tools/glb_import_check.cpp"
+
+
+def import_binary():
+    """The glb_import_check binary: $GLB_IMPORT_CHECK, the CMake one in build/, else compiled
+    once (about 1 s) with c++ + pkg-config raylib into the temp dir. None when none of those work."""
+    for cand in (os.environ.get("GLB_IMPORT_CHECK"), ROOT / "build/glb_import_check"):
+        if cand and pathlib.Path(cand).exists():
+            return pathlib.Path(cand)
+    out = pathlib.Path(tempfile.gettempdir()) / f"glb_import_check-{os.getuid()}"
+    if out.exists() and out.stat().st_mtime >= IMPORT_SRC.stat().st_mtime:
+        return out
+    if not (shutil.which("c++") and shutil.which("pkg-config")):
+        return None
+    flags = subprocess.run(["pkg-config", "--cflags", "--libs", "raylib"], capture_output=True, text=True)
+    if flags.returncode:
+        return None
+    gl = ["-framework", "OpenGL"] if sys.platform == "darwin" else []
+    build = subprocess.run(["c++", "-std=c++17", "-O1", str(IMPORT_SRC), *flags.stdout.split(), *gl, "-o", str(out)],
+                           capture_output=True)
+    return out if build.returncode == 0 else None
+
+
+def engine_import(glb):
+    """`ok meshes=N verts=V anims=A`, `error <msg>` or `n/a <why>`: the GLB through the game's own
+    loader (raylib LoadModel + LoadModelAnimations, tools/glb_import_check.cpp), headless."""
+    binary = import_binary()
+    if binary is None:
+        return "n/a (no glb_import_check: make glb-check, or install a C++ compiler and raylib)"
+    try:
+        run = subprocess.run([str(binary), str(glb)], capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return "error timeout"
+    line = run.stdout.strip().split("\t")[-1]
+    return line or f"n/a (loader exited {run.returncode} without output: no window?)"
+
+
+def mean_iou(sheet, glb, out, layout, rig):
+    """Mean silhouette IoU over the views silhouette.py scores for this GLB against the sheet."""
+    subprocess.run([sys.executable, str(ROOT / "tools/blender/silhouette.py"), str(sheet), str(glb), str(out),
+                    "--layout", layout, "--shape", "--rig", rig or ""], capture_output=True, text=True)
+    ious = [r["iou"] for r in json.loads((out / "silhouette.json").read_text()).values()]
+    return sum(ious) / len(ious)
+
+
+def decimate_loss(glb, sheet, work, layout="unit", rig=None, ratio=0.5):
+    """What the triangles buy (report only, PIPELINE §20.M10): Blender collapse-decimates the GLB to `ratio`,
+    both are measured against the sheet, and the mean IoU lost goes per 100 triangles removed.
+    {"tris": [before, after], "iou": [before, after], "lost_per_100_tris": float | None}; None
+    when the decimated GLB did not come out."""
+    work = pathlib.Path(work)
+    work.mkdir(parents=True, exist_ok=True)
+    small = work / "decimated.glb"
+    subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/decimate_glb.py"), "--", str(glb), str(small), str(ratio)],
+                   capture_output=True, text=True)
+    if not small.exists():
+        return None
+    tris = [lint_tris(g) for g in (glb, small)]
+    iou = [mean_iou(sheet, g, work / name, layout, rig) for g, name in ((glb, "sil-full"), (small, "sil-decimated"))]
+    removed = tris[0] - tris[1]
+    return {"tris": tris, "iou": iou, "lost_per_100_tris": 100 * (iou[0] - iou[1]) / removed if removed > 0 else None}
+
+
+def lint_tris(glb):
+    return len(geometry(*read_glb(pathlib.Path(glb)))[3])
 
 
 def failing(m, textured):
@@ -226,6 +309,16 @@ def failing(m, textured):
 
 
 if __name__ == "__main__":
-    import pathlib
-    for f in sys.argv[1:]:
-        print(json.dumps({f: lint(pathlib.Path(f))}))
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("glbs", nargs="+", type=pathlib.Path)
+    ap.add_argument("--decimate", type=pathlib.Path, metavar="SHEET", help="instead of the lint: IoU lost per 100 tris at 50 %% vs this sheet")
+    ap.add_argument("--layout", default="unit", choices=("unit", "building"))
+    ap.add_argument("--rig", default=None)
+    a = ap.parse_args()
+    for f in a.glbs:
+        if a.decimate:
+            with tempfile.TemporaryDirectory() as tmp:
+                print(json.dumps({str(f): decimate_loss(f, a.decimate, tmp, a.layout, a.rig)}))
+        else:
+            print(json.dumps({str(f): lint(f)}))

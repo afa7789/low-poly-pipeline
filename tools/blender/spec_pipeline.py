@@ -1350,6 +1350,9 @@ def main():
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
                          "variants/<k>/, kept) and go on with the one with the largest sum of "
                          "margins over the gates (default 1)")
+    ap.add_argument("--decimate", action="store_true",
+                    help="Readiness: decimate the clay 50 %% in Blender and report the IoU lost per 100 tris "
+                         "(report only, about 8 s; PIPELINE 20.M10)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -1470,6 +1473,17 @@ def status_of(verdict, summary, lint_bad):
     return "rejected" if front is not None and gate is not None and front < gate - 0.10 else "placeholder"
 
 
+def decimate_rows(args, shape):
+    """The `--decimate` row of the Readiness table: IoU lost per 100 triangles of the clay at 50 % (report only)."""
+    if not getattr(args, "decimate", False):
+        return []
+    r = mesh_lint.decimate_loss(shape["glb"], args.sheet, args.out / "decimate", layout_of(args.kind), args.rig)
+    if r is None or r["lost_per_100_tris"] is None:
+        return [("IoU lost per 100 tris (decimate 50 %)", "n/a", "-")]
+    return [("IoU lost per 100 tris (decimate 50 %)",
+             f"{r['lost_per_100_tris']:.4f} (tris {r['tris'][0]} -> {r['tris'][1]}, mean IoU {r['iou'][0]:.3f} -> {r['iou'][1]:.3f})", "-")]
+
+
 def readiness_section(args, shape, colour, verdict):
     """`## Readiness`: mesh_lint numbers (criterion | value | gate) and the status."""
     glb, textured = lint_target(args, shape, colour)
@@ -1488,9 +1502,11 @@ def readiness_section(args, shape, colour, verdict):
             ("uv out of range", m["uv_out_of_range"], "== 0" if textured else "-"),
             ("uv overlap / atlas used", f"{m['uv_overlap_pct']} % / {m['atlas_used_pct']} %", "-"),
             ("texel min / max (ratio)", tx and f"{tx['min']:.0f} / {tx['max']:.0f} ({tx['ratio']:.0f})" or "-", "-"),
+            ("atlas KB / texels per height", f"{m['atlas_kb'] or '-'} / {m['texel_per_height'] or '-'}", "-"),
+            ("engine import", mesh_lint.engine_import(glb), "-"),
             ("pivot min_y / height", f"{m['pivot']['min_y']:.3f} / {m['pivot']['height']:.2f}", "abs(min_y) <= 0.01 H"),
             ("root scale", m["root_scale"], "== 1")]
-    body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows)
+    body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows + decimate_rows(args, shape))
     return (f"## Readiness\n\n| criterion | value | gate |\n|---|---|---|\n{body}\n"
             f"lint gates failed: {', '.join(bad) or 'none'}\n\n"
             f"status: **{status_of(verdict, args.summary, bad)}**\n\n")

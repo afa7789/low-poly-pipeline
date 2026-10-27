@@ -3,6 +3,7 @@
 
     python3 tools/blender/compare_runs.py <out.png> <run_dir> [<run_dir> ...]
         [--against approved|hard] [--show textured|clay|wire|overlay|uv]
+    python3 tools/blender/compare_runs.py --stability <run_a> <run_b>     # noise between two equal runs
 
     e.g. compare_runs.py cmp.png runs/draft/n01X/hard-v1 runs/draft/n01X/v2-hard-r1 ...
 
@@ -21,6 +22,9 @@ Score of a run (Zhao 2026: 30 % time, 70 % quality), shown in its header and pri
     g     = IoU                          without zones (a stage 1 run)
           = 0.6 * IoU + 0.4 * zones      with zones
 Both f and g are absolute, in [0, 1]: a run's score does not depend on which runs sit beside it.
+--stability prints, for two runs meant to be equal (same unit, same recipe), the 3D Chamfer between their
+GLBs (5000 points sampled by face area on each, symmetric mean nearest distance, in % of the height of the
+first) and the |delta IoU| per view: the measurement noise any "run X beat run Y" claim has to clear.
 A run with no Timing section (older than 2026-10-27) or no silhouette numbers has no score.
 """
 import argparse
@@ -30,16 +34,19 @@ import re
 import sys
 import tempfile
 
+import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import make_compare as MC  # noqa: E402
+import mesh_lint  # noqa: E402
 
 SHOWS = ("textured", "clay", "wire", "overlay", "uv")
 T_MAX = 1200.0       # seconds; f(t) reaches 0 here
 ZONE_FULL = 0.5      # a zone mean of this counts as 1 (the hard-v1 sheets sit near 0.37)
 W_TIME, W_QUALITY = 0.3, 0.7
 W_IOU, W_ZONES = 0.6, 0.4
+STAB_POINTS = 5000   # surface samples per GLB for the 3D Chamfer
 
 
 def times_of(run_dir):
@@ -137,13 +144,58 @@ def build_sheet(runs, show):
     return MC.stack(rows)
 
 
+def sample_surface(glb, n=STAB_POINTS, seed=0):
+    """n points on the surface of the GLB, triangles picked by area, uniform inside each."""
+    doc, blob = mesh_lint.read_glb(glb)
+    pos, _, _, tri = mesh_lint.geometry(doc, blob)
+    p = pos[tri]
+    area = np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1)
+    rng = np.random.default_rng(seed)
+    t = p[rng.choice(len(tri), n, p=area / area.sum())]
+    u, v = rng.random((2, n, 1))
+    flip = u + v > 1
+    u, v = np.where(flip, 1 - u, u), np.where(flip, 1 - v, v)
+    return t[:, 0] + u * (t[:, 1] - t[:, 0]) + v * (t[:, 2] - t[:, 0]), float(np.ptp(pos[:, 1]))
+
+
+def chamfer_3d(glb_a, glb_b):
+    """(symmetric mean nearest-point distance, height of a) between two GLB surfaces."""
+    from scipy.spatial import cKDTree
+    a, height = sample_surface(glb_a)
+    b, _ = sample_surface(glb_b, seed=1)
+    return (cKDTree(b).query(a)[0].mean() + cKDTree(a).query(b)[0].mean()) / 2, height
+
+
+def run_glb(run_dir):
+    """clay.glb when the run has one (stage 1 shape), else model.glb."""
+    d = pathlib.Path(run_dir)
+    return next(f for f in (d / "clay.glb", d / "model.glb") if f.exists())
+
+
+def stability(run_a, run_b):
+    """Text report: Chamfer 3D (% of height) and |delta IoU| per view between two runs."""
+    ch, h = chamfer_3d(run_glb(run_a), run_glb(run_b))
+    iou = [json.loads((pathlib.Path(r) / "silhouette.json").read_text()).get("approved") or {} for r in (run_a, run_b)]
+    deltas = {v: abs(iou[0][v] - iou[1][v]) for v in iou[0] if v in iou[1]}
+    mean = sum(deltas.values()) / max(len(deltas), 1)
+    cells = "  ".join(f"{v} {d:.3f}" for v, d in deltas.items())
+    return (f"{pathlib.Path(run_a).parent.name}\t{pathlib.Path(run_a).name} vs {pathlib.Path(run_b).name}\t"
+            f"chamfer {100 * ch / h:.2f} % H\t|dIoU| mean {mean:.3f} max {max(deltas.values(), default=0):.3f}\t{cells}")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("out", type=pathlib.Path)
-    ap.add_argument("runs", nargs="+", type=pathlib.Path)
+    ap.add_argument("paths", nargs="+", type=pathlib.Path, help="out.png then runs; with --stability: the two runs")
+    ap.add_argument("--stability", action="store_true")
     ap.add_argument("--against", choices=("approved", "hard"), default="approved")
     ap.add_argument("--show", choices=SHOWS, default="textured")
     args = ap.parse_args()
+    if args.stability:
+        if len(args.paths) != 2:
+            ap.error("--stability takes exactly two run directories")
+        print(stability(*args.paths))
+        return
+    args.out, args.runs = args.paths[0], args.paths[1:]
     runs = [MC.load_run(r, args.against) for r in args.runs]
     build_sheet(runs, args.show).save(args.out)
     for r in sorted(runs, key=lambda r: -(score_of(r) or (-1,))[0]):

@@ -5,6 +5,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -91,8 +92,6 @@ class Status(unittest.TestCase):
                 self.assertEqual(SP.status_of(verdict, summary, bad), want)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class UvImage(unittest.TestCase):
@@ -105,3 +104,44 @@ class UvImage(unittest.TestCase):
         img = np.asarray(L.uv_image(run, scale=1))
         self.assertEqual(img.shape[2], 3)
         self.assertTrue(((img[..., 0] > 150) & (img[..., 1] < 80)).any())   # red = 2+ triangles
+
+
+class Protocol(unittest.TestCase):
+    """PIPELINE §20: atlas KB / texel per height, the engine import line, the 3D Chamfer."""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp())
+
+    def test_no_atlas_no_kb_and_committed_atlas_has_kb(self):
+        m = L.lint(glb(self.tmp / "a.glb"))
+        self.assertEqual((m["atlas_kb"], m["texel_per_height"]), (None, None))
+        run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
+        if run.exists():
+            m = L.lint(run)
+            self.assertGreater(m["atlas_kb"], 0)
+            self.assertGreater(m["texel_per_height"], 0)
+
+    def test_engine_import_lines(self):
+        fake = self.tmp / "fake.sh"
+        fake.write_text("#!/bin/sh\nprintf '%s\\t%s\\n' \"$1\" \"$FAKE_LINE\"\n")
+        fake.chmod(0o755)
+        for line in ("ok meshes=1 verts=8 anims=0", "error FILEIO: Failed to open file"):
+            with self.subTest(line=line), mock.patch.dict("os.environ", {"GLB_IMPORT_CHECK": str(fake), "FAKE_LINE": line}):
+                self.assertEqual(L.engine_import(self.tmp / "x.glb"), line)
+        with mock.patch.object(L, "import_binary", return_value=None):
+            self.assertTrue(L.engine_import(self.tmp / "x.glb").startswith("n/a"))
+
+    def test_chamfer_3d(self):
+        try:
+            import compare_runs as CR
+        except ImportError:
+            self.skipTest("Pillow missing")
+        a = glb(self.tmp / "a.glb")
+        same, height = CR.chamfer_3d(a, a)
+        self.assertEqual(height, 1.0)
+        self.assertLess(same, 0.02)        # two samplings of one surface
+        self.assertGreater(CR.chamfer_3d(a, glb(self.tmp / "b.glb", lift=0.5))[0], 0.1)
+
+
+if __name__ == "__main__":
+    unittest.main()
