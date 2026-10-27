@@ -173,11 +173,20 @@ def build_textured(spec, glb_clay, args, glb, work):
     path.write_text(json.dumps(spec, indent=2))
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
-        *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
+        *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work),
+        *shared_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
     return glb.exists()
+
+
+def shared_args(args):
+    """["shared=<race table>"] for `--atlas shared` on a cel build: the race's 64 px gradient atlas
+    (shared_atlas.py, PIPELINE 24.L6-11) instead of the unit's own."""
+    if getattr(args, "atlas", "own") != "shared" or args.texture != "cel":
+        return []
+    return [f"shared={pathlib.Path(args.atlas_dir) / (args.race.lower() + '.json')}"]
 
 
 def face_args(spec, args, work):

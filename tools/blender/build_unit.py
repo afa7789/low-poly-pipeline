@@ -44,6 +44,7 @@ STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_c
 CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal or glow: the shape alone
 CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
+SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -1299,6 +1300,57 @@ def paint_slot(SF, base, size):
     return SF.paint_cel(surface, rgb, size) if RAMP is None else SF.paint_cel(surface, rgb, size, slope=RAMP)
 
 
+def arg_value(rest, name):
+    """The text after `name` of the first command-line argument that starts with it, else None."""
+    return next((a[len(name):] for a in rest if a.startswith(name)), None)
+
+
+def shared_uvs(body, meta, columns):
+    """UVs for the shared gradient atlas: u = the face material's column, v = the row of its tone
+    (TONE_V of its normal) plus RAMP x (the loop's height in its part - .5): a continuous vertical
+    gradient across the face, 0 = the flat cel tone. Decals are not drawn."""
+    SF, SA = sibling("surfaces"), sibling("shared_atlas")
+    mesh, world = body.data, body.matrix_world
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    if mesh.uv_layers.active is None:
+        mesh.uv_layers.active = mesh.uv_layers[0]
+    uvs = mesh.uv_layers.active.data
+    slope = SF.RAMP_SLOPE if RAMP is None else RAMP
+    slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
+    turn = world.to_3x3()
+    for poly in mesh.polygons:
+        u = (columns[slot_base[poly.material_index]] + 0.5) / SA.SIZE
+        tone_v = SF.TONE_V[SF.tone_index((turn @ poly.normal).normalized().z)]
+        for li in poly.loop_indices:
+            height = relative_height(meta, world @ mesh.vertices[mesh.loops[li].vertex_index].co) if slope else 0.5
+            v = min(1.0, max(0.0, tone_v + slope * (height - 0.5)))
+            uvs[li].uv = (u, (v * (SA.SIZE - 1) + 0.5) / SA.SIZE)
+
+
+def texturize_shared(body, meta):
+    """The race-wide 64 x 64 atlas (shared_atlas.py) instead of a per-unit one: columns of the table
+    at SHARED, extended with this unit's slots. Returns the slot count, 0 when the table is full (the
+    unit then gets its own atlas, with a line saying so)."""
+    import numpy as np
+    SA = sibling("shared_atlas")
+    bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
+    keys = {b: SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")) for b in bases}
+    try:
+        table = SA.extend(SHARED, keys.values())
+    except ValueError as err:
+        print(f"{err}: own atlas instead")
+        return 0
+    shared_uvs(body, meta, {b: table.index(k) for b, k in keys.items()})
+    pixels = np.ones((SA.SIZE, SA.SIZE, 4))
+    pixels[..., :3] = SA.image(table)
+    img = bpy.data.images.new("tex_atlas", width=SA.SIZE, height=SA.SIZE, alpha=False)
+    img.pixels.foreach_set(pixels.astype(np.float32).ravel())
+    bind_atlas(body, img)
+    print(f"shared atlas: {len(table)} columns used of {SA.SIZE}, {len(DECALS)} decals not drawn")
+    return len(bases)
+
+
 def texturize(body, meta, size=256):
     """One painted atlas per unit. Each material slot gets a size x size block of the
     atlas, painted by its surface (surfaces.py: metal plates, skin, cloth, scales...)
@@ -1308,6 +1360,10 @@ def texturize(body, meta, size=256):
     sample the same image, so the GLB carries one texture."""
     import numpy as np
     SF = sibling("surfaces")
+    if SHARED and STYLE == "cel":
+        done = texturize_shared(body, meta)
+        if done:
+            return done
     bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
     cols, rows = SF.atlas_layout(len(bases))
     block = {b: (i % cols, i // cols) for i, b in enumerate(bases)}
@@ -1651,7 +1707,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP
+    global STYLE, CLAY, FACE, RAMP, SHARED
     CLAY = "clay" in rest
     global PROPID, NOUNION
     PROPID = "propid" in rest
@@ -1670,6 +1726,7 @@ def main():
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+    SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours
     unit, spec, rest_pose = load_spec(target)

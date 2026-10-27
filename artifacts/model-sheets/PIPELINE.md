@@ -3009,3 +3009,33 @@ por unidade `<id>/wire-{deformed,aligned}/`):
 - Testes: `tests/tools/blender/test_align_features.py` (arestas vivas, visibilidade, puxão com teto e sola, sem desenho nada
   se mexe, `apply` só com as chaves). Ruff: sem achados novos.
 - Papers: Chen 2023 §4 (alinhamento de features), Sketch2Mesh 2021 (Chamfer de arestas internas com distance transform).
+
+### 24.L6-11 Le/MeshGPT na malha unida: rampa por altura, faces escondidas, atlas partilhado (2026-10-27) - rampa e `cull` NEGATIVOS (ficam desligados); `--atlas shared` opt-in
+
+Rebuild textured (`--texture cel`) e clay de `runs/draft/{n01X,n005,n02X,hfoo}/v9-r1/spec.json` sobre a malha UNIDA (`UNION_BODY`, 630 tris), sem LLM; juiz pareado `review_pair.py` (session:opus, 4 votos) em cópias. Provas: `scratchpad/leva6-texture/` (`drive.py`, `clay.py`, `anim_shots.py`, `pair/`); imagens em `artifacts/model-sheets/leva6-texture/`.
+
+**(a) `ramp` (v = normal + altura) sobre a malha unida: NEGATIVO, `RAMP_SLOPE` fica 0.** Média das zonas de cor nas 5 vistas (`colour_stage`, tilts do estágio 1) com `ramp` 0 / 0.5 / 1.0:
+
+| id | zonas 0 | 0.5 | 1.0 | luma L1 0 / 0.5 / 1.0 |
+|---|---|---|---|---|
+| n01X | .212 | .188 (back .41 -> .27) | .208 | .044 / .037 / .049 |
+| n005 | .519 | .530 | .540 | .054 / .048 / .048 |
+| n02X | .304 | .280 | .276 | .069 / .087 / .125 |
+| hfoo | .196 | .204 | .197 | .054 / .067 / .069 |
+
+  Pareado (A = ramp 0, B = rampa; por eixo sheet/artist/wc3/form, só vitórias de 3-1 ou mais): ramp 0.5 B ganha 4 eixos (n01X sheet, n005 form, n02X artist e wc3), A ganha 4 (n01X, n005 e hfoo artist; hfoo wc3), o resto empata; ramp 1.0 B ganha 2 (sheet em n01X e n005), A ganha 7 (n005 artist e form; n02X sheet e artist; hfoo sheet, artist, wc3). Zonas caem em n01X e n02X e o juiz não prefere: regra do brief (preferir E zonas não caírem) não vale. Causa visível (`ramp-n01X.png`, `ramp-n02X.png`): cada triângulo da casca decimada cai num slot de rampa por `relative_height` do centro, então uma face plana grande vira dois triângulos de tons diferentes (manchas diagonais). **Rampa contínua** (v por vértice, só no atlas partilhado, ver (c)): `ramp 0.5` empata em 3 de 4 (viés de posição), n02X a favor (3-1 em 3 eixos), mas as zonas caem em n005 (.562 -> .502), n02X (.306 -> .270), hfoo (.196 -> .187), n01X +.004: também fica desligada (`ramp=` continua opt-in no CLI do build). Edge glow no chanfro: a união não chanfra por caixa (`plan_chamfers` fica vazio), só as faces com 3 componentes de normal > .3 (arestas sharp 35°) pegam o topo da rampa; sem ganho mensurável separado.
+
+**(b) `cull=remove` depois da união: NEGATIVO, fica opt-in (`--cull`).** Tris visíveis / total em 12 vistas, join -> união: n01X 594/684 (87 %) -> 615/630 (98 %); n005 593/716 (83 %) -> 611/630 (97 %); n02X 626/736 (85 %) -> 586/630 (93 %); hfoo 557/604 (92 %) -> 581/630 (92 %). A união já come os escondidos (90/118/110/47 -> 15/19/44/49 tris). Remover o que sobra: IoU das 6 vistas idêntico (delta 0.000 nos 4: `silhouette.py` clay `cull` vs `cull=remove`), zonas idênticas, UV/skin intactos (1 imagem, `uv_out_of_range` 0, engine import ok). Animação (`anim_shots.py`: 7 clipes x 5 quadros x 4 câmeras = 140 imagens por unidade, máscara alfa e cor): walk quase igual (<= 55 px de 65k diferentes), mas **rasga** em outros clipes: n005 death/spell/attack3 (IoU da máscara min .968, fresta visível em `n005-death4.png`), hfoo spell/idle/attack (até 193 px), n02X <= 88 px, n01X <= 4 px. A face "nunca vista" no rest pode ser a de dentro de um membro que gira. Ganho: 15-49 tris (2-7 %) contra rasgo nos clipes: não liga. Mudança: `colour_stage.build_textured` passa `cull=remove` quando `--cull` (antes o GLB final da cor reconstruía sem o cull do estágio 1: clay e textured divergiam). Upgrade: ver as faces também nas poses extremas dos clipes (armature avaliada) antes de remover.
+
+**(c) `--atlas shared`: atlas de rampas de 1 px por coluna por raça (Le), opt-in.** `tools/blender/shared_atlas.py` + `build_unit.texturize_shared` (argumento `shared=<tabela.json>`; `spec_pipeline --atlas shared [--atlas-dir]`, tabela `<dir>/<raça>.json`, padrão `artifacts/model-sheets/atlas/`): uma imagem **64 x 64** por raça, coluna i = um slot da paleta (cor + superfície), rampa vertical dos tons escuro/médio/claro (`surfaces.ramp_column`, mesma interpolação dos `CEL_TONES`); a face mapeia para a coluna do material e a linha do tom (`TONE_V`), v por vértice mais `ramp` x (altura - .5) quando `ramp` > 0. A tabela só cresce (coluna nunca muda: modelo antigo segue válido); passou de 64, a unidade volta ao atlas próprio com aviso. Sem decais (olhos, rosto do sheet) e sem linha de tinta: é o preço.
+
+| id | atlas próprio | partilhado | verts | engine import (`mesh_lint.engine_import`) |
+|---|---|---|---|---|
+| n01X | 768x512, 9.9 KB | 64x64, 0.7 KB | 1757 -> 1020 | ok meshes=5 anims=7 |
+| n005 | 768x768, 86.0 KB | 64x64, 0.8 KB | 1554 -> 932 | ok meshes=6 anims=7 |
+| n02X | 768x768, 65.7 KB | 64x64, 0.8 KB | 1696 -> 1024 | ok meshes=7 anims=7 |
+| hfoo | 768x768, 88.1 KB | 64x64, 1.1 KB | 1676 -> 932 | ok meshes=7 anims=7 |
+
+  n005 e hfoo (Human) saem com a MESMA imagem (sha1 `96a9c695ff`, 12 colunas de 64); a do n005 construída antes do hfoo tinha só 6 colunas: reconstruir as unidades da raça com a tabela final antes de exportar. Zonas (média 5 vistas) próprio -> partilhado: n01X .212 -> .178, n005 .519 -> .562, n02X .304 -> .306, hfoo .196 -> .196. Pareado (A = próprio, B = partilhado): sheet A (4-0, 4-0, 3-1; n02X empate): o sheet tem os olhos/placas que o partilhado não pinta; artist/wc3/form B em n02X e hfoo (4-0 nos três), n01X wc3 e form B 3-1, n005 form B 4-0 mas artist A 3-1 (superfície mais limpa, sem as linhas de tinta). `shared-n005.png`, `shared-n02X.png` (linhas: próprio, partilhado, partilhado ramp 0.5).
+
+- **Piorou:** decais e tinta somem no partilhado (por isso opt-in e não default); a rampa por face e o `cull` não ligam. **Fora:** quantizar cores quase iguais numa só coluna (ΔE) quando a tabela da raça passar de 64, e colocar os decais num segundo atlas partilhado (hoje `images == 1` é gate); add quando uma raça encher a tabela.
