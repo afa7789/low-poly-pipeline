@@ -1546,8 +1546,6 @@ colapsa arestas sem olhar o sheet, e a IoU só vê o contorno (o que some dentro
 Arquivos da prova: `scratchpad/leva2-s5/{n01X,n005,n00U}/review.md` (Readiness com as linhas novas), `*.log`.
 
 
-## 20. Leva 2 (2026-10-27)
-
 ### 20.S4 `review_pair.py`: review pareado de visão (2026-10-27)
 
 **O que mudou.** `tools/blender/review_pair.py <runA> <runB> --id <unit>`: por voto, uma imagem de 2 linhas (front, rts) com 3

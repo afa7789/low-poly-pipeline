@@ -1475,9 +1475,10 @@ def main():
     ap.add_argument("--cull", action="store_true",
                     help="stage 1 build deletes the faces no view sees (cull.py, PIPELINE 20.M8); "
                          "visible/total tris are always reported")
-    ap.add_argument("--fit", action="store_true",
-                    help="after repair/passes and before the final build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
-                         "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
+    ap.add_argument("--fit", dest="fit", action="store_true", default=True,
+                    help="(default) after repair/passes and before the final build, fit dims/at to the "
+                         "sheet's silhouettes (fit_spec.py, PIPELINE 19.D1, 20.N12)")
+    ap.add_argument("--no-fit", dest="fit", action="store_false", help="skip the numeric fit")
     ap.add_argument("--variants", type=int, default=1,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
                          "variants/<k>/, kept) and go on with the one with the largest sum of "
