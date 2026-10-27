@@ -84,27 +84,43 @@ class Cel(unittest.TestCase):
         for nz, want in ((1.0, 0), (0.6, 0), (0.0, 1), (-0.3, 1), (-0.5, 2), (-1.0, 2)):
             self.assertEqual(SF.tone_index(nz), want, nz)
 
-    def test_cells_are_flat_light_mid_dark(self):
-        rgb = (0.4, 0.4, 0.4)
-        img = SF.paint_cel("metal", rgb, 64)
-        cell = 16
-        tones = [img[c // 4 * cell + 2:(c // 4 + 1) * cell - 2, c % 4 * cell + 2:(c % 4 + 1) * cell - 2]
-                 for c in range(3)]                                 # inside the ink border
-        for t in tones:
-            self.assertAlmostEqual(float(t.std()), 0.0)             # no pattern, no gloss inside a cell
-        lit, mid, dark = (float(t[0, 0, 0]) for t in tones)
-        self.assertGreater(lit, mid)
-        self.assertGreater(mid, dark)
-        self.assertAlmostEqual(mid, 0.4)                      # the sheet colour is the side tone
+    def test_cells_are_ramps_with_the_tone_at_the_typical_height(self):
+        img = SF.paint_cel("metal", (0.4, 0.4, 0.4), 256, slope=0.5)     # 64-px cells, 8-px slots
+        slot = 64 // SF.RAMP_SLOTS
+        for c, v0 in enumerate(SF.TONE_V):
+            col = 4 + (c % 4) * 64
+            rows = [float(img[(c // 4) * 64 + j * slot + 4, col, 0]) for j in range(SF.RAMP_SLOTS)]
+            self.assertEqual(rows, sorted(rows), c)                      # dark at the bottom, light on top
+            self.assertAlmostEqual(rows[min(int(v0 * SF.RAMP_SLOTS), SF.RAMP_SLOTS - 1)], 0.4 * SF.CEL_TONES[c], delta=0.4 * 0.07)
+            self.assertAlmostEqual(float(img[(c // 4) * 64 + 4, col + 20, 0]), rows[0])   # flat along u
 
-    def test_cell_border_is_ink_but_glow_has_none(self):
-        img = SF.paint_cel("metal", (0.4,) * 3, 256)             # 64-px cells: 2-px border
-        mid = img[64 + 8, 64 + 8]                                 # cell 5, inside
-        for y, x in ((64, 64 + 8), (64 + 63, 64 + 8), (64 + 8, 64 + 1), (64 + 8, 64 + 62)):
-            self.assertAlmostEqual(float(img[y, x][0] / mid[0]), SF.INK)
-        self.assertGreater(float(img[64 + 2, 64 + 2][0]), SF.INK * float(mid[0]))     # past the border
+    def test_default_cells_are_flat(self):
+        img = SF.paint_cel("metal", (0.4,) * 3, 256)
+        inside = img[4:60, 4:60, 0]                               # cell 0, clear of the ink rows
+        slot = 64 // SF.RAMP_SLOTS
+        self.assertAlmostEqual(float(inside[slot * 2, 20]), float(inside[slot * 6, 20]))
+
+    def test_ramp_slope_is_the_measured_width_over_the_tone_and_capped(self):
+        self.assertAlmostEqual(SF.ramp_slope((0.4, 0.5), (0.5, 0.5, 0.5)), 0.2)
+        self.assertEqual(SF.ramp_slope((0.5, 0.5), (0.5, 0.5, 0.5)), 0.0)
+        self.assertEqual(SF.ramp_slope((0.0, 1.0), (0.5, 0.5, 0.5)), SF.RAMP_MAX)
+
+    def test_slot_border_is_ink_but_glow_has_none(self):
+        img = SF.paint_cel("metal", (0.4,) * 3, 256)             # 8-px slots in 64-px cells: 1-px ink on all sides
+        mid = float(img[64 + 12, 64 + 8][0])                      # cell 5, slot 1, inside
+        for y, x in ((64 + 8, 64 + 8), (64 + 15, 64 + 8), (64 + 12, 64 + 1), (64 + 12, 64 + 62)):
+            self.assertAlmostEqual(float(img[y, x][0] / mid), SF.INK, delta=0.02)
         glow = SF.paint_cel("glow", (0.5,) * 3, 256)
         self.assertEqual(float(glow[0, 0, 0]), float(glow[8, 8, 0]))
+
+    def test_ramp_slot_follows_normal_and_height_and_chamfers_take_the_top(self):
+        self.assertEqual(SF.ramp_slot(1.0, 1.0), SF.RAMP_SLOTS - 1)
+        self.assertEqual(SF.ramp_slot(-1.0, 0.0), 0)
+        self.assertLess(SF.ramp_slot(0.0, 0.1), SF.ramp_slot(0.0, 0.9))
+        self.assertEqual(SF.ramp_slot(-1.0, 0.0, chamfer=True), SF.RAMP_SLOTS - 1)
+        # the face's v range stays inside its slot, so its sampled texels are that slot's
+        lo, hi = SF.slot_v(3, 0.0), SF.slot_v(3, 1.0)
+        self.assertTrue(3 / SF.RAMP_SLOTS < lo < hi < 4 / SF.RAMP_SLOTS)
 
     def test_glow_stays_one_tone_and_wet_tops_are_lighter(self):
         glow = SF.paint_cel("glow", (0.5, 0.5, 0.5), 64)

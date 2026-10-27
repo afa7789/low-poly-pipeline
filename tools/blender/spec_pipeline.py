@@ -1111,6 +1111,8 @@ def main():
                     help="stage 2 texture: cel = flat tone per face like the hard sheet (default); "
                          "painted = the older painted gloss and pattern; sheet = the concept's "
                          "panels projected on the model")
+    ap.add_argument("--ramp", action="store_true",
+                    help="stage 2 cel: each palette slot ramps from dark to light as far as its sheet zone does")
     ap.add_argument("--shape-only", action="store_true",
                     help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
     ap.add_argument("--colour-pass", type=int, default=0,

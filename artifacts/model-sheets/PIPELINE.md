@@ -1131,3 +1131,52 @@ Both are stage 2 (colour); the shape is untouched.
   `scratchpad/t2/zoom-n005.png` (before | ink | ink + sheet face) and `zoom-n01X.png`. Zones mean
   front/left/back, n005 .531/.561/.586 -> .533/.581/.585; n01X .373/.372/.424 -> .38/.38/.42 (full
   pipeline, stage 1 and 2 PASS). The line is subtle on dark palettes (n005) and clear on n01X.
+
+## 19. Papers (2026-10-27)
+
+### 19.C1 Rampa vertical nas células do cel, filtro point (2026-10-27)
+
+Paper: Le 2026 (gradient texturing: rampa escuro-claro, ilha esticada, chanfro no topo, point filter).
+- `surfaces.paint_cel`: cada célula de tom (claro/médio/escuro) é uma rampa vertical de `RAMP_SLOTS` = 8 faixas planas de
+  8 px (atlas 256), com ink line de 1 px em volta de cada faixa (`slot_v` mapeia a face em 80 % da faixa: a linha cobre ~3 % da face,
+  como antes). Uma face ocupa UMA faixa, então continua chapada e com linha nos 4 lados. `ramp_slot(nz, altura, chanfro)`:
+  v = 0.6·(0.5+0.5·nz) + 0.4·altura relativa na peça (`build_unit.relative_height`, centro da face no bbox da peça mais próxima);
+  face de chanfro (3 componentes da normal > 0.3) = topo da rampa.
+- `bind_atlas`: `interpolation = "Closest"` (sampler NEAREST no glTF) quando o estilo é cel. Os outros estilos seguem linear
+  (cell painted tem padrão, ponto não ajuda). A margem de célula do cel já era 1 %; a das decais (4 %) ficou, não há ganho.
+- Inclinação `RAMP_SLOPE` (variação de tom ao longo da rampa, fração do tom) calibrada para ser neutra em luma numa caixa:
+  `TONE_V` = (1, .5, 0) = v de uma face de topo/lado/fundo de um cubo (altura 1/.5/0).
+- **Medida** (n01X hard-v1, n005 v4-oneshot-r1, cel, câmeras do estágio 1; luma = luma média do render / do sheet; zonas
+  mean front/left/back/top/bottom), antes -> rampa 0.5 (`ramp=0.5`):
+  n01X zonas .41/.39/.48/.32/.19 -> .29/.40/.47/.29/.20 (o front cai .41 -> .29; com 0.1 e 0.2 o mesmo .30), luma 1.04/1.03/1.05/1.07/1.03 -> 1.03/1.05/1.03/1.04/1.06.
+  n005 zonas .51/.56/.60/.44/.49 -> .51/.56/.59/.44/.37 (bottom .49 -> .37), luma .90/.91/.87/.96/.72 -> .89/.93/.89/.93/.74.
+  A rampa mexe a luz por face e o k-means do sheet é quase plano: uma região na fronteira de duas zonas muda de rótulo.
+  O top sobe (n01X .32 -> .35 com 0.2), mas as outras vistas caem: **o zone mean não se sustenta, então `RAMP_SLOPE = 0` é o default**:
+  o cel sai plano como antes (as faixas, o ink por faixa e o point filter ficam; n01X mean/cover front .4137/.833 contra .4145/.836 antes).
+  Ligar: `build_unit.py ... ramp=0.5` (e C2 abaixo).
+- O que piorou/ficou: com o default, luma n005 front/left/back/bottom -0.01 (a linha de tinta agora cai em 1 texel inteiro, sem blur);
+  n01X +-0.00. Look: em modelos de caixas, só peças rotacionadas mudam de faixa (lado de caixa = v .5 sempre), então a rampa quase
+  não aparece onde as faces são axiais; `compare` antes | default | ramp 0.5 em `scratchpad/papers-c12/c1-compare-{n01X,n005}.png`.
+- Testes: `test_surfaces.Cel` (rampa monótona e flat ao longo de u, tom exato em `TONE_V`, ink por faixa, `ramp_slot`, default plano).
+
+### 19.C2 Rampa medida do sheet, L1 de luma por zona, Oklab (2026-10-27)
+
+Papers: Le 2026 (a rampa da arte), Wiersma 2026 (cor em Oklab).
+- `silhouette.zone_palette` devolve `(names, centres, ramps)`, `ramps[i] = (p10, p90)` de luma dos pixels da zona no sheet.
+  `colour_stage.with_ramps(spec, sheet)` põe `palette[slot]["ramp"] = [p10, p90]` na zona de cor mais próxima da cor do slot;
+  `colour_stage.valid_ramp`/`check_palette` aceitam o campo (`0 <= p10 <= p90 <= 1`; o pass de cor pode carregá-lo).
+  `build_unit.register_palette` lê `ramp`; `surfaces.ramp_slope(ramp, rgb)` = largura / luma do slot, no máximo `RAMP_MAX` = 0.6, vira a
+  inclinação da célula daquele material. Ligar: `spec_pipeline --ramp` (só `--texture cel`). **Default desligado**.
+- Métrica nova `luma_l1` (silhouette, por vista): L1 entre os quantis p10/p50/p90 de luma do render e do sheet por zona, pesado
+  pela área da zona no sheet, medido sobre o render ANTES do `match_luma`; linha "luma L1 vs sheet" no review (estágio 2).
+  Valor de referência n01X hard-v1 cel plano: .029/.031/.024/.046/.043 (front/left/back/top/bottom).
+- Medida da rampa do sheet nos 7 v2-hard-r2 (cel, 35 vistas, tilt do sweep): zone mean .2792 -> .2784, cover .606 -> .599,
+  luma L1 .0429 -> .0454. Não melhora (as rampas medidas são estreitas, p10-p90 ~.04 de luma = inclinação ~.1, e o front do n01X
+  cai de novo: .41 -> .30; n005 igual, .507/.559/.596/.441/.490). Nos dois alvos nomeados o L1 do n01X piora (front .029 -> .035).
+  **Fica opt-in.**
+- `zone_feature` em Oklab (`oklab`, `zone_feature_oklab`, a/b x 3, L x 0.35): nos 7 v2-hard-r2, cel plano, mean .2792 -> .2929
+  (diferença pareada +.0137, t = 2.15, 23 de 35 vistas melhoram), std entre vistas .1067 -> .1044, cover .606 -> .610. O ganho vem quase todo de
+  n00U (+.059) e hfoo (+.026); sem o n00U ~ +.007. n01X front .356 -> .346, cover mínimo de hfoo left .302 -> .276, abaixo do piso 0.30 do gate
+  (calibrado no espaço antigo). Variância não melhora o bastante e o gate recalibrado seria outro trabalho: **o antigo é o default**;
+  `silhouette.py --space oklab` mede no novo (`ZONE_SPACE`).
+- Testes: `test_silhouette.ZoneRamp` (Oklab contra os valores de Ottosson, `luma_l1`), `test_colour_stage.Ramp`, `test_surfaces.Cel.test_ramp_slope...`.
