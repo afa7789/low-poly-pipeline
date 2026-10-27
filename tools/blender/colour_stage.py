@@ -28,6 +28,7 @@ import sys
 import cut_hull
 import align_features
 import deform_to_sheet
+import optimize_verts
 import silhouette as SIL
 from preflight import BUDGETS, is_prop, load_props, misplaced_decals
 from surfaces import DECALS, SURFACES
@@ -178,6 +179,7 @@ def build_textured(spec, glb_clay, args, glb, work):
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
+        optimize_verts.apply(glb, args)
     return glb.exists()
 
 

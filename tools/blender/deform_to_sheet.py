@@ -167,13 +167,14 @@ def solve(lap, target, a, b):
     return np.stack([spsolve(system, a * target[:, k]) for k in range(target.shape[1])], 1)
 
 
-def pull(concept, model_mask, xy):
-    """Canvas displacement of each vertex toward the sheet's outline, 0 off the model's contour."""
+def pull(concept, model_mask, xy, nearest=None):
+    """Canvas displacement of each vertex toward the sheet's outline, 0 off the model's contour. `nearest` =
+    (iy, ix) of the outline pixel nearest to every pixel, when the caller keeps it (it only depends on `concept`)."""
     ch, cw = model_mask.shape
     on = boundary(model_mask)
     px = np.clip(np.floor(xy).astype(int), 0, [cw - 1, ch - 1])
     near = ndimage.distance_transform_edt(~on)[px[:, 1], px[:, 0]] <= CONTOUR_PX
-    iy, ix = ndimage.distance_transform_edt(~boundary(concept), return_indices=True)[1]
+    iy, ix = ndimage.distance_transform_edt(~boundary(concept), return_indices=True)[1] if nearest is None else nearest
     goal = np.stack([ix[px[:, 1], px[:, 0]], iy[px[:, 1], px[:, 0]]], 1) + 0.5
     move = goal - xy
     near &= np.linalg.norm(move, axis=1) <= REACH * S.CANVAS_H
@@ -398,9 +399,16 @@ def sheet_panels(sheet, views, layout="unit"):
     return {v: p for v, p in panels.items() if v in views or v in S_TILTED}
 
 
-def transform(glb, out, fn):
+def transform(glb, out, fn, suffix=".deform.json"):
     """Read `glb`, give `fn(welded Z-up positions, triangles, welded Z-up normals)` -> (new positions, report),
     write `out` with the new positions / normals; returns the report. Shared with align_features.py."""
+    return rewrite(glb, out, lambda uniq, tri, nor, file: fn(uniq, tri, nor), suffix)
+
+
+def rewrite(glb, out, change, suffix=".deform.json"):
+    """Write `out` = `glb` with the welded Z-up positions replaced by change(uniq, tri, normals, file) -> (new uniq,
+    report), `file` = (welded index of each file vertex, the file's triangles); the report goes beside it as
+    <out><suffix>. Shared with optimize_verts.py (PIPELINE 24.L6-7)."""
     data, doc, base = read(glb)
     parts, tri_all = geometry(data, doc, base)
     old = np.vstack([p for p, _, _ in parts]).astype(np.float64)
@@ -409,20 +417,19 @@ def transform(glb, out, fn):
     uniq, inv = weld(zpos)
     tri = inv[tri_all]
     tri = tri[(tri[:, 0] != tri[:, 1]) & (tri[:, 1] != tri[:, 2]) & (tri[:, 0] != tri[:, 2])]
-    new_uniq, report = fn(uniq, tri, welded_normals(to_z_up(old_nor), inv, len(uniq)))
+    new_uniq, report = change(uniq, tri, welded_normals(to_z_up(old_nor), inv, len(uniq)), (inv, tri_all))
     new = from_z_up(new_uniq[inv]).astype(np.float32).astype(np.float64)     # what the file will hold
     nor = new_normals(new, old_nor, tri_all)
     write(data, doc, base, parts, new, nor, unflip(new, nor, tri_all))
     pathlib.Path(out).write_bytes(repack(data, doc, base))
+    pathlib.Path(out).with_suffix(suffix).write_text(json.dumps(report, indent=2))
     return report
 
 
 def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit"):
     """Deform `glb` onto the sheet and write `out`; returns the report (before / after per view, slivers)."""
     panels = sheet_panels(sheet, views, layout)
-    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor))
-    pathlib.Path(out).with_suffix(".deform.json").write_text(json.dumps(report, indent=2))
-    return report
+    return transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor))
 
 
 def apply(glb, args):
