@@ -261,10 +261,11 @@ def to_px(o, canvas):
     return np.stack([(o[:, 0] - lo[0]) * s + x0, (hi[1] - o[:, 1]) * s + y0], 1)
 
 
-def raster(outlines):
+def raster(outlines, canvas=None):
     """Fill the outlines (model units, +v up) into the 256 x 384 canvas the way
-    silhouette.normalize lays a figure out. Returns (mask, [(first row, last row) per outline])."""
-    canvas = canvas_of(outlines)
+    silhouette.normalize lays a figure out (`canvas`: canvas_of() of the whole figure, when these are only some
+    of its parts). Returns (mask, [(first row, last row) per outline])."""
+    canvas = canvas or canvas_of(outlines)
     img = Image.new("L", (silhouette.CANVAS_W, silhouette.CANVAS_H), 0)
     draw, rows = ImageDraw.Draw(img), []
     for o in outlines:
@@ -374,10 +375,23 @@ class Proxy:
 
     def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None):
         self.concept, self.views, self.cams, self.zones, self.hard = concept, views, cams or {}, zones, hard
+        self.split = {}             # {view: (body mask, prop mask, body edge, its distance map)}: set_split
         self.partfit = partfit      # parts_fit.PartTerms: part masks and depth pairs (L5-4)
         # the concept's contour and its distance map never change: silhouette.chamfer, halved
         self.edge = {v: edge_of(m) for v, m in concept.items()}
         self.dist = {v: distance_transform_edt(~e) for v, e in self.edge.items()}
+
+    def set_split(self, sheet):
+        """Score the non-prop parts against the sheet's body mask and the props against theirs, in the views
+        parts.json has prop boxes for (silhouette.prop_masks, PIPELINE 25.L7-5): a spear the model lacks stops
+        pulling the legs toward it. The other views, and the gates' ious(), keep the whole silhouette."""
+        panels = silhouette.concept_panels(sheet)
+        for v in self.views:
+            props = silhouette.prop_masks(sheet, v, panels=panels) if v in panels else {}
+            if props:
+                union = np.any(list(props.values()), axis=0) & self.concept[v]
+                body = self.concept[v] & ~union
+                self.split[v] = (body, union, edge_of(body), distance_transform_edt(~edge_of(body)))
 
     def hulls(self, world, views=None):
         """{view: outline} of one part's world points, plus "near": {view: nearness to that camera} (L5-4)."""
@@ -397,21 +411,40 @@ class Proxy:
         """{view: (mask, row span per part)}"""
         return {v: raster(o) for v, o in self.outlines(parts, cache).items()}
 
-    def best_variant(self, view, mask):
+    def best_variant(self, view, mask, concept=None):
         """(mask, IoU, flipped): the better of the mask and its mirror, like silhouette.variants."""
         options = silhouette.variants(mask, view)
-        scores = [silhouette.iou(self.concept[view], m) for m in options]
+        scores = [silhouette.iou(self.concept[view] if concept is None else concept, m) for m in options]
         k = int(np.argmax(scores))
         return options[k], scores[k], k == 1
 
-    def view_score(self, view, mask):
-        """(IoU, chamfer, flipped) against the concept."""
-        best, score, flipped = self.best_variant(view, mask)
+    def view_score(self, view, mask, split=None):
+        """(IoU, chamfer, flipped) against the concept (`split`: self.split[view], against its body mask)."""
+        concept, edge_c, dist = (self.concept[view], self.edge[view], self.dist[view]) if split is None \
+            else (split[0], split[2], split[3])
+        best, score, flipped = self.best_variant(view, mask, concept)
         if not best.any():
             return 0.0, 1.0, False
         edge = edge_of(best)
-        chamfer = (self.dist[view][edge].mean() + distance_transform_edt(~edge)[self.edge[view]].mean()) / 2
+        chamfer = (dist[edge].mean() + distance_transform_edt(~edge)[edge_c].mean()) / 2
         return score, float(chamfer / best.shape[0]), flipped
+
+    def score_view(self, view, outs, flags):
+        """view_score of the parts' outlines `outs` (`flags`: which are props). In a split view the body parts go
+        against the body mask and the props, if the model has any, against the prop mask on the same side
+        (mirror), the two IoUs weighted by the area of their masks; chamfer on the body."""
+        split = self.split.get(view)
+        if not split:
+            return self.view_score(view, raster(outs)[0])
+        canvas = canvas_of(outs)       # the canvas of the whole model, as the sheet's panel was laid out
+        body = [o for o, f in zip(outs, flags) if not f]
+        iou, chamfer, flipped = self.view_score(view, raster(body, canvas)[0] if body else np.zeros_like(split[0]), split)
+        held = [o for o, f in zip(outs, flags) if f]
+        if held:
+            prop = raster(held, canvas)[0]
+            share = split[1].sum() / max(split[0].sum() + split[1].sum(), 1)
+            iou = (1 - share) * iou + share * silhouette.iou(split[1], np.fliplr(prop) if flipped else prop)
+        return iou, chamfer, flipped
 
     def ious(self, parts, cache=None):
         return {v: round(self.view_score(v, m)[0], 4) for v, (m, _) in self.masks(parts, cache).items()}
@@ -429,7 +462,8 @@ class Proxy:
     def loss(self, parts, cache=None, free=()):
         hulls = self.hull_list(parts, cache)
         outs = {v: [h[v] for h in hulls] for v in self.views}
-        scores = {v: self.view_score(v, raster(o)[0]) for v, o in outs.items()}
+        flags = [preflight.is_prop(p) for p in parts]
+        scores = {v: self.score_view(v, o, flags) for v, o in outs.items()}
         total = sum((1 - i) + CHAMFER_W * c for i, c, _ in scores.values()) / len(scores)
         total += LEG_SPILL_W * leg_spill(self, parts, outs, scores["rts"][2]) if "rts" in scores else 0.0
         if self.zones and free:
@@ -866,12 +900,14 @@ def misplaced(proxy, parts):
 
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
-        seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False):
+        seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False,
+        split=True):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
     top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec.
     `partfit` (opt-in: PIPELINE 23.L5-4 measured it neutral on the silhouettes) uses refs/<id>/parts.json, or `parts_path`, when there is one: part masks and depth order (PIPELINE 23.L5-4).
+    `split`: the proxy scores the body against the sheet's body mask and the props against theirs (PIPELINE 25.L7-5).
     `depth` (opt-in, needs partfit) starts from Depth Anything's z and occlusion order (depth_map.py, PIPELINE 23.L5-4b).
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
     (PIPELINE 22.L4-3); None is the single Powell over every parameter."""
@@ -884,6 +920,8 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     proxy = Proxy(concept, tuple(concept), hard=hard_canvas_edges(hard, tuple(concept)) if hard else None)
     if parts:
         proxy.cams = proxy.pick_cams(parts, tilts)
+        if split:
+            proxy.set_split(sheet)
     before = proxy.ious(parts) if parts else {}
     failing = [v for v in proxy.views if v in gates and before.get(v, 1.0) < gates[v] + margin]
     report = {"views": list(proxy.views), "cams": proxy.cams, "before": before, "after": before,

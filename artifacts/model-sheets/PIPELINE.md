@@ -3210,3 +3210,47 @@ views <8%: 1 -> 5 of 24
   rts tiver câmera fixada (L7-2: rts regenerado amarrado aos 3 painéis).
 - Papers: Sano 2026 (volume por parte a partir de vistas), Sketch2Mesh 2021 (termo de contorno por parte).
 
+
+### 25.L7-5 Corpo contra o corpo, props contra os props (2026-10-27)
+
+**Achado.** Nos overlays do hfoo v10-r1 (left/rts/bottom) as pernas e os pés eram arrastados para a lança diagonal do desenho,
+uma parte que a malha não tem: `fit_spec` (proxy) e `deform_to_sheet` usavam a silhueta inteira do painel como alvo.
+
+**O que mudou** (Sketch2Mesh, Fig. 2c / Eq. 5: o contorno-alvo é do que se está ajustando).
+1. `silhouette.prop_masks(sheet, view)` = `{prop: máscara}` de `refs/<id>/parts.json` (`box2d` da vista): pixels do painel dentro da
+   caixa do prop, dilatados 2 px (`PROP_PAD`). Caixa grande (> 25 % do painel, a lança diagonal: a caixa cobre a figura)
+   perde os pixels das caixas das peças de corpo (+ 2 %); caixa compacta (tanque) fica inteira, mas só vale se >= 50 % dela está
+   fora das caixas do corpo (óculos, cinto dentro do corpo não são contorno). `silhouette.body_mask(sheet, view)` = painel
+   normalizado menos os props (o painel inteiro quando não há máscara). Sem `parts.json` / sem caixa na vista: comportamento antigo.
+2. `deform_to_sheet`: o corpo = maior componente soldada; seus vértices só têm alvo nos pixels do contorno do sheet fora das
+   máscaras dos props (`View.goal(0)`; o contorno é filtrado, não o corte da máscara, para não puxar para a borda artificial).
+   `--no-split` = antes. O relatório (`*.deform.json`) traz `uncovered_body/prop`, `spill_body/prop` por vista com máscara.
+3. `fit_spec.Proxy.set_split` / `score_view`: nas vistas com máscara de prop, as peças não-prop contam contra o `body_mask`
+   (IoU + chamfer), os props que o modelo tem contra a máscara dos props, no mesmo espelho, IoU pesado pela área; o raster das
+   peças parciais usa o canvas do modelo inteiro (`raster(outs, canvas)`). `ious()`, o gate e as demais vistas seguem na silhueta inteira.
+4. `silhouette.py`: cada vista com máscara ganha `uncovered_body/prop` (parcelas do sheet, somam o total) e `spill_body/prop` (parcelas do
+   modelo; spill a <= 6 px de um prop é do prop). O gate continua no total.
+
+**Prova** (rebuild `--spec runs/draft/<id>/v10-r1/spec.json --no-repair`, fit + deform ligados, antes = código de `cddf0f0c`; IoU f/l/b/top/bottom/rts, mesma `silhouette.py`):
+
+| unidade | antes | depois |
+|---|---|---|
+| hfoo | .854 .501 .842 .854 .802 .661 | .883 .477 .887 .856 .797 .655 |
+| n005 | .909 .926 .910 .745 .774 .859 | .902 .925 .907 .748 .780 .860 |
+| n02X | .873 .805 .889 .758 .730 .723 | .871 .805 .887 .759 .732 .724 |
+| n00U | .851 .765 .856 .711 .686 .653 | .842 .802 .846 .703 .689 .643 |
+
+- **hfoo, o arrasto some:** o ajuste movia `thigh.L`/`thigh.R` em z -0.052 / -0.072 m (rumo ao pique); agora 0.001 / 0.000 (e `shin`/`foot` iguais). Front/back +0.029/+0.045.
+  Left -0.024: o pique que o modelo não tem era 0.266 do `uncovered` do left e continua (corpo 0.075 -> 0.080, prop 0.266 -> 0.280); o IoU do left cai porque o ajuste deixou de
+  inflar o corpo para cobrir a lança. `uncovered` corpo/prop do front: 0.053/0.026 -> 0.037/0.033.
+- n005 (não cai): -0.007/-0.001/-0.003 f/l/b, dentro do ruído do ajuste (limite de tempo: o mesmo spec varia ~0.01-0.03 entre runs). n02X igual (±0.002; rts +0.001). n00U: front/back -0.01, left +0.037
+  (o spec do ajuste mudou; é a unidade com mais variação entre runs).
+- Testes: `test_silhouette.BodyOnly`, `test_deform_to_sheet` (alvos por componente), `test_fit_spec.BodySplit`. 492 testes OK; ruff com os mesmos 10 achados anteriores (nenhum em arquivo tocado).
+
+**O que piorou / negativo.**
+- `PROPS_OWN_MASK = False`: puxar cada prop só para a própria máscara (item 2 do pedido) custou n005 left 0.925 -> 0.896 em deform isolado e 0.926 -> 0.899 no pipeline (o tanque,
+  cortado pela caixa da saia na máscara, perde alvo; dilatar a máscara de alvo 2-10 px oscila 0.896-0.912). Fica desligado: os props mantêm o contorno inteiro (antes). O código e o teste
+  estão (`target_keys`); ligar quando a máscara do prop não for cortada pelas caixas do corpo.
+- No deform o arrasto do hfoo não vinha de lá (o left nunca moveu as pernas nesse GLB): a correção que mexe nas pernas é a do `fit_spec`. A restrição do corpo no deform é inofensiva (±0.005) e fica.
+- Sem `parts.json` não há máscara de prop (`props.json` + `prop_measure` exigiria render do prop e achar sua posição no painel): comportamento antigo. Só front/left têm caixa; back/top/bottom/rts seguem na silhueta inteira.
+- Máscara do prop é aproximada por caixas (o corte na caixa da saia come ~13 % do tanque do n005 no left).

@@ -120,7 +120,7 @@ class Ctx:
     @cached_property
     def contour(self):
         """(world displacement of each vertex toward the panel's outline, 0 off the contour), unit-height frame."""
-        move, near = D.pull(self.c.astype(bool), self.cov >= 0.5, self.xy, self.view.goal)
+        move, near = D.pull(self.view, self.cov >= 0.5, self.xy, np.full(len(self.xy), -1))   # -1: whole outline, cached in View.goal
         d = np.stack([move[:, 0] / self.s * self.view.mirror, -move[:, 1] / self.s], 1)
         return d[:, :1] * self.view.ru + d[:, 1:] * self.view.rv, near
 
@@ -202,7 +202,7 @@ class Problem:
         self.nb = int(self.body.sum())
         self.floor = [0.0] * len(views)
         for v in views:      # the nearest outline pixel of the panel, once
-            v.goal = ndimage.distance_transform_edt(~D.boundary(v.concept), return_indices=True)[1]
+            v.goal(-1)
 
     def holds(self, ctxs):
         """True when no view is under its floor (`floor`: the IoU of each at the start less D.GUARD, set by optimize)."""
