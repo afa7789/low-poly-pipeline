@@ -3058,3 +3058,78 @@ Rebuild textured (`--texture cel`) e clay de `runs/draft/{n01X,n005,n02X,hfoo}/v
   n005 e hfoo (Human) saem com a MESMA imagem (sha1 `96a9c695ff`, 12 colunas de 64); a do n005 construída antes do hfoo tinha só 6 colunas: reconstruir as unidades da raça com a tabela final antes de exportar. Zonas (média 5 vistas) próprio -> partilhado: n01X .212 -> .178, n005 .519 -> .562, n02X .304 -> .306, hfoo .196 -> .196. Pareado (A = próprio, B = partilhado): sheet A (4-0, 4-0, 3-1; n02X empate): o sheet tem os olhos/placas que o partilhado não pinta; artist/wc3/form B em n02X e hfoo (4-0 nos três), n01X wc3 e form B 3-1, n005 form B 4-0 mas artist A 3-1 (superfície mais limpa, sem as linhas de tinta). `shared-n005.png`, `shared-n02X.png` (linhas: próprio, partilhado, partilhado ramp 0.5).
 
 - **Piorou:** decais e tinta somem no partilhado (por isso opt-in e não default); a rampa por face e o `cull` não ligam. **Fora:** quantizar cores quase iguais numa só coluna (ΔE) quando a tabela da raça passar de 64, e colocar os decais num segundo atlas partilhado (hoje `images == 1` é gate); add quando uma raça encher a tabela.
+
+## 25. Leva 7 (2026-10-29)
+
+Diagnóstico do v10: front/back passam em 7 de 8; o erro ficou no rts e no left. Provas: rebuild sem LLM dos specs
+`runs/draft/<id>/v10-r1/spec.json` (n00U, n017, n00H, hfoo, n005 como controle) com `--no-repair`; fit e deformação rodam.
+
+### 25.L7-1 Seis vistas no fit e na deformação (2026-10-27) - rts +.01 a +.02 (meta +.05 NÃO atingida); front/left/back sem perda pareada
+
+**O que mudou.**
+1. `views.VIEW_WEIGHTS[rig]` / `weight_of(rig, view)`: spider e quadruped rts, top, bottom x2; biped rts x1.5; o resto 1.
+2. `fit_spec.Proxy(rig=...)`: o `loss` é a média PONDERADA dos custos por vista (`1 - IoU + chamfer`); `fit` passa `doc["rig"]`.
+   (O fit já via top/bottom/rts desde 21.F4; só faltava o peso.)
+3. `deform_to_sheet`: rts entra como vista (`rts_axes(cam)` = a projeção de `fit_spec.project("rts")`: câmera ortográfica
+   com `views.rts_offset(elev, azim)` olhando o centro; `sheet_panels` lê `sheet-rts.jpg` quando "rts" está em `views`;
+   sem espelho, a varredura de azimute cobre os dois lados). Câmera: a do `silhouette.json` da run (`run_cams`: `tilt`) ou,
+   sem ele (a deformação roda antes da silhueta da run), a melhor das 24 de `views.RTS` / 9 tilts x 2 giros. `--views`
+   agora tem 6 por default; `--rig` escolhe os pesos. `apply` passa `args.rig` e as câmeras.
+4. Duas fases em `deform`: (1) front/left/back sozinhos, idêntico ao 24.L6-5 (slivers +5 pp, top/bottom só vigiadas, sem guarda de
+   rts); (2) as 6 vistas, IoU médio ponderado, guarda 0.01 contra o que a fase 1 deixou em TODAS as vistas (nenhuma ortográfica cai
+   > 0.01 pelo que o rts/top/bottom pedem) e slivers `+EXTRA_SLIVER = 2 pp` sobre a fase 1. Vista extra que COMEÇA com IoU < `PULL_MIN`
+   (0.4: n00H rts .22, o desenho não concorda com os 3 painéis) só é vigiada, não puxa.
+   Por que duas fases: uma só com 6 vistas e +2 pp total custava n005 left .925 -> .905 e n017 front/back -.02 só do teto de slivers
+   e do rts como guarda (medido; versão intermediária descartada).
+
+**Projeção conferida.** IoU da máscara projetada do GLB (`rts_axes` + `view_state`) contra o render real `sil-rts@e_a.png`
+(Blender, ortho): n017 .971-.988 nas 4 câmeras testadas (65/60, 35/-60, 45/45, 55/-30); n00U 35/-60 .979, 55/-30 .904,
+45/45 .857, 65/60 .833. O erro do n00U é do RENDER, não da projeção: `render_silhouette` usa `ortho_scale = 1.15 x` a maior
+extensão em repouso e a aranha aberta sai do quadro nas câmeras altas (linha 511 do PNG 512 ocupada; o overlay das duas máscaras
+coincide exceto pelo corte). Vale um `ortho_scale` por câmera em `render_silhouette` (não toquei; é do pipeline de silhueta).
+
+**Medida A: pipeline inteiro (fit + deform), v10 = código de antes x código novo, mesmos specs** (silhueta real; IoU antes>depois; o
+fit tem orçamento de tempo, então o spec de entrada do deform varia entre rodadas: ruído de ~.01-.02, ver B):
+
+| unidade | front | left | back | top | bottom | rts | rts vermelho / verde |
+|---|---|---|---|---|---|---|---|
+| n00U | .855>.857 | .771>.792 | .856>.858 | .715>.721 | .691>.708 | .649>.642 | 12.7>15.1 % / 28.3>27.6 % |
+| n017 | .877>.864 | .732>.714 | .813>.795 | .808>.803 | .847>.878 | .685>.696 | 9.6>9.4 % / 26.1>25.0 % |
+| n00H | .850>.882 | .665>.664 | .851>.879 | .712>.703 | .692>.682 | .226>.226 | 59.6>59.9 % / 66.1>66.0 % |
+| hfoo | .854>.887 | .501>.497 | .842>.881 | .854>.844 | .802>.810 | .661>.650 | 14.0>15.0 % / 26.0>26.6 % |
+| n005 | .909>.896 | .926>.929 | .910>.908 | .745>.758 | .774>.786 | .859>.871 | 6.2>5.9 % / 9.0>7.9 % |
+
+**Medida B: só a deformação, mesma entrada (`after-<id>/clay-raw.glb`), IoU raster do próprio módulo (projeção ~.97-.99 do render)**,
+`old` = 3 vistas (24.L6-5), `six` = 6 vistas com pesos (rts antes>depois; `old` não mede o rts):
+
+| unidade | front old / six | left old / six | back old / six | top old / six | bottom old / six | rts antes>depois six | rts vermelho / verde six |
+|---|---|---|---|---|---|---|---|
+| n00U (spider) | .862/.862 | .743/.743 | .870/.870 | .730/.730 | .698/.698 | .686>.688 | 18.7>18.4 / 18.5>18.6 % |
+| n017 (quadruped) | .876/.869 | .725/.716 | .807/.799 | .866/.883 | .841/.864 | .689>.700 | 10.2>9.9 / 25.2>24.2 % |
+| n00H (wyrm) | .844/.876 | .657/.656 | .845/.873 | .716/.708 | .705/.696 | .223>.224 (só vigiada) | 60.7>60.4 / 66.0>65.9 % |
+| hfoo | .875/.881 | .494/.494 | .881/.885 | .845/.841 | .801/.812 | .661>.649 | 14.1>15.7 / 25.8>26.2 % |
+| n005 (controle) | .911/.903 | .925/.925 | .906/.906 | .738/.750 | .769/.780 | .855>.870 | 6.1>6.5 / 9.4>7.4 % |
+
+Slivers: fase 1 igual ao v10; a fase 2 soma 0 a 1.7 pp (n017 27.8 > 29.4 %, n005 14.6 > 16.4 %, hfoo 16.1 > 16.7 %).
+
+**Leitura.**
+- **Meta rts +.05 em n00U/n017: NÃO atingida.** Deformação sozinha: +.002 (n00U), +.011 (n017), +.015 (n005); o fit com peso: n00U proxy rts
+  .671 > .691 numa rodada, +.013 a +.023 nas rodadas A. Os passos do rts são recusados (22-31 por unidade): o IoU médio
+  ponderado não sobe (um corpo só não acompanha o rts quando as pernas finas do rts da aranha não têm vértice para seguir: 68 recusas
+  por `mean` no n00U, 11 por sliver + 12 por face virada no n017). O ganho de rts de verdade é L7-3 (pernas lidas no rts/top) e
+  L7-2 (rts coerente: n00H .23).
+- Guarda das ortográficas: na prova B front/left/back caem no máximo .009 (n017 front .876 > .869, left .725 > .716, n005 front .911 > .903)
+  contra o `old`, e sobem em n00H (front/back +.03) e hfoo. Na prova A (pipeline inteiro) front/back de n017 e n005 caem .013-.018 e o left
+  do n017 .018: vem da variação do fit entre rodadas (o mesmo `clay-raw` da B só perde .009), não da deformação; fica como risco.
+- Top/bottom: + .011 a + .023 em n017/n005 (B); n00H e hfoo perdem .004-.012 (só guarda).
+- Não feito: `ortho_scale` por câmera no render (n00U rts cortado), peso por vista no `accept` do fit real (o `fit_accepted` usa as
+  margens sobre os gates, sem peso), 8 iterações (a deformação satura em 4: mesmos passos aceitos), `REACH` 0.2 / `STEP` 0.1 (rts caiu
+  ou ficou igual).
+- Papers: Sketch2Mesh 2021 (Eq. 5-6: contorno em várias vistas com regularização parcial; aqui, peso por vista), Wiersma 2026
+  (recusa de passo que piora o que já estava bom: guarda entre fases).
+- Testes: `test_deform_to_sheet` (`rts_axes` = `fit_spec.project`, candidatos de câmera pinada, média ponderada, rts puxado sem espelho,
+  rts desconhecido só vigiado, `run_cams`), `test_fit_spec.ViewWeights` (peso por rig no `loss`). 493 testes OK; ruff nos 5 arquivos
+  tocados limpo (10 achados antigos em outros arquivos).
+- Reproduzir: `build_unit`/`spec_pipeline --spec runs/draft/<id>/v10-r1/spec.json --no-repair` (fit e deform rodam) e
+  `deform_to_sheet.py clay-raw.glb refs/<id>/sheet.jpg out.glb --rig spider`.
+

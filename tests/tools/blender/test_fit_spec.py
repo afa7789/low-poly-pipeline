@@ -37,6 +37,23 @@ class EdgeTerm(unittest.TestCase):
                                F.EDGE_W * F.edge_term(outs, off), places=6)
 
 
+class ViewWeights(unittest.TestCase):
+    def test_loss_weights_the_view(self):
+        """25.L7-1: the loss is the weighted mean of the views' costs: a spider counts rts twice, a biped 1.5x, the rest 1"""
+        parts = [box("a", (1, 2, 1), (0, 1, 0))]
+        concept = {"front": F.raster(F.Proxy({}, ("front",)).outlines(parts)["front"])[0],
+                   "rts": np.zeros((silhouette.CANVAS_H, silhouette.CANVAS_W), bool)}
+        concept["rts"][5:50, 5:50] = True
+        cams = {"rts": (45, 45)}
+        costs = {}
+        for rig in (None, "biped", "spider"):
+            proxy = F.Proxy(concept, ("front", "rts"), cams=cams, rig=rig)
+            costs[rig] = proxy.loss(parts)
+            self.assertEqual(proxy.weight["rts"], {None: 1.0, "biped": 1.5, "spider": 2.0}[rig])
+        self.assertLess(costs[None], costs["biped"])
+        self.assertLess(costs["biped"], costs["spider"])
+
+
 class Proxy(unittest.TestCase):
     def test_outlines(self):
         """a box fills its rectangle; a rotated one stays inside the hull of its corners; a cyl

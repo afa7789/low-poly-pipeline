@@ -37,6 +37,15 @@ TILTS = tuple(range(-40, 50, 10))
 # viewer's right (+X), but it is measured, not assumed.
 RTS = tuple((e, a) for e in (35, 45, 55, 65) for a in (-60, -45, -30, 30, 45, 60))
 RTS_DEFAULT = (45, 45)
+# PIPELINE 25.L7-1: how much each view counts in fit_spec's objective and deform_to_sheet's acceptance, per rig
+# (1 where absent). Legs and tails of the spider / quadruped only read from above and from the gameplay camera.
+VIEW_WEIGHTS = {"spider": {"rts": 2.0, "top": 2.0, "bottom": 2.0},
+                "quadruped": {"rts": 2.0, "top": 2.0, "bottom": 2.0},
+                "biped": {"rts": 1.5}}
+
+
+def weight_of(rig, view):
+    return VIEW_WEIGHTS.get(rig, {}).get(view, 1.0)
 
 
 def camera(name, tilt=0):
