@@ -151,6 +151,15 @@ class Floating(unittest.TestCase):
         self.assertEqual(PF.floating_parts(parts, RF.parents("spider")), ["leg2.lower"])
 
 
+    def test_corner_touch_is_loose_at_80_percent(self):
+        """boxes that meet only at a corner overlap at full size and not at 80 %"""
+        a = ["arm.L", "box", [1, 1, 1], [0, 0, 0], "iron", {}]
+        b = ["forearm.L", "box", [1, 1, 1], [0.95, 0.95, 0.95], "iron", {}]
+        parents = {"forearm.L": "arm.L"}
+        self.assertEqual(PF.floating_parts([a, b], parents), [])
+        self.assertEqual(PF.floating_parts([a, b], parents, PF.OVERLAP_SHRINK), ["forearm.L"])
+
+
 def rule(out, name):
     return [line for line in out.splitlines() if line.strip().startswith(name)][0]
 

@@ -1284,6 +1284,27 @@ def parts_meta(parts):
     return meta
 
 
+def attach_report(parts):
+    """Parts whose mesh crosses no other part on their bone or on the parent bone: the same
+    rule as preflight.overlap, measured on the real meshes instead of the boxes (PIPELINE
+    20.N12). Never raises: the build goes on and the report carries the error."""
+    from mathutils.bvhtree import BVHTree
+    try:
+        bpy.context.view_layer.update()
+        parent = {bone: up for bone, up, *_ in BONES if up and up != "root"}
+        trees = {id(o): BVHTree.FromPolygons([o.matrix_world @ v.co for v in o.data.vertices],
+                                             [tuple(f.vertices) for f in o.data.polygons])
+                 for o, _ in parts}               # FromObject would stay in each part's local space
+        loose = []
+        for obj, bone in parts:
+            near = [o for o, b in parts if o is not obj and b in (bone, parent.get(bone))]
+            if bone in parent and near and not any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
+                loose.append({"part": obj.name, "bone": bone, "parent": parent[bone]})
+        return {"parts": len(parts), "loose": loose}
+    except Exception as err:  # noqa: BLE001 - a report must not stop a build
+        return {"parts": len(parts), "loose": [], "error": repr(err)}
+
+
 def main():
     target, out = sys.argv[sys.argv.index("--") + 1:][:2]
     rest = sys.argv[sys.argv.index("--") + 1:]
@@ -1386,6 +1407,11 @@ def main():
     for obj, bone in parts:
         obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
     meta = parts_meta(parts)
+    report = attach_report(parts)
+    stem = pathlib.Path(out).stem       # the run's clay.glb / model.glb: attach.json; a trial: <name>-attach.json
+    name = "attach.json" if stem in ("clay", "model") else f"{stem}-attach.json"
+    (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
+    print(f"attach: {len(report['loose'])} loose of {report['parts']} parts")
     if "union" in cli:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears

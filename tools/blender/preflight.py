@@ -22,6 +22,7 @@ Rules (each one exists because an iteration failed on it):
                  the prop's extent bracket (fractions of H); a presence check, not a shape one
   ground         no part below y = 0
   overlap        each distal limb segment intersects its parent (no floating pieces)
+  overlap_80     the same with every box shrunk to 80 % (a corner touch does not connect); report only
   box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
   budget_split   tris per body group (head, body, legs) within a band around the sheet's own area
                  split (EdgeRunner 2024); the head wheel is counted by ornament_cost
@@ -182,6 +183,9 @@ def targets_from(sheet):
 HULL_MAX = 0.25      # a part may sit this much of its box outside the sheet's visual hull
 HULL_BLOCKING = False  # outside_hull reports but does not fail until the 25% is calibrated
 HULL_GRID = 64
+OVERLAP_SHRINK = 0.8   # overlap_80 compares boxes at this share of their size
+# overlap_80 reports but does not fail: on 2026-10-27 it failed 48 of 63 draft specs (rule: < 1/3)
+OVERLAP_BLOCKING = False
 HULL_SLIDE = 0.12    # how far the panel may slide sideways, x the figure's height
 HULL_PAD = 0.03      # margin around the hull, x the figure's height
 
@@ -469,8 +473,17 @@ def bbox(part):
     return (x - hx, y - hy, z - hz), (x + hx, y + hy, z + hz)
 
 
-def overlaps(a, b):
-    (al, ah), (bl, bh) = bbox(a), bbox(b)
+def shrunk(box, k):
+    """The box scaled to k of its size about its centre."""
+    lo, hi = box
+    return (tuple((l + h) / 2 - (h - l) / 2 * k for l, h in zip(lo, hi)),
+            tuple((l + h) / 2 + (h - l) / 2 * k for l, h in zip(lo, hi)))
+
+
+def overlaps(a, b, k=1.0):
+    """The two parts' boxes, each shrunk to k of its size, intersect: at k = OVERLAP_SHRINK a box
+    that only touches the other at a corner or an edge does not count as connected."""
+    (al, ah), (bl, bh) = shrunk(bbox(a), k), shrunk(bbox(b), k)
     return all(al[i] <= bh[i] and bl[i] <= ah[i] for i in range(3))
 
 
@@ -523,8 +536,9 @@ def biped_checks(parts, boxes, height, targets):
     return checks
 
 
-def floating_parts(parts, parent_of):
-    """Bones whose parts touch neither another part on the bone nor one on its parent."""
+def floating_parts(parts, parent_of, k=1.0):
+    """Bones whose parts touch neither another part on the bone nor one on its parent
+    (boxes at k of their size)."""
     floating = []
     for p in parts:
         parent = parent_of.get(p[0])
@@ -534,7 +548,7 @@ def floating_parts(parts, parent_of):
         # shell, not the upper arm. Check the bone and its parent together.
         group = {p[0], parent}
         siblings = [q for q in parts if q[0] in group and q is not p]
-        if siblings and not any(overlaps(p, q) for q in siblings):
+        if siblings and not any(overlaps(p, q, k) for q in siblings):
             floating.append(p[0])
     return sorted(set(floating))
 
@@ -616,8 +630,12 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
     checks.append(("decal_place", not bad_decals,
                    f"decal off the head: {bad_decals or 'none'} (eyes go on a head/jaw part)"))
 
-    floating = floating_parts(parts, RF.parents(family, doc.get("bones")))
+    parent_of = RF.parents(family, doc.get("bones"))
+    floating = floating_parts(parts, parent_of)
     checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))
+    loose = floating_parts(parts, parent_of, OVERLAP_SHRINK)
+    checks.append(("overlap_80", not loose or not OVERLAP_BLOCKING,
+                   f"detached at {OVERLAP_SHRINK:.0%} boxes: {loose or 'none'}"))
 
     return checks
 

@@ -1742,3 +1742,45 @@ uma paleta com cores do sheet trocadas entre materiais mede a paleta, não a pe�
 
 Testes: `test_spec_pipeline.test_zones_clay_rows_and_failed_build` (linhas do review + build falho vira `{}`); `ids_zones` roda
 Blender, provado nas CLI acima. Sem referência nova em `docs/references.md` (reusa as `zone_*`, já registradas).
+
+### 20.N12 Conexão na malha e fit com âncora (2026-10-27) - regra nova só relatório, fit mais curto
+- **O que mudou:**
+  - `preflight.overlaps(a, b, k)` / `floating_parts(parts, parents, k)` comparam as caixas encolhidas a `k` do tamanho
+    (centro fixo). A regra `overlap` continua em `k = 1` (gate). Regra nova `overlap_80` (`k = OVERLAP_SHRINK = 0.8`),
+    **só relatório** (`OVERLAP_BLOCKING = False`).
+  - `build_unit.attach_report`: depois de montar as peças e antes do join/union, BVH (`BVHTree.FromPolygons` em
+    coordenadas de mundo; `FromObject` fica no espaço local da peça e dava 19 soltas de 24 num spec ligado) de cada peça
+    contra as outras no osso dela e no osso pai; peça sem cruzamento é solta. Grava `attach.json` ao lado do GLB do run
+    (`clay.glb`/`model.glb` -> `attach.json`; trial -> `<nome>-attach.json`): `{"parts": n, "loose": [{part, bone,
+    parent}]}`. Nunca aborta: erro vira `"error"` no JSON.
+  - `fit_spec`: dims +-10 % (era 20), `at` +-0.03 H (era 0.05); partes dos ossos spine/pelvis/body/abdomen e a maior
+    peça do osso head (capuz/elmo) só encolhem em x/z (limites do scipy; `HORIZONTAL` diz quais dims são x/z por tipo);
+    a âncora: o conjunto de ossos soltos a 80 % não pode crescer (restrição dura, custo 10 +1 por osso) e cada osso solto
+    custa `LOOSE_W = 0.3` no objetivo, então o fit pode reconectar. O fit guarda o melhor ponto avaliado (Powell com
+    cliffs de penalidade terminou 12.0 > start 0.87 no n00U r2). A ordem em `stage_one` não mudou (fit depois do repair).
+- **Taxa de FAIL do `overlap_80` nos 63 specs de `runs/draft/*/*/spec.json`** (o roadmap dizia 53; hoje são 63):
+  `overlap` (k = 1) 3/63 = 5 %; `overlap_80` **48/63 = 76 %** (gate só abaixo de 1/3). Caixa de eixo é proxy ruim para
+  peça rotacionada ou `from/to`: o fêmur/`forearm` encosta de verdade e a caixa a 80 % não vê. Fica relatório; a
+  verdade é o `attach.json` (BVH). Pior: spider `leg*.upper`/`leg*.lower` (n00U v5-fit-r1: 12 ossos), `forearm.*` do
+  hfoo, `spine` de todo n005/n01X.
+- **Prova sem LLM** (`fit_spec` a partir de `runs/draft/<id>/v5-fit-r*/fit/before.json`, depois
+  `spec_pipeline --spec ... --no-repair`; saídas em `scratchpad/leva2-n12/refit-*`). Colunas por vista:
+  antes do fit | run guardado (fit antigo) | refeito (Δ vs guardado), front/left/back/top/bottom/rts:
+
+  | run | front | left | back | top | bottom | rts | soltas no attach.json |
+  |---|---|---|---|---|---|---|---|
+  | n00U r1 | .281 / .365 / .329 (-.036) | .351 / .396 / .372 (-.023) | .285 / .367 / .333 (-.034) | .580 / .601 / .597 | .608 / .620 / .617 | .558 / .581 / .569 | guardado 10, refeito 6 (as 6 já estavam no before) |
+  | n00U r2 | .395 / .618 / .462 (-.156) | .479 / .569 / .507 (-.062) | .390 / .612 / .456 (-.156) | .590 / .630 / .587 (-.043) | .608 / .599 / .613 | .575 / .610 / .579 (-.032) | guardado 10, refeito 2 (as 2 já estavam no before) |
+  | n005 r1 | .719 / .714 / .824 (+.110) | .799 / .839 / .812 (-.027) | .797 / .734 / .889 (+.155) | .766 / .694 / .765 | .783 / .738 / .767 | .745 / .832 / .804 (-.028) | 0 / 0 |
+  | n005 r2 | .735 / .846 / .803 (-.043) | .796 / .830 / .834 | .792 / .891 / .863 (-.028) | .711 / .744 / .726 | .796 / .775 / .811 | .760 / .864 / .850 | 0 / 0 |
+
+  O `spec.json` guardado do n00U v5-fit-r2 reconstruído dá 10 soltas de 24 (as pernas `lower` e 2 `upper`): o fit antigo
+  ganhou front/back +.22 soltando as pernas do pai. O n005 v5-fit-r3 reconstruído: 0 soltas de 26.
+- **O que piorou / limites:** o critério "IoU não cai mais que 0.03 vs o run guardado" **não fecha no n00U** (r1 -.036,
+  r2 -.156 em front/back) nem no n005 r2 front (-.043): o ganho guardado vinha de mover além do limite e de soltar a
+  peça do pai, e os limites novos (10 % / 0.03 H) o proíbem. Com 5 % de custo por osso solto (`LOOSE_W` 0.05) o n00U r2
+  saía igual (.449/.503/.443), com 0.3 reconecta 2 ossos a mais sem perder IoU. "Zero soltas" vale para o n005; no n00U
+  as 6 (r1) e 2 (r2) pernas `upper` soltas já vêm do spec do autor (o `overlap` do preflight acusa 4 no r1) e o fit só
+  não piora: reconectar de verdade é trabalho do repair. O attach usa BVH real, o fit usa caixas a 80 %: o conjunto de
+  caixas soltas (n00U r2: 4) é maior que o de BVH (2).
+- Papers: Wiersma 2026 (restrição dura, agora também a ligação com o pai), Sketch2Mesh 2021 (só onde o contorno falha).

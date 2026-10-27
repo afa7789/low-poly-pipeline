@@ -51,17 +51,29 @@ class Mirror(unittest.TestCase):
         centre = box("c", (1, 1, 1), (0, 1, 0))
         self.assertEqual(F.groups_of([left, right, centre], [0, 1, 2]), [(0, 1), (2, None)])
         moved = F.moved(left, [0.5, 0, 0, 1, 0, 0], 2.0)
-        self.assertAlmostEqual(moved[2][0], 0.2 * 1.1)
-        self.assertAlmostEqual(moved[5]["from"][0], 0.4 + 0.1)
-        self.assertAlmostEqual(F.moved(right, [0.5, 0, 0, 1, 0, 0], 2.0, mirror=True)[5]["from"][0], -0.5)
+        self.assertAlmostEqual(moved[2][0], 0.2 * (1 + F.DIMS_RANGE * 0.5))
+        self.assertAlmostEqual(moved[5]["from"][0], 0.4 + F.AT_RANGE * 2.0)
+        self.assertAlmostEqual(F.moved(right, [0.5, 0, 0, 1, 0, 0], 2.0, mirror=True)[5]["from"][0], -0.4 - F.AT_RANGE * 2.0)
+
+
+class Anchor(unittest.TestCase):
+    def test_bounds_and_loose(self):
+        """a no-grow box may shrink x/z only; a lower leg moved off its upper leg is loose at 80 %"""
+        self.assertEqual(F.bounds_of(box("spine", (1, 2, 1), (0, 1, 0)), True)[:3], [(-1, 0), (-1, 1), (-1, 0)])
+        self.assertEqual(F.bounds_of(box("arm.L", (1, 2, 1), (0, 1, 0)), False)[:3], [(-1, 1)] * 3)
+        parents = {"forearm.L": "arm.L"}
+        upper, lower = box("arm.L", (1, 1, 1), (0, 0, 0)), box("forearm.L", (1, 1, 1), (0.9, 0.9, 0.9))
+        self.assertEqual(F.loose_of([upper, lower], parents), {"forearm.L"})
+        lower[3] = [0.5, 0.5, 0.5]
+        self.assertEqual(F.loose_of([upper, lower], parents), set())
 
 
 class Fit(unittest.TestCase):
     """fit() on a spec whose torso is half as wide as the sheet's, with the sheet read from the proxy"""
 
-    def run_fit(self, rules=frozenset()):
-        parts = [box("spine", (0.5, 2, 0.5), (0, 1, 0)), box("head", (0.3, 0.3, 0.3), (0, 2.2, 0))]
-        want = [box("spine", (0.9, 2, 0.9), (0, 1, 0)), parts[1]]
+    def run_fit(self, rules=frozenset(), bone="arm.L"):
+        parts = [box(bone, (0.5, 2, 0.5), (0, 1, 0)), box("head", (0.3, 0.3, 0.3), (0, 2.2, 0))]
+        want = [box(bone, (0.9, 2, 0.9), (0, 1, 0)), parts[1]]
         shapes = F.Proxy({}, VIEWS).outlines(want)
         panels = {v: F.raster(shapes[v])[0] for v in VIEWS}
         doc = {"parts": parts, "rig": "biped"}
@@ -77,6 +89,11 @@ class Fit(unittest.TestCase):
         self.assertTrue(all(report["after"][v] > report["before"][v] for v in VIEWS))
         self.assertGreater(out["parts"][0][2][0], 0.5)
         self.assertEqual(doc["parts"][0][2], [0.5, 2, 0.5], "the input is not edited")
+
+    def test_torso_does_not_grow(self):
+        _, (out, report) = self.run_fit(rules={"x"}, bone="spine")
+        self.assertLessEqual(out["parts"][0][2][0], 0.5)
+        self.assertLessEqual(out["parts"][0][2][2], 0.5)
 
     def test_hard_constraint_keeps_the_spec(self):
         _, (out, report) = self.run_fit(rules=set())     # every move breaks rule "x", which held
