@@ -58,6 +58,7 @@ import sys
 import urllib.error
 import urllib.request
 
+import mesh_lint
 import rig_families as RF
 from surfaces import DECALS, SURFACES
 from views import layout_of
@@ -1232,14 +1233,62 @@ def stage2_section(args, shape, colour):
             f"{zone_rows(args.summary)}\n{body}\n")
 
 
+def lint_target(args, shape, colour):
+    """(glb, textured): the stage 2 model when it was written, else the clay; (None, False)
+    when the build failed."""
+    model = args.out / "model.glb"
+    if colour is not None and model.exists():
+        return model, True
+    return shape["glb"], False
+
+
+def status_of(verdict, summary, lint_bad):
+    """placeholder | prototype-safe | final-use | rejected (Begemann & Hutson 2026).
+    SHAPE-PASS, or PASS with a failed lint gate, is prototype-safe; PASS with a clean lint is
+    final-use; a CHECK whose front silhouette is more than 0.10 under its gate is rejected."""
+    if verdict == "SHAPE-PASS" or (verdict == "PASS" and lint_bad):
+        return "prototype-safe"
+    if verdict == "PASS":
+        return "final-use"
+    front, gate = (summary.get("approved") or {}).get("front"), (summary.get("gates") or {}).get("front")
+    return "rejected" if front is not None and gate is not None and front < gate - 0.10 else "placeholder"
+
+
+def readiness_section(args, shape, colour, verdict):
+    """`## Readiness`: mesh_lint numbers (criterion | value | gate) and the status."""
+    glb, textured = lint_target(args, shape, colour)
+    if glb is None:
+        return f"## Readiness\n\nno GLB built.\n\nstatus: **{status_of(verdict, args.summary, ['build'])}**\n\n"
+    m = mesh_lint.lint(glb)
+    bad = mesh_lint.failing(m, textured)
+    fa, tx = m["face_area"], m["texel"]
+    rows = [("file", glb.name, "-"), ("verts / faces", f"{m['verts']} / {m['faces']} (V/F {m['compactness']})", "-"),
+            ("nodes / meshes / skins", f"{m['nodes']} / {m['meshes']} / {m['skins']}", "-"),
+            ("face area median / p90 / max-over-median", f"{fa['median']:.4f} / {fa['p90']:.4f} / {fa['max_over_median']:.1f}", "-"),
+            ("slivers (<10 deg)", f"{m['sliver_pct']} %", "-"), ("degenerate faces", m["degenerate"], "-"),
+            ("flipped faces", m["flipped"], "== 0"), ("boundary / non-manifold edges", f"{m['boundary_edges']} / {m['nonmanifold_edges']}", "-"),
+            ("components", m["components"], "-"), ("materials / images", f"{m['materials']} / {m['images']}", "images == 1" if textured else "-"),
+            ("image size", m["image_size"] or "-", "-"), ("unique colours", m["unique_colours"] or "-", "-"),
+            ("uv out of range", m["uv_out_of_range"], "== 0" if textured else "-"),
+            ("uv overlap / atlas used", f"{m['uv_overlap_pct']} % / {m['atlas_used_pct']} %", "-"),
+            ("texel min / max (ratio)", tx and f"{tx['min']:.0f} / {tx['max']:.0f} ({tx['ratio']:.0f})" or "-", "-"),
+            ("pivot min_y / height", f"{m['pivot']['min_y']:.3f} / {m['pivot']['height']:.2f}", "abs(min_y) <= 0.01 H"),
+            ("root scale", m["root_scale"], "== 1")]
+    body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows)
+    return (f"## Readiness\n\n| criterion | value | gate |\n|---|---|---|\n{body}\n"
+            f"lint gates failed: {', '.join(bad) or 'none'}\n\n"
+            f"status: **{status_of(verdict, args.summary, bad)}**\n\n")
+
+
 def write_review(args, shape, colour, verdict):
-    """review.md: the run header, one section per stage, the verdict."""
+    """review.md: the run header, one section per stage, readiness, the verdict."""
     (args.out / "review.md").write_text(
         f"# {args.id} \u2014 run {args.run} ({args.tag})\n\n"
         f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
+        f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
         f"approved sheet), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
