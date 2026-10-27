@@ -376,6 +376,43 @@ L6-3 props ancorados ──────┘                                    L6
   penalidade de inversão (line search que rejeita); Powell/L-BFGS em blocos de vértices por banda; sem SDS. Custo L;
   só se L6-5 deixar vermelho/verde > 8 %. PIPELINE §24.L6-7.
 
+### L6-9 Sano: simetria e coerência entre painéis do sheet
+- `silhouette`: `r_sym` por vista (IoU da máscara com o espelho) e coerência do sheet (hull de 2 vistas projetado na
+  terceira vs o painel desenhado: front⊗left → top, front⊗left → back); vão ao brief ("a figura é assimétrica no
+  front: clava na mão direita") e ao review como diagnóstico antes de culpar o modelo (n00U/n010 têm painéis
+  incoerentes). `massing` usa `r_sym` para não espelhar um prop assimétrico. Prova: 11 sheets, tabela; n010 e n00H
+  marcados incoerentes. PIPELINE §24.L6-9. Custo S.
+
+### L6-10 Wiersma/Chen: protocolo de ablação por orçamento de triângulos
+- `spec_pipeline --budgets 400,700,1000`: o mesmo spec construído em 3 orçamentos (decimate com tolerância de L6-4),
+  curva IoU × tris × slivers no review e no compare (`--show budgets`); calibra `BUDGETS` por classe e o piso de
+  faces de L6-4 ("IoU perdido por 100 tris" já existe em `--decimate`). Prova nos 8 v9. PIPELINE §24.L6-10. Custo S.
+
+### L6-11 Le/MeshGPT na malha unida: rampa por altura, faces escondidas, atlas partilhado
+- Depois de L6-4 (uma casca): reavaliar `ramp` (v por normal + altura) e `edge glow` nos chanfros sobre a malha unida
+  (na pilha de caixas a rampa não aparecia; numa superfície contínua é a "AO pintada" do WC3) — ligar por default se
+  o juiz pareado preferir e as zonas não caírem; `cull=remove` (faces nunca vistas) por default depois da união
+  (medir tris visíveis/total antes e depois; não pode rasgar animação); atlas de rampas de 1 px por coluna partilhado
+  por raça (Le) como opção de exportação (`--atlas shared`) com teste de import no engine. PIPELINE §24.L6-11. Custo S-M.
+
+### L6-12 Chen/Sketch2Mesh: alinhamento de features ao desenho
+- Na malha unida (L6-4) e deformada (L6-5): arestas vivas (ângulo > 35°) são puxadas para o mapa de arestas internas
+  do hard sheet (`silhouette.edges`, E15) na vista onde a aresta é visível — o termo `edge_term` já existe no fit;
+  aqui vira passo de pós-deformação com peso pequeno e limite 0.02 H; `edge_chamfer` deve cair. Prova: n01X (placas),
+  n005 (capuz/saia), n02X (cinto): `edge_chamfer` antes/depois, wire. PIPELINE §24.L6-12. Custo M.
+
+## Cobertura final por paper (o que fica de fora e por quê)
+- Chen: iso-surface MC33 (precisa de high-poly de entrada: fora), cage/offset shell (sem uso), PSNR/LFD (sem GT 3D).
+- Sano: tudo coberto (DP, regularização, arcos, interseção, r_sym, coerência, massing de edifício).
+- Sketch2Mesh: encoder MeshSDF (treino: fora); o resto coberto (chamfer, deformação, contorno externo, Eq. 6).
+- Wiersma: SDS/difusão (GPU: fora), fabricação (fora); vértices (L6-7), fairness/slivers (L6-6), ablação (L6-10),
+  simetria, Oklab, pareado: cobertos.
+- MeshGPT/EdgeRunner: geração por transformer (treino: fora); pré-processo, faces escondidas, compacidade,
+  orientação, componentes, best-of-N, schema, 3 eixos: cobertos.
+- Le: cobertos (rampa, altura, chanfro, nearest, rampa do sheet, luma por zona, atlas partilhado em L6-11).
+- ULIP: CLIP medido e negativo (fica fora do fluxo, script mantido).
+- Begemann/Zhao: cobertos (Readiness, status, tempos, engine import, UV, pareado cego, K variantes, score 30/70).
+
 ### L6-8 Bateria v10 e fechamento
 - 8 unidades, compares `clay+wire+overlay+textured`, pareado contra v9 nos 4 eixos, ficha 05, §24 com a tabela.
   Critério de sucesso da leva: pareado ≥ 4-0 "forma contínua" em 6 de 8; vermelho+verde < 8 % em front/left/back em
