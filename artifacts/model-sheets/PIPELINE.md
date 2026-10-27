@@ -1697,3 +1697,48 @@ a média das 6 vistas cai em todos os casos. H/32 (~3 % da altura) é folgado de
 Fica `blind` como default; `toldec` só serve para medir quantos tris a unidade "precisa" (a coluna dev do blind já responde:
 o orçamento está folgado em geometria, apertado em leitura). Se voltar a tentar: tolerância H/128 e piso de faces por orçamento.
 Papers: Garland, Heckbert 1997 (o COLLAPSE do Blender é quadric error metrics; aqui só se mede o erro do resultado).
+
+### 20.N3 Zonas de cor no estágio 1: render "ID" do clay (2026-10-27)
+
+**O que mudou.** O clay é cinza de um material só, então a pergunta "a peça do material X está onde o sheet tem a cor X?" só
+aparecia no estágio 2 (depois da textura). Agora o estágio 1 reconstrói o mesmo spec **sem `clay` e sem `tex`** (`sil/ids/ids.glb`:
+um material chapado por slot, na cor da `palette` do spec, mesmos cortes) e mede as zonas desse render contra o sheet:
+`spec_pipeline.zones_clay` -> `silhouette.py --ids` -> `silhouette.ids_zones` -> `zone_views` (as mesmas `zone_*` do estágio 2,
+sem código novo de zona) -> `render_silhouette.py ... ids` (só os tiros `zone`, front/left/back/top/bottom nos tilts do estágio 1).
+O mapeamento material -> cor é a própria paleta do spec (o autor a tira do sheet); o k-means de zonas do sheet faz o resto.
+Saída: `silhouette.json["zones_clay"] = {view: {mean, cover, lost}}`, linhas `zones_clay mean/cover (report)` no review.md e
+`sil/ids/zones_clay.json` completo (zonas e peças). **Só relatório**: `ZONES_CLAY_BLOCKING = False`; falha de build/medida vira `{}`.
+Custo: um build Blender (~2 s) + 1 render (~4 s) por estágio 1. O clay, o veredito e o `silhouette.json` antigo não mudam.
+
+**Calibração (sem LLM, spec guardado de cada run; `scratchpad/leva2-n3/table.json`, `all53.json`).** mean/cover, limiares do
+estágio 2 (0.08 / 0.30), tilts do `silhouette.json` do run:
+
+| run | front | left | back | top | bottom |
+|---|---|---|---|---|---|
+| n005 v5-fit-r1 | 0.49/0.80 | 0.58/0.81 | 0.59/0.86 | 0.37/0.62 | 0.42/0.65 |
+| n005 v5-fit-r2 | 0.62/0.89 | 0.56/0.81 | 0.67/0.93 | 0.40/0.68 | 0.29/0.52 |
+| n005 v5-fit-r3 | 0.62/0.88 | 0.56/0.82 | 0.70/0.95 | 0.40/0.68 | 0.28/0.52 |
+| n005 v5-oneshot-r1 | 0.52/0.83 | 0.52/0.78 | 0.55/0.85 | 0.08/**0.26** | 0.28/0.51 |
+| n005 v5-variants-r1 | 0.50/0.85 | 0.58/0.81 | 0.25/0.51 | 0.16/0.33 | 0.24/0.46 |
+| n00U v5-fit-r1 | 0.16/0.34 | 0.15/0.31 | 0.16/**0.29** | 0.29/0.54 | 0.04/**0.15** |
+| n00U v5-fit-r2 | 0.16/0.39 | 0.10/0.30 | 0.18/0.35 | 0.16/0.33 | 0.05/**0.18** |
+| n00U v5-oneshot-r1 | 0.08/**0.19** | 0.13/0.31 | 0.05/**0.15** | 0.12/0.30 | 0.20/0.43 |
+| n01X v5-fit-r1 | 0.47/0.85 | 0.40/0.76 | 0.49/0.83 | 0.29/0.66 | 0.30/0.63 |
+| n01X v5-oneshot-r1 | 0.39/0.71 | 0.33/0.65 | 0.41/0.70 | 0.28/0.61 | 0.16/0.36 |
+
+**Prova n005 v5-fit-r3.** No front, a zona cinza do sheet (placa da máscara, `#5D6568`) tem duas peças com cover **0.00**
+(`@43,25` = rosto, `@59,30`): o clay pinta o capuz (material `coat`, escuro) por cima da zona da cabeça, e a peça da máscara
+só aparece como retângulo pequeno dentro do capuz (`sil/ids/ids-zone-front.png`). Zona cinza no front: IoU 0.03 (share 0.14);
+a escura (`coat`+`trousers`) 0.72. No left a mesma zona tem cover 0.00 em `@53,19` e `@59,29`. O número agregado (front 0.62/0.88)
+esconde isso, as peças mostram.
+
+**Decisão: relatório, não gate.** Com os limiares do estágio 2 em todos os 63 specs guardados (top/bottom em tilt 0 quando o
+run não tem `silhouette.json`): 17/63 runs falham em alguma das 5 vistas (27%), 9/63 só em front/left/back; por vista front 2,
+left 5, back 6, top 8, bottom 10. Mas nos 10 runs v5 (a geração atual, tilts reais) falham 4/10 = 40% (n00U 3/3, n005 oneshot
+no top), acima de 1/3, e o n00U (aranha, preto/marrom quase sem contraste entre zonas) falha por zona ambígua, não por forma. Fica
+como `*_BLOCKING = False` até haver mais runs v5 e uma calibração por rig. Limite honesto: o ID usa a `palette` do spec, então
+uma paleta com cores do sheet trocadas entre materiais mede a paleta, não a peça; e as vistas top/bottom são as mais ruidosas
+(clay sem cor distinta nas costas e solas).
+
+Testes: `test_spec_pipeline.test_zones_clay_rows_and_failed_build` (linhas do review + build falho vira `{}`); `ids_zones` roda
+Blender, provado nas CLI acima. Sem referência nova em `docs/references.md` (reusa as `zone_*`, já registradas).

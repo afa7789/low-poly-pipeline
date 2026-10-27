@@ -729,6 +729,27 @@ def zone_gate(report, zones):
     return bad
 
 
+def ids_zones(sheet, glb, outdir, layout, tilts):
+    """view -> zone_report of the "ID" render of `glb`, the stage 1 shape rebuilt in the spec's
+    palette (one flat colour per material): is the part of material X where the sheet has colour
+    X? Only the flat-colour shots are rendered (render_silhouette.py ids); the mask that picks the
+    mirror is their own alpha, shot from the cameras `tilts` pins. Written to outdir/zones_clay.json."""
+    from views import parse_tilts
+    renders = outdir / "ids"
+    subprocess.run(["blender", "-b", "-P", str(HERE / "render_silhouette.py"),
+                    "--", str(glb), str(renders), "ids"], check=True, capture_output=True, text=True)
+    concept = {k: normalize(v) for k, v in concept_panels(sheet, layout=layout).items()}
+    pinned, masks = parse_tilts(tilts), {}
+    for view in ZONE_VIEWS:
+        path = renders / f"{glb.stem}-zone-{view}{f'@{pinned[view]}' if pinned.get(view) else ''}.png"
+        if view in concept and path.exists():
+            masks[view] = best_match(concept[view], {0: read_mask(path)}, view)[1]
+    zones = zone_views(sheet, renders, glb.stem, masks, layout, pinned)
+    zone_gate({v: {} for v in zones}, zones)
+    (outdir / "zones_clay.json").write_text(json.dumps(zones, indent=2))
+    return zones
+
+
 def best_match(concept, tilted, name):
     """Best IoU over the mirror variants of every rendered tilt: (iou, mask, tilt)."""
     best = (-1.0, None, 0)
@@ -847,6 +868,9 @@ def main():
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--shape", action="store_true",
                     help="stage 1 (clay): silhouette gates only, no colour zones")
+    ap.add_argument("--ids", action="store_true",
+                    help="glb is the palette-colour rebuild of the shape (no clay grey): only measure its "
+                         "colour zones, from the --tilts cameras; writes outdir/zones_clay.json")
     ap.add_argument("--space", choices=("legacy", "oklab"), default="legacy",
                     help="colour space of the zone feature (oklab: see PIPELINE 19.C2 for why legacy is the default)")
     ap.add_argument("--tilts", default="",
@@ -861,6 +885,8 @@ def main():
         return 0
 
     args.outdir.mkdir(parents=True, exist_ok=True)
+    if args.ids:
+        return 0 if ids_zones(args.sheet, args.glb, args.outdir, args.layout, args.tilts) else 1
     renders = args.outdir / "sil"
     if not args.no_render:
         subprocess.run(["blender", "-b", "-P", str(HERE / "render_silhouette.py"),
