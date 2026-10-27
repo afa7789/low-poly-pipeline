@@ -290,6 +290,8 @@ image-to-3D, nenhum loop de volta ao modelo.
 
 # Leva 6 (2026-10-28) — APLICAR OS PAPERS DE FORMA COMO MÉTODO
 
+**Estado (2026-10-28, noite):** 11 de 12 integrados (PIPELINE §24); L6-7 (vértices) em curso, opt-in. Default: L6-1 superfície contínua (`STACK_LATHE`), L6-3 props por tipo com folga (`CLEARANCE_BLOCKING`), L6-4 `UNION_BODY` (corpo = 1 casca; componentes do corpo e slivers viram gate), L6-5 `DEFORM` (contorno → desenho), L6-6 gates de forma (normal_diff, fairness, components_body; termo de forma na margem e no fit; eixo form no juiz), L6-9 r_sym/coerência (vista incoerente vira relatório), L6-10 `--budgets`. Opt-in/negativos: L6-2 `CUT_DEFAULT` (n02X left −0.058), L6-11 rampa e cull na malha unida (negativos), `--atlas shared`, L6-12 `--align` (ruído). Bateria v10 em `history/2026-10-28-v10/`.
+
 Fonte: `analysis/2026-10-28-auditoria-papers-vs-codigo.md`. Até aqui Sano, Chen, Sketch2Mesh e Wiersma entraram como
 métrica/gate; a forma continua sendo frustums empilhados de 4 lados, 25 cascas se atravessando, props afogados. Esta
 leva muda a REPRESENTAÇÃO e o BUILD, e troca o juiz de aceite para a forma (wire, normais, componentes), não só a
