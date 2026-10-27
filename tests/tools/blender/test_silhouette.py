@@ -185,6 +185,27 @@ class SheetMeasures(unittest.TestCase):
         self.assertEqual(S.head_measures(spans, 8), (0.25, 0.1))
 
 
+class ZoneRamp(unittest.TestCase):
+    def test_oklab_matches_the_reference_values(self):
+        lab = S.oklab(np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
+        np.testing.assert_allclose(lab[0], (1, 0, 0), atol=1e-6)
+        np.testing.assert_allclose(lab[1], (0, 0, 0), atol=1e-9)
+        np.testing.assert_allclose(lab[2], (0.628, 0.225, 0.126), atol=2e-3)       # Ottosson's red
+
+    def test_zone_feature_follows_the_space(self):
+        rgb = np.array([[0.6, 0.4, 0.2]])
+        self.assertFalse(np.allclose(S.zone_feature_oklab(rgb), S.zone_feature(rgb)))
+        self.assertEqual(S.ZONE_SPACE, "legacy")       # measured in PIPELINE 19.C2: oklab stays opt-in
+
+    def test_luma_l1_is_zero_for_the_same_light_and_grows_with_the_gap(self):
+        rng = np.random.default_rng(0)
+        sheet = np.repeat(rng.uniform(0.3, 0.7, (40, 40, 1)), 3, axis=2)
+        lab = np.ones((40, 40), int)
+        self.assertEqual(S.luma_l1(sheet, lab, sheet, lab, 1), 0.0)
+        self.assertAlmostEqual(S.luma_l1(sheet * 0.8, lab, sheet, lab, 1), 0.1, delta=0.02)   # 20 % darker, mean ~0.5
+        self.assertIsNone(S.luma_l1(sheet, lab * 0, sheet, lab, 1))                            # no zone in both
+
+
 if __name__ == "__main__":
     unittest.main()
 

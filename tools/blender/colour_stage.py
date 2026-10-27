@@ -79,13 +79,19 @@ def validate_colour(old, new):
     return new
 
 
+def valid_ramp(ramp):
+    """None (no ramp) or [p10, p90] luma, 0 <= p10 <= p90 <= 1."""
+    return ramp is None or (isinstance(ramp, (list, tuple)) and len(ramp) == 2
+                            and all(isinstance(v, (int, float)) for v in ramp) and 0 <= ramp[0] <= ramp[1] <= 1)
+
+
 def check_palette(old, new):
-    """Same slots, same alpha; each slot's colour is #RRGGBB and its surface a known one."""
+    """Same slots, same alpha; each slot's colour is #RRGGBB, its surface a known one, its ramp valid."""
     if set(new) != set(old):
         raise ValueError(f"colour pass changed the palette slots: {sorted(set(new) ^ set(old))}")
     for name, entry in new.items():
         if (not HEX.fullmatch(str(entry.get("color", ""))) or entry.get("surface") not in SURFACES
-                or entry.get("alpha", 1.0) != old[name].get("alpha", 1.0)):
+                or entry.get("alpha", 1.0) != old[name].get("alpha", 1.0) or not valid_ramp(entry.get("ramp"))):
             raise ValueError(f"palette slot {name} outside the schema: {entry}")
 
 
@@ -139,6 +145,19 @@ def parse_reply(txt):
 
 
 # ---------------------------------------------------------------- build and measure
+def with_ramps(spec, sheet):
+    """A copy of `spec` whose palette slots carry "ramp": [p10, p90] of the luma of the sheet
+    zone nearest their colour (silhouette.zone_palette): the cel cells then ramp as far as the artist's did."""
+    import numpy as np
+    out = copy.deepcopy(spec)
+    names, _, ramps = SIL.zone_palette(sheet)
+    zone_rgb = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in names], float)
+    for entry in out.get("palette", {}).values():
+        rgb = np.array([int(entry["color"][i:i + 2], 16) for i in (1, 3, 5)], float)
+        entry["ramp"] = list(ramps[int(np.argmin(((zone_rgb - rgb) ** 2).sum(axis=1)))])
+    return out
+
+
 def build_textured(spec, glb_clay, args, glb, work):
     """The spec in `args.texture`, written to `glb`. True when the file came out."""
     glb.unlink(missing_ok=True)
@@ -146,6 +165,8 @@ def build_textured(spec, glb_clay, args, glb, work):
         run("project_concept.py", glb_clay, args.build, glb, blender=True)
         return glb.exists()
     path = work / "spec-colour.json"
+    if getattr(args, "ramp", False) and args.texture == "cel":
+        spec = with_ramps(spec, args.sheet)
     path.write_text(json.dumps(spec, indent=2))
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
@@ -230,6 +251,8 @@ def table_rows(zones, tilts):
     rows = [f"| cameras (from stage 1) | {tilts_text(tilts) or 'all square-on'} |"]
     rows.append("| colour zones mean / cover, " + "/".join(views) + " | "
                 + " ; ".join(f"{zones[v]['mean']:.2f} / {zones[v]['cover']:.2f}" for v in views) + " |")
+    rows.append("| luma L1 vs sheet (p10/p50/p90 per zone, before match_luma) | "
+                + " ; ".join(f"{zones[v].get('luma_l1')}" for v in views) + " |")
     lost = {v: zones[v]["lost"] for v in views if zones[v]["lost"]}
     if lost:
         rows.append("| lost zones (WARN, not a gate) | " + "; ".join(f"{v}: {', '.join(z)}" for v, z in lost.items()) + " |")

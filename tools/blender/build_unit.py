@@ -38,9 +38,11 @@ MATERIALS["lamp"] = MATERIALS["flame"]
 # material -> painted surface (surfaces.py). The n01X slots above are all "metal",
 # so specs written before the palette existed paint exactly as they did.
 SURFACE = {}
+RAMP = None        # cel: tone change across a cell's vertical ramp (ramp=<x> on the CLI); None = surfaces.RAMP_SLOPE
 STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_cel); style=cel on the CLI
 CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal or glow: the shape alone
 CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
+RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -53,6 +55,8 @@ def register_palette(palette):
         SURFACE[name] = entry.get("surface", "metal")
         if float(entry.get("alpha", 1.0)) < 1.0:
             ALPHA[name] = float(entry["alpha"])
+        if entry.get("ramp"):
+            RAMPS[name] = tuple(entry["ramp"])
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
@@ -863,6 +867,12 @@ def nearest_part(meta, co):
     return best
 
 
+def relative_height(meta, co):
+    """0 (bottom) .. 1 (top) of `co` inside the vertical extent of the part nearest to it."""
+    _, _, centre, half = nearest_part(meta, co)
+    return min(1.0, max(0.0, 0.5 + 0.5 * (co[2] - centre[2]) / max(half[2], 1e-6)))
+
+
 def face_span(mesh, poly, axis):
     """(u, v) per loop of `poly`, its corners normalised over the face's own box in the
     plane of its dominant axis, so a cel face spans its whole cell and the cell's border
@@ -896,9 +906,11 @@ def atlas_uvs(body, meta, block, cols, rows):
         bx, by = block[slot_base[poly.material_index]]
         tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
         axis = max(range(3), key=lambda i: abs(poly.normal[i]))
-        if STYLE == "cel":                      # the face's tone cell, sampled at its centre
+        if STYLE == "cel":                      # the face's tone cell and ramp slot, flat per face
             cell = SF.tone_index(normal_w.z)
             tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
+            slot = SF.ramp_slot(normal_w.z, relative_height(meta, centre_w),
+                                all(abs(c) > 0.3 for c in normal_w))
         span = face_span(mesh, poly, axis) if STYLE == "cel" else None
         for k, li in enumerate(poly.loop_indices):
             co = mesh.vertices[mesh.loops[li].vertex_index].co
@@ -909,9 +921,9 @@ def atlas_uvs(body, meta, block, cols, rows):
                 tx, ty = bx * 4 + cell % 4, by * 4 + cell // 4
                 uvs[li].uv = ((tx + 0.04 + 0.92 * du) / (4.0 * cols), (ty + 0.04 + 0.92 * dv) / (4.0 * rows))
                 continue
-            if span:                           # cel: the whole cell, ink border included
+            if span:                           # cel: the whole ramp slot, ink border included
                 uvs[li].uv = ((tile_x + 0.01 + 0.98 * span[k][0]) / (4.0 * cols),
-                              (tile_y + 0.01 + 0.98 * span[k][1]) / (4.0 * rows))
+                              (tile_y + SF.slot_v(slot, span[k][1])) / (4.0 * rows))
                 continue
             uvs[li].uv = ((tile_x + 0.04 + 0.92 * (lu % 1.0)) / (4.0 * cols),
                           (tile_y + 0.04 + 0.92 * (lv % 1.0)) / (4.0 * rows))
@@ -933,6 +945,8 @@ def bind_atlas(body, img):
         # palette colour is applied twice and the model goes black.
         bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
         slot.material.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        if STYLE == "cel":
+            tex_node.interpolation = "Closest"   # point filter: flat slots, exported as a NEAREST sampler
         seen[base] = slot.material
 
 
@@ -959,6 +973,17 @@ def paint_decals(pixels, SF, x0, y0, size):
         region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
 
 
+def paint_slot(SF, base, size):
+    """The size x size image of one material slot in the current style. A cel ramp comes from the
+    command line (ramp=), else from the slot's measured palette ramp, else it is flat."""
+    surface, rgb = SURFACE.get(base, "metal"), MATERIALS[base][:3]
+    if STYLE != "cel":
+        return SF.paint(surface, rgb, size)
+    if RAMP is None and base in RAMPS:
+        return SF.paint_cel(surface, rgb, size, slope=SF.ramp_slope(RAMPS[base], rgb))
+    return SF.paint_cel(surface, rgb, size) if RAMP is None else SF.paint_cel(surface, rgb, size, slope=RAMP)
+
+
 def texturize(body, meta, size=256):
     """One painted atlas per unit. Each material slot gets a size x size block of the
     atlas, painted by its surface (surfaces.py: metal plates, skin, cloth, scales...)
@@ -974,9 +999,7 @@ def texturize(body, meta, size=256):
     atlas_uvs(body, meta, block, cols, rows)
     pixels = np.ones((rows * size, cols * size, 4))
     for base, (bx, by) in block.items():
-        paint = SF.paint_cel if STYLE == "cel" else SF.paint
-        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = paint(
-            SURFACE.get(base, "metal"), MATERIALS[base][:3], size)
+        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = paint_slot(SF, base, size)
         paint_decals(pixels, SF, bx * size, by * size, size)
     img = bpy.data.images.new("tex_atlas", width=cols * size, height=rows * size, alpha=False)
     img.pixels.foreach_set(pixels.astype(np.float32).ravel())
@@ -1203,11 +1226,13 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE
+    global STYLE, CLAY, FACE, RAMP
     CLAY = "clay" in rest
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
+        if arg.startswith("ramp="):   # ramp=0.5: cel cells become vertical ramps
+            RAMP = float(arg[len("ramp="):])
         if arg.startswith("face=") and not CLAY:   # face=<rgba png>: the "sheet" decal's image
             import numpy as np
             img = bpy.data.images.load(arg[len("face="):])

@@ -412,23 +412,50 @@ def model_panels(render_dir, stem):
     return panels
 
 
+def oklab(rgb):
+    """sRGB rows (0-1) as Oklab (L, a, b), Ottosson 2020: distance there follows perceived colour."""
+    lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    lms = np.cbrt(lin @ OKLAB_LMS.T)
+    return lms @ OKLAB_LAB.T
+
+
+OKLAB_LMS = np.array([[0.4122214708, 0.5363325363, 0.0514459929],
+                      [0.2119034982, 0.6806995451, 0.1073969566],
+                      [0.0883024619, 0.2817188376, 0.6299787005]])
+OKLAB_LAB = np.array([[0.2104542553, 0.7936177850, -0.0040720468],
+                      [1.9779984951, -2.4285922050, 0.4505937099],
+                      [0.0259040371, 0.7827717662, -0.8086757660]])
+ZONE_SPACE = "legacy"     # "oklab": zone_feature_oklab (PIPELINE 19.C2 has the measure behind the default)
+OKLAB_CHROMA = 3.0        # (a, b) scale: Oklab chroma is ~0.3 at most, the legacy r-g / y-b reach ~1
+
+
+def zone_feature_oklab(rgb):
+    """(a, b, LW x L) in Oklab, a and b scaled by OKLAB_CHROMA to the legacy range."""
+    lab = oklab(rgb)
+    return np.stack([OKLAB_CHROMA * lab[..., 1], OKLAB_CHROMA * lab[..., 2], LW * lab[..., 0]], axis=-1)
+
+
 def zone_feature(rgb):
     """Colour as (red-green, yellow-blue, 0.35 x luma) rows: hue and chroma decide a zone,
     lightness barely does, because the model's render is darker than the sheet's lit tones
     (a grey plate must still be the sheet's grey, not its dark brown)."""
+    if ZONE_SPACE == "oklab":
+        return zone_feature_oklab(rgb)
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     return np.stack([r - g, (r + g) / 2 - b, LW * (rgb @ LUMA)], axis=-1)
 
 
 def zone_palette(path, k=4):
-    """(names, centres): the sheet's colour zones, k-means in zone_feature space over its
-    figure pixels. A zone is named by the mean colour of its pixels. Under 2 % is dropped."""
+    """(names, centres, ramps): the sheet's colour zones, k-means in zone_feature space over its
+    figure pixels. A zone is named by the mean colour of its pixels; its ramp is (p10, p90) of
+    their luma, the light range the artist painted inside that colour (Le 2026). Under 2 % is dropped."""
     px = figure_pixels(path)
     bg = np.median(read_rgba(path, 768)[0, :, :3], axis=0) / 255.0
     px = px[np.abs(px - bg).sum(axis=1) > 0.3]   # the anti-aliased halo is not a zone
     centres, label = kmeans(zone_feature(px), px @ LUMA, k)
     keep = [i for i in np.argsort(-np.bincount(label, minlength=k)) if (label == i).mean() >= 0.02]
-    return [hexcolour(px[label == i].mean(axis=0)) for i in keep], centres[keep]
+    ramps = [tuple(round(float(q), 4) for q in np.quantile(px[label == i] @ LUMA, (0.1, 0.9))) for i in keep]
+    return [hexcolour(px[label == i].mean(axis=0)) for i in keep], centres[keep], ramps
 
 
 def nearest(rgb, centres):
@@ -443,6 +470,27 @@ def match_luma(lit, mask, target):
     luma = lit @ LUMA
     new = np.interp(luma, np.quantile(luma[mask], qs), np.quantile(target @ LUMA, qs))
     return np.clip(lit * (new / np.maximum(luma, 1e-3))[..., None], 0, 1)
+
+
+LUMA_QS = (0.1, 0.5, 0.9)
+
+
+def luma_l1(render, model_lab, sheet, concept_lab, zones):
+    """L1 between the luma quantiles (p10/p50/p90) of the render and of the sheet, per zone,
+    weighted by the zone's share of the sheet figure. `render` and `sheet` are rgb images with
+    their label maps (0 = outside), the render as shot: BEFORE match_luma, which would hide
+    exactly this. 0 = the render's light range is the artist's; None when no zone is in both."""
+    total, weight = 0.0, 0.0
+    sheet_luma, render_luma = sheet @ LUMA, render @ LUMA
+    solid = sheet.max(axis=-1) > INK            # an outline is not a light value
+    for z in range(1, zones + 1):
+        a, b = render_luma[model_lab == z], sheet_luma[(concept_lab == z) & solid]
+        if len(a) < 20 or len(b) < 20:
+            continue
+        share = len(b)
+        total += share * float(np.abs(np.quantile(a, LUMA_QS) - np.quantile(b, LUMA_QS)).mean())
+        weight += share
+    return round(total / weight, 4) if weight else None
 
 
 def mode_filter(lab, r=SMOOTH):
@@ -544,7 +592,7 @@ def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None):
     `silhouettes` maps view -> the model mask best_match chose (picks the mirror);
     `tilts` maps top/bottom -> the tilt that mask was shot at, so the colour is shot from
     the same camera."""
-    names, centres = zone_palette(sheet)
+    names, centres, _ = zone_palette(sheet)
     rgb = read_rgba(sheet, 768)[..., :3] / 255.0
     panels = concept_panels(sheet, layout=layout)
     out = {}
@@ -557,8 +605,10 @@ def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None):
         lit, mask = shot[..., :3] / 255.0, shot[..., 3] > 16
         lab = zone_labels(match_luma(lit, mask, rgb[panels[view]]), mask, centres)
         model = max(variants(mode_filter(normalize(lab)), view), key=lambda v: iou(v > 0, silhouettes[view]))
-        concept = mode_filter(normalize(zone_labels(rgb, panels[view], centres, ink=True)))
+        sheet_lab = zone_labels(rgb, panels[view], centres, ink=True)
+        concept = mode_filter(normalize(sheet_lab))
         out[view] = zone_report(concept, model, names)
+        out[view]["luma_l1"] = luma_l1(lit, lab, rgb, sheet_lab, len(names))
     return out
 
 
@@ -571,7 +621,7 @@ def zone_gate(report, zones):
         fails = [m for m, lo in ZONE_GATES.items() if z[m] < lo] if name in ZONE_GATED else []
         report[name]["zones"] = {**z, "fails": fails}
         lost = f"  LOST {','.join(z['lost'])}" if z["lost"] else ""
-        print(f"{name:8} zones mean {z['mean']:.3f}  cover {z['cover']:.3f}  "
+        print(f"{name:8} zones mean {z['mean']:.3f}  cover {z['cover']:.3f}  luma L1 {z.get('luma_l1')}  "
               f"{'FAIL ' + ','.join(fails) if fails else 'ok'}{lost}")
         bad += bool(fails)
     return bad
@@ -695,10 +745,14 @@ def main():
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--shape", action="store_true",
                     help="stage 1 (clay): silhouette gates only, no colour zones")
+    ap.add_argument("--space", choices=("legacy", "oklab"), default="legacy",
+                    help="colour space of the zone feature (oklab: see PIPELINE 19.C2 for why legacy is the default)")
     ap.add_argument("--tilts", default="",
                     help="pin the top/bottom/rts cameras, e.g. top:10,bottom:20,rts:35/30 "
                          "(the colour stage reuses the shape stage's cameras)")
     args = ap.parse_args()
+    global ZONE_SPACE
+    ZONE_SPACE = args.space
     gates = gates_for(args.rig)
     if args.measure:
         print(json.dumps(measure(args.sheet), indent=2))

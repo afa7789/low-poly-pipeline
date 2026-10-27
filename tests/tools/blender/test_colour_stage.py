@@ -58,6 +58,24 @@ class ColourContract(unittest.TestCase):
                 CS.apply_colour(SPEC, patch)
 
 
+class Ramp(unittest.TestCase):
+    def test_validator_accepts_a_valid_ramp_and_rejects_the_rest(self):
+        for ramp in ([0.3, 0.6], (0.0, 1.0)):
+            CS.validate_colour(SPEC, edit(lambda s, r=ramp: s["palette"]["iron"].update(ramp=r)))
+        for ramp in ([0.6, 0.3], [0.3], [0.3, 1.2], "x"):
+            with self.assertRaises(ValueError, msg=ramp):
+                CS.validate_colour(SPEC, edit(lambda s, r=ramp: s["palette"]["iron"].update(ramp=r)))
+
+    def test_with_ramps_gives_each_slot_its_nearest_sheet_zone_ramp(self):
+        sheet = ROOT / "artifacts/model-sheets/refs/n01X/sheet.jpg"
+        out = CS.with_ramps(SPEC, sheet)
+        self.assertNotIn("ramp", SPEC["palette"]["iron"])               # the input is not touched
+        for entry in out["palette"].values():
+            lo, hi = entry["ramp"]
+            self.assertTrue(0 <= lo <= hi <= 1)
+        CS.validate_colour(SPEC, out)                                   # a colour pass may carry it
+
+
 class Face(unittest.TestCase):
     def test_face_png_only_for_a_sheet_decal(self):
         args = types.SimpleNamespace(sheet="sheet.jpg")

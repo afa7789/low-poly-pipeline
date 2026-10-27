@@ -186,24 +186,58 @@ def tone_index(nz):
     return 0 if nz > 0.55 else (2 if nz < -0.35 else 1)
 
 
-INK = 0.55   # tone of the ink line at the border of every cel cell (a face spans its whole cell)
+INK = 0.55   # tone of the ink line at the border of every cel slot (a face spans its whole slot)
+RAMP_SLOTS = 8     # a cel cell is RAMP_SLOTS horizontal slots, a dark-to-light ramp bottom to top
+RAMP_SLOPE = 0.0   # tone change across the whole ramp, share of the cell's tone. 0 = flat cells: measured, a ramp lowers
+                   # the colour-zone mean on n01X front (.41 -> .30) and n005 bottom (.49 -> .37) (PIPELINE 19.C1); build_unit ramp=0.5 turns it on
+TONE_V = (1.0, 0.5, 0.0)   # ramp v of a box's top / side / bottom face (height 1 / .5 / 0): its tone stays exact
+SLOT_PAD = 0.1   # a face spans 80 % of its slot: the ink row (1 texel of 8) covers ~3 % of it, as before
 
 
-def paint_cel(surface, rgb, size=256):
-    """One slot image in cel style: cells 0..2 hold the flat light/mid/dark tone, the
-    others the mid tone (the decal cells are painted over by the caller). The border of
-    each cell (1-2 px) is darker: faces span their cell, so it reads as WC3's ink line.
-    A glow surface has no line."""
+def ramp_slot(nz, height, chamfer=False):
+    """Ramp slot (0 = dark, bottom) of a cel face (Le 2026: gradient texturing). v is 0.6 x the
+    normal's lightness + 0.4 x the face's relative height in its part; a chamfer face (three
+    normal components over 0.3) takes the top of the ramp: the bevel catches the light."""
+    v = 1.0 if chamfer else 0.6 * (0.5 + 0.5 * nz) + 0.4 * height
+    return max(0, min(RAMP_SLOTS - 1, int(v * RAMP_SLOTS)))
+
+
+def slot_v(slot, t):
+    """Cell-local v of position t (0..1) across a face that sits in ramp slot `slot`."""
+    return (slot + SLOT_PAD + (1 - 2 * SLOT_PAD) * t) / RAMP_SLOTS
+
+
+RAMP_MAX = 0.6    # a measured ramp wider than this share of the tone is the sheet's lighting, not its paint
+
+
+def ramp_slope(ramp, rgb):
+    """Slope (paint_cel) of a palette slot's measured ramp (p10, p90 of the sheet zone's luma):
+    its width as a share of the slot colour's luma, 0 .. RAMP_MAX."""
+    luma = float(np.dot(np.asarray(rgb[:3], dtype=float), (0.299, 0.587, 0.114)))
+    return max(0.0, min(RAMP_MAX, (ramp[1] - ramp[0]) / max(luma, 1e-3)))
+
+
+def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE):
+    """One slot image in cel style: cells 0..2 hold the light/mid/dark tone, the others the
+    mid tone (the decal cells are painted over by the caller). Each cell is a vertical ramp of
+    RAMP_SLOTS flat slots, darker at the bottom, and a face fills one whole slot (its colour
+    is flat). The border of each slot (1-2 px) is darker: faces span their slot, so it reads
+    as WC3's ink line. A glow surface has no ramp and no line."""
     tones = CEL_SURFACE.get(surface, CEL_TONES)
     u, v, tx, ty = _cells(size)
     cell = (ty * GRID + tx).astype(int)
     k = np.array(tones + (tones[1],) * (GRID * GRID - 3))[cell]
     if surface != "glow":
         px = size // GRID
-        edge = max(1, px // 32)
+        slot_px = px // RAMP_SLOTS
         pos = np.arange(size) % px
-        on_edge = (pos < edge) | (pos >= px - edge)
-        k = k * np.where(on_edge[None, :] | on_edge[:, None], INK, 1.0)
+        level = ((pos // slot_px) + 0.5) / RAMP_SLOTS
+        centre = np.array(TONE_V + (0.5,) * (GRID * GRID - 3))[cell]
+        k = k * (1 + slope * (level[:, None] - centre))
+        edge, edge_v = max(1, px // 32), max(1, slot_px // 8)
+        on_u = (pos < edge) | (pos >= px - edge)
+        on_v = (pos % slot_px < edge_v) | (pos % slot_px >= slot_px - edge_v)
+        k = k * np.where(on_u[None, :] | on_v[:, None], INK, 1.0)
     return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
 
 
