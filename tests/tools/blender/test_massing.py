@@ -227,8 +227,8 @@ class Surface(unittest.TestCase):
         head = kinds["head"]
         self.assertEqual((head[1], head[5]["decal"], head[5]["sides"]), ("lathe", "sheet", 8))
         self.assertEqual([kinds[f"foot.{t}"][5]["sides"] for t in "LR"], [8, 8])
-        # LIMB_KNEE is off: the parts massing (23.L5-2b) draws legs as limbs with the knee halfway, never bent
-        self.assertTrue(all(p[5].get("knee", [0.5, 0, 0])[1:3] == [0, 0] for p in spec["parts"] if p[1] == "limb"))
+        # the parts massing (23.L5-2b) draws legs as limbs bent at parts.json's knee; every limb is well-formed
+        self.assertTrue(all(LL.bad_opts("limb", p[2], p[5]) is None for p in spec["parts"] if p[1] == "limb"))
         self.assertTrue(400 <= sum(PF.part_tris(p) for p in spec["parts"]) <= 700)
 
 
