@@ -59,7 +59,7 @@ class Stack(unittest.TestCase):
     def test_emit_falls_back_for_a_kind_without_emitter(self):
         saved = dict(M.KIND_FOR)
         try:
-            M.KIND_FOR["torso"] = "lathe"                # F2 not registered yet
+            M.KIND_FOR["torso"] = "dome"                 # a kind with no emitter
             g = {"y0": 0.0, "y1": 1.0, "w": lambda y: 1.0, "d": lambda y: 1.0, "zc": lambda y: 0.0}
             self.assertEqual(M.emit("torso", "spine", "z1", g)[0][1], "frustum")
         finally:

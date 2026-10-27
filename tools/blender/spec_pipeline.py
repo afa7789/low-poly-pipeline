@@ -893,8 +893,9 @@ def trial(spec, sheet, kind, work, name):
          "--rig", spec.get("rig") or "")
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
     tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), "lit", blender=True)
-    return ({view: r["iou"] for view, r in report.items()}, problem,
-            {view: r["zones"] for view, r in report.items() if "zones" in r})
+    red = [r["uncovered"] for r in report.values() if "uncovered" in r]
+    return ({view: r["iou"] for view, r in report.items()} | {"red": sum(red) / len(red) if red else 0.0},
+            problem, {view: r["zones"] for view, r in report.items() if "zones" in r})
 
 
 def clay_args(kind):
@@ -1135,7 +1136,8 @@ def fit_accepted(prev, cur, gates, problems):
     # refused while front/back gained 0.08; the stage 1 verdict still gates every view)
     held = all(cur[v] >= gates[v] - FIT_SLIP for v in seen if prev[v] >= gates[v])
     margin = [sum(r[v] - gates[v] for v in seen) for r in (prev, cur)]
-    return held and margin[1] > margin[0] and rules_hold(*problems)
+    red_ok = cur.get("red", 0.0) <= prev.get("red", 0.0) + RED_SLIP      # the red may not grow
+    return held and red_ok and margin[1] > margin[0] and rules_hold(*problems)
 
 
 def fit_stage(spec, args):
@@ -1319,7 +1321,9 @@ def margin_of(summary):
     """Sum over the views of (IoU vs approved - the view's gate): how far above the stage 1
     gates a build sits. 0.0 when the silhouette was not measured."""
     gates = summary.get("gates") or {}
-    return sum(iou - gates[v] for v, iou in (summary.get("approved") or {}).items() if v in gates)
+    red = [u for v, u in (summary.get("uncovered") or {}).items() if v in gates]
+    return (sum(iou - gates[v] for v, iou in (summary.get("approved") or {}).items() if v in gates)
+            - RED_W * (sum(red) / len(red) if red else 0.0))
 
 
 def author_specs(args, brief, images):
@@ -1890,6 +1894,9 @@ def main():
 OK_VERDICTS = ("PASS", "SHAPE-PASS")
 TRI_SLACK = 0.02      # stage 1 accepts the GLB this far over the class ceiling
 FIT_SLIP = 0.02       # fit_accepted: a passing view may slip this far under its gate when more views pass
+RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
+RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
+RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status
 
 
 def run_colour(spec, shape, args):
@@ -1977,11 +1984,18 @@ def lint_target(args, shape, colour):
     return shape["glb"], False
 
 
+def too_red(summary):
+    """A critical view whose uncovered share (the overlay's red) is over silhouette.UNCOVERED_MAX."""
+    from silhouette import UNCOVERED_MAX
+    return any(u > UNCOVERED_MAX.get(v, 1.0) for v, u in (summary.get("uncovered") or {}).items()
+               if v in RED_CRITICAL)
+
+
 def status_of(verdict, summary, lint_bad):
     """placeholder | prototype-safe | final-use | rejected (Begemann & Hutson 2026).
     SHAPE-PASS, or PASS with a failed lint gate, is prototype-safe; PASS with a clean lint is
     final-use; a CHECK whose front silhouette is more than 0.10 under its gate is rejected."""
-    if verdict == "SHAPE-PASS" or (verdict == "PASS" and lint_bad):
+    if verdict == "SHAPE-PASS" or (verdict == "PASS" and (lint_bad or too_red(summary))):
         return "prototype-safe"
     if verdict == "PASS":
         return "final-use"

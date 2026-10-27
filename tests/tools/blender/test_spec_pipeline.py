@@ -710,3 +710,25 @@ class FewShot(unittest.TestCase):
                            {"from": [0.5, 2.0, 0], "to": [0.6, 1.5, 0.004]}]]}
         self.assertEqual(SP.fewshot_summary(limb),
                          '["arm.L","prism",[0.2,0.2,0.4],[0,0,0],"iron",{"from":[0.5,2.0,0],"to":[0.6,1.5,0.0]}]')
+
+
+class RedDecides(unittest.TestCase):
+    """The overlay's red (uncovered share) lowers a variant's margin, blocks a fit that grows it
+    and keeps a PASS at prototype-safe when a critical view is over its cap."""
+
+    def test_margin_pays_the_red(self):
+        s = {"approved": {"front": 0.85, "left": 0.75}, "gates": {"front": 0.75, "left": 0.65},
+             "uncovered": {"front": 0.10, "left": 0.20}}
+        self.assertAlmostEqual(SP.margin_of(s), 0.20 - SP.RED_W * 0.15)
+
+    def test_fit_refused_when_red_grows(self):
+        gates = {"front": 0.75}
+        prev, cur = {"front": 0.80, "red": 0.10}, {"front": 0.85, "red": 0.10 + SP.RED_SLIP + 0.01}
+        self.assertFalse(SP.fit_accepted(prev, cur, gates, (None, None)))
+        self.assertTrue(SP.fit_accepted(prev, {**cur, "red": 0.11}, gates, (None, None)))
+
+    def test_status_capped_by_red(self):
+        from silhouette import UNCOVERED_MAX
+        s = {"uncovered": {"front": UNCOVERED_MAX["front"] + 0.01}}
+        self.assertEqual(SP.status_of("PASS", s, False), "prototype-safe")
+        self.assertEqual(SP.status_of("PASS", {"uncovered": {"front": 0.05}}, False), "final-use")

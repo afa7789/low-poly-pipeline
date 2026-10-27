@@ -36,8 +36,16 @@ import preflight  # noqa: E402
 import silhouette as SIL  # noqa: E402
 
 FAMILIES = ("biped", "spider", "spider_high")
+# frustum stacks follow the sheet's depth centre per slice; a lathe cannot (its axis is straight), and
+# measured alone it lost 0.03-0.06 on left/top/bottom (n01X) with no gain on the spider (2026-10-27).
+# LATHE_MASSING flips head/torso/pelvis/shell to the lathe emitters for a one-surface look.
+LATHE_MASSING = False
 KIND_FOR = {"head": "frustum", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
             "arm": "prism", "leg": "prism", "shell": "frustum"}
+if LATHE_MASSING:
+    KIND_FOR.update(head="lathe", torso="lathe", pelvis="lathe", shell="lathe")
+LATHE_RINGS = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # profile samples per role (lathe_limb.PROFILE_RANGE)
+LATHE_SIDES = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # a head of 6x6 costs 68 tris, a torso of 8x8 124
 SLICES = {"head": 5, "torso": 8, "pelvis": 5, "shell": 5}   # stack height per role (frustum stacks)
 SPECK = 0.08            # a detached blob under this share of the figure's area is a prop, not the body
 BACK_PROP_DEPTH = 0.75  # torso depth cap, x its width, when the props sheet lists a prop on the back (head: +0.3)
@@ -214,7 +222,24 @@ def _prism_limb(role, bone, slot, g):
              {"sides": g.get("sides", SIDES), "from": [r3(v) for v in a], "to": [r3(v) for v in b]}]]
 
 
-EMIT = {"frustum": _frustum_stack, "prism": _prism_limb}
+def _lathe_body(role, bone, slot, g):
+    """One lathe from y0 to y1: the profile is the sheet's full width w(y) at LATHE_RINGS heights
+    (fraction of the widest ring), squash = mean width / mean depth, centre at the mean depth
+    centre. One continuous surface instead of a stack of frustums with ledges (PIPELINE 21.F1)."""
+    ys = np.linspace(g["y0"], g["y1"], LATHE_RINGS.get(role, 8))
+    pad = 0.03 * (g["y1"] - g["y0"])
+    w = np.array([g["w"](min(max(y, g["y0"] + pad), g["y1"] - pad)) for y in ys])
+    d = np.array([g["d"](min(max(y, g["y0"] + pad), g["y1"] - pad)) for y in ys])
+    zc = float(np.mean([g["zc"](y) for y in ys]))
+    r = max(float(w.max()) / 2, 1e-3)
+    profile = [r3(float(v)) for v in np.clip(w / (2 * r), 0.05, 1.5)]
+    squash = r3(float(np.clip(w.mean() / max(d.mean(), 1e-3), 0.5, 2.0)))
+    h = g["y1"] - g["y0"] + JOINT * g["y1"]
+    return [[bone, "lathe", [r3(r), r3(h)], [r3(g.get("xc", 0.0)), r3((g["y0"] + g["y1"]) / 2), r3(zc)],
+             slot, {"profile": profile, "squash": squash, "sides": LATHE_SIDES.get(role, 8)}]]
+
+
+EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body}
 
 
 def emit(role, bone, slot, geometry):
@@ -524,7 +549,31 @@ def _shell(sheet, panels, front, H, labels_for, hips_z):
         if bone == "abdomen" and z[1] > hips_z:      # a slab over the leg hips is the body's: the legs hang from it
             bone = "body"
         parts += _slab(bone, slot, z, (ybot, ytop), width, dome)
-    return parts
+    return _shell_lathes(parts, dome) if KIND_FOR["shell"] == "lathe" else parts
+
+
+def _shell_lathes(slabs, dome):
+    """The frustum slabs of each spider bone merged into one upright lathe: x radius = the widest
+    slab, z radius = half the bone's length (squash = width / length, an oval from the top), the
+    profile from the front view's dome between belly and back. The top view stops being a box."""
+    out, done = [], set()
+    for bone in [p[0] for p in slabs]:
+        if bone in done:
+            continue
+        done.add(bone)
+        mine = [p for p in slabs if p[0] == bone]
+        width = max(p[2][0] for p in mine)
+        z0 = min(p[3][2] - p[2][2] / 2 for p in mine)
+        z1 = max(p[3][2] + p[2][2] / 2 for p in mine)
+        ybot = min(p[3][1] - p[2][1] / 2 for p in mine)
+        ytop = max(p[3][1] + p[2][1] / 2 for p in mine)
+        r = max(width / 2, 1e-3)
+        squash = float(np.clip(width / max(z1 - z0, 1e-3), 0.5, 2.0))
+        ys = np.linspace(ybot, ytop, 6)
+        profile = [r3(max(float(dome(y)), 0.3)) for y in ys]
+        out.append([bone, "lathe", [r3(r), r3(ytop - ybot)], [0, r3((ybot + ytop) / 2), r3((z0 + z1) / 2)],
+                    mine[0][4], {"profile": profile, "squash": r3(squash), "sides": 8}])
+    return out
 
 
 def _slab(bone, slot, z, y, width, dome):
