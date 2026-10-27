@@ -2600,3 +2600,13 @@ Preflight PASS nas 4 unidades, nenhum grupo caiu para a faixa (antes: 17-19/23).
 - **Veredito:** o mapa dá uma ordem plausível, mas o z métrico que o fit usa tem de vir da calibração com o left, e ela só vale (|r| >= 0,3) em 1 de 2 sheets; onde vale, o ganho de IoU é zero. Fica opt-in. Se voltar: calibrar com a `box3d` real do L5-1 (juntas triangulatas) em vez da caixa a olho.
 - Paper: Depth Anything V2 (NeurIPS 2024). Não é gerador 3D: só inferência, sem malha, rede pré-treinada de profundidade relativa; decisão do usuário registrada no ROADMAP.
 - Arquivos: `tools/blender/parts_fit.py`, `tools/blender/depth_map.py`, `tools/blender/fit_spec.py` (`PART_W`, `DEPTH_W`, `PART_POOR`, `Proxy.hull_list/part_shares/polygons`, `attach_parts`, `misplaced`, `spec_centre`, `fit(partfit, parts_path, depth)`), `tools/blender/spec_pipeline.py` (`--fit-parts`, `--parts`, `--depth`), `tests/tools/blender/test_parts_fit.py`, `test_depth_map.py`, `fixtures/parts-{n005,hfoo}.json`.
+
+### 23.X Corte dos painéis: vãos interiores antes dos dois maiores (2026-10-28) - NÃO APLICADO, misto
+- **O que:** `concept_panels` escolhe os 2 maiores vãos de colunas e só depois filtra os interiores; as margens da página
+  ganham e 18 de 23 sheets caem no corte em terços iguais (que fatia o cano da arma do n005, achado em 23.L5-4).
+  Testei filtrar os interiores antes de escolher os 2 maiores.
+- **Medida (clays v8-r1, mesma régua):** n005 front .849→.815, left .721→.775, back .832→.844; n00U left .744→.685;
+  n02X front .779→.758, left .715→.740, back .778→.752; n01X e hfoo iguais. Quebra `BlobPanels`.
+- **Decisão:** revertido. Troca a régua de todas as comparações com ganho só no left e perda no front e na aranha;
+  o cano fatiado fica como limitação conhecida do sheet do n005 (o vão entre painéis é pequeno). Reabrir se a leva 6
+  regenerar sheets com vão maior.
