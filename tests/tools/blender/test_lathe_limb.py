@@ -126,5 +126,93 @@ class Fit(unittest.TestCase):
         self.assertEqual(prof, [1.15] * 6)
 
 
+def plate(dims=(0.6, 0.4, 0.1), at=(0, 1, 0), bone="arm.L", **opts):
+    return [bone, "plate", list(dims), list(at), "iron", opts]
+
+
+TRI = [[0, 0], [1, 0], [0.5, 1]]
+
+
+class Plate(unittest.TestCase):
+    def test_tris(self):
+        for name, opts, want in [("default sheet worst case", {}, 2 * 6 + 2 * 8), ("triangle", {"profile": TRI}, 8),
+                                 ("beveled", {"profile": TRI, "bevel": 0.2}, 2 + 18)]:
+            with self.subTest(name):
+                self.assertEqual(PF.part_tris(plate(**opts)), want)
+
+    def test_axes_put_the_thickness_on_the_normal(self):
+        for axis, thin in [("front", 2), ("left", 0), ("top", 1)]:
+            with self.subTest(axis):
+                lo, hi = PF.bbox(plate((0.6, 0.4, 0.1), axis=axis, profile=[[0, 0], [1, 0], [1, 1], [0, 1]]))
+                ext = [h - l for l, h in zip(lo, hi)]
+                self.assertAlmostEqual(ext[thin], 0.1, 4)
+                self.assertAlmostEqual(sorted(ext)[2], 0.6, 4)
+
+    def test_bevel_shrinks_the_faces(self):
+        rings = LL.plate_rings((1, 1, 0.2), (0, 0, 0), {"profile": [[0, 0], [1, 0], [1, 1], [0, 1]], "bevel": 0.3})
+        self.assertEqual(len(rings), 4)
+        self.assertAlmostEqual(max(p[0] for p in rings[0]), 0.35, 4)      # face: 0.5 * (1 - 0.3)
+        self.assertAlmostEqual(max(p[0] for p in rings[1]), 0.5, 4)
+
+    def test_rot_turns_the_box(self):
+        flat = PF.bbox(plate(profile=TRI))
+        turned = PF.bbox(plate(profile=TRI, rot=[0, 0, 90]))
+        self.assertAlmostEqual(turned[1][1] - turned[0][1], flat[1][0] - flat[0][0], 3)    # roll: w now stands up
+
+    def test_validate(self):
+        for name, part, ok in [
+                ("plain", plate(), True), ("profile", plate(profile=TRI, bevel=0.2, axis="top", rot=[0, 0, 20]), True),
+                ("axis", plate(axis="up"), False), ("2 points", plate(profile=TRI[:2]), False),
+                ("9 points", plate(profile=[[0.1 * i, 0.5] for i in range(9)]), False),
+                ("outside 0-1", plate(profile=[[0, 0], [1.2, 0], [1, 1]]), False),
+                ("bevel", plate(bevel=0.5), False), ("span", plate(**{"from": [0, 0, 0], "to": [0, 1, 0]}), False),
+                ("cut", plate(cut="sheet"), False), ("two dims", plate((0.6, 0.4)), False)]:
+            with self.subTest(name):
+                if ok:
+                    SP.validate([part])
+                else:
+                    with self.assertRaises(ValueError):
+                        SP.validate([part])
+        self.assertIn('"plate"', SP.DSL)
+
+    def test_top_outline_front_is_v_one(self):
+        """figure x -0.5..0.5, z -1..1 on a 200x100 mask; a plate in the front half reads v 0..1 inside its box,
+        wider at the front (bottom rows of the sheet) than at the back"""
+        m = np.zeros((200, 100), bool)
+        for r in range(200):
+            half = 10 + r // 5
+            m[r, 50 - half:50 + half] = True
+        box = ((-0.5, 0.0, -1.0), (0.5, 1.0, 1.0))
+        poly = CH.top_outline(m, box, (-0.5, 0.5, 0.0), (0.5, 1.0, 1.0))
+        self.assertIsNotNone(poly)
+        self.assertLessEqual(len(poly), CH.LIMIT)
+        self.assertTrue(all(0 <= u <= 1 and 0 <= v <= 1 for u, v in poly))
+        wide = [u for u, v in poly if v > 0.9]
+        narrow = [u for u, v in poly if v < 0.1]
+        self.assertGreater(max(wide) - min(wide), max(narrow) - min(narrow))
+
+    def test_top_flipped_when_the_head_is_up(self):
+        """boxes: a big body at z<0 and a small head at z>0; the panel draws the big mass at the bottom (head up)"""
+        boxes = [((-0.4, 0, -1.0), (0.4, 1, 0.2)), ((-0.1, 0, 0.2), (0.1, 1, 0.6))]
+        ext = ((-0.4, 0, -1.0), (0.4, 1, 0.6))
+        m = np.zeros((160, 80), bool)
+        m[0:40, 35:45] = True                       # the head at the top of the panel
+        m[40:160, 5:75] = True
+        self.assertTrue(CH.top_flipped(m, boxes, ext))
+        self.assertFalse(CH.top_flipped(m[::-1], boxes, ext))
+
+    def test_fit_points_and_params(self):
+        part = plate(profile=TRI, rot=[0, 0, 90])
+        lo, hi = PF.bbox(part)
+        pts = F.part_points(part)                      # Blender axes: x, -z, y
+        self.assertAlmostEqual(pts[:, 2].max(), hi[1], 3)
+        self.assertAlmostEqual(pts[:, 2].min(), lo[1], 3)
+        self.assertEqual(F.extras_of(plate()), ())      # no profile baked yet: nothing to scale
+        names = F.extras_of(part)
+        out = F.moved(part, np.ones(3 + 3 + 2), 2.0, extra=names)[5]["profile"]
+        self.assertTrue(all(0 <= v <= 1 for q in out for v in q))
+        self.assertGreater(out[1][0] - out[0][0], 1.0 * 1.0 - 1e-9)       # base grew about the centroid, then clipped at 1
+
+
 if __name__ == "__main__":
     unittest.main()

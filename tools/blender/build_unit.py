@@ -314,7 +314,7 @@ def build_armature(rest_pose=None):
 
 
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28,
-             "ring": 144, "lathe": 68, "limb": 32}
+             "ring": 144, "lathe": 68, "limb": 32, "plate": 28}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
 
@@ -511,11 +511,13 @@ def cut_part(bone, mat_name, idx):
 
 
 def swept_part(kind, dims, at, opts, name, idx):
-    """A lathe or a limb (lathe_limb.py makes the rings): quads between consecutive rings, n-gon
-    ends. A limb keeps its vertex order (from ring, knee ring, to ring) for the skin weights."""
+    """A lathe, a limb or a plate (lathe_limb.py makes the rings): quads between consecutive rings,
+    n-gon ends. A limb keeps its vertex order (from ring, knee ring, to ring) for the skin weights. A plate
+    is built around its own origin at `at` and turned by opts rot like a box."""
     LL = sibling("lathe_limb")
-    rings = (LL.lathe_rings(dims, at, opts, (CUTS.get(str(idx)) or {}).get("profile"))
-             if kind == "lathe" else LL.limb_rings(dims, opts))
+    prof = (CUTS.get(str(idx)) or {}).get("profile")
+    rings = (LL.lathe_rings(dims, at, opts, prof) if kind == "lathe" else
+             LL.plate_rings(dims, (0, 0, 0), opts, prof) if kind == "plate" else LL.limb_rings(dims, opts))
     me = bpy.data.meshes.new(kind)
     bm = bmesh.new()
     grid = [[bm.verts.new(bp(p)) for p in ring_] for ring_ in rings]
@@ -532,6 +534,10 @@ def swept_part(kind, dims, at, opts, name, idx):
     bpy.context.collection.objects.link(obj)
     if kind == "limb":
         obj["limb_sides"] = n
+    if kind == "plate":
+        rots = opts.get("rot", 0.0)
+        rx, ry, rz = (D(v) for v in ((0.0, 0.0, rots) if isinstance(rots, (int, float)) else rots))
+        obj.location, obj.rotation_euler = bp(at), (rx, -rz, ry)
     return obj
 
 
@@ -1302,7 +1308,7 @@ def build_spec_parts(spec, chamfers):
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
         if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
             obj = cut_part(bone, mat_name, idx)
-        elif kind in ("lathe", "limb"):
+        elif kind in ("lathe", "limb", "plate"):
             obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx)
             obj.data.materials.append(material(mat_name))
         else:

@@ -380,7 +380,7 @@ def part_tris(part):
         return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
     if kind == "prism":
         return 4 * int(opts.get("sides", 8)) - 4
-    if kind in ("lathe", "limb"):
+    if kind in ("lathe", "limb", "plate"):
         return lathe_limb.tris(kind, opts)
     if kind != "ring":
         return BASE_TRIS.get(kind, 12)
@@ -462,8 +462,18 @@ def rotated_half(half, euler):
     return tuple(sum(abs(m[i][j]) * half[j] for j in range(3)) for i in range(3))
 
 
+def plate_box(dims, at, opts):
+    """Box of a plate: its points turned by opts rot about `at`, as build_unit.build_part turns a box."""
+    m = rot_matrix(*rot_euler(opts))
+    pts = [tuple(sum(m[i][j] * (p[j] - at[j]) for j in range(3)) + at[i] for i in range(3))
+           for ring in lathe_limb.plate_rings(dims, at, opts) for p in ring]
+    return tuple(min(p[i] for p in pts) for i in range(3)), tuple(max(p[i] for p in pts) for i in range(3))
+
+
 def bbox(part):
     _, kind, dims, at, _, opts = part
+    if kind == "plate":
+        return plate_box(dims, at, opts)
     if kind in ("lathe", "limb"):
         return lathe_limb.half_extent(kind, dims, at, opts)
     if "from" in opts and "to" in opts:

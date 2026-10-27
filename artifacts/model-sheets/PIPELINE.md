@@ -2217,3 +2217,27 @@ Papers: Sano 2026 (visual hull como volume base), Gao 2022 (massa regularizada, 
   Os dois passam estágio 1 e 2 (PASS, 21/21, tris 668 e 644). r1 mostrou o defeito: o torso do pré-spec já carregava o volume do tanque (profundidade do left) e o autor adicionou o tanque de novo (prisma em z = -0,92): left .816 -> .608 depois do edit, o fit levou a .708. Daí o corte de profundidade com prop nas costas: r2 left .780 (+0,07), bottom .798, top .684. Front e back ficam 0,01-0,02 abaixo do r1. Contra o v6-r4 (autor do zero): front +.015, left -.03, back -.03, top -.04, bottom +.02, rts -.10; o ganho real do edit é tempo de autoria (7-8 edits em vez de 28 peças) e preflight 21/21 de saída, não IoU.
 - **Piorou / pendente.** (1) Não atingi "massing sozinho ≥ v6": top/bottom/rts perdem. (2) N=1 run com LLM por configuração; a diferença r1 x r2 (+0,07 no left) é maior que o ruído medido em §20.S5 (~0,03) mas é um run. (3) O n005 com corte falha o gate do left sozinho (a massa sem o tanque), o que só importa na seção "massing alone" do review. (4) Pés e mãos dependem de heurísticas de corrida (`nearest_run`); sheets com pé fora do padrão podem sair com o pé do tamanho da perna. (5) Quadrúpede, serpente, veículo e edifício: sem massing (`None`, brief antigo); edifício tem `--hull`. (6) `LEG_FAT` = 1,8 é calibração em 1 spider.
 - **Testes.** `test_massing.py` (View/specks/recentre, `breakpoints`, pilha, fallback de kind, `ensure_slots`, pré-spec do n01X passa `checks_of` sem falhas e cobre os ossos exigidos, família sem massing) e a classe `Pipeline` no mesmo arquivo (`edit_changes`, `rules_of`, `--no-massing`, seção do review).
+
+## 22. Leva 4 (2026-10-28)
+
+### 22.L4-2 Kind `plate`: perfil extrudado (2026-10-27)
+
+- **O que mudou.** Parte `[bone, "plate", [w, h, t], at, mat, {"axis": "front|left|top", "profile": 3-8 pts [u, v] em 0-1 de w e h, "bevel": 0-0.3, "rot": ...}]`: o polígono extrudado t ao longo da normal (front: x/y, espessura z; left: z/y, espessura x; top: x/z, espessura y, v = frente), 2 faces n-gon + faixa de quads; bevel = 4 anéis, faces encolhidas pela fração. Sem `profile` o build lê o contorno do sheet na caixa da peça (como `cut`/`lathe`): front/left por `cut_hull.strip_outline`, top por `cut_hull.top_outline` (abertura morfológica `TOP_OPEN` tira as pernas). Geometria em `lathe_limb.py` (`plate_rings`, `bad_plate`, tris = 2(n-2) + 2n·(1 ou 3); sem perfil conta 8 pontos, o build usa ≤ 8), `build_unit.swept_part` (objeto com origem em `at`, rot como o box), `preflight` (`plate_box`: bbox com rot), `spec_pipeline` (KINDS, validate, DSL com asa/carapaça/leme), `fit_spec` (`part_points`; `PARAMS["plate"]=("plate",)`: escala do perfil em u,v ±15 % em torno do centroide, só com perfil gravado por `baked`; w, h, t já andam com `dims`).
+- **Orientação do painel top.** O sheet do n00U desenha o top com a cabeça em cima, não embaixo (`views.py` assume frente embaixo). `cut_hull.top_flipped` sobrepõe a união das caixas das peças ao painel nos dois sentidos e lê no melhor. Achado, fora do escopo: o IoU de top/bottom do n00U compara o modelo (cabeça embaixo) com o sheet (cabeça em cima) sem flip.
+- **Prova (a), harpy sintético** (n01X hard-v1 + rig harpy + 3 plates em wing1/wing2.upper/wing1.lower, 2 com perfil e rot espelhados, 1 lida do sheet no top): build OK, `attach loose=[]`, tris 740 reais vs 752 estimados (a lida tem 5 pontos, a estimativa 8), asas espelhadas visíveis em front/top/rts (`scratchpad/leva4-plate/harpy3.png`). Estouro de budget (740 > 700) é do n01X já em 620.
+- **Prova (b), n00U sobre `v7-r2/spec.json`** (rebuild sem LLM, `--no-fit --no-massing`; Base reproduz .779/.743/.786/.707/.676/.623):
+
+| variante | front / left / back / top / bottom / rts | unc top / bottom |
+|---|---|---|
+| Base (v7-r2) | .779 .743 .786 .707 .676 .623 | .079 / .075 |
+| A: shell (11,13-19) trocado por 1 plate top, lido (sem flip) | .689 .637 .696 .703 .666 .633 | .087 / .099 |
+| B: A mantendo o domo 15 | .689 .637 .696 .712 .672 .636 | .073 / .086 |
+| C: só o aro (11) vira plate lida | .774 .737 .781 .675 .651 .615 | .126 / .128 |
+| C2: aro com flip detectado | .778 .730 .785 .664 .646 .600 | .136 / .153 |
+| F: aro + domo viram plates | .754 .720 .761 .644 .620 .595 | .186 / .197 |
+| G: base + plate sob o shell, perfil do sheet (flip) | .778 .733 .785 .690 .670 .627 | .078 / .100 |
+| H: idem, perfil sem flip | .778 .733 .785 .687 .653 .637 | .072 / .099 |
+
+- **Resultado: negativo na meta.** Nenhuma variante dá top/bottom +0.02 sem perder front: a pilha de frustums do v7-r2 já cobre o top (unc .079), e o plate oval lido do sheet cobre menos que o aro retangular (unc sobe) ou, somado, só aumenta o spill. O que melhora: tris (A: 656 vs 700) e rts +0.01 (A/B). Plate de carapaça sozinho perde o front (-0.09) porque a pirâmide de frustums some. O kind fica opt-in (nenhum default muda); o ganho esperado é em asas/placas/leme, onde a alternativa é um box.
+- **Pendente.** Prova com LLM de asa (harpy/drake) em L4-4; `rot` não entra no fit (`rot_allowed` é por osso); a leitura do top assume que as caixas das peças desenham a mesma massa que o painel.
+- **Testes.** `test_lathe_limb.py::Plate` (tris, eixos, bevel, rot, validate, `top_outline`, `top_flipped`, pontos e params do fit).

@@ -202,6 +202,10 @@ def part_points(part):
         rings = lathe_limb.lathe_rings(dims, at, opts) if kind == "lathe" else lathe_limb.limb_rings(dims, opts)
         pts = np.array([p for ring in rings for p in ring], float)
         return np.stack([pts[:, 0], -pts[:, 2], pts[:, 1]], 1)
+    if kind == "plate":
+        local = np.array([spec_to_blender(p) for ring in lathe_limb.plate_rings(dims, (0, 0, 0), opts) for p in ring])
+        rx, ry, rz = (D(v) for v in spec_rot(opts))
+        return local @ euler_matrix(rx, -rz, ry).T + spec_to_blender(at)
     span = "from" in opts and "to" in opts
     if span:
         a, b = tuple(opts["from"]), tuple(opts["to"])
@@ -504,6 +508,18 @@ EXTRAS = {"rot": {"size": 3, "allowed": rot_allowed, "apply": apply_rot},
           "knee": {"size": 3, "allowed": lambda p, hood: True, "apply": apply_knee}}
 
 
+def apply_plate(part, values, mirror, height):
+    """A plate's profile scaled about its centroid by PROFILE_RANGE x (u, v), clipped to 0-1 (PIPELINE 22.L4-2)."""
+    prof = part[5].get("profile") or []
+    cu, cv = (sum(q[i] for q in prof) / len(prof) for i in (0, 1)) if prof else (0, 0)
+    part[5]["profile"] = [[clip(cu + (q[0] - cu) * (1 + PROFILE_RANGE * values[0]), 0, 1),
+                           clip(cv + (q[1] - cv) * (1 + PROFILE_RANGE * values[1]), 0, 1)] for q in prof]
+
+
+PARAMS["plate"] = ("plate",)       # dims (w, h, t) already scale the box and the thickness
+EXTRAS["plate"] = {"size": 2, "allowed": lambda p, hood: bool(p[5].get("profile")), "apply": apply_plate}
+
+
 def extras_of(part, hood=False):
     return tuple(n for n in PARAMS.get(part[1], ()) if EXTRAS[n]["allowed"](part, hood))
 
@@ -689,6 +705,7 @@ def baked(parts, sheet):
     """The parts with the sheet profile written into every lathe that has none, so the fit can move
     its radii; a copy, the doc is untouched until a fit is accepted."""
     read = cut_hull.lathe_profiles(parts, sheet) if any(p[1] == "lathe" for p in parts) else {}
+    read.update(cut_hull.plate_profiles(parts, sheet) if any(p[1] == "plate" for p in parts) else {})
     if not read:
         return parts
     out = copy.deepcopy(parts)
