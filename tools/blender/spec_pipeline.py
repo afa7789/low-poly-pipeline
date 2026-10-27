@@ -1133,11 +1133,14 @@ def run_passes(spec, args, brief, views):
     return spec
 
 
-def fit_accepted(prev, cur, gates, problems):
+def fit_accepted(prev, cur, gates, problems, rig=None):
     """The fitted spec's real clay against the original's (IoU per view, preflight report of each):
     no view that passed its gate may fall under it, the gated views must gain on the whole and no
-    preflight rule that held may break."""
+    preflight rule that held may break; the family's critical views (VIEW_FLOOR) may not fall more than
+    FIT_SLIP even when they were under their gate."""
     if prev is None or cur is None:
+        return False
+    if any(cur.get(v, 1.0) < prev.get(v, 0.0) - FIT_SLIP for v in VIEW_FLOOR.get(rig, VIEW_FLOOR[None])):
         return False
     seen = [v for v in gates if v in prev and v in cur]
     # the sum of margins over the gates must grow (what best_of_n ranks by) and a view that
@@ -1156,7 +1159,8 @@ def fit_stage(spec, args):
     import fit_spec
     from silhouette import gates_for
     fitted, report = fit_spec.fit(spec, args.sheet, args.kind, wide=not args.fit_fast, tilts=run_tilts(args),
-                               hard=args.build if args.fit_edges else None)
+                               hard=args.build if args.fit_edges else None,
+                               stages=fit_spec.STAGES if args.fit_stages else None)
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if report["changed"]:
         ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
@@ -1172,7 +1176,7 @@ def fit_stage(spec, args):
     for name, cand in candidates:
         cur = trial(cand, args.sheet, args.kind, work, name)
         real[name] = cur[0]
-        if fit_accepted(best[0], cur[0], gates_for(args.rig), (best[1], cur[1])):
+        if fit_accepted(best[0], cur[0], gates_for(args.rig), (best[1], cur[1]), args.rig):
             best, chosen = cur, (name, cand)
     (work / "fit.json").write_text(json.dumps({**report, "real": real, "accepted": chosen[0] != "before",
                                                "chosen": chosen[0]}, indent=2))
@@ -1831,6 +1835,9 @@ def main():
     ap.add_argument("--no-fit", dest="fit", action="store_false", help="skip the numeric fit")
     ap.add_argument("--fit-fast", action="store_true",
                     help="the classic fit: front/left/back, dims and at, no cut test (about a third of the time)")
+    ap.add_argument("--fit-stages", action="store_true",
+                    help="the fit runs trunk, limbs and profiles one after the other, 1/3 of the budget each "
+                         "(PIPELINE 22.L4-3: not better than the single Powell, opt-in)")
     ap.add_argument("--no-fewshot", action="store_true",
                     help="leave the worked spec -> render example out of the author's prompt "
                          "(PIPELINE 21.F5)")
@@ -1903,6 +1910,8 @@ def main():
 OK_VERDICTS = ("PASS", "SHAPE-PASS")
 TRI_SLACK = 0.02      # stage 1 accepts the GLB this far over the class ceiling
 FIT_SLIP = 0.02       # fit_accepted: a passing view may slip this far under its gate when more views pass
+VIEW_FLOOR = {None: ("front", "rts"), "spider": ("top", "bottom", "rts"),
+              "spider_high": ("top", "bottom", "rts")}   # fit_accepted: the family's critical views never fall > FIT_SLIP
 RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
 RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status

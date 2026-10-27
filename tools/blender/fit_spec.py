@@ -697,6 +697,53 @@ def search_space(parts, groups, hood, parent_of, loose0, wide, leg_w=None, heigh
     return extra, bounds
 
 
+STAGES = ("trunk", "limbs", "profiles")
+TRUNK_BONES = ("spine", "pelvis", "torso", "chest", "body", "abdomen", "head", "neck")   # bone prefixes of the trunk stage
+STAGE_OF_EXTRA = {"profile": "profiles"}        # every other extra (rot, knee) moves in the limbs stage
+
+
+def stage_masks(parts, groups, extra, stages):
+    """{stage: boolean mask over the flat parameter vector} (PIPELINE 22.L4-3). Per group the dims and `at`
+    belong to the trunk stage when the part sits on a trunk bone, else to the limbs stage; each extra to
+    STAGE_OF_EXTRA (default limbs). A stage with no parameter is left out."""
+    size = sum(group_size(parts[i], extra[i]) for i, _ in groups)
+    masks = {s: np.zeros(size, bool) for s in stages}
+    k = 0
+    for i, _ in groups:
+        n = len(parts[i][2]) + 3
+        masks[("trunk" if parts[i][0].startswith(TRUNK_BONES) else "limbs")][k:k + n] = True
+        k += n
+        for name in extra[i]:
+            masks[STAGE_OF_EXTRA.get(name, "limbs")][k:k + extra_size(parts[i], name)] = True
+            k += extra_size(parts[i], name)
+    return {s: m for s, m in masks.items() if m.any()}
+
+
+def descend(objective, bounds, masks, seconds):
+    """Powell over the whole vector (masks None) or, stage by stage, over each mask's coordinates with the
+    rest held at the best point so far: each stage takes 1/len(masks) of the evaluations and the seconds,
+    the same objective, the best point kept across stages."""
+    ctx, total, end = objective.ctx, objective.ctx["max_evals"], objective.ctx["deadline"]
+    lo = np.array([b[0] for b in bounds], float)
+    hi = np.array([b[1] for b in bounds], float)
+    for mask in (masks or {None: slice(None)}).values():
+        base = np.zeros(len(bounds)) if objective.best["x"] is None else objective.best["x"].copy()
+        if masks:
+            ctx["max_evals"] = objective.n + total // len(masks)
+            ctx["deadline"] = min(end, time.monotonic() + seconds / len(masks))
+
+        def sub(y, base=base, mask=mask):
+            x = base.copy()
+            x[mask] = y
+            return objective(x)
+        try:
+            minimize(sub, base[mask], method="Powell", bounds=list(zip(lo[mask], hi[mask])),
+                     options={"maxfev": ctx["max_evals"] - objective.n, "xtol": 1e-2, "ftol": 1e-4})
+        except Stop:
+            if objective.n >= total or time.monotonic() > end:
+                break
+
+
 def baked(parts, sheet):
     """The parts with the sheet profile written into every lathe that has none, so the fit can move
     its radii; a copy, the doc is untouched until a fit is accepted."""
@@ -710,11 +757,13 @@ def baked(parts, sheet):
 
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
-        seconds=MAX_SECONDS, hard=None, joints=False):
+        seconds=MAX_SECONDS, hard=None, joints=False, stages=None):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
-    top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec."""
+    top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec.
+    `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
+    (PIPELINE 22.L4-3); None is the single Powell over every parameter."""
     t0 = time.monotonic()
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     parts = baked(doc["parts"], sheet) if "parts" in doc else None
@@ -747,11 +796,8 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
            "max_evals": max_evals or (MAX_EVALS if wide else FAST_EVALS), "deadline": time.monotonic() + seconds}
     objective = Objective(proxy, doc, parts, groups, free, ctx)
     start = proxy.loss(parts, free=free) + LOOSE_W * len(loose0)
-    try:
-        minimize(objective, np.zeros(len(bounds)), method="Powell", bounds=bounds,
-                 options={"maxfev": ctx["max_evals"], "xtol": 1e-2, "ftol": 1e-4})
-    except Stop:
-        pass
+    masks = stage_masks(parts, groups, extra, stages) if stages else None
+    descend(objective, bounds, masks, seconds)
     best = objective.best
     report.update(free=len(free), groups=len(groups), evals=objective.n, loss=[round(start, 4), round(best["f"], 4)],
                   seconds=round(time.monotonic() - t0, 1))

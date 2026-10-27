@@ -238,6 +238,53 @@ class FitAccepted(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(SP.fit_accepted(prev, cur, self.GATES, problems), want)
 
+    def test_view_floor(self):
+        """a spider's top may not fall > FIT_SLIP even under its gate; a biped's top is not critical"""
+        gates = {"front": 0.65, "top": 0.65}
+        prev, cur = {"front": 0.60, "top": 0.60}, {"front": 0.70, "top": 0.56}
+        self.assertFalse(SP.fit_accepted(prev, cur, gates, (None, None), "spider"))
+        self.assertTrue(SP.fit_accepted(prev, cur, gates, (None, None), "biped"))
+        self.assertTrue(SP.fit_accepted(prev, {**cur, "top": 0.59}, gates, (None, None), "spider"))
+
+
+class Stages(unittest.TestCase):
+    def test_masks(self):
+        """trunk = dims/at of trunk bones, limbs = the rest and rot/knee, profiles = lathe radii; the masks
+        partition the flat vector"""
+        parts = [box("spine", (1, 2, 1), (0, 1, 0)), box("arm", (1, 1, 1), (1, 1, 0)),
+                 ["body", "lathe", [0.5, 1.0], [0, 1, 0], "iron", {"profile": [0.4, 0.5, 0.4]}]]
+        groups = [(0, None), (1, None), (2, None)]
+        extra = {0: ("rot",), 1: ("rot",), 2: ("profile",)}
+        masks = F.stage_masks(parts, groups, extra, F.STAGES)
+        size = sum(F.group_size(parts[i], extra[i]) for i, _ in groups)
+        self.assertEqual(sum(m.sum() for m in masks.values()), size)
+        self.assertFalse(np.logical_and.reduce([masks["trunk"], masks["limbs"]]).any())
+        self.assertEqual(int(masks["trunk"].sum()), 6 + 5)             # spine and lathe dims+at
+        self.assertEqual(int(masks["profiles"].sum()), 4)
+        self.assertEqual(int(masks["limbs"].sum()), 6 + 3 + 3)         # arm dims+at, both rots
+
+    def test_descend_stages(self):
+        """staged Powell reaches the optimum of a separable bowl, spending at most 1/3 of the budget per stage"""
+        target = np.array([0.5, -0.5, 0.25, 0.1, -0.2, 0.3])
+        masks = {"a": np.array([1, 1, 0, 0, 0, 0], bool), "b": np.array([0, 0, 1, 1, 0, 0], bool),
+                 "c": np.array([0, 0, 0, 0, 1, 1], bool)}
+
+        class Bowl:
+            ctx = {"max_evals": 300, "deadline": float("inf")}
+            best, n = {"f": float("inf"), "x": None}, 0
+
+            def __call__(self, x):
+                if self.n >= self.ctx["max_evals"]:
+                    raise F.Stop
+                self.n += 1
+                f = float(((x - target) ** 2).sum())
+                if f < self.best["f"]:
+                    self.best.update(f=f, x=np.array(x, float))
+                return f
+        bowl = Bowl()
+        F.descend(bowl, [(-1, 1)] * 6, masks, 100.0)
+        self.assertLess(bowl.best["f"], 1e-3)
+
 
 class JointTerm(unittest.TestCase):
     def test_gap_in_h_and_zero_without_a_target(self):

@@ -2289,3 +2289,29 @@ O que uma `measure_quadruped` precisaria (a `measure_spider` é o modelo: lê o 
   `attach.json` loose=0 nos quatro (cabeça/corpo sobrepostos à cadeia); tris = 2·sides·N + 2·(sides−2) confere.
 - **Piorou / pendente.** Com 6 lados o pior delta por vista passa de -0,01 (média sobe); com 8 lados passa. Cadeias curtas (N ≤ 3) não chegam a -30 % em tris (tampas pesam). A serpent do rig desce abaixo do chão no fim (y < 0): o raio final tem de ser pequeno. Sem sheet de serpent/drake: a leitura de largura do sheet só foi provada com máscara sintética. `PARAMS["chain"]=("radii",)` não criado: dims já cumprem o papel. Sem papers novos em `docs/references.md`.
 - **Testes.** `test_lathe_limb.py::Chain` (tris, anéis nas juntas, raios, validate, cobertura de ossos, fit, emissor do massing, larguras do sheet). Suíte 345 OK; ruff sem achado novo (10 antigos iguais ao base).
+
+### 22.L4-3 Fit hierárquico (`--fit-stages`) e piso por vista (`VIEW_FLOOR`) (2026-10-27) - hierárquico NEGATIVO (opt-in), piso ligado
+
+**O que mudou.** `fit_spec.fit(..., stages=("trunk","limbs","profiles"))`: em vez de um Powell sobre todos os parâmetros, um Powell por estágio sobre o seu subconjunto (tronco = dims/`at` das partes em ossos spine/pelvis/torso/chest/body/abdomen/head/neck; membros = dims/`at` do resto + `rot` + `knee`; perfis = `profile`/squash do lathe), mesmo `Objective`, os outros parâmetros presos no melhor ponto até ali, 1/3 das avaliações e dos segundos por estágio (`stage_masks`, `descend`). `stages=None` (default) é o Powell único de antes, byte a byte. Flag `spec_pipeline --fit-stages` liga; não existe `--fit-flat` porque o flat segue como default. Parâmetros de kinds novos (`chain`/`plate`): extra desconhecido cai no estágio dos membros, `STAGE_OF_EXTRA` mapeia o resto; `PARAMS`/`EXTRAS` não foram tocados.
+
+`spec_pipeline.fit_accepted(..., rig)` ganhou `VIEW_FLOOR`: a vista crítica da família (spider: top/bottom/rts; biped e demais: front/rts) não pode cair mais que `FIT_SLIP` (0.02) frente ao spec anterior, mesmo que não passasse o gate. Antes só vistas que passavam eram protegidas. Os 3 `before -> after` reais acima aceitam (nenhuma vista crítica cai).
+
+**Medida** (`fit/before.json` -> clay real, 6 vistas; soma de margens sobre os gates; 3 provas em paralelo, máquina carregada, por isso os 150 s cortam em 1800-2500 avaliações):
+
+| unidade (run) | modo | front | left | back | top | bottom | rts | margens | red | evals | s |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| n00U (v7-r2) | antes | .7547 | .7189 | .7595 | .6881 | .6632 | .6157 | .2501 | .088 | - | - |
+| | flat (atual) | .7786 | .7426 | .7856 | .7060 | .6772 | .6217 | .3617 | .100 | 1839 | 152 |
+| | hierárquico | .7841 | .7481 | .7932 | .7052 | .6758 | .6173 | .3737 | .096 | 1782 | 152 |
+| n005 (v6-r1) | antes | .7239 | .7800 | .7741 | .7153 | .7804 | .8101 | .4838 | .139 | - | - |
+| | flat | .8209 | .8056 | .8546 | .7652 | .7846 | .8660 | .7969 | .101 | 2448 | 153 |
+| | hierárquico | .8100 | .8012 | .8625 | .7615 | .7931 | .8724 | .8007 | .095 | 2465 | 153 |
+| n01X (v6-r1) | antes | .7070 | .7867 | .7091 | .7592 | .7925 | .7626 | .4171 | .196 | - | - |
+| | flat | .8252 | .8336 | .8291 | .8570 | .8490 | .8074 | .9013 | .106 | 2485 | 153 |
+| | hierárquico | .8114 | .8354 | .8170 | .8143 | .8610 | .7982 | .8373 | .121 | 2120 | 119 |
+
+n005/n01X em v7-r2 não têm vista abaixo de gate + margem: o fit não roda (0 avaliações), por isso a prova usa v6-r1. n00U com câmeras fixadas do `fit.json`; n005/n01X com o sweep. Sem limite de tempo (900 s, só n00U, 4000 avaliações = o teto): flat margens .4175 (front .7921, top .7112, bottom .6870, rts .6239), hierárquico .3938 (.7863 / .7098 / .6768 / .6284).
+
+**Veredito: negativo.** Critério era margens >= flat com <= 2/3 das avaliações no n00U. Avaliações: iguais (cada estágio usa o seu 1/3 inteiro; o Powell não converge cedo em nenhum dos dois, o teto é o orçamento). Margens: hierárquico +.012 (n00U) e +.004 (n005) no corte de 150 s, mas -.064 no n01X e -.024 no n00U sem limite de tempo. Sem ganho consistente, o default continua o Powell único e `--fit-stages` fica opt-in. Se voltar a testar: dar ao estágio que converge cedo o saldo (hoje o saldo some) e rodar com a máquina livre.
+
+Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(stages=)`), `tools/blender/spec_pipeline.py` (`VIEW_FLOOR`, `fit_accepted(rig=)`, `--fit-stages`), `tests/tools/blender/test_fit_spec.py`. Provas: `scratchpad/leva4-fit/{n00U,n005-v6-r1,n01X-v6-r1,n00U-v7-r2-long}/table.json` e logs.
