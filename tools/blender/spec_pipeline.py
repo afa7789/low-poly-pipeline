@@ -837,7 +837,7 @@ def load_colour_stage():
 
 
 def turntable(args, glb):
-    frames = pathlib.Path(f"/tmp/orbit-{args.tag}-{args.id}")
+    frames = args.out / "orbit-frames"      # per run: parallel runs of one unit must not share it
     subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable_color.py"),
                     "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(frames / "orbit-%03d.png"),
@@ -1169,6 +1169,7 @@ def stage2_section(args, shape, colour):
         return "## Stage 2 - colour: not run\n\nno stage 2 for this run (--shape-only, or no colour_stage.py).\n"
     ok, report = colour
     body = report if isinstance(report, str) else "```json\n" + json.dumps(report, indent=2) + "\n```"
+    body = re.sub(r"^## Stage 2[^\n]*\n+", "", body)      # one heading per stage: this one
     return (f"## Stage 2 - colour ({args.texture}): **{'PASS' if ok else 'FAIL'}**\n\n"
             f"{zone_rows(args.summary)}\n{body}\n")
 

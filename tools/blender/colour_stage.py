@@ -250,8 +250,8 @@ def stage_colour(spec, glb_clay, args, tilts, work, ask=None):
     ok, _ = gate(zones)
     shutil.copy(glb, pathlib.Path(args.out) / "model.glb")
     view_dir = pathlib.Path(args.out) / "views" / args.tag
-    shutil.rmtree(view_dir, ignore_errors=True)
-    shutil.copytree(best_work / "views", view_dir)
+    # next to stage 1's clay-<view>.png, which the review sheet shows in its own column
+    shutil.copytree(best_work / "views", view_dir, dirs_exist_ok=True)
     (pathlib.Path(args.out) / "spec-colour.json").write_text(json.dumps(spec, indent=2))   # the spec with its accepted colour
     (work / "colour.json").write_text(json.dumps(
         {"texture": args.texture, "tilts": {v: list(t) if isinstance(t, tuple) else t for v, t in tilts.items()},
