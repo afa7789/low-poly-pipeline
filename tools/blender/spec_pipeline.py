@@ -1236,6 +1236,20 @@ RUNS = MSHEETS / "runs" / "draft"
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 
 
+def signal_rows(summary, row, shape):
+    """The report-only rows of the stage 1 table: contour chamfer, edge chamfer, clay zones."""
+    out = ""
+    if summary.get("chamfer"):
+        out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
+        out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
+    if summary.get("edges"):
+        out += row("edge chamfer hard->wire (/H)", {v: r["drawn"] for v, r in summary["edges"].items()}, shape)
+    for key in ("mean", "cover"):
+        if summary.get("zones_clay"):
+            out += row(f"zones_clay {key} (report)", {v: z[key] for v, z in summary["zones_clay"].items()}, shape)
+    return out
+
+
 def iou_rows(summary):
     """review.md rows: silhouette IoU per view against each sheet, the gates, the cameras
     the sweep chose for top/bottom/rts, and the drift (front/left/back only)."""
@@ -1252,14 +1266,7 @@ def iou_rows(summary):
             out += "| camera (tilt, rts elev/azim) | " + ", ".join(
                 f"{v} {'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}"
                 for v, t in summary["tilt"].items()) + " |\n"
-    if summary.get("chamfer"):
-        out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
-        out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
-    if summary.get("edges"):
-        out += row("edge chamfer hard->wire (/H)", {v: r["drawn"] for v, r in summary["edges"].items()}, shape)
-    for key in ("mean", "cover"):
-        if summary.get("zones_clay"):
-            out += row(f"zones_clay {key} (report)", {v: z[key] for v, z in summary["zones_clay"].items()}, shape)
+    out += signal_rows(summary, row, shape)
     if summary.get("hard"):
         out += row("IoU vs hard", summary["hard"], shape)
     if summary.get("drift"):
