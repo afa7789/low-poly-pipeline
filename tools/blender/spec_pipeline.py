@@ -1047,7 +1047,12 @@ def fit_accepted(prev, cur, gates, problems):
     if prev is None or cur is None:
         return False
     seen = [v for v in gates if v in prev and v in cur]
-    return (all(cur[v] >= gates[v] for v in seen if prev[v] >= gates[v])
+    passing = [sum(r[v] >= gates[v] for v in seen) for r in (prev, cur)]
+    # a view that passed may slip at most FIT_SLIP under its gate when more views pass overall
+    # (n00U v6-r1: top 0.653 -> 0.640 was refused while front/back gained 0.08 and crossed 0.65)
+    held = all(cur[v] >= gates[v] - (FIT_SLIP if passing[1] > passing[0] else 0.0)
+               for v in seen if prev[v] >= gates[v])
+    return (held and passing[1] >= passing[0]
             and sum(cur[v] - prev[v] for v in seen) > 0 and rules_hold(*problems))
 
 
@@ -1060,6 +1065,7 @@ def fit_stage(spec, args):
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if not report["changed"]:
         return spec
+    ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
     work = args.out / "fit"
     work.mkdir(parents=True, exist_ok=True)
     (prev, prev_problem, _), (cur, cur_problem, _) = (
@@ -1692,6 +1698,7 @@ def main():
 
 OK_VERDICTS = ("PASS", "SHAPE-PASS")
 TRI_SLACK = 0.02      # stage 1 accepts the GLB this far over the class ceiling
+FIT_SLIP = 0.02       # fit_accepted: a passing view may slip this far under its gate when more views pass
 
 
 def run_colour(spec, shape, args):
