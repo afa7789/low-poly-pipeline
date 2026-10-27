@@ -1131,3 +1131,19 @@ Both are stage 2 (colour); the shape is untouched.
   `scratchpad/t2/zoom-n005.png` (before | ink | ink + sheet face) and `zoom-n01X.png`. Zones mean
   front/left/back, n005 .531/.561/.586 -> .533/.581/.585; n01X .373/.372/.424 -> .38/.38/.42 (full
   pipeline, stage 1 and 2 PASS). The line is subtle on dark palettes (n005) and clear on n01X.
+
+## 19. Papers (2026-10-27)
+
+### 19.B3 Limpeza da malha no join padrão (2026-10-27) - NEGATIVO, flag desligada
+- **O que:** `build_unit.clean_mesh(body)`: `remove_doubles` 1 mm + DECIMATE DISSOLVE 6° com `delimit={MATERIAL}`,
+  logo depois do `join` final e antes de morph/texturize/atlas (UVs nascem depois, então não há UV para fundir).
+  Liga com o argumento `clean` do `build_unit.py`; **default desligado**. Paper: MeshGPT 2024 (pré-processo).
+- **Medida (clay, sem LLM, budget 700, sheet.jpg):** n01X hard-v1 faces 264 -> 252, **tris GLB 620 -> 620**;
+  n005 v4-oneshot-r1 faces 274 -> 250, **tris 668 -> 668**. IoU das 6 vistas idêntico à 3ª casa
+  (n01X .873/.771/.871/.798/.780/.785; n005 .695/.700/.746/.669/.727/.817), gates iguais.
+- **Por quê não rende:** as peças são caixas/prismas separados; o dissolve só funde triângulos de um mesmo plano
+  em quads/n-gons, que voltam a ser os mesmos triângulos na exportação. Vértice sobrando (valência 2) quase não
+  existe. O ramo `union` ganha porque o boolean cria costuras; o join padrão não cria.
+- **Não verificado (fica para quem ligar):** pesos de pele no merge de vértices entre peças de ossos diferentes
+  (remove_doubles pode misturar pesos na costura) e textura cel/atlas com `clean`. Só ligar com ganho de tris medido.
+- Provas: `scratchpad/papers-b3/{n01X-hard-v1,n005-v4-oneshot-r1}-{base,clean}/` (m.glb, sil.txt, build.log).

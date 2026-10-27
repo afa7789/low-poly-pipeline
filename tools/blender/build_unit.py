@@ -197,6 +197,22 @@ def soften(body, angle=48.0):
     body.data.update()
 
 
+def clean_mesh(body, merge=0.001, angle=6.0):
+    """MeshGPT-style pre-clean: weld vertices closer than `merge` (m), then dissolve coplanar
+    faces within `angle` degrees, never across materials. Run before UVs/texture."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=merge)
+    bm.to_mesh(body.data)
+    bm.free()
+    dec = body.modifiers.new("Planar", "DECIMATE")
+    dec.decimate_type = "DISSOLVE"
+    dec.angle_limit = math.radians(angle)
+    dec.delimit = {"MATERIAL"}
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.modifier_apply(modifier=dec.name)
+
+
 def shading_report(body):
     faces = len(body.data.polygons)
     smooth = sum(1 for p in body.data.polygons if p.use_smooth)
@@ -1334,6 +1350,10 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
+    if "clean" in rest:
+        before = len(body.data.polygons)
+        clean_mesh(body)
+        print(f"clean: {before} -> {len(body.data.polygons)} faces")
     if len(cli) > 1 and cli[1] == "morph":
         faces = morph(body, target=int(cli[2]) if len(cli) > 2 else 650)
         print(f"morph: {faces} faces after subdiv + decimate")
