@@ -467,3 +467,57 @@ class SessionAuthor(unittest.TestCase):
         bad = mock.Mock(stdout=json.dumps({"result": "limit", "is_error": True}), stderr="")
         with mock.patch.object(SP.subprocess, "run", return_value=bad), self.assertRaises(RuntimeError):
             SP.ask("session:opus", "B", [])
+
+
+class BestOfN(unittest.TestCase):
+    def fake_shape(self, margins):
+        """stage_shape stub: writes clay.glb in args.out and reports the next margin."""
+        it = iter(margins)
+
+        def shape(spec_path, args, layout):
+            ok, m = next(it)
+            (args.out / "clay.glb").write_text(spec_path.parent.name)
+            args.summary = {"approved": {"front": 0.75 + m}, "gates": {"front": 0.75}}
+            return {"ok": ok, "glb": args.out / "clay.glb", "failed": [] if ok else ["silhouette"],
+                    "t_pre": 1.0, "t_build": 2.0}
+        return shape
+
+    def run_best(self, margins):
+        import tempfile
+        import types
+        from unittest import mock
+        out = pathlib.Path(tempfile.mkdtemp())
+        args = types.SimpleNamespace(out=out, times={"gen": 0.0, "build": 0.0})
+        specs = [(k, {"parts": [], "k": k}) for k in range(1, len(margins) + 1)]
+        with mock.patch.object(SP, "stage_shape", self.fake_shape(margins)):
+            spec, shape = SP.best_of_n(specs, args, "unit")
+        return out, args, spec, shape
+
+    def test_margin_is_the_sum_over_the_gated_views(self):
+        s = {"approved": {"front": 0.80, "left": 0.60, "extra": 0.9}, "gates": {"front": 0.75, "left": 0.65}}
+        self.assertAlmostEqual(SP.margin_of(s), 0.0)
+        self.assertEqual(SP.margin_of({}), 0)
+
+    def test_largest_margin_wins_and_every_variant_stays(self):
+        out, args, spec, shape = self.run_best([(True, 0.01), (True, 0.05), (True, 0.03)])
+        self.assertEqual(spec["k"], 2)
+        self.assertEqual(shape["glb"], out / "clay.glb")
+        self.assertEqual((out / "clay.glb").read_text(), "2")        # the winner's files copied up
+        for k in (1, 2, 3):
+            self.assertTrue((out / "variants" / str(k) / "spec.json").exists())
+        self.assertEqual(args.times, {"gen": 3.0, "build": 6.0})
+        text = SP.variants_section(args)
+        self.assertIn("| 2 (chosen) |", text)
+        self.assertIn("+0.050", text)
+
+    def test_a_passing_variant_beats_a_bigger_margin_that_fails(self):
+        _, _, spec, _ = self.run_best([(False, 0.20), (True, 0.01)])
+        self.assertEqual(spec["k"], 2)
+
+    def test_sections_are_empty_for_one_variant_and_old_args(self):
+        import types
+        self.assertEqual(SP.variants_section(types.SimpleNamespace()), "")
+        self.assertEqual(SP.timing_section(types.SimpleNamespace()), "")
+        text = SP.timing_section(types.SimpleNamespace(times={"gen": 12.34, "build": 80, "n_passes": 2}))
+        for line in ("- t_gen: 12.3 s", "- t_build: 80.0 s", "- t_colour: 0.0 s", "- passes: 2"):
+            self.assertIn(line, text)

@@ -110,5 +110,33 @@ class WireColumn(unittest.TestCase):
         self.assertEqual(CR.column_cell(run, "front", "wire").size, MC.CELL)
 
 
+class Score(unittest.TestCase):
+    def run_dir(self, timing, approved, zones=None):
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        (tmp / "review.md").write_text(REVIEW + timing)
+        summary = {"approved": approved}
+        if zones is not None:
+            summary["zones"] = {"approved": {v: {"mean": z} for v, z in zones.items()}}
+        (tmp / "silhouette.json").write_text(__import__("json").dumps(summary))
+        return {"dir": tmp}
+
+    def test_score_formula(self):
+        timing = "- t_gen: 100.0 s\n- t_build: 200.0 s\n- t_passes: 0.0 s\n- t_colour: 300.0 s\n"
+        sc = CR.score_of(self.run_dir(timing, {"front": 0.8, "left": 0.6}))       # IoU only
+        self.assertAlmostEqual(sc[3], 600)
+        self.assertAlmostEqual(sc[1], 0.5)
+        self.assertAlmostEqual(sc[2], 0.7)
+        self.assertAlmostEqual(sc[0], 0.3 * 0.5 + 0.7 * 0.7)
+        sc = CR.score_of(self.run_dir(timing, {"front": 0.8, "left": 0.6}, {"front": 0.25, "left": 0.25}))
+        self.assertAlmostEqual(sc[2], 0.6 * 0.7 + 0.4 * 0.5)                      # zones 0.25 / 0.5
+        slow = CR.score_of(self.run_dir("- t_gen: 5000.0 s\n", {"front": 1.0}))
+        self.assertEqual(slow[1], 0.0)                                            # f floors at 0
+
+    def test_no_timing_or_no_iou_means_no_score(self):
+        self.assertIsNone(CR.score_of(self.run_dir("", {"front": 0.8})))
+        self.assertIsNone(CR.score_of(self.run_dir("- t_gen: 1.0 s\n", {})))
+        self.assertIsNone(CR.times_of(pathlib.Path(tempfile.mkdtemp())))
+
+
 if __name__ == "__main__":
     unittest.main()
