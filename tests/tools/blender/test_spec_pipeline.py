@@ -740,3 +740,21 @@ class RedDecides(unittest.TestCase):
         s = {"uncovered": {"front": UNCOVERED_MAX["front"] + 0.01}}
         self.assertEqual(SP.status_of("PASS", s, False), "prototype-safe")
         self.assertEqual(SP.status_of("PASS", {"uncovered": {"front": 0.05}}, False), "final-use")
+
+
+class Identity(unittest.TestCase):
+    def test_low_identity_keeps_a_pass_prototype_safe(self):
+        self.assertEqual(SP.status_of("PASS", {"identity": {"ok": 5, "total": 6, "missing": ["lantern"]}}, False),
+                         "prototype-safe")
+        self.assertEqual(SP.status_of("PASS", {"identity": {"ok": 6, "total": 6, "missing": []}}, False), "final-use")
+        self.assertEqual(SP.status_of("PASS", {}, False), "final-use")      # no checklist, no demotion
+
+    def test_review_line_and_brief_list(self):
+        self.assertEqual(SP.identity_line({"identity": {"ok": 5, "total": 6, "missing": ["lantern"]}}),
+                         "Identity: 5/6 - missing: lantern\n\n")
+        self.assertEqual(SP.identity_line({}), "")
+        text = SP.identity_text([{"name": "eyes", "kind": "eyes"},
+                                 {"name": "blue detail #586B87", "kind": "zone", "views": ["front"]}])
+        self.assertIn("must exist as parts or decals", text)
+        self.assertIn("2. blue detail #586B87 - a material of exactly this colour", text)
+        self.assertEqual(SP.identity_text([]), "")

@@ -2374,3 +2374,31 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Sheets novos (sem modelo, o detector não roda): leitura visual.** n017 (lobo): top head-up, bottom head-up (como o n01N). n00H (wyrm): top head-up, bottom head-up. n010 (drake): top e bottom com a cabeça à ESQUERDA (girados 90°, não 180°): não resolvido, o detector só testa 180° e a rotação de 90° fica para quando houver modelo. Quando houver modelo dessas unidades o detector decide sozinho; esperado n017/n00H top girar, bottom não.
 - **Pendente.** Luma L1 da zona top do n01N piorou ao girar (o shading do modelo não gira com o painel); `make_compare` e `fit_spec` ainda leem o painel top sem rotação; `cut_hull.top_flipped` (leitura de perfil do plate) não foi unificado, usa as caixas das peças e continua independente.
 - **Testes.** `test_silhouette.py::PanelOrientation` (gira só o painel claramente invertido; painel simétrico fica; `oriented` gira antes do crop).
+
+
+## 23. Leva 5 (2026-10-28)
+
+### 23.L5-6 Consistência de identidade: `identity_present` (preflight) + `identity_reads` (render ID), status (2026-10-27) - relatório, status rebaixa
+
+Feedback n005 (v6-r4, v7-r1, v7-r2): o detalhe azul, os olhos e a lanterna somem entre runs; IoU e zonas grandes não veem (< 3 % da figura).
+
+- **Checklist** (`preflight.identity_items`): `refs/<id>/parts.json` `identity` quando existir (string com "eye/lens/visor" = olhos; palavra de um nome do `props.json` = aquele prop; resto = texto, vai no brief e não é pontuado; fixture à mão `tests/tools/blender/fixtures/parts-n005.json`), senão `props.json` + olhos (decal numa peça de cabeça, só biped). Sempre somados os **detalhes de identidade** do sheet (`silhouette.identity_details`): cor saturada (croma Oklab > 0,04, bins de 40 graus de matiz) com < 3 % da figura em front/left/back e >= 0,1 % em alguma, ou seja crachá, válvula, lentes, lanterna. n005: vermelho `#50252E` (lentes), laranja `#89704B` (válvula), azul `#586B87` (lanterna; o sheet não tem crachá no peito, o "crachá azul" do feedback é o vidro da lanterna). hfoo: azul `#4C6997`. n02X: amarelo pálido `#CBBB9B`. n01X, n00U, h09B: nenhum.
+- **`identity_present`** (preflight, `IDENTITY_BLOCKING = False`): prop com peça (`props_missing`), olhos com decal numa osso de cara, detalhe com material usado (ou `decal_color`) de matiz até 30 graus. Linha `k/n, missing: [...]`.
+- **`identity_reads`** (`silhouette.py`, gravada em `sil/ids/identity.json` pelo `--ids`): no render ID (cores chapadas) a fração da figura no matiz do detalhe / a do sheet, melhor vista entre as que o sheet mostra, `read` com razão >= 0,5. Detalhe só por decal não é medido no ID (decal não entra no clay): conta pela presença.
+- **review/status**: `Identity: 5/6 - missing: ...` no `## Readiness`; `status_of`: PASS com identidade < 100 % fica `prototype-safe` (como o vermelho). Brief: bloco `IDENTITY OF THIS UNIT - these must exist as parts or decals` com a lista. `mesh_lint` não mudou (medida precisa de render, vive em `silhouette.py`).
+- **Prova sem LLM** (rebuild de `spec.json` + render ID; `scratchpad/leva5-identity/prove.py`):
+
+| run | identidade | falta |
+|---|---|---|
+| n005 v6-r4 | 7/7 | - |
+| n005 v7-r1 | **4/7** | lentes vermelhas (decal `sheet` sem `decal_color`), válvula (brass `#BFBBBD` cinza), lanterna (sem material azul) |
+| n005 v7-r2 | 7/7 | - |
+| n005 v7-r3 | 7/7 | - |
+| n005 v8-r1 | 7/7 | - |
+| hfoo v8-r1 | 5/5 | - |
+| n02X v8-r1 | 3/3 | - |
+
+  Bate com o feedback: v7-r1 perde olhos e lanterna (e a válvula, que o feedback não citou); v6-r4, v7-r2 e v8-r1 têm tudo. Leituras no render ID (razão render/sheet): lanterna azul 0,94 (v6-r4), 0,89 (v7-r2), 1,16 (v8-r1); válvula 1,5-3,9; v7-r1 0,0 nas três.
+- **Taxa de FAIL** nos specs de `runs/draft` com sheet (83 bípedes/quadrúpedes, só presença): 46/83 = 55 %, dos quais 39 são "olhos" (n01X, golem mecânico, 22/22 sem decal de cara). Sem a linha de olhos: 13/61 = 21 % (< 1/3). Fica relatório (`IDENTITY_BLOCKING = False`); o status, porém, rebaixa como pedido, e um mech sem `parts.json` nunca passa de prototype-safe por causa dos olhos.
+- **O que piorou / limites.** (1) "olhos sempre" é injusto com unidades sem rosto até o L5-1 trazer `parts.json` (lista explícita decide). (2) Casamento por matiz: uma cor pequena no mesmo bin de uma zona grande (n02X: pálido `#CBBB9B` ao lado do laranja da pele; o brass `#C8963A` do n02X nem é detectado) infla a leitura (razão 7598) e é satisfeita por qualquer material do mesmo matiz. (3) Bins fixos de 40 graus: cor na borda do bin parte em duas. (4) Decal fora do ID.
+- **Testes.** `test_preflight.py::Identity`, `test_silhouette.py::IdentityReads`, `test_spec_pipeline.py::Identity`. `test_preflight.Landmarks` passou a usar regex na coluna (a linha nova alarga a tabela).

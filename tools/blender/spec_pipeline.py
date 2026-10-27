@@ -84,7 +84,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring", "lathe", "limb", "chain", "plate"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, bbox, ground_fix, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, bbox, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -361,6 +361,19 @@ def props_text(props):
     return ("\nPROPS OF THIS UNIT, left to right on the props sheet. Build ONE part (or group of "
             "parts) per prop, on the bone named, sized as listed - the preflight rule "
             "props_present fails a prop with no part of its own:\n" + "\n".join(lines))
+
+
+def identity_text(items):
+    """The identity checklist (preflight.identity_items) as the brief's must-exist list: the preflight rule
+    identity_present and the ID-render check identity_reads fail the run's status on any item missing."""
+    lines = []
+    for it in items:
+        how = {"eyes": "a face decal on the head (decal + decal_color, two points, not a slit)",
+               "zone": f"a material of exactly this colour on a part (or a decal_color), visible in {'/'.join(it.get('views', ()))}",
+               "prop": "its own part on the bone named above", "text": "as drawn"}[it["kind"]]
+        lines.append(f"{len(lines) + 1}. {it['name']} - {how}")
+    return ("\nIDENTITY OF THIS UNIT - these must exist as parts or decals, none dropped between runs, the "
+            "small coloured ones are what makes the unit read:\n" + "\n".join(lines)) if lines else ""
 
 
 def set_rig(family, measure=None):
@@ -1282,6 +1295,16 @@ def zones_clay(spec_path, args, layout, tilts, heads=None):
     return {v: {k: z[k] for k in ("mean", "cover", "lost")} for v, z in zones.items()}
 
 
+def identity_of(spec_path, args, layout):
+    """{"total", "ok", "missing"} of the unit's identity checklist against the spec and the ID render
+    (zones_clay wrote sil/ids/identity.json); {} when the sheet has no checklist."""
+    items = identity_items(args.id, args.sheet, args.rig == "biped", layout)
+    parts, doc = load_spec(spec_path)
+    reads = args.out / "sil" / "ids" / "identity.json"
+    st = identity_summary(items, parts, doc, load_props(args.id), json.loads(reads.read_text()) if reads.exists() else None)
+    return st if st["total"] else {}
+
+
 def stage_shape(spec_path, args, layout):
     """Stage 1: preflight, clay build, rig/budget stats and the shape gates on the spec at
     `spec_path`. Returns a dict: ok, glb (clay GLB or None), tilts (tilts_of), checks
@@ -1312,6 +1335,7 @@ def stage_shape(spec_path, args, layout):
     if args.summary.get("approved"):
         args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report),
                                                 args.summary.get("top_orientation", {}))
+        args.summary["identity"] = identity_of(spec_path, args, layout)
         (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
     # the preflight counts estimated tris; the GLB may land a few over the round ceiling
     # (n005 v5-fit-r2: preflight PASS, GLB 704 vs 700). TRI_SLACK keeps that from failing stage 1.
@@ -1485,6 +1509,7 @@ def make_brief(args, lo, hi):
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
                            measured=measured_text(args.rig, sheet_m) + outline_text(sheet_m)
                            + split_text(args.rig, sheet_m, lo, hi) + props_text(load_props(args.id))
+                           + identity_text(identity_items(args.id, args.sheet, args.rig == "biped", layout_of(args.kind)))
                            + (building_hull.brief_text(args.hull_part) if args.hull_part else ""))
 
 
@@ -2039,11 +2064,17 @@ def too_red(summary):
                if v in RED_CRITICAL)
 
 
+def identity_low(summary):
+    """The identity checklist (preflight.identity_summary) is not 100 % there: prototype-safe at best."""
+    ident = summary.get("identity") or {}
+    return ident.get("ok", 0) < ident.get("total", 0)
+
+
 def status_of(verdict, summary, lint_bad):
     """placeholder | prototype-safe | final-use | rejected (Begemann & Hutson 2026).
     SHAPE-PASS, or PASS with a failed lint gate, is prototype-safe; PASS with a clean lint is
     final-use; a CHECK whose front silhouette is more than 0.10 under its gate is rejected."""
-    if verdict == "SHAPE-PASS" or (verdict == "PASS" and (lint_bad or too_red(summary))):
+    if verdict == "SHAPE-PASS" or (verdict == "PASS" and (lint_bad or too_red(summary) or identity_low(summary))):
         return "prototype-safe"
     if verdict == "PASS":
         return "final-use"
@@ -2067,6 +2098,14 @@ def final_status(args, verdict, lint_bad):
     status = status_of(verdict, args.summary, lint_bad)
     pw = getattr(args, "pairwise", None)
     return review_pair.demote(status) if pw and review_pair.lost(pw) else status
+
+
+def identity_line(summary):
+    """`Identity: 5/6 - missing: lantern` (PIPELINE 23.L5-6), or nothing when the unit has no checklist."""
+    ident = summary.get("identity")
+    if not ident:
+        return ""
+    return f"Identity: {ident['ok']}/{ident['total']}" + (f" - missing: {', '.join(ident['missing'])}" if ident["missing"] else "") + "\n\n"
 
 
 def readiness_section(args, shape, colour, verdict):
@@ -2093,7 +2132,7 @@ def readiness_section(args, shape, colour, verdict):
             ("root scale", m["root_scale"], "== 1")]
     body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows + decimate_rows(args, shape))
     return (f"## Readiness\n\n| criterion | value | gate |\n|---|---|---|\n{body}\n"
-            f"lint gates failed: {', '.join(bad) or 'none'}\n\n"
+            f"lint gates failed: {', '.join(bad) or 'none'}\n\n{identity_line(args.summary)}"
             f"status: **{final_status(args, verdict, bad)}**\n\n")
 
 

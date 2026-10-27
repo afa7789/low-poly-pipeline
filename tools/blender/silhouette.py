@@ -995,6 +995,80 @@ def zone_gate(report, zones):
     return bad
 
 
+DETAIL_VIEWS = ("front", "left", "back")
+DETAIL_CHROMA = 0.04   # Oklab chroma of a pixel that carries a colour (steel grey, ink and shadow stay under)
+DETAIL_BIN = 40        # degrees of hue per bin: the sheet's colours are few, a bin is one of them
+DETAIL_MIN = 0.001     # a colour under this share of the figure in every view is a speck
+HUE_TOL = 30           # a model colour within this many degrees of a detail's hue is that detail
+READ_MIN = 0.5         # identity_reads: the render shows at least this share of the sheet's area
+HUE_NAMES = ((42, "red"), (82, "orange"), (126, "yellow"), (168, "green"), (230, "cyan"), (296, "blue"), (346, "magenta"))
+
+
+def hex_rgb(h):
+    return np.array([int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]) / 255.0
+
+
+def hue_chroma(rgb):
+    """(hue in degrees, Oklab chroma) of sRGB (0-1) colours, any leading shape."""
+    lab = oklab(np.asarray(rgb, float).reshape(-1, 3)).reshape(np.shape(rgb))
+    return np.degrees(np.arctan2(lab[..., 2], lab[..., 1])) % 360, np.hypot(lab[..., 1], lab[..., 2])
+
+
+def hue_name(hue):
+    return next((n for top, n in HUE_NAMES if hue < top), "red")
+
+
+def same_colour(hue, chroma, ref_hue):
+    """True where (hue, chroma) is a colour (not grey) within HUE_TOL degrees of ref_hue."""
+    return (chroma >= DETAIL_CHROMA) & (np.abs((hue - ref_hue + 180) % 360 - 180) <= HUE_TOL)
+
+
+def identity_details(sheet, layout="unit"):
+    """The sheet's identity details (PIPELINE 23.L5-6): a saturated colour that is under ZONE_SHARE of the
+    figure in every one of front/left/back (a badge, a brass valve, red lenses) and over DETAIL_MIN in one.
+    [{"hex", "name", "shares": {view: share of the figure}}], by hex. ponytail: fixed hue bins, a colour
+    straddling a bin edge splits in two; add overlapping bins when a sheet shows it."""
+    rgb = read_rgba(sheet, 768)[..., :3] / 255.0
+    panels = concept_panels(sheet, layout=layout)
+    hue, chroma = hue_chroma(rgb)
+    bins = (hue // DETAIL_BIN).astype(int)
+    lit = (chroma > DETAIL_CHROMA) & (rgb.max(axis=-1) > 0.12)
+    shares = {}
+    for view in [v for v in DETAIL_VIEWS if v in panels]:
+        for b in np.unique(bins[panels[view] & lit]):
+            shares.setdefault(b, {})[view] = float((panels[view] & lit & (bins == b)).sum() / panels[view].sum())
+    out = []
+    for b, s in sorted(shares.items()):
+        if not DETAIL_MIN <= max(s.values()) < ZONE_SHARE:
+            continue
+        view = max(s, key=s.get)
+        mean = rgb[panels[view] & lit & (bins == b)].mean(axis=0)
+        out.append({"hex": hexcolour(mean), "name": hue_name(float(hue_chroma(mean)[0])),
+                    "shares": {v: round(x, 4) for v, x in s.items()}})
+    return out
+
+
+def identity_reads(details, renders, stem):
+    """Per detail, how much of it the ID render shows (flat material colours): in each view the sheet has it,
+    the model's share of the figure in the detail's hue over the sheet's share; the best view counts.
+    [{"hex", "view", "ratio", "read": ratio >= READ_MIN}]."""
+    out = []
+    for d in details:
+        ref = float(hue_chroma(hex_rgb(d["hex"]))[0])
+        best = ("", 0.0)
+        for view, share in d["shares"].items():
+            path = renders / f"{stem}-zone-{view}.png"
+            if not path.exists():
+                continue
+            shot = read_rgba(path, 512)
+            fig = shot[..., 3] > 16
+            h, c = hue_chroma(shot[..., :3] / 255.0)
+            ratio = float((fig & same_colour(h, c, ref)).sum() / max(fig.sum(), 1)) / share
+            best = max(best, (view, ratio), key=lambda t: t[1])
+        out.append({"hex": d["hex"], "view": best[0], "ratio": round(best[1], 3), "read": best[1] >= READ_MIN})
+    return out
+
+
 def ids_zones(sheet, glb, outdir, layout, tilts, rotate=()):
     """view -> zone_report of the "ID" render of `glb`, the stage 1 shape rebuilt in the spec's
     palette (one flat colour per material): is the part of material X where the sheet has colour
@@ -1013,6 +1087,7 @@ def ids_zones(sheet, glb, outdir, layout, tilts, rotate=()):
     zones = zone_views(sheet, renders, glb.stem, masks, layout, pinned, rotate)
     zone_gate({v: {} for v in zones}, zones)
     (outdir / "zones_clay.json").write_text(json.dumps(zones, indent=2))
+    (outdir / "identity.json").write_text(json.dumps(identity_reads(identity_details(sheet, layout), renders, glb.stem), indent=2))
     return zones
 
 

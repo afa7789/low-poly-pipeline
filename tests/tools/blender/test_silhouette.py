@@ -401,3 +401,26 @@ class PanelOrientation(unittest.TestCase):
         self.assertEqual(S.detect_rotated({"top": box}, {"top": {0: box}}), set())
         m = self.teardrop()
         self.assertTrue(S.np.array_equal(S.oriented({"top": m}, {"top"})["top"], S.normalize(S.np.rot90(m, 2))))
+
+
+class IdentityReads(unittest.TestCase):
+    def test_hue_match_ignores_grey_and_other_hues(self):
+        blue = float(S.hue_chroma(S.hex_rgb("#586B87"))[0])
+        hue, chroma = S.hue_chroma(S.hex_rgb("#5A6AA8")), S.hue_chroma(S.hex_rgb("#64686E"))
+        self.assertTrue(S.same_colour(*hue, blue))
+        self.assertFalse(S.same_colour(*chroma, blue))                         # steel grey: no colour
+        self.assertFalse(S.same_colour(*S.hue_chroma(S.hex_rgb("#A0803C")), blue))
+        self.assertEqual(S.hue_name(float(S.hue_chroma(S.hex_rgb("#8A2A35"))[0])), "red")
+
+    def test_reads_is_the_render_share_over_the_sheet_share(self):
+        import tempfile
+        from PIL import Image
+        details = [{"hex": "#586B87", "shares": {"front": 0.01}}, {"hex": "#50252E", "shares": {"front": 0.01}}]
+        with tempfile.TemporaryDirectory() as d:
+            img = np.zeros((512, 512, 4), np.uint8)
+            img[100:400, 100:400] = (100, 100, 110, 255)      # grey figure, 90000 px
+            img[100:110, 100:190] = (90, 106, 168, 255)       # blue patch, 900 px = 1 % of it
+            Image.fromarray(img).save(pathlib.Path(d) / "u-zone-front.png")
+            got = S.identity_reads(details, pathlib.Path(d), "u")
+        self.assertEqual([(r["read"], r["view"]) for r in got], [(True, "front"), (False, "")])
+        self.assertAlmostEqual(got[0]["ratio"], 1.0, places=1)

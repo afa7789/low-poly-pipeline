@@ -167,6 +167,91 @@ def props_missing(parts, boxes, height, props):
     return missing
 
 
+IDENTITY_BLOCKING = False   # reports only: the FAIL rate over the draft specs is in PIPELINE 23.L5-6
+REFS_DIR = PROPS_DIR.parents[0] / "refs"
+EYE_WORDS = ("eye", "lens", "visor")
+GENERIC = {"with", "hand", "held", "right", "left", "belt", "back", "from", "that"}
+
+
+def identity_items(unit, sheet=None, biped=True, layout="unit", parts_path=None):
+    """The unit's identity checklist, [{"name", "kind", ...}] with kind prop | eyes | zone | text.
+    From refs/<unit>/parts.json "identity" (strings: an eye word -> eyes, a word of a props.json name -> that
+    prop, else text, listed in the brief but not scored) when it exists, else props.json plus the eyes of a
+    biped; plus the sheet's small saturated colours (silhouette.identity_details) as zone items."""
+    props = load_props(unit)
+    path = pathlib.Path(parts_path) if parts_path else REFS_DIR / unit / "parts.json"
+    texts = json.loads(path.read_text()).get("identity") if path.exists() else None
+    if texts is None:
+        items = [{"name": p["name"], "kind": "prop"} for p in props] + ([{"name": "eyes", "kind": "eyes"}] if biped else [])
+    else:
+        items = [identity_text_item(t, props) for t in texts]
+    if sheet:
+        from silhouette import identity_details
+        items += [{"name": f"{d['name']} detail {d['hex']}", "kind": "zone", "hex": d["hex"], "views": sorted(d["shares"])}
+                  for d in identity_details(pathlib.Path(sheet), layout)]
+    return items
+
+
+def identity_text_item(text, props):
+    words = {w for w in text.lower().replace(",", " ").split() if len(w) >= 4} - GENERIC
+    if any(w.startswith(EYE_WORDS) or w in EYE_WORDS for w in words):
+        return {"name": text, "kind": "eyes"}
+    prop = next((p for p in props if words & set(p["name"].lower().split())), None)
+    return {"name": prop["name"], "kind": "prop"} if prop else {"name": text, "kind": "text"}
+
+
+def identity_colours(parts, doc):
+    """[(hex, via)] of every colour the spec carries: the palette colour of each material a part uses, the
+    decal_color of each decal."""
+    pal = doc.get("palette") or {}
+    out = [(pal[m]["color"], "material") for m in sorted({p[4] for p in parts})
+           if isinstance(pal.get(m), dict) and pal[m].get("color")]
+    return out + [(p[5]["decal_color"], "decal") for p in parts
+                  if isinstance(p[5], dict) and p[5].get("decal") and p[5].get("decal_color")]
+
+
+def identity_rows(items, parts, doc, lost):
+    """[{"name", "kind", "present", "via"}] of the scored items (text is not): `lost` = props_missing names.
+    present: a prop has its part, eyes a decal on a face bone, a zone a material (or decal colour) of its hue."""
+    from silhouette import hex_rgb, hue_chroma, same_colour
+    carried = [(float(hue_chroma(hex_rgb(h))[0]), float(hue_chroma(hex_rgb(h))[1]), via) for h, via in identity_colours(parts, doc)]
+    decals = [p for p in parts if isinstance(p[5], dict) and p[5].get("decal") and is_face_bone(p[0])]
+    rows = []
+    for it in items:
+        if it["kind"] == "text":
+            continue
+        via = {"prop": "part", "eyes": "decal"}.get(it["kind"])
+        ok = {"prop": it["name"] not in lost, "eyes": bool(decals)}.get(it["kind"])
+        if it["kind"] == "zone":
+            ref = float(hue_chroma(hex_rgb(it["hex"]))[0])
+            hit = sorted(v for h, c, v in carried if same_colour(h, c, ref))
+            ok, via = bool(hit), (hit or [None])[0]
+        rows.append({"name": it["name"], "kind": it["kind"], "present": ok, "via": via})
+    return rows
+
+
+def identity_status(rows, reads=None):
+    """{"total", "ok", "missing"}: a row counts when present and, for a zone carried by a material, read in
+    the ID render (`reads` = silhouette.identity_reads, by hex in the row name); no reads = presence only."""
+    hexes = {r["hex"]: r for r in reads or []}
+    missing = []
+    for r in rows:
+        if not r["present"]:
+            missing.append(r["name"])
+        elif r["via"] == "material" and reads is not None:
+            seen = hexes.get(r["name"].rsplit(" ", 1)[-1])
+            if seen is not None and not seen["read"]:
+                missing.append(f"{r['name']} (not in the render: {seen['ratio']:.0%} of the sheet's area)")
+    return {"total": len(rows), "ok": len(rows) - len(missing), "missing": missing}
+
+
+def identity_summary(items, parts, doc, props, reads=None):
+    """identity_status of a spec: the rows (identity_rows) of its parts against the checklist `items`."""
+    boxes = {id(p): bbox(p) for p in parts}
+    height = max(max(b[1][1] for b in boxes.values()), 1e-6)
+    return identity_status(identity_rows(items, parts, doc, props_missing(parts, boxes, height, props)), reads)
+
+
 JOINT_TOL = 0.06        # joint_place: a joint within this many H of the sheet's (silhouette.joint_measures)
 JOINT_BLOCKING = False  # reports only: FAIL rate over the draft specs is in PIPELINE 22.L4-6
 # joint key -> (upper bones, lower bones) whose meeting height is the joint
@@ -650,7 +735,7 @@ def floating_parts(parts, parent_of, k=1.0):
     return sorted(set(floating))
 
 
-def checks_of(parts, doc, kind, targets, props, sheet=None):
+def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
     """[(rule, passed, detail)] of one spec. `targets` = targets_from(sheet), `props` =
     load_props(unit): both read once by the caller, so fit_spec can re-run the rules cheaply."""
     import rig_families as RF
@@ -706,6 +791,11 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
                        f"missing: {lost or 'none'} (one part per prop, on its bone, sized like the "
                        "props sheet; see props.json)"))
 
+    st = identity_summary(identity, parts, doc, props) if identity else None
+    if st and st["total"]:
+        checks.append(("identity_present", not st["missing"] or not IDENTITY_BLOCKING,
+                       f"{st['ok']}/{st['total']}, missing: {st['missing'] or 'none'} (each is a part or a decal)"))
+
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:
         axis_ok = all(p[5].get("axis", "fwd" if p[1] == "wheel" else "up") == "up"
@@ -746,8 +836,10 @@ def main():
     sheet = sys.argv[3] if len(sys.argv) > 3 else None
     kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
     parts, doc = load(sys.argv[1])
-    checks = checks_of(parts, doc, kind, targets_from(sheet),
-                       load_props(pathlib.Path(sheet).parent.name) if sheet else [], sheet)
+    unit = pathlib.Path(sheet).parent.name if sheet else None
+    layout = "building" if doc.get("rig") == "building" else "unit"
+    identity = identity_items(unit, sheet, doc.get("rig", "biped") == "biped", layout) if sheet else None
+    checks = checks_of(parts, doc, kind, targets_from(sheet), load_props(unit) if sheet else [], sheet, identity)
     tris = sum(part_tris(p) for p in parts)
     share = sum(part_tris(p) for p in parts if p[0] == "head" and p[1] in ORNAMENT) / BUDGETS[kind][1]
     width = max(len(name) for name, *_ in checks)
