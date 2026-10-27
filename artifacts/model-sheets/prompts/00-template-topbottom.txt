@@ -1,0 +1,11 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a {race} {name} (id {uid}). Complete the sheet: the top row (front, left profile, back) is attached and must stay exactly as it is; the bottom row is empty and you draw its two panels, as true orthographic plans. Keep the design, the pose, the props, the colours, the heavy outline and the flat style exactly as attached.
+
+Bottom left panel: the same unit seen from a camera exactly above it, looking straight down the vertical axis. Strict orthographic plan projection: no perspective, no tilt, no foreshortening, no three-quarter angle, no visible front faces or sides; only what a straight-down parallel projection shows. The head sits at the centre of the shoulders and the front of the unit points to the bottom of the panel.
+
+Bottom right panel: the same unit seen from a camera exactly below it, looking straight up the vertical axis. Strict orthographic projection: no perspective, no tilt, no foreshortening, no three-quarter angle, no visible front faces or sides; only what a straight-up parallel projection shows. The front of the unit points to the bottom of the panel, as in the top-down panel.
+
+Think of a plan drawing, not of a front view turned over: the two bottom figures are flat footprints. In the top-down panel you see only the highest surfaces (head, shoulders, the tops of the arms and fists) and the legs are hidden under the torso; in the bottom-up panel you see only the lowest surfaces (soles, undersides). Limbs that hang down in the front view are foreshortened to nothing along the view axis, so they show only as their cross-section, never as long limbs. The panel contents are no taller than they are wide in the front view footprint (width and depth of the unit).
+
+Both bottom figures are the same character in the same pose and at the same scale as the front view: their width equals the width of the front view figure, and each is centred in its panel. Nothing leans, nothing is seen from an angle.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.
