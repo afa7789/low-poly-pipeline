@@ -23,6 +23,7 @@ import bmesh
 import bpy
 import mathutils
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 # ---------------------------------------------------------------- materials
 MATERIALS = {
@@ -900,33 +901,180 @@ CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
             "thigh.R": "legR", "shin.R": "legR", "foot.R": "legR"}
 
 
-def union_decimate(body_u, faces_budget, tolerance):
-    """Decimate the unioned shell: blind to the face budget, or (`toldec`, PIPELINE 20.M12)
-    as far as it stays within height/32 of its own surface. Logs the deviation either way."""
-    print("union decimate:", sibling("cull").decimate_union(body_u, faces_budget, blind=not tolerance))
+NOUNION = False
+UNION_BODY = True    # the body (parts that are not props) becomes ONE welded shell (PIPELINE 24.L6-4); False: join
+UNION_FLOOR = 0.9    # the tolerance decimate keeps at least this share of the tri budget (Chen 2023: d bounds the loss)
+TIE_EPS = 1e-4       # two source parts closer than this to a vertex both own it: their weights blend (m)
 
 
-def union_parts(parts, meta, per_chain=False):
-    """Boolean-union the plates into one connected shell so the junctions stop showing
-    as steps and teeth, then bevel the new intersection edges. Keeps the hard-surface
-    read (unlike a remesh) and keeps per-part materials through the material indices."""
-    groups = {}
-    for obj, bone in parts:
-        key = CHAIN_OF.get(bone, bone) if per_chain else "all"
-        groups.setdefault(key, []).append(obj)
-    merged = []
-    for key, objs in groups.items():
-        base = objs[0]
-        bpy.context.view_layer.objects.active = base
-        for obj in objs[1:]:
-            mod = base.modifiers.new("Bool", "BOOLEAN")
-            mod.operation = "UNION"
-            mod.solver = "EXACT"
-            mod.object = obj
+def union_decimate(body_u, faces_budget, floor=0):
+    """Decimate the unioned shell as far as it stays within height/32 of its own surface
+    (PIPELINE 20.M12) but not under `floor` faces; the budget wins over the tolerance."""
+    print("union decimate:", sibling("cull").decimate_union(body_u, faces_budget, blind=False, floor=floor))
+
+
+def world_hull(mesh, matrix):
+    """(bbox lo, bbox hi, signed volume) of `mesh` under `matrix`."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.transform(matrix)
+    pts = [v.co.copy() for v in bm.verts]
+    vol = bm.calc_volume(signed=True) if pts else 0.0
+    bm.free()
+    return (Vector(min(p[i] for p in pts) for i in range(3)), Vector(max(p[i] for p in pts) for i in range(3)), vol) \
+        if pts else (Vector(), Vector(), 0.0)
+
+
+def union_holds(a, b, got, tol=0.001):
+    """The boolean of hulls a, b (each (lo, hi, volume)) gave `got`: inside both boxes together, no
+    smaller than the bigger part, no bigger than the two parts side by side. The EXACT solver
+    sometimes returns a shell with a hole through it or stray far vertices from a plate it dislikes."""
+    inside = all(got[0][i] >= min(a[0][i], b[0][i]) - tol and got[1][i] <= max(a[1][i], b[1][i]) + tol
+                 and got[0][i] <= min(a[0][i], b[0][i]) + tol and got[1][i] >= max(a[1][i], b[1][i]) - tol
+                 for i in range(3))
+    return inside and max(a[2], b[2]) * 0.98 <= got[2] <= (a[2] + b[2]) * 1.02
+
+
+def boolean_union(base, obj, self_hit):
+    """base = base UNION obj (EXACT, then MANIFOLD if EXACT's shell does not hold). False, base untouched,
+    when neither did: the plate is joined as its own shell instead."""
+    backup = base.data.copy()
+    a, b = world_hull(base.data, base.matrix_basis), world_hull(obj.data, obj.matrix_basis)
+    bpy.context.view_layer.objects.active = base
+    for solver in ("EXACT", "MANIFOLD"):
+        mod = base.modifiers.new("Bool", "BOOLEAN")
+        mod.operation, mod.solver, mod.object = "UNION", solver, obj
+        if solver == "EXACT":
+            mod.use_self = self_hit
+        try:
             bpy.ops.object.modifier_apply(modifier=mod.name)
-            bpy.data.objects.remove(obj, do_unlink=True)
-        merged.append(base)
-    return merged
+            ok = union_holds(a, b, world_hull(base.data, base.matrix_basis))
+        except RuntimeError:
+            ok = False
+            base.modifiers.remove(mod)
+        if ok:
+            bpy.data.meshes.remove(backup)
+            return True
+        base.data = backup.copy()
+    bpy.data.meshes.remove(backup)
+    return False
+
+
+def union_parts(parts):
+    """Boolean-union the plates into one shell so the junctions stop being steps and teeth. A plate
+    the solver cannot take is joined as its own shell instead. Returns (shell, names of those plates)."""
+    base, failed = parts[0][0], []
+    for obj, _ in parts[1:]:
+        if not boolean_union(base, obj, bool(failed)):
+            failed.append(obj.name)
+            bpy.ops.object.select_all(action="DESELECT")
+            obj.select_set(True)
+            base.select_set(True)
+            bpy.context.view_layer.objects.active = base
+            bpy.ops.object.join()
+            continue
+        bpy.data.objects.remove(obj, do_unlink=True)
+    return base, failed
+
+
+def snapshot_parts(parts):
+    """Per part, in world space: BVH tree, polygons, per-vertex bone weights, material name. What the
+    union hands back to the shell: it is read BEFORE the boolean eats the plates."""
+    snap = []
+    for obj, _ in parts:
+        co = [obj.matrix_basis @ v.co for v in obj.data.vertices]
+        polys = [tuple(p.vertices) for p in obj.data.polygons]
+        names = {g.index: g.name for g in obj.vertex_groups}
+        weights = [{names[g.group]: g.weight for g in v.groups} for v in obj.data.vertices]
+        snap.append((BVHTree.FromPolygons(co, polys), co, polys, weights, obj.data.materials[0].name.split(".")[0]))
+    return snap
+
+
+def source_of(snap, point):
+    """The source parts that own `point` (those whose surface is the closest, ties within TIE_EPS):
+    [(snap row, vertex of its face nearest the point)]."""
+    hits = []
+    for row in snap:
+        loc, _n, face, dist = row[0].find_nearest(point)
+        if loc is not None:
+            hits.append((dist, row, min(row[2][face], key=lambda i: (row[1][i] - loc).length_squared)))
+    best = min(h[0] for h in hits)
+    return [(row, vi) for d, row, vi in hits if d <= best + TIE_EPS]
+
+
+def transfer_from_parts(body, snap):
+    """The shell's bone weights and face materials come from the plate each point came from (a
+    joint vertex blends both), so the rig and the colour blocking survive the union. World space."""
+    mesh = body.data
+    world = mathutils.Matrix.Identity(4)     # the shell's transform is applied: local is world
+    mats = list(dict.fromkeys(row[4] for row in snap))
+    mesh.materials.clear()
+    for name in mats:
+        mesh.materials.append(material(name))
+    for poly in mesh.polygons:
+        poly.material_index = mats.index(source_of(snap, world @ poly.center)[0][0][4])
+    body.vertex_groups.clear()
+    groups = {}
+    for v in mesh.vertices:
+        owners = source_of(snap, world @ v.co)
+        blend = {}
+        for row, vi in owners:
+            for bone, w in row[3][vi].items():
+                blend[bone] = blend.get(bone, 0.0) + w / len(owners)
+        for bone, w in blend.items():
+            groups.setdefault(bone, body.vertex_groups.new(name=bone)).add([v.index], w, "REPLACE")
+
+
+def components(mesh):
+    """Connected components of the mesh (vertices joined by edges)."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    seen, count = set(), 0
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        count += 1
+        todo = [v]
+        seen.add(v.index)
+        while todo:
+            for e in todo.pop().link_edges:
+                for o in e.verts:
+                    if o.index not in seen:
+                        seen.add(o.index)
+                        todo.append(o)
+    bm.free()
+    return count
+
+
+def triangulate(body):
+    """Triangles only, cut by the beauty rule (fat triangles over slivers)."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method="BEAUTY", ngon_method="BEAUTY")
+    bm.to_mesh(body.data)
+    bm.free()
+
+
+def union_body(parts, budget, rest_tris):
+    """Chen 2023 on the body: boolean union -> weld + planar dissolve -> triangulate -> decimate to
+    height/32 (never under UNION_FLOOR of the budget, never over it) -> one skinned, material-labelled
+    shell. `rest_tris` are the props' and the flame's, which share the budget. Returns (shell, report)."""
+    snap = snapshot_parts(parts)
+    shell, failed = union_parts(parts)
+    bpy.ops.object.select_all(action="DESELECT")
+    shell.select_set(True)
+    bpy.context.view_layer.objects.active = shell
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    transfer_from_parts(shell, snap)
+    clean_mesh(shell)
+    triangulate(shell)
+    union_decimate(shell, budget - rest_tris, int(UNION_FLOOR * budget) - rest_tris)
+    report = {"plates": len(parts), "joined_instead": failed, "tris": len(shell.data.polygons),
+              "components": components(shell.data)}
+    print(f"union: {len(parts)} plates -> {report['components']} shell(s), {report['tris']} tris, "
+          f"{len(failed)} joined instead")
+    return shell, report
+
 
 # ---------------------------------------------------------------- painted atlas
 def painted_image(name, rgb, size=64):
@@ -1480,8 +1628,9 @@ def main():
     atlas_path = None
     global STYLE, CLAY, FACE, RAMP
     CLAY = "clay" in rest
-    global PROPID
+    global PROPID, NOUNION
     PROPID = "propid" in rest
+    NOUNION = "nounion" in rest      # the join build, for before/after
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
@@ -1566,7 +1715,8 @@ def main():
 
     # chamfer is on by default (PIPELINE 23.L5-5): the spare triangles under the budget (first
     # argument, default 700) bevel the biggest boxes; no box left over, nothing changes.
-    chamfers = plan_chamfers(spec, int(cli[0]) if cli and cli[0].isdigit() else 700)
+    # a union build skips them: the tolerance decimate would collapse the bevels again
+    chamfers = {} if UNION_BODY and not NOUNION else plan_chamfers(spec, int(cli[0]) if cli and cli[0].isdigit() else 700)
 
     parts = build_spec_parts(spec, chamfers)
 
@@ -1581,48 +1731,22 @@ def main():
     name = "attach.json" if stem in ("clay", "model") else f"{stem}-attach.json"
     (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
     print(f"attach: {len(report['loose'])} loose of {report['parts']} parts")
-    if "union" in cli:
+    unioned = False
+    if UNION_BODY and not NOUNION:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears
         keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"
-                or p[0].get("prop")]       # a prop stays its own component too
-        union_targets = [p for p in parts if p not in keep]
-        merged = union_parts(union_targets, meta, per_chain=True)
-        for obj, _ in keep:
-            merged.append(obj)
-        if len(merged) > 1:
-            bpy.ops.object.select_all(action="DESELECT")
-            for o in merged:
-                o.select_set(True)
-            bpy.context.view_layer.objects.active = merged[0]
-            bpy.ops.object.join()
-        body_u = merged[0]
-        parts = [(body_u, parts[0][1])]
-        body_u.vertex_groups.clear()
-        for bone, *_ in meta:
-            if bone not in body_u.vertex_groups:
-                body_u.vertex_groups.new(name=bone)
-        for v in body_u.data.vertices:
-            best, bd = meta[0], 1e9
-            for m in meta:
-                d = sum((v.co[i] - m[2][i]) ** 2 for i in range(3))
-                if d < bd:
-                    best, bd = m, d
-            body_u.vertex_groups[best[0]].add([v.index], 1.0, "REPLACE")
-        if "nobev" not in cli:
-            bev = body_u.modifiers.new("Junction", "BEVEL")
-            bev.width = 0.006
-            bev.segments = 1
-            bev.limit_method = "ANGLE"
-            bev.angle_limit = math.radians(35)
-            bpy.ops.object.modifier_apply(modifier=bev.name)
-        plan = body_u.modifiers.new("Planar", "DECIMATE")
-        plan.decimate_type = "DISSOLVE"
-        plan.angle_limit = math.radians(6)
-        bpy.ops.object.modifier_apply(modifier=plan.name)
-        budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
-        union_decimate(body_u, budget // 2, "toldec" in rest)
-        print(f"union: {len(body_u.data.polygons)} faces after boolean + bevel + decimate")
+                or p[0].get("prop")]       # a prop stays its own component too (skinned on its anchor)
+        body_parts = [p for p in parts if p not in keep]
+        if len(body_parts) > 1:
+            budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
+            spare = sum(len(q.vertices) - 2 for o, _ in keep for q in o.data.polygons)
+            shell, info = union_body(body_parts, budget, spare)
+            parts = [(shell, body_parts[0][1])] + keep
+            info.update(components_body=info.pop("components"), props=len(keep))
+            report["union"] = info
+            (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
+            unioned = True
     for obj, _ in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0][0]
@@ -1649,7 +1773,7 @@ def main():
                      voxel=float(cli[4]) if len(cli) > 4 else 0.025)
         print(f"fused: {faces} faces after remesh + decimate")
     else:
-        soften(body)
+        soften(body, 35.0 if unioned else 48.0)
     print("shading:", shading_report(body))
 
     body.parent = arm

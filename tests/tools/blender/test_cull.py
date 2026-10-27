@@ -31,7 +31,9 @@ sphere = bpy.context.object
 tol = cull.decimate_union(sphere, 1000, blind=False)
 bpy.ops.mesh.primitive_uv_sphere_add(radius=1, segments=24, ring_count=12)
 budget = cull.decimate_union(bpy.context.object, 10, blind=False)
-json.dump({{"cull": stats, "tol": tol, "budget": budget, "left": len(outer.data.polygons)}}, open({res!r}, "w"))
+bpy.ops.mesh.primitive_uv_sphere_add(radius=1, segments=24, ring_count=12)
+floor = cull.decimate_union(bpy.context.object, 1000, blind=False, floor=200)
+json.dump({{"cull": stats, "tol": tol, "budget": budget, "floor": floor, "left": len(outer.data.polygons)}}, open({res!r}, "w"))
 """
 
 
@@ -51,6 +53,7 @@ class CullInBlender(unittest.TestCase):
             self.assertLess(out["tol"]["faces"], out["tol"]["faces_before"])
             self.assertTrue(out["budget"]["budget_bound"])          # the budget beats the tolerance
             self.assertLess(out["budget"]["faces"], 30)
+            self.assertGreaterEqual(out["floor"]["faces"], 190)       # the floor holds the tolerance back
 
 
 class ReviewRow(unittest.TestCase):

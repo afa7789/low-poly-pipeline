@@ -71,13 +71,21 @@ class Lint(unittest.TestCase):
         m = L.lint(glb(self.tmp / "d.glb"))
         self.assertEqual(L.failing(m, textured=True), ["images == 1"])
 
+    def test_components_body_reads_the_build_report(self):
+        g = glb(self.tmp / "clay.glb")
+        self.assertEqual(L.lint(g)["components_body"], 1)               # no attach.json: every component counts
+        (self.tmp / "attach.json").write_text('{"union": {"components_body": 3}}')
+        m = L.lint(g)
+        self.assertEqual((m["components"], m["components_body"]), (1, 3))
+        self.assertEqual(L.failing(m, textured=False), ["components_body == 1"])
+
     def test_committed_run_calibration(self):
         run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
         if not run.exists():
             self.skipTest("run not checked out")
         m = L.lint(run)
         self.assertEqual((m["tris"], m["flipped"], m["images"], m["uv_out_of_range"]), (620, 0, 1, 0))
-        self.assertEqual(L.failing(m, textured=True), [])
+        self.assertEqual(L.failing(m, textured=True), ["components_body == 1"])    # a join build: 25 shells
 
 
 class Status(unittest.TestCase):

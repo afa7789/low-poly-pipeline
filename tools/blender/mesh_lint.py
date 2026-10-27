@@ -35,6 +35,7 @@ GATES = {
     "images == 1": (lambda m: m["images"] == 1, True),
     "abs(min_y) <= 0.01 H": (lambda m: abs(m["pivot"]["min_y"]) <= 0.01 * m["pivot"]["height"], False),
     "root_scale == 1": (lambda m: abs(m["root_scale"] - 1) < 1e-3, False),
+    "components_body == 1": (lambda m: m["components_body"] == 1, False),    # Chen 2023: one welded shell (PIPELINE 24.L6-4)
 }
 
 
@@ -187,6 +188,17 @@ def root_scale(doc):
     return float(max(scales, key=lambda s: abs(s - 1), default=1.0))
 
 
+def components_body(glb, comps):
+    """Components of the body alone: build_unit.py counts them (props are components of their own) and
+    writes them to the attach.json beside the GLB. No such file (an old run): every component counts."""
+    stem = pathlib.Path(glb).stem
+    path = pathlib.Path(glb).parent / ("attach.json" if stem in ("clay", "model") else f"{stem}-attach.json")
+    try:
+        return json.loads(path.read_text())["union"]["components_body"]
+    except (OSError, KeyError, ValueError):
+        return comps
+
+
 def lint(glb):
     doc, blob = read_glb(glb)
     pos, nor, uv, tri = geometry(doc, blob)
@@ -206,7 +218,8 @@ def lint(glb):
                          "max_over_median": float(area.max() / med) if med else 0.0},
            "sliver_pct": round(100.0 * float((angles_min(p[live]) < SLIVER_DEG).mean()), 1) if live.any() else 0.0,
            "degenerate": int((~live).sum()), "flipped": flipped, "boundary_edges": boundary,
-           "nonmanifold_edges": nonmanifold, "components": comps, "materials": len(doc.get("materials", [])),
+           "nonmanifold_edges": nonmanifold, "components": comps,
+           "components_body": components_body(glb, comps), "materials": len(doc.get("materials", [])),
            "images": len(doc.get("images", [])),
            "pivot": {"min_y": float(pos[:, 1].min()), "height": height}, "root_scale": root_scale(doc)}
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
