@@ -9,6 +9,9 @@ lathe  dims = (r, h) at = centre. A profile of radii revolved around the vertica
        x radius / squash. opts: profile (6-10 floats, bottom to top; default: the sheet strip, else
        DEFAULT_PROFILE), axis "front" | "left" (the sheet panel the strip is read from, default
        "front"), sides 6-8 (default 8), squash (x/z, default 1). Closed ends, caps are n-gons.
+       axis "z" (PIPELINE 25.L7-4): a lathe lying along z, h = its length (back to front), a ring profile
+       [w, hh, yc, xc(, t)] required: ring i is an ellipse of x radius r*w and y radius r*hh centred
+       (at.x + r*xc, at.y + r*yc) at z = at.z - h/2 + t*h. A quadruped's trunk.
 limb   dims = (r_top, r_knee, r_base), opts from/to (required), knee [frac, dx, dz, dy] (default
        [0.5, 0, 0, 0]: knee = from + frac*(to-from) + (dx, dy, dz)), sides 6-8 (default 8). Two
        tapered tubes sharing the knee ring, capped at both ends.
@@ -112,8 +115,15 @@ def bad_opts(kind, dims, opts, bone=None):
         return None
     if len(dims) != 2 or "from" in opts or "to" in opts or "rot" in opts:
         return "a lathe stands upright: dims (r, h), no from, to or rot"
-    if opts.get("axis", "front") not in ("front", "left"):
-        return "axis is front or left"
+    return bad_lathe(opts)
+
+
+def bad_lathe(opts):
+    """Why the opts of a lathe (axis, profile, corner, squash) are outside the schema, or None."""
+    if opts.get("axis", "front") not in ("front", "left", "z"):
+        return "axis is front, left or z"
+    if opts.get("axis") == "z" and not is_ring_profile(opts.get("profile")):
+        return "a lathe on axis z needs a ring profile [w, h, yc, xc]"
     bad = bad_profile(opts.get("profile"))
     if bad:
         return bad
@@ -178,7 +188,7 @@ def lathe_rings(dims, at, opts, sheet=None):
     r, h = dims
     prof = opts.get("profile") or sheet or DEFAULT_PROFILE
     if is_ring_profile(prof):
-        return ring_surface(r, h, at, prof, sides_of(opts), float(opts.get("corner", 0.0)))
+        return ring_surface(r, h, at, prof, sides_of(opts), float(opts.get("corner", 0.0)), opts.get("axis") == "z")
     n, squash = sides_of(opts), float(opts.get("squash", 1.0))
     out = []
     for i, p in enumerate(prof):
@@ -190,16 +200,21 @@ def lathe_rings(dims, at, opts, sheet=None):
     return out
 
 
-def ring_surface(r, h, at, prof, n, corner=0.0):
+def ring_surface(r, h, at, prof, n, corner=0.0, along_z=False):
     """[ring] of a lathe whose profile is [w, d, zc, xc(, t)] rings: ellipses of x radius r*w and z radius r*d,
     centred (at.x + r*xc, y, at.z + r*zc), y = at.y - h/2 + t*h. `corner` scales a vertex by
-    1 + corner * (sqrt 2 - 1) * |sin 2a|: the diagonal ones of an 8-gon reach the box's corner at corner = 1."""
+    1 + corner * (sqrt 2 - 1) * |sin 2a|: the diagonal ones of an 8-gon reach the box's corner at corner = 1.
+    along_z: the rings lie along z instead (module doc, axis "z"): x radius r*q[0], y radius r*q[1], centre (r*q[3], r*q[2])."""
     out = []
     for i, q in enumerate(prof):
         t = q[4] if len(q) == 5 else i / (len(prof) - 1)
-        cx, cz = at[0] + r * q[3], at[2] + r * q[2]
         angles = [2 * math.pi * k / n for k in range(n)]
         push = [1 + corner * (math.sqrt(2) - 1) * abs(math.sin(2 * a)) for a in angles]
+        if along_z:
+            cx, cy, z = at[0] + r * q[3], at[1] + r * q[2], at[2] - h / 2 + t * h
+            out.append([(cx + r * q[0] * f * math.cos(a), cy + r * q[1] * f * math.sin(a), z) for a, f in zip(angles, push)])
+            continue
+        cx, cz = at[0] + r * q[3], at[2] + r * q[2]
         out.append([(cx + r * q[0] * f * math.cos(a), at[1] - h / 2 + t * h, cz + r * q[1] * f * math.sin(a))
                     for a, f in zip(angles, push)])
     return out

@@ -3133,3 +3133,28 @@ views <8%: 1 -> 5 of 24
   (normais soldadas) recusava a maior parte dos passos e perdia metade do ganho; ficou como passe final.
 - Fora: SDS/difusão, fabricação, cotangente, aresta interna (L6-12), props como variáveis, `normal_diff` no objetivo (próximo passo se o corpo dobrar demais).
 - Papers: Wiersma 2026 §3-4 (orçamento fixo, posição de vértices, line search que recusa inversão, fairness), Sketch2Mesh 2021 (chamfer Eq. 5).
+
+
+### 20.L7-4 Lathe deitado (`axis: "z"`) ligado; prop inclinado (`lean_props`) NEGATIVO, desligado (2026-10-27)
+
+- **Lathe deitado.** `lathe_limb`: `opts.axis = "z"` com perfil de anéis `[w, hh, yc, xc, t]` (obrigatório): elipse de raio x `r*w` e y `r*hh`, centro `(xc, yc)*r`, em `z = at.z - h/2 + t*h`; 8 lados, tampas. Todo leitor usa `lathe_rings` (build_unit.swept_part, preflight.part_tris/bbox, fit_spec.part_points); o fit já move `w`/`hh` por ±15 % (`apply_profile`); `cut_hull.cuttable` exclui `axis z`. `massing._trunk_lathe`: o tronco de quadrúpede/drake (antes `TRUNK_SLABS` = 8 `_brick`) vira UM lathe deitado por osso (`spine.1` atrás, `spine.2` à frente; os dois são ossos exigidos), 5 anéis nos breakpoints da altura (left), centro e meia-largura (top), sobrepostos em 10 % do comprimento (sem a sobreposição o fit os separa e `overlap` reprova). Flag `massing.HORIZONTAL_LATHE = True`; False = os tijolos. Wyrm: o corpo já é `chain` (sem `_brick`), não muda; a cabeça de tijolos do quadrúpede sem asa fica.
+- **Medida (rebuild do massing sozinho, `--no-repair`, sem LLM; antes -> depois; `runs` em scratchpad `leva7-horizontal/`).**
+
+| | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n017 `--no-fit` | .865 -> .880 | .711 -> .712 | .794 -> .818 | .759 -> .800 | .832 -> .878 | .662 -> .646 |
+| n017 com fit (padrão) | .871 -> .884 | .713 -> .751 | .803 -> .831 | .783 -> .817 | .853 -> .880 | .665 -> .678 |
+| n010 (drake) `--no-fit` | .847 -> .863 | .842 -> .837 | .572 -> .574 | .440 -> .444 | .441 -> .450 | .540 -> .542 |
+
+  n017 left +0.038 com o fit (meta +0.03; sozinho o massing só dá +0.001: o ganho vem de o fit ter anéis para mexer), front +0.013. n017 rts -0.016 sem o fit (+0.012 com). n010: dentro de ±0.02 salvo left -0.005. Tris n017 630 -> 562. n00H (wyrm) não muda: sem tijolos de tronco; o +0.03 de left dele depende de outro item (corpo em S, uma `chain`). Ruído: o fit varia ±0.03 entre rodadas (n010 com fit mostrou front -0.05 numa rodada e +0.016 sem fit), compare sempre `--no-fit` para o efeito do massing.
+- **Prop inclinado: NEGATIVO.** `massing.lean_props` / `lean_poles` (`LEAN_PROPS = False`): o grupo de linhas de um prop longo (haste + ponta, mesmo `prop`) é girado como corpo rígido em torno do pé da haste até a diagonal que `pole_part` dá (box3d de `parts.json` + `pole_lean` do left; o x fica o do autor), com a altura do topo mantida (primeira versão, com a haste esticada à diagonal da caixa, subiu o prop a 2.93 m e encolheu todas as vistas, front -0.11). hfoo v10-r1 (spec do autor, pique em pé), rebuild:
+
+| hfoo | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| v10-r1 `--no-fit` | .852 | .450 | .862 | .830 | .797 | .648 |
+| com lean `--no-fit` | .827 | **.759** | .837 | .586 | .630 | .486 |
+| com lean, fit | .839 | **.670** | .847 | .635 | .700 | .526 |
+| lean pela metade (`LEAN_SHARE` .5) `--no-fit` | .846 | .531 | .848 | .694 | .656 | .608 |
+
+  left passa a meta (> .65) mas top -0.24, bottom -0.17, rts -0.16: o top do sheet não desenha o pique com 2 m de profundidade, a caixa do `parts.json` (z -0.77..1.38) vem do left; o comprimento em z domina o contorno do top/bottom/rts. A metade do lean também perde top -0.14. Fica desligado; add quando o top/rts do sheet mostrarem o pique (ou quando o fit/deformação do L7-1 tratar top/rts do prop). `lean_poles` tem teste (haste e ponta giram juntas, topo mantido).
+- **Fora:** o `rot` em 2 eixos do prop (o pique é `prism` `from`/`to`, que já é qualquer direção); leitura do eixo maior da máscara do prop por painel (o box3d do VLM já a traz).

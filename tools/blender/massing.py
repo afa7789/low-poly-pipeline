@@ -890,6 +890,61 @@ def is_pole(part):
     return leaning or named
 
 
+LEAN_SHARE = 1.0         # lean_poles: the share of the box's z lean the pole takes (the top and bottom views suffer when it leans all the way)
+LEAN_PROPS = False       # lean_props: an author's pole is turned to the diagonal parts.json's box and the left view give it (PIPELINE 25.L7-4). Off: hfoo left .450 -> .683 but top -.24, bottom -.17, rts -.16 (the sheet's top view does not draw the pike that long)
+
+
+def _turn(p, a0, a1, rot, k):
+    """The point p of a prop turned by the 3x3 matrix `rot` about a0, scaled by k, and put at a1."""
+    return [r3(a1[i] + k * sum(rot[i][j] * (p[j] - a0[j]) for j in range(3))) for i in range(3)]
+
+
+def _rotation(u, v):
+    """The 3x3 matrix turning the unit vector u onto v (Rodrigues); identity when they agree, a half turn about x when opposite."""
+    c, w = float(np.dot(u, v)), np.cross(u, v)
+    if c < -1 + 1e-9:
+        return np.diag([1.0, -1.0, -1.0])
+    k = np.array([[0, -w[2], w[1]], [w[2], 0, -w[0]], [-w[1], w[0], 0]])
+    return np.eye(3) + k + k @ k / (1 + c)
+
+
+def lean_props(spec, sheet):
+    """`spec` with its poles leant as refs/<id>/parts.json and the left view say (lean_poles); the spec as it was without
+    parts.json, with LEAN_PROPS off or for a rig that is not a biped."""
+    doc = load_parts(sheet)
+    if not LEAN_PROPS or not doc or spec.get("rig", "biped") != "biped":
+        return spec
+    from silhouette import concept_panels
+    return lean_poles(spec, doc, side_of(concept_panels(sheet)["left"], doc["H"]))
+
+
+def lean_poles(spec, doc, side):
+    """`spec` with each pole prop of parts.json `doc` (is_pole: a pike, a spear, a club) that the author drew as a prism turned
+    like pole_part says: the group of rows that share its prop name is carried rigidly (turned about the shaft's foot, scaled
+    so its top stays at the author's height), so a pike the author stood upright leans in z as the left panel shows it; its x
+    stays the author's. A pole with no matching group is left alone."""
+    rows = [list(p) for p in spec["parts"]]
+    for part in (q for q in doc["parts"] if q.get("prop") and q.get("box3d") and is_pole(q)):
+        group = [p for p in rows if str(p[5].get("prop", "")).lower() == part["name"].lower() and "from" in p[5] and "to" in p[5]]
+        if not group:
+            continue
+        shaft = max(group, key=lambda p: math.dist(p[5]["from"], p[5]["to"]))
+        a0, b0 = np.array(shaft[5]["from"], float), np.array(shaft[5]["to"], float)
+        want = pole_part(part, "z1", side)[0][5]
+        a1, b1 = np.array(want["from"], float), np.array(want["to"], float)
+        zc = (a0[2] + b0[2]) / 2
+        a1[2], b1[2] = zc + LEAN_SHARE * (a1[2] - zc), zc + LEAN_SHARE * (b1[2] - zc)
+        a1[0], b1[0] = a0[0], b0[0]                      # the front view's lean is the author's: the left view's is read here
+        rot = _rotation(*((b0 - a0) / max(np.linalg.norm(b0 - a0), 1e-9), (b1 - a1) / max(np.linalg.norm(b1 - a1), 1e-9)))
+        ends = [np.array(p[5][k], float) for p in group for k in ("from", "to")]
+        rise = max(float((rot @ (e - a0))[1]) for e in ends)
+        k = (max(e[1] for e in ends) - a1[1]) / rise if rise > 1e-6 else 1.0      # the prop keeps its top: the figure's height is the scale of every view
+        for p in group:
+            p[5] = {**p[5], "from": _turn(p[5]["from"], a0, a1, rot, k), "to": _turn(p[5]["to"], a0, a1, rot, k)}
+            p[2] = [*p[2][:2], r3(k * p[2][2])]
+    return {**spec, "parts": rows}
+
+
 def hull_profile(mask, keep=6):
     """<= `keep` points [u, v] (0-1 of the mask's box, v up) of the convex hull of a boolean mask."""
     from scipy.spatial import ConvexHull
@@ -1422,6 +1477,10 @@ def placeholder_props(parts, rig, unit, slot):
 DETAIL = ((6, 0.0), (8, 0.0), (8, 0.15))   # (sides, plate bevel) tried in order until the pre-spec clears the class floor
 TRUNK_SLABS = 8          # bricks along the trunk (one frustum each: the side view's top and bottom line, the top view's width)
 HEAD_SLABS = 4
+# HORIZONTAL_LATHE (PIPELINE 25.L7-4): the trunk of a quadruped or drake is one lathe lying along z per spine bone (rings at the
+# breakpoints of the side view's height and the top view's width), not TRUNK_SLABS bricks. False = the bricks of before.
+HORIZONTAL_LATHE = True
+HLATHE_RINGS = 5         # rings of each of the two trunk lathes (lathe_limb.RING_RANGE)
 WING_OVERLAP = 0.08      # the two plates of a wing overlap by this share of its height
 
 
@@ -1470,20 +1529,62 @@ class Scaled:
         return emit(role, bone, self.labels_for(0.0, self.H, -0.3 * self.H, 0.3 * self.H), {"bones": n, "half": lambda j: CHAIN_FAT * self.radius_at(j), "sides": sides})
 
 
+def _brick_box(S, a, b, mask, winged, opened_top=True):
+    """(ybot, ytop, half) of the body between x = a..b (fractions of H from the snout): height from the side panel's `mask`, half
+    width from the top view (the front view for a winged body, whose wings cover the top line: then it is as tall above the centre
+    line as the belly is below)."""
+    ybot, ytop = S.y_range(mask, a, b)
+    front = S.front.half(ybot, ybot + 0.6 * (ytop - ybot))
+    half = WIDTH * (front if winged else min(S.top_half(a, b, opened_top) or front, front))
+    if winged:
+        ytop = min(ytop, 2 * S.line_y((a + b) / 2) - ybot)    # the wing hides the back line: the trunk is as tall as the belly is far below the line
+    return ybot, ytop, half
+
+
 def _slabs(S, role, bone_of, xa, xb, n, mask, winged, opened_top=True):
-    """n bricks from x = xa to xb: height from the side panel's `mask` in the brick's columns, width from the top
-    view (the front view for a winged body, whose wings cover the top line: then the brick is as tall above the centre line as the belly is below)."""
+    """n bricks from x = xa to xb, each one _brick_box."""
     parts = []
     for a, b in zip(np.linspace(xa, xb, n + 1)[:-1], np.linspace(xa, xb, n + 1)[1:]):
-        ybot, ytop = S.y_range(mask, a, b)
-        front = S.front.half(ybot, ybot + 0.6 * (ytop - ybot))
-        half = WIDTH * (front if winged else min(S.top_half(a, b, opened_top) or front, front))
-        if winged:
-            ytop = min(ytop, 2 * S.line_y((a + b) / 2) - ybot)    # the wing hides the back line: the trunk is as tall as the belly is far below the line
+        ybot, ytop, half = _brick_box(S, a, b, mask, winged, opened_top)
         slot = S.labels_for(ybot, ytop, -half, half)
         parts += emit(role, bone_of((a + b) / 2), slot, {"w": 2 * half, "h": ytop - ybot + JOINT * S.H, "d": (b - a) * S.H * 1.12,
                                                         "at": (0.0, (ybot + ytop) / 2, S.z((a + b) / 2))})
     return parts
+
+
+def _trunk_lathe(S, bone, xa, xb, mask, winged):
+    """One lathe lying along z (lathe_limb axis "z") from x = xb (the back) to xa (the front) on `bone`: its rings sit at the
+    breakpoints of the _brick_box height, centre and half width along the trunk, so the belly and back lines and the top view's
+    width are one surface, not a row of boxes (PIPELINE 25.L7-4)."""
+    xs = np.linspace(xa, xb, 25)
+    cols = [_brick_box(S, a, b, mask, winged) for a, b in zip(xs[:-1], xs[1:])]
+    mid = (xs[:-1] + xs[1:]) / 2
+    chans = [np.array([c[i] for c in cols]) for i in (0, 1, 2)]
+    cut = breakpoints(mid, chans, HLATHE_RINGS - 1)
+    cut[0], cut[-1] = xa, xb                                    # the end rings sit on the trunk's ends: the two lathes meet
+    cut = cut[::-1]                                             # back (large x) to front: z rises
+    rows = [tuple(float(np.interp(x, mid, ch)) for ch in chans) for x in cut]
+    r = max(max(h for _, _, h in rows), 1e-3)
+    ymid = float(np.mean([(b + t) / 2 for b, t, _ in rows]))
+    ext = 2 * RING_OVERLAP * (S.z(cut[-1]) - S.z(cut[0]))           # the end rings move out: the two lathes overlap (the fit moves them apart)
+    zs = [S.z(x) for x in cut]
+    zs[0], zs[-1] = zs[0] - ext, zs[-1] + ext
+    z0, z1 = zs[0], zs[-1]
+    cap = lathe_limb.RING_MAX
+    prof = [[r3(h / r), r3(min((t - b) / 2 / r + 0.01, cap)), r3(((b + t) / 2 - ymid) / r), 0.0, r3((z - z0) / (z1 - z0))]
+            for z, (b, t, h) in zip(zs, rows)]
+    slot = S.labels_for(min(b for b, _, _ in rows), max(t for _, t, _ in rows), -r, r)
+    return [[bone, "lathe", [r3(r), r3(z1 - z0)], [0.0, r3(ymid), r3((z0 + z1) / 2)], slot,
+             {"profile": prof, "sides": LATHE_SIDES["torso"], "corner": RING_CORNER, "axis": "z"}]]
+
+
+def _trunk_parts(S, x0, x1, pad, winged):
+    """The trunk of a quadruped or a drake: bricks, or (HORIZONTAL_LATHE) one lathe lying along z per spine bone, the back
+    half on spine.1 and the front half on spine.2, sharing the ring at the middle."""
+    mid = (x0 + x1) / 2
+    if not HORIZONTAL_LATHE:
+        return _slabs(S, "trunk", lambda x: "spine.2" if x < mid else "spine.1", x0 - pad, x1 + pad, TRUNK_SLABS, S.opened, winged)
+    return (_trunk_lathe(S, "spine.2", x0 - pad, mid, S.opened, winged) + _trunk_lathe(S, "spine.1", mid, x1 + pad, S.opened, winged))
 
 
 def _paws_and_legs(S, sides):
@@ -1580,8 +1681,7 @@ def _quadruped_parts(S, detail):
     m, winged, (sides, bevel) = S.m, "wing" in S.m, detail
     x0, x1 = m["trunk"]
     pad = 0.4 * max(p[2] for p in S.line)
-    mid = (x0 + x1) / 2
-    parts = _slabs(S, "trunk", lambda x: "spine.2" if x < mid else "spine.1", x0 - pad, x1 + pad, TRUNK_SLABS, S.opened, winged)
+    parts = _trunk_parts(S, x0, x1, pad, winged)
     parts += _paws_and_legs(S, sides)
     if winged:
         parts += _head_prism(S, sides) + S.chain("neck", "neck.1", 2, sides) + S.chain("tail", "tail.1", 3, sides) + _wing_plates(S, bevel)

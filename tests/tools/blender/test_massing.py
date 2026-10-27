@@ -288,7 +288,7 @@ class Families(unittest.TestCase):
         RF._drop_caches()
 
     def test_each_unit_covers_its_bones_inside_the_budget(self):
-        for unit, rig, kinds in (("n017", "quadruped", {"frustum", "limb", "chain"}), ("n00H", "wyrm", {"chain", "plate", "prism"}),
+        for unit, rig, kinds in (("n017", "quadruped", {"lathe", "limb", "chain"}), ("n00H", "wyrm", {"chain", "plate", "prism"}),
                                  ("n010", "drake", {"chain", "plate", "limb", "prism"})):
             with self.subTest(unit):
                 spec = M.build(REFS / unit / "sheet.jpg", rig)
@@ -301,6 +301,15 @@ class Families(unittest.TestCase):
                 tris = sum(PF.part_tris(p) for p in parts)
                 self.assertGreaterEqual(tris, PF.BUDGETS["mass"][0])
                 self.assertLessEqual(tris, 700)
+
+    def test_trunk_is_one_lathe_along_z_per_spine_bone(self):
+        for unit, rig in (("n017", "quadruped"), ("n010", "drake")):
+            with self.subTest(unit):
+                trunk = [p for p in M.build(REFS / unit / "sheet.jpg", rig)["parts"] if p[1] == "lathe"]
+                self.assertEqual(sorted(p[0] for p in trunk), ["spine.1", "spine.2"])
+                self.assertTrue(all(p[5]["axis"] == "z" and lathe_limb.bad_opts("lathe", p[2], p[5]) is None for p in trunk))
+                back, front = sorted(trunk, key=lambda p: p[3][2])
+                self.assertGreater(back[3][2] + back[2][1] / 2, front[3][2] - front[2][1] / 2)       # they overlap
 
     def test_wings_lean_out_and_mirror(self):
         spec = M.build(REFS / "n00H" / "sheet.jpg", "wyrm")
@@ -352,6 +361,23 @@ class Props(unittest.TestCase):
         prof = M.hull_profile(m, keep=4)
         self.assertLessEqual(len(prof), 4)
         self.assertEqual((min(u for u, _ in prof), max(u for u, _ in prof), min(v for _, v in prof), max(v for _, v in prof)), (0, 1, 0, 1))
+
+    def test_upright_author_pole_is_leant_with_its_head(self):
+        """PIPELINE 25.L7-4: shaft and spear head turn together about the shaft's foot, to the diagonal of parts.json's box."""
+        part = self.part("pike", [-0.05, 0.4, -0.8], [0.05, 1.9, 0.8])
+        shaft = ["forearm.R", "prism", [0.04, 0.04, 1.5], [0, 0, 0], "s", {"from": [0, 0.4, 0], "to": [0, 1.9, 0], "prop": "pike"}]
+        head = ["forearm.R", "prism", [0.08, 0.01, 0.3], [0, 0, 0], "s", {"from": [0, 1.9, 0], "to": [0, 2.2, 0], "prop": "pike"}]
+        other = ["spine", "box", [1, 1, 1], [0, 1, 0], "s", {}]
+        for lean in (1, -1):
+            with self.subTest(lean):
+                out = M.lean_poles({"parts": [other, shaft, head]}, {"parts": [part]}, M.side_of(self.panel(lean), 2.0))["parts"]
+                self.assertEqual(out[0], other)
+                (a, b), (c, d) = ((r[5]["from"], r[5]["to"]) for r in out[1:])
+                self.assertEqual(a, [0.0, 0.4, -0.8 * lean])                          # the foot goes to the box's corner, x stays
+                self.assertEqual(c, b)                                                  # the head still sits on the tip
+                self.assertAlmostEqual(d[1], 2.2, 3)                                    # the top keeps its height
+                self.assertAlmostEqual((b[2] - a[2]) / (b[1] - a[1]), lean * 1.6 / 1.5, 3)   # the diagonal of the box
+                self.assertEqual((b[0], d[0]), (0.0, 0.0))
 
     def test_pole_leans_where_the_sheet_leans(self):
         part = self.part("pike", [-0.05, 0.4, -0.8], [0.05, 1.9, 0.8])
