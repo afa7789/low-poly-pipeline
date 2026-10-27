@@ -2906,3 +2906,65 @@ Próximo: separar o cacete/braço da faixa (componente conexa da faixa ao redor 
   `preflight` do massing: regras que reprovavam antes continuam as mesmas (n005 `boot_height`/`feet_mass`, vindas das pernas), `prop_clearance` PASS nas 3 (tanque 4 %, lanterna 0 %; mochila 0 %, pique 2 %, lanterna 8 %; clava 0 %). `attach.json` (build real): `loose` igual ao antes (só os pés do n005, antigos); gap malha-corpo: lanterna n005 0.096, tanque 0; mochila 0.054, lanterna 0.055, pique 0 (hfoo); pano 0.064, clava 0 (n02X). Compare lado a lado: `scratchpad/leva6-props/run/{base,new}/<unidade>/compare.png` (o prop aparece como objeto separado: mochila com vão do tronco no left, pique/clava diagonais lidas do left, lanterna do lado do quadril); v9: `run/{v9b,v9n}/`.
 - **O que piorou / negativo.** (1) A folga custa IoU onde o sheet cola o prop ao corpo: left -0.033 (hfoo, mochila sai 0.14 m do tronco; a face de trás fica, a da frente recua) e -0.032 (n005 v9, o tanque `lathe` não é cortado, anda inteiro 0.055 m): o critério "IoU ±0.02" falha nessas duas vistas, mantive porque a folga é o pedido; a saída barata é `PROP_GAP = 0` ou cortar o `lathe` (squash). (2) O pique do hfoo aparece no rts diferente do sheet (o left só decide o ângulo no plano left; o rts depende da direção em x, não lida). (3) `chain` não entrou (ver acima). (4) O perfil do `plate` é o casco convexo: não tem vazados; nenhuma das 3 unidades tem arma-placa com `box3d` (o vaporizador do n005 e a pistola não têm caixa em `parts.json`), então o `plate` só foi provado em teste e no n02X (nenhum) - o perfil lido do sheet-props não foi visto num build real. (5) `unmark_worn` deixa cinto/óculos/ombreira como peça de corpo (por design: caixa que envolve o corpo não é objeto separado). (6) A taxa 0/5 do gate vem de poucas amostras marcadas; vigiar nos primeiros runs com marca do autor.
 - **Testes.** `test_massing.py::Props` (tipo por nome, plate fina, casco, lean, `clear_props` com válvula junta, worn, merge), `test_fit_spec.py::FitProps` (o ajuste não cresce o corpo para dentro do prop), `test_preflight.py::PropParts` (alcance 0.08). 448 testes OK; ruff com os mesmos 10 achados anteriores.
+
+### 24.L6-5 Sketch2Mesh por default: deformação da malha unida ao contorno (2026-10-27)
+
+**O que mudou.** `tools/blender/deform_to_sheet.py <glb> <sheet> <out.glb> [--views front,left,back] [--iters 4] [--band lo-hi]`
+(python3.14 + numpy/scipy/PIL, sem Blender: lê/escreve o GLB direto). Só mexe nos bytes de POSITION e NORMAL (e, em triângulos
+quase degenerados, na ordem dos 3 índices); skin, UVs, materiais e clipes ficam como estão.
+1. Contorno externo do modelo por vista (Sketch2Mesh Fig. 2c): vértices (soldados por posição, para não rasgar costura de
+   normal/UV) cuja projeção cai a <= 1.5 px da borda externa da máscara rasterizada (PIL, mesma normalização por bbox do
+   `silhouette.normalize`, espelho escolhido pelo IoU como em `variants`).
+2. Alvo = ponto mais próximo do contorno do painel do sheet (`concept_panels`); deslocamento no plano da vista, <= 0.05 H por
+   passo; vértice a mais de 0.10 H do contorno do sheet não é puxado (é outra parte: a lança do hfoo no left).
+3. O interior segue por Laplaciano uniforme: minimiza |L d|² + Σ a|d − alvo|² + Σ b|d|² (`scipy.sparse.linalg.spsolve`), a = 10 só nos
+   vértices de contorno, b = âncora onde o peso é 0. Rodadas (`--iters`, 4) de 1 passo por vista, alternando front/left/back.
+4. Eq. 6: o peso de cada faixa de altura (8, de `silhouette.coupling`) = clip((vermelho+verde da faixa − 0.003) / 0.012, 0, 1),
+   interpolado na altura do vértice; `--band 0.4-0.7` força 1 dentro da faixa e 0 fora. Solas (2 % H) não mudam de altura (pivô).
+5. Um passo vale se: nenhuma face real (> 2 % da área mediana) vira a normal (vértices das faces viradas voltam pela metade até
+   nenhuma virar; o sentido de uma face de área zero vem das normais dos cantos), slivers (ângulo < 10°) <= max(5 %, antes + 5 pp),
+   nenhuma vista (inclusive top/bottom, só vigiadas: tilt/giro/espelho de melhor IoU) cai > 0.01 de IoU abaixo do começo, e o IoU
+   médio das vistas puxadas não cai. Recusado: tenta com 1/2 e 1/4 do passo. Normais recalculadas (soma das faces novas por índice
+   de vértice: face chata continua chata); faces quase degeneradas viradas contra as normais trocam o enrolamento (gate
+   `flipped == 0` do `mesh_lint`).
+6. Gancho: `spec_pipeline.DEFORM = True` (`--no-deform`), `deform_to_sheet.apply` em `stage_shape` logo depois do build do clay
+   (depois do fit, antes da textura; guarda `clay-raw.glb` e `clay.deform.json`) e em `colour_stage.build_textured` (a textura
+   cel/painted reconstrói o corpo do spec; `sheet` projeta do clay já deformado). **Só roda com `UNION_BODY = True`** (constante em
+   `spec_pipeline`, hoje `False`: o L6-4 liga); a malha de 25 cascas não tem um corpo para deformar. `fit_accepted` não muda.
+
+**Prova sem LLM** (8 specs v9-r1 reconstruídos com `build_unit ... clay cull union`, 650-700 tris; juiz = `refs/<id>/sheet.jpg`;
+silhouette.py com render real, antes = union, depois = union deformada; tabela completa e overlays em
+`history/2026-10-28-l6-5/`):
+
+| unidade | IoU f/l/b antes | depois | vermelho médio f/l/b | verde médio f/l/b | Δ IoU top/bottom/rts | slivers % | flipped |
+|---|---|---|---|---|---|---|---|
+| n005 | .807/.854/.824 | .861/.876/.872 | 8.6 → 5.7 % | 10.2 → 8.2 % | +.054/+.069/−.003 | 28.4 → 29.4 | 0 → 0 |
+| n00H | .813/.633/.807 | .807/.657/.802 | 14.1 → 12.8 % | 14.3 → 14.8 % | 0/+.009/– | 26.6 → 27.5 | 0 → 1 |
+| n00U | .811/.705/.812 | .843/.744/.847 | 8.7 → 6.2 % | 16.2 → 14.2 % | +.026/+.001/+.007 | 21.5 → 23.7 | 0 → 0 |
+| n010 | .687/.740/.599 | .778/.748/.615 | 18.4 → 15.4 % | 20.5 → 18.3 % | −.013/−.013/−.007 | 23.0 → 23.7 | 0 → 0 |
+| n017 | .823/.728/.768 | .876/.754/.814 | 8.4 → 8.3 % | 16.5 → 12.1 % | −.011/+.001/+.001 | 37.0 → 39.8 | 0 → 0 |
+| n01X | .721/.769/.723 | .789/.834/.791 | 20.2 → 14.1 % | 9.4 → 7.3 % | +.022/+.011/+.008 | 18.9 → 23.8 | 2 → 3 |
+| n02X | .720/.785/.731 | .852/.855/.870 | 11.5 → 7.2 % | 17.6 → 7.9 % | +.031/+.016/+.010 | 23.3 → 24.1 | 0 → 0 |
+| hfoo | .767/.504/.770 | .770/.512/.779 | 18.7 → 19.6 % | 20.7 → 18.9 % | +.002/−.002/−.015 | 27.0 → 27.7 | 0 → 0 |
+
+- IoU f/l/b sobe em 7 dos 8 (média das 3 vistas .746 → .789; n02X +.114, n01X +.067, n010 +.039); hfoo e n00H ficam parados.
+  Nenhuma das 6 vistas cai mais que .015 (guarda 0.01 + folga do proxy raster). O vermelho médio das 3 vistas cai de 13.6 % para
+  11.2 % e o verde de 15.7 % para 12.7 %. Passes de 4 rodadas: 2 a 10 passos aceitos, 2 a 10 recusados por unidade.
+- **Meta não atingida:** vermelho E verde < 8 % em front/left/back em **0 das 8** unidades (2 de 24 vistas: n005 left, n02X back).
+  Os dois lados batem em limites do que a deformação alcança: (a) o sheet tem peça que a malha não tem (lança diagonal do hfoo,
+  lanterna do n01X, cauda do n00H left: o contorno do modelo não chega e o alvo mais próximo é de outra parte; por isso o alcance
+  de 0.10 H), (b) a malha unida decimada tem 19-37 % de slivers e ~250 faces: poucos vértices no contorno para seguir o desenho,
+  (c) front e back puxam o mesmo eixo x e o modelo é simétrico onde o sheet não é (n02X back 7.5 %). Passo seguinte = L6-7
+  (vértices com otimização, só o que passou de 8 %): todas as unidades menos n005 entram.
+- **Piorou / custos:** slivers sobem 0.7-4.9 pp (o teto relativo é antes + 5 pp: a união de hoje já passa de 19 %, um teto absoluto
+  de 5 % recusaria todo passo; o teto absoluto é do L6-4); `flipped` do mesh_lint 0 → 1 (n00H) e 2 → 3 (n01X), faces
+  quase degeneradas; n010 top/bottom −.013 e hfoo rts −.015 (as vistas só vigiadas); 6 vistas puxadas (`--views
+  front,left,back,top,bottom`) dão +.04-.10 em top/bottom do n005/n01X/n00U mas perdem até .013 no left do n017: opt-in, não default.
+- Animação (`walk`, 12 quadros, malha deformada vs unida, `walk_check.py` na scratchpad): nenhum vértice soldado se separa
+  (`max_dup_split` 0.0 nas 8), esticão p99.5 das arestas igual ±5 % exceto n017 (4.4 → 6.0; pele rígida por osso, o esticão já é
+  3-8× na união) — sem rasgo.
+- Tempo: ~1 s por GLB de 700 tris (5 s com top/bottom), sem Blender. Reproduzir: `build_unit.py <spec> out.glb 700 nofuse 700 clay <cut_hull args> cull union`
+  e `deform_to_sheet.py out.glb refs/<id>/sheet.jpg deformed.glb`.
+- Fora: top/bottom puxados por default (só opt-in), `cotangent` (Laplaciano uniforme; trocar se a malha ganhar anéis regulares no L6-1),
+  Chamfer 3D, qualquer termo de aresta interna (L6-12 entra depois deste passo).
+- Papers: Sketch2Mesh 2021 (§3.3 Chamfer de contornos externos, Fig. 2c, Eq. 6), Wiersma 2026 (slivers, recusa de inversão).
