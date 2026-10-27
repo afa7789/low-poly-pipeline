@@ -139,3 +139,27 @@ Paper: ULIP 2023 (CLIP como juiz cross-modal; ensemble multi-vista; templates de
 - `docs/references.md`: seção "Modelos 3D por IA (pipeline de specs)" com as 10 linhas.
 - `PIPELINE.md` §19 com subseções 19.A1…19.E2 (uma por item, com a medida antes/depois).
 - `~/Developer/arthur/IA_gen_paper/melhorias/`: uma ficha por fase.
+
+---
+
+# Leva 2 (2026-10-27, tarde) — o que ficou de fora + o que a bateria v5 ensinou
+
+Regras iguais às da leva 1: medir antes de gatear (regra nova nasce como relatório), opt-in quando não houver ganho medido, nunca apagar runs, sem trailer no commit.
+
+## Onda 1
+- **N1+N2 conexão na malha e fit com âncora.** `preflight.overlap` passa a testar as caixas reduzidas a 80 % (caixa que só encosta no canto não conta); `build_unit` confere com BVH (`mathutils.bvhtree`) que cada peça cruza a malha do pai e grava `attach.json` (peças soltas); `fit_spec`: limites 10 % em dims / 0.03 H em `at`, torso/pelvis/capuz não crescem em x/z, ligação com o pai como restrição dura (caixa 80 % continua cruzando). Prova: n00U v5-fit-r2 e n005 v5-fit-r3 reconstruídos: zero peça solta no `attach.json`, IoU não cai mais que 0.03.
+- **S1+S3+M11 autor com schema, repair parcial, bandas congeladas.** `ask()`: `response_schema` (Gemini) e tool com JSON schema (`claude -p`), medido por taxa de spec malformado; REFINE/REPAIR: a lista de peças editáveis é só a que toca a faixa (banda de altura) onde a silhueta falha ou a regra reclama; o resto vai como "frozen" e `apply_patch` rejeita edição fora da lista.
+- **E15+M9 arestas do hard sheet e orçamento por saliência.** `silhouette.edges(hard)`: Sobel/Laplaciano sobre luma, menos a borda da máscara dilatada = arestas internas; por faixa de altura: contagem e direção dominante → `measured_text` ("torso: 6 facetas verticais"); `budget_split` usa 50 % área + 50 % saliência (densidade de arestas) no lugar do prior fixo; medida nova no review: Chamfer entre `edges(hard)` e o `wire-<view>.png` do clay ("facetou onde o desenho faceta").
+- **S5+S7+S6+M10 medidas de protocolo.** `compare_runs.py --stability`: Chamfer 3D (pontos amostrados do GLB) e |ΔIoU| entre runs iguais; review: KB do atlas, texel/altura; `engine_import`: carregar o GLB no loader do jogo headless (achar o entry point em `src/`; se precisar de binário, `make` o alvo de teste) e reportar ok/erro no Readiness; `mesh_lint --decimate`: decimar 50 % (Blender) e remedir IoU → "IoU perdido por 100 tris".
+- **M8+M12 faces escondidas e decimate com tolerância de tela.** `build_unit ... cull`: render-ID em 12 vistas, apagar faces nunca vistas, medir "tris visíveis/total" (relatório sempre; remoção opt-in); no ramo `union`: collapse iterativo parando quando a distância máxima à malha pré-decimate passa de `d = H/32` (BVH find_nearest amostrado).
+- **N3 gate de zonas no estágio 1.** Render "ID" do clay com uma cor chapada por material (`render_silhouette` com `--ids`), comparar com as zonas de cor do sheet (`silhouette.zone_*`) em front/left/back; relatório no estágio 1 (`zones_clay`), gate só depois de calibrar nos runs v5.
+
+## Onda 2
+- **S2** `--fit` default (depois de N1+N2); `--no-fit` para desligar.
+- **S4+N5 review pareado de visão como gate.** `review_pair.py`: duas runs (ou run × run anterior) lado a lado, mesma vista; o reviewer (session:opus com Read de imagem) responde "A ou B" em 2 eixos (parece o sheet; parece feito por artista) com 1 frase cada; 3 repetições, maioria; gravado em `review.md` ("pairwise vs <run>: A 2-1 / B 3-0"). Gate: uma run nova só substitui a anterior se vencer ou empatar.
+- **N4 sheets top/bottom ortográficos.** Prompt dos 5 painéis com "câmera exatamente acima/abaixo, projeção ortográfica, sem perspectiva, sem inclinação"; regenerar só top/bottom das 3 unidades de teste (nano banana, API), guardar os antigos em `refs/<id>/old/`; medir o tilt que `silhouette` escolhe antes/depois (meta 0 ± 5°).
+- **L13 massing de edifícios por hull.** `building_hull.py`: volume base = extrude(front) ∩ extrude(left) regularizado (Sano §3.4: DP, ortogonalidade), QEM até o orçamento; o LLM recebe o volume pronto e só coloca props/telhado. Prova em 2 edifícios com sheet.
+- **L14 rig spider medido do sheet.** `silhouette.measure` para spider: comprimento de perna, raio do corpo, altura do joelho; `rig_families.spider`/`spider_high` escalados por esses números em vez de fixos; prova no n00U (front/back ≥ 0.65 é a meta).
+
+## Onda 3
+- Bateria v6 nas 3 unidades (one-shot com tudo ligado), compares em `history/2026-10-27-v6/`, §20 no PIPELINE, ficha 02 no IA_gen_paper.
