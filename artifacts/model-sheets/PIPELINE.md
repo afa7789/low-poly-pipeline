@@ -3158,3 +3158,45 @@ views <8%: 1 -> 5 of 24
 
   left passa a meta (> .65) mas top -0.24, bottom -0.17, rts -0.16: o top do sheet não desenha o pique com 2 m de profundidade, a caixa do `parts.json` (z -0.77..1.38) vem do left; o comprimento em z domina o contorno do top/bottom/rts. A metade do lean também perde top -0.14. Fica desligado; add quando o top/rts do sheet mostrarem o pique (ou quando o fit/deformação do L7-1 tratar top/rts do prop). `lean_poles` tem teste (haste e ponta giram juntas, topo mantido).
 - **Fora:** o `rot` em 2 eixos do prop (o pique é `prism` `from`/`to`, que já é qualquer direção); leitura do eixo maior da máscara do prop por painel (o box3d do VLM já a traz).
+
+
+### 25.L7-3 Pernas no top e no rts (2026-10-27) - NEGATIVO, opt-in (`rig_families.TOP_LEGS`, `fit_spec.LEG_SPILL_W`)
+
+**O que mudou.**
+1. `silhouette.leg_branches(top, k)` (e a chave `legs` de `measure_spider`): cada perna é um ramo do painel top fora do corpo (abertura dos finos
+   como em `leg_ridge`, máscara menos o corpo dilatado, componentes conexos; fang/palpo < 0.6 da área mediana saem). Por perna:
+   `[ângulo, base x/z, joelho x/z, ponta x/z, raio]` em frações de H, relativo ao centro do corpo; o joelho é o ponto 0.6 da corda mais o
+   desvio lateral médio do ramo. `None` se não sobram exatamente 8 ramos (pernas coladas): o anel regular fica. n00U: 8 pernas, 4 por lado.
+   n01N (`spider_high`) devolve None (tronco coberto), n017 não tem pernas no top (ficam sob o corpo).
+2. `rig_families._legs_top` (+ `spider_leg_len` pela mediana das pernas): cada osso `leg<i>` pega a perna medida mais próxima do seu ângulo
+   do anel; `massing.spider` emite UM `limb` por perna (hip -> joelho do top -> pé; altura do joelho = `knee_h` da frente; raio do painel,
+   ponta 0.8x) em vez de dois prismas. Preflight: `leg_length` conta hip-joelho-pé para `limb` e `leg_radius` lê os 3 raios (senão `spider_leg`
+   e `spider_leg_w` falhariam por construção). Ligado só com `TOP_LEGS = True`.
+3. `fit_spec.leg_spill` + `LEG_SPILL_W`: a parte `leg*` cujo contorno no rts sai da máscara do sheet em mais de `LEG_SPILL` (0.2) da própria
+   área custa `LEG_SPILL_W` por excesso no objetivo. Desligado (`LEG_SPILL_W = 0`).
+4. Fora: rts como fonte da medida (o rts é uma 3/4 desenhada com a câmera que a varredura escolhe, as pernas somem sob o corpo; `ponytail`: ler
+   quando houver câmera fixa), quadrúpede (as pernas não aparecem no top; o `left` já dá a coluna do joelho em `legs.x`), `family_place` (não mudou).
+
+**Prova sem LLM** (`spec_pipeline --spec ... --no-repair`, fit + deform ligados, juiz `sheet.jpg`; runs em `scratchpad/leva7-legs/`):
+
+| caso | front | left | back | top | bottom | rts IoU | rts spill |
+|---|---|---|---|---|---|---|---|
+| n00U massing antigo (prismas, anel) | .843 | .700 | .844 | .672 | .656 | .641 | .249 |
+| n00U massing `TOP_LEGS` | .841 | .676 | .827 | **.771** | **.756** | .590 | .210 |
+| n00U massing `TOP_LEGS` + spill | .795 | .664 | .777 | .728 | .737 | .528 | .283 |
+| n00U v10-r1 antes | .855 | .759 | .857 | .711 | .686 | .652 | .283 |
+| n00U v10-r1 + spill (`TOP_LEGS` on) | .842 | .761 | .842 | .701 | .659 | .657 | .209 |
+| n00U v10-r1 + spill (default de hoje) | .842 | .746 | .839 | .694 | .661 | .646 | .268 |
+| n00U v10-r1 + spill estrito (0.05, peso 3) | .833 | .734 | .838 | .697 | .671 | .645 | .250 |
+| n017 v10-r1 antes -> + spill | .877 -> .880 | .732 -> .735 | .813 -> .809 | .808 -> .809 | .847 -> .845 | .685 -> .689 | .261 -> .258 |
+
+- **Ganho real:** o massing com as pernas do top leva top/bottom de .672/.656 para .771/.756 (+.10, as pernas caem onde o desenho as tem).
+- **Piorou:** left -.024, back -.017, e o rts cai .05 (.641 -> .590): o rts do sheet é uma vista 3/4 desenhada, as 8 pernas do top (simétricas
+  esq./dir.) não casam com as do desenho, e a câmera que a varredura escolhe muda entre as variantes (tilt 65/60 na base, 35/30 nas novas).
+  Com o termo de spill ligado junto, front/back caem .05: o Powell paga a perna com a silhueta do corpo.
+- **Meta não atingida:** spill rts n00U 31 % -> < 15 % e IoU rts > .70 (v10-r1: .283 -> .209 só na combinação que não é o default, .268 no
+  default). O spill do rts é do corpo (casca em 3/4) mais que das pernas; a perna sozinha não fecha o número.
+- Decisão: comportamento antigo é o default (`TOP_LEGS = False`, `LEG_SPILL_W = 0.0`); o código, o preflight e os testes ficam para quando o
+  rts tiver câmera fixada (L7-2: rts regenerado amarrado aos 3 painéis).
+- Papers: Sano 2026 (volume por parte a partir de vistas), Sketch2Mesh 2021 (termo de contorno por parte).
+

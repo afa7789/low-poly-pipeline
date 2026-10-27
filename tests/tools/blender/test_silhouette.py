@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import sys
 import tempfile
+import math
 import unittest
 import unittest.mock
 
@@ -389,6 +390,19 @@ class MeasureSpider(unittest.TestCase):
         self.assertTrue(m["body_len"] > m["body_r"], m)
         self.assertTrue(0.03 <= m["leg_w"] <= 0.06, m)        # legs about 0.09 H thick
         self.assertIn("leg_taper", m)
+
+    def test_n00u_top_panel_gives_eight_legs_four_a_side(self):
+        legs = S.measure_spider(SPIDER_SHEET)["legs"]
+        self.assertEqual(len(legs), 8)
+        self.assertEqual(sum(1 for r in legs if r[5] > 0), 4)             # tip x > 0: four on the right
+        for _, bx, bz, kx, kz, tx, tz, r in legs:
+            self.assertGreater(math.hypot(tx, tz), math.hypot(bx, bz))   # the tip is farther out than the base
+            self.assertTrue(0.02 <= r <= 0.08, r)
+
+    def test_merged_legs_give_no_branches(self):
+        import numpy as np
+        yy, xx = np.mgrid[:200, :200]
+        self.assertIsNone(S.leg_branches(np.hypot(yy - 100, xx - 100) <= 40, 1 / 200))      # a bare disc: no legs
 
 
 class LegMeasures(unittest.TestCase):

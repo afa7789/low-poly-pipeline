@@ -90,6 +90,7 @@ SURFACE = {"Mech": "metal"}    # race -> palette surface; the author edits it
 DEFAULT_SURFACE = {"biped": "cloth", "spider": "chitin", "spider_high": "chitin", "quadruped": "fur", "wyrm": "scales",
                    "drake": "scales"}
 LEG_SIDES = 6            # spider legs are thin: a hexagonal tube reads as round and saves 8 tris a leg
+LEG_TIP = 0.8             # a top-measured leg's radius at the foot, x its radius at the knee (silhouette's leg_taper reads 0.86-0.91 on the sheets, the foot ring is thinner)
 LEG_FAT = 2.2             # spider legs are drawn this much thicker than the sheet's runs: the rig's joints are near the sheet's legs, not on them
 REACH = 1.1             # the elbow's outer edge stays within this share of the sheet's shoulder span (preflight allows 1.15)
 ARM_HAND = 0.06         # hand size in H when the sheet shows no free arm to measure
@@ -1278,10 +1279,15 @@ def spider(sheet, rig, labels_for, sides=LEG_SIDES):
     H = RF.top(rig)
     front = View(panels["front"], H)
     leg_r = float(np.clip(LEG_FAT * _leg_radius(front, H), 0.012 * H, 0.08 * H))
+    legs = (SIL.measure_spider(sheet).get("legs") or []) if RF.TOP_LEGS else []
     parts = []
     for i in range(1, 9):
         slot = labels_for(0.0, 0.4 * H, -0.5 * H, 0.5 * H)
         (h1, t1), (h2, t2) = table[f"leg{i}.upper"], table[f"leg{i}.lower"]
+        if legs:       # the rig's legs follow the top panel (RF._legs_top): one limb bent at the knee, radius from the sheet (L7-3)
+            r = float(np.clip(np.median([row[7] for row in legs]) * H, 0.012 * H, 0.08 * H))
+            parts += emit("leg4", f"leg{i}.upper", slot, {"a": h1, "b": t2, "knee": t1, "r": (r * 1.1, r, r * LEG_TIP), "sides": sides})
+            continue
         parts += emit("leg", f"leg{i}.upper", slot, {"a": h1, "b": t1, "r": (leg_r * 1.15, leg_r), "sides": sides})
         parts += emit("leg", f"leg{i}.lower", slot, {"a": h2, "b": t2, "r": (leg_r, leg_r * 0.6), "sides": sides})
     hips_z = min(table[f"leg{i}.upper"][0][2] for i in range(1, 9)) - leg_r

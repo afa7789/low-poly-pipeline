@@ -5,6 +5,7 @@ import sys
 import json
 import types
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -410,6 +411,24 @@ class Props(unittest.TestCase):
         far = ["forearm.R", "box", [0.1, 0.1, 0.1], [2, 0, 0], "s", {"prop": "far", "anchor": "hand.R"}]
         M.merge_props([disc, club, far])
         self.assertEqual((disc[5]["prop"], far[5]["prop"]), ("club", "far"))
+
+
+@unittest.skipUnless((REFS / "n00U/sheet.jpg").exists(), "needs the n00U sheet")
+class TopLegs(unittest.TestCase):
+    def test_spider_legs_are_limbs_bent_at_the_top_panels_knee(self):
+        sheet = REFS / "n00U/sheet.jpg"
+        fixed = list(RF.FAMILIES["spider"])
+        try:
+            with mock.patch.object(RF, "TOP_LEGS", True):
+                RF.scale_rig("spider", __import__("silhouette").measure_rig("spider", sheet))
+                parts = M.build(sheet, "spider", "Nature")["parts"]
+        finally:
+            RF.FAMILIES["spider"] = fixed
+            RF._drop_caches()
+        legs = [p for p in parts if p[0].startswith("leg")]
+        self.assertEqual([p[1] for p in legs], ["limb"] * 8)
+        self.assertEqual(len({tuple(p[5]["to"][::2]) for p in legs}), 8)       # eight different feet: not the rig's ring
+        self.assertTrue(all(p[5]["knee"][3] != 0 or p[5]["knee"][1] != 0 for p in legs))
 
 
 if __name__ == "__main__":

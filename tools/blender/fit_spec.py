@@ -59,6 +59,8 @@ MAX_SECONDS = 150.0     # wall-clock budget of one fit (the unit's budget is 3 m
 FAST_EVALS = 1500       # --fit-fast: the classic 3 views, no rot, no zones
 DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
 LEG_GROW = False        # spider legs may grow to the sheet's leg_w: off, n00U v6-r3 lost .002-.008 on 5 views (PIPELINE 21.F3)
+LEG_SPILL = 0.2         # a leg part may project this share of its own rts area outside the sheet's rts (PIPELINE 25.L7-3)
+LEG_SPILL_W = 0.0       # objective cost per leg of the share over LEG_SPILL (the leg's green in the rts); off: n00U v10-r1 rts spill .283 -> .268, bottom -.025 (PIPELINE 25.L7-3)
 AT_RANGE = 0.03         # `at` may move by this fraction of the height
 PROFILE_RANGE = 0.15    # a lathe's profile radii and squash may move by this fraction (PIPELINE 21.F2)
 KNEE_RANGE = 0.15       # a limb's knee fraction may move by this much, its dx/dz by AT_RANGE * height
@@ -343,6 +345,30 @@ class Zones:
         return 1.0 - sum(got) / len(got) if got else 0.0
 
 
+def leg_spill(proxy, parts, outs, flipped, view="rts"):
+    """Sum over the `leg*` parts of the share of the part's projection in `view` that lies outside the concept's mask,
+    beyond LEG_SPILL (0 for a unit without legs or without that view). `flipped` = the mirror the whole model matched."""
+    if view not in outs:
+        return 0.0
+    canvas, concept, total = canvas_of(outs[view]), proxy.concept[view], 0.0
+    for i, p in enumerate(parts):
+        if not p[0].startswith("leg"):
+            continue
+        px = to_px(outs[view][i], canvas)
+        if flipped:
+            px[:, 0] = silhouette.CANVAS_W - px[:, 0]
+        x0, y0 = np.maximum(np.floor(px.min(axis=0)).astype(int), 0)
+        x1, y1 = np.minimum(np.ceil(px.max(axis=0)).astype(int) + 1, (silhouette.CANVAS_W, silhouette.CANVAS_H))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        img = Image.new("L", (x1 - x0, y1 - y0), 0)
+        ImageDraw.Draw(img).polygon([(a - x0, b - y0) for a, b in px], fill=255)
+        mine = np.asarray(img) > 0
+        out = float((mine & ~concept[y0:y1, x0:x1]).sum() / max(mine.sum(), 1))
+        total += max(out - LEG_SPILL, 0.0)
+    return total
+
+
 class Proxy:
     """Scores a parts list against the concept masks of the views being fitted."""
 
@@ -405,6 +431,7 @@ class Proxy:
         outs = {v: [h[v] for h in hulls] for v in self.views}
         scores = {v: self.view_score(v, raster(o)[0]) for v, o in outs.items()}
         total = sum((1 - i) + CHAMFER_W * c for i, c, _ in scores.values()) / len(scores)
+        total += LEG_SPILL_W * leg_spill(self, parts, outs, scores["rts"][2]) if "rts" in scores else 0.0
         if self.zones and free:
             total += ZONE_W * self.zones.term(parts, free, outs, {v: f for v, (_, _, f) in scores.items()})
         if self.partfit and free:
