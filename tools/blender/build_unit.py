@@ -313,7 +313,7 @@ def build_armature(rest_pose=None):
     return arm
 
 
-BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28,
+BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28, "dome": 28,
              "ring": 144, "lathe": 68, "limb": 32, "plate": 28}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
@@ -357,25 +357,30 @@ def prism(dims, at, rot=0.0, sides=8, axis="up", rot_euler=None):
     return obj
 
 
-def frustum(dims, at, top=(1.0, 1.0), shift=(0.0, 0.0), rot=(0.0, 0.0, 0.0)):
+def frustum(dims, at, top=(1.0, 1.0), shift=(0.0, 0.0), rot=(0.0, 0.0, 0.0), sides=4):
     """A box with independent top scale and top offset: wedge boots, trapezoid
     pelvis, tapered fists. Six quads, 12 tris - the shape WC3 uses instead of
-    bevelling every edge."""
+    bevelling every edge. `sides` 6-8: an n-gon inscribed in the w x d box (a rounded
+    boot, torso slice or head), 4 * sides - 4 tris."""
     w, h, d = dims
     sx, sz = top
     dx, dz = shift
     hw, hd, hh = w / 2, d / 2, h / 2
-    lo = [(-hw, -hd, -hh), (hw, -hd, -hh), (hw, hd, -hh), (-hw, hd, -hh)]
-    hi = [(-hw * sx + dx, -hd * sz + dz, hh), (hw * sx + dx, -hd * sz + dz, hh),
-          (hw * sx + dx, hd * sz + dz, hh), (-hw * sx + dx, hd * sz + dz, hh)]
+    if sides == 4:
+        lo = [(-hw, -hd, -hh), (hw, -hd, -hh), (hw, hd, -hh), (-hw, hd, -hh)]
+    else:
+        lo = [(hw * math.cos(2 * math.pi * i / sides), hd * math.sin(2 * math.pi * i / sides), -hh)
+              for i in range(sides)]
+    hi = [(x * sx + dx, y * sz + dz, hh) for x, y, _ in lo]
     me = bpy.data.meshes.new("frustum")
     bm = bmesh.new()
     vs = [bm.verts.new(v) for v in lo + hi]
-    bm.faces.new(vs[3::-1])                 # bottom
-    bm.faces.new(vs[4:8])                   # top
-    for i in range(4):
-        j = (i + 1) % 4
-        bm.faces.new((vs[i], vs[j], vs[4 + j], vs[4 + i]))
+    n = len(lo)
+    bm.faces.new(vs[n - 1::-1])             # bottom
+    bm.faces.new(vs[n:2 * n])               # top
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((vs[i], vs[j], vs[n + j], vs[n + i]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(me)
     bm.free()
@@ -609,7 +614,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         return obj
     if kind == "frustum":
         obj = frustum(dims, at, top=opts.get("top", (1.0, 1.0)),
-                      shift=opts.get("shift", (0.0, 0.0)), rot=rots)
+                      shift=opts.get("shift", (0.0, 0.0)), rot=rots, sides=int(opts.get("sides", 4)))
         if opts.get("spin"):
             obj.rotation_euler.z += D(float(opts["spin"]))
         if opts.get("scale"):
@@ -638,11 +643,12 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         obj.rotation_mode = "QUATERNION"
         obj.rotation_quaternion = base @ mathutils.Quaternion((1, 0, 0), D(opts.get("tilt", 0.0)))
     else:
+        sides = int(opts.get("sides", 8))
         if axis == "up":
             # axis along the spec's up: cylinder default axis is +Z, already up
-            bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=dims[0], depth=dims[1], location=loc)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=sides, radius=dims[0], depth=dims[1], location=loc)
         else:
-            bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=dims[0], depth=dims[1],
+            bpy.ops.mesh.primitive_cylinder_add(vertices=sides, radius=dims[0], depth=dims[1],
                                                 location=loc, rotation=(D(90), 0, 0))
     obj = bpy.context.active_object
     obj.name = f"{bone}_{idx}"
@@ -1558,10 +1564,9 @@ def main():
     wipe()
     arm = build_armature(rest_pose)
 
-    # chamfer is opt-in: measured on n01X it inflated the plates and read worse than
-    # the crisp blockout, because the WC3 roundness comes from painted shading, not
-    # from geometry at this budget. Pass a triple budget as the third argument to enable.
-    chamfers = plan_chamfers(spec, int(cli[0])) if cli else set()
+    # chamfer is on by default (PIPELINE 23.L5-5): the spare triangles under the budget (first
+    # argument, default 700) bevel the biggest boxes; no box left over, nothing changes.
+    chamfers = plan_chamfers(spec, int(cli[0]) if cli and cli[0].isdigit() else 700)
 
     parts = build_spec_parts(spec, chamfers)
 

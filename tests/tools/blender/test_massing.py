@@ -12,6 +12,7 @@ HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[3] / "tools/blender"))
 
 import lathe_limb  # noqa: E402
+import lathe_limb as LL  # noqa: E402
 import massing as M  # noqa: E402
 import preflight as PF  # noqa: E402
 import rig_families as RF  # noqa: E402
@@ -206,6 +207,28 @@ class Joints(unittest.TestCase):
         finally:
             M.MEASURED_JOINTS = False
         self.assertEqual((lm["knee"], lm["elbow"]), (0.3, 0.6))
+
+
+class Surface(unittest.TestCase):
+    """PIPELINE 23.L5-5: round heads and boots, the sheet's face, a bent limb only on demand."""
+
+    def test_limb_knee_projects_on_the_axis_and_keeps_the_offset(self):
+        g = {"a": (0, 1.0, 0), "b": (0, 0.0, 0), "knee": (0.1, 0.6, 0.2), "r": (0.2, 0.15, 0.1), "sides": 10}
+        (part,) = M.emit("leg", "thigh.L", "z1", g)
+        self.assertEqual(part[1], "limb")
+        self.assertEqual(part[5]["knee"], [0.4, 0.1, 0.2, 0.0])
+        self.assertEqual(part[5]["sides"], 8)              # a limb is 6-8 sided, the pre-spec's 10 is for prisms
+        self.assertIsNone(LL.bad_opts("limb", part[2], part[5]))
+
+    @unittest.skipUnless((REFS / "n005/sheet.jpg").exists(), "needs the n005 sheet")
+    def test_prespec_surface_defaults(self):
+        spec = M.build(REFS / "n005/sheet.jpg", "biped", "Human")
+        kinds = {p[0]: p for p in spec["parts"]}
+        head = kinds["head"]
+        self.assertEqual((head[1], head[5]["decal"], head[5]["sides"]), ("lathe", "sheet", 8))
+        self.assertEqual([kinds[f"foot.{t}"][5]["sides"] for t in "LR"], [8, 8])
+        self.assertFalse(any(p[1] == "limb" for p in spec["parts"]))     # LIMB_KNEE is off
+        self.assertTrue(400 <= sum(PF.part_tris(p) for p in spec["parts"]) <= 700)
 
 
 class Pipeline(unittest.TestCase):

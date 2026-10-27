@@ -368,6 +368,22 @@ class Symmetry(unittest.TestCase):
         self.assertEqual(PF.asymmetric(pair), [])
 
 
+class RoundKinds(unittest.TestCase):
+    def test_tris_follow_sides(self):
+        """Eight sides by default (PIPELINE 23.L5-5); a frustum stays a box until it asks for sides."""
+        for name, kind, dims, opts, want in [
+                ("cyl default", "cyl", [0.1, 1.0], {}, 28), ("cyl 12", "cyl", [0.1, 1.0], {"sides": 12}, 44),
+                ("frustum box", "frustum", [1, 1, 1], {}, 12), ("frustum 8", "frustum", [1, 1, 1], {"sides": 8}, 28),
+                ("prism default", "prism", [0.1, 0.1, 1], {}, 28)]:
+            with self.subTest(name):
+                self.assertEqual(PF.part_tris(["b", kind, dims, [0, 0, 0], "iron", opts]), want)
+
+    def test_round_frustum_keeps_the_box(self):
+        box = PF.bbox(["foot.L", "frustum", [0.2, 0.1, 0.4], [0, 0.05, 0], "iron", {"top": [0.9, 0.8], "sides": 8}])
+        self.assertAlmostEqual(box[1][0] - box[0][0], 0.2)
+        self.assertAlmostEqual(box[1][2] - box[0][2], 0.4)
+
+
 class BudgetSplit(unittest.TestCase):
     def test_band_blends_sheet_area_and_prior(self):
         n01x = PF.split_bands(PF.N01X_TARGETS)

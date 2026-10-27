@@ -8,9 +8,9 @@ lathe  dims = (r, h) at = centre. A profile of radii revolved around the vertica
        `at`: ring i sits at y = at.y - h/2 + i/(n-1)*h with x radius r*profile[i] and z radius
        x radius / squash. opts: profile (6-10 floats, bottom to top; default: the sheet strip, else
        DEFAULT_PROFILE), axis "front" | "left" (the sheet panel the strip is read from, default
-       "front"), sides 6-8 (default 6), squash (x/z, default 1). Closed ends, caps are n-gons.
+       "front"), sides 6-8 (default 8), squash (x/z, default 1). Closed ends, caps are n-gons.
 limb   dims = (r_top, r_knee, r_base), opts from/to (required), knee [frac, dx, dz, dy] (default
-       [0.5, 0, 0, 0]: knee = from + frac*(to-from) + (dx, dy, dz)), sides 6-8 (default 6). Two
+       [0.5, 0, 0, 0]: knee = from + frac*(to-from) + (dx, dy, dz)), sides 6-8 (default 8). Two
        tapered tubes sharing the knee ring, capped at both ends.
 chain  bone = the first bone `prefix.k` of a rig chain, dims = (r0..rN) the radius at each joint of
        the N bones prefix.k..prefix.k+N-1 (head to tail; joint i is the head of bone i, joint N the
@@ -26,7 +26,7 @@ plate  dims = (w, h, t) around `at`, opts axis "front" | "left" | "top" (the she
 """
 import math
 
-SIDES = 6
+SIDES = 8                       # round at 32 px (PIPELINE 23.L5-5); 6 stays allowed for thin limbs
 SIDES_RANGE = (6, 8)
 PROFILE_RANGE = (6, 10)         # rings of a profile
 SHEET_RINGS = 6                 # rings of a profile read from the sheet

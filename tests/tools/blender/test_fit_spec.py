@@ -46,6 +46,8 @@ class Proxy(unittest.TestCase):
                 ("box left", box("b", (1, 2, 3), (0, 1, 0)), "left", (3.0, 2.0)),
                 ("cyl front", ["b", "cyl", [0.5, 2.0], [0, 1, 0], "iron", {"axis": "fwd"}], "front", (1.0, 1.0)),
                 ("cyl up front", ["b", "cyl", [0.5, 2.0], [0, 1, 0], "iron", {"axis": "up"}], "front", (1.0, 2.0)),
+                ("frustum 8 left", ["b", "frustum", [1, 2, 3], [0, 1, 0], "iron", {"sides": 8}], "left", (3.0, 2.0)),
+                ("cyl up 12 front", ["b", "cyl", [0.5, 2.0], [0, 1, 0], "iron", {"axis": "up", "sides": 12}], "front", (1.0, 2.0)),
                 ("span", ["b", "prism", [0.1, 0.1, 9], [0, 0, 0], "iron",
                           {"from": [0, 0, 0], "to": [0, 2, 0]}], "front", (0.2, 2.16))]:
             with self.subTest(name):
