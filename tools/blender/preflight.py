@@ -45,6 +45,7 @@ CLIPS = (5, 7)
 # their sheets; every hfoo run so far is 30-53% wider than its sheet at the shoulders.
 BANDS = {"shoulder_span": (0.70, 0.90), "fist_span": (0.20, 0.40), "stance": (0.0, 0.05)}
 TOLERANCE = 0.15
+FOOT_MOST = 1.4     # boot length ceiling, x the sheet's foot length (floor is 0.8 x)
 N01X_TARGETS = {"shoulder_span": 0.635, "fist_span": 0.863, "stance": 0.506,
                 "foot_length": 0.228, "head_clear": 0.25}
 
@@ -205,9 +206,12 @@ def biped_checks(parts, boxes, height, targets):
     if feet:
         fh = min(b[1][1] - b[0][1] for b in feet) / height
         fl = min(b[1][2] - b[0][2] for b in feet) / height
-        need = 0.8 * targets["foot_length"]
-        checks.append(("feet_mass", fh >= 0.045 and fl >= need,
-                       f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f})"))
+        need, most = 0.8 * targets["foot_length"], FOOT_MOST * targets["foot_length"]
+        # a ceiling too: with only a floor the repair pass kept growing the boot (n005 v3 ended
+        # with a 2.1 m boot, 77% of the height) and nothing asked it to shrink
+        checks.append(("feet_mass", fh >= 0.045 and need <= fl <= most,
+                       f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f}, "
+                       f"want {need:.2f}-{most:.2f})"))
     else:
         checks.append(("feet_mass", False, "no foot parts"))
 

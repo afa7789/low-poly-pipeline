@@ -98,6 +98,21 @@ class Landmarks(unittest.TestCase):
     def test_targets_fall_back_to_n01x(self):
         self.assertEqual(PF.targets_from(None), PF.N01X_TARGETS)
 
+    def test_a_boot_has_a_floor_and_a_ceiling(self):
+        # n01X targets: foot 0.228 H -> 0.18-0.32 H. The repair pass used to grow a boot forever.
+        h = max(PF.bbox(p)[1][1] for p in self.biped(0.5))
+
+        def feet_mass(length):
+            foot = ["foot.L", "box", [0.2, 0.06 * h, length], [0.3, 0.03 * h, 0.0], "iron", {}]
+            parts = [p for p in self.biped(0.5) if not p[0].startswith("foot")] + [foot]
+            boxes = {id(p): PF.bbox(p) for p in parts}
+            return next(c for c in PF.biped_checks(parts, boxes, h, PF.N01X_TARGETS) if c[0] == "feet_mass")
+        self.assertTrue(feet_mass(0.25 * h)[1])
+        self.assertFalse(feet_mass(0.10 * h)[1])                 # too short
+        too_long = feet_mass(0.50 * h)
+        self.assertFalse(too_long[1])
+        self.assertIn("want 0.18-0.32", too_long[2])
+
     @unittest.skipUnless((ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg").exists(), "refs")
     def test_a_too_wide_footman_fails_its_own_sheet(self):
         sheet = ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg"

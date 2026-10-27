@@ -635,7 +635,7 @@ def numbered(spec):
 def repair(spec, args, brief, work, panels):
     """Pass 0: the preflight's failing rules go back to the model as a patch request.
     A repair is kept only when it still builds; the passes run either way."""
-    scores, problem, zones = trial(spec, args.build, args.kind, work, "pass0")
+    scores, problem, zones = trial(spec, args.sheet, args.kind, work, "pass0")
     best = "pass0"  # the trial whose renders show the spec held
     for k in range(1, REPAIRS + 1):
         if problem is None:
@@ -650,7 +650,7 @@ def repair(spec, args, brief, work, panels):
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             print(f"repair {k}: rejected reply: {err}")
             continue
-        cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.build, args.kind, work,
+        cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.sheet, args.kind, work,
                                             f"repair{k}")
         # a repair that builds and breaks no rule that held
         if cur is not None and rules_hold(problem, cur_problem):
@@ -739,7 +739,7 @@ def run_passes(spec, args, brief, views):
         try:
             cand, why = apply_patch(spec["parts"], ask(args.model, prompt, images),
                                     palette=spec.get("palette"), extra=extra_names(spec))
-            cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.build, args.kind,
+            cur, cur_problem, cur_zones = trial({**spec, "parts": cand}, args.sheet, args.kind,
                                                 work, f"pass{n}")
         except (ValueError, IndexError, KeyError, json.JSONDecodeError) as err:
             cand, why, cur, cur_problem, cur_zones = None, f"rejected reply: {err}", None, None, None
@@ -857,7 +857,7 @@ def make_brief(args, lo, hi):
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
-                           measured=measured_text(args.rig, measure(args.build)))
+                           measured=measured_text(args.rig, measure(args.sheet)))
 
 
 RTS_TRIES = 3          # image-to-image draws per RTS view before the warning
