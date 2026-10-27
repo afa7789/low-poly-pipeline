@@ -2676,3 +2676,29 @@ Feedback do n005: máscara plana nas laterais, pés blocados, olhos viram fenda 
 - **Leitura:** a régua anterior premiava modelo que enchia o vazamento. Toda comparação com runs anteriores a
   2026-10-28 na vista left/back dos três bípedes com prop usa régua diferente; os números do v9 na tabela de §23
   são os da régua antiga. A bateria seguinte mede tudo na nova.
+
+## 24. Leva 6 (2026-10-28)
+
+### 24.L6-6 Gates de FORMA: `normal_diff`, `fairness`, `components_body`, slivers (2026-10-27)
+- **O que mudou:** `mesh_lint.lint` ganha `normal_diff` (Chen 2023: ângulo entre as normais das duas faces de cada aresta;
+  média, p90 e histograma em 6 faixas 0-5/5-15/15-30/30-60/60-100/100+), `fairness` (Wiersma 2026: desvio médio dos
+  ângulos internos de 60°) e `components_body` (componentes sem os props: material `prop_*`, senão as peças `props` do
+  `attach.json` ao lado do GLB; nunca < 1). `GATES` ganha `components_body == 1` e `sliver_pct < 5`: entram em
+  `lint_bad`, logo `status_of` não deixa o run chegar a final-use sem eles. `review.md` ganha `### Forma` no Readiness.
+  `spec_pipeline.form_cost` = slivers (fração) + normal_diff médio/90; `FORM_W = 0.5` entra em `margin_of`
+  (best_of_n) e na soma de margens de `fit_accepted` (`trial` devolve `form`). `compare_runs` mostra por default
+  `clay+wire+overlay+textured` e uma linha FORM com os 4 números por run. `review_pair`: 4º eixo `form` (superfície
+  contínua, sem degraus nem caixas atravessadas); `lost` = perde a maioria dos eixos (2 de 3; 3 de 4, 2-2 não é perda).
+- **Calibração (139 GLBs guardados, clay + model; tabela em scratchpad `leva6-formgates/calib.md`):** `normal_diff`
+  média 36-58° (todo modelo é pilha de caixas: ~40 % das arestas em 0-5°, ~40 % em 60-100°); p90 satura em 90-99°
+  (não discrimina; ficam média e histograma). fairness 26-36°. Gates: `components_body == 1` falha em 139/139
+  (corpo é caixa solta até o L6-4 unir), `sliver < 5 %` falha em 130/139. Ou seja, TODO run cai de final-use para
+  prototype-safe até o L6-4 integrar: esperado, é o ponto do gate.
+- **Separação onde o IoU empata (n005):** v6-r4 (PASS, feio) IoU médio .806, nd 45.1°, 60+°: 38.4 % das arestas,
+  28 componentes de corpo, fairness 29.3, slivers 13.2 %, custo de forma .633. v9-r1 (juiz prefere) IoU .787, nd 38.5°,
+  60+°: 30.5 %, 20 componentes, fairness 27.8, slivers 15.9 %, custo .586. O IoU favorece o v6-r4; normal_diff,
+  componentes e fairness favorecem o v9-r1 (certo, segundo o juiz). Slivers vão no sentido errado (+2.7 pt), por isso
+  o termo soma slivers e normal_diff: líquido a favor do v9-r1 (-.047, -.023 na margem com `FORM_W` .5).
+- **O que piorou / limites:** o termo de forma é pequeno (~.02 na margem): desempata, não decide sozinho.
+  `components_body` com clay conta props pelo `attach.json` (cada prop = 1 componente após a união); build sem união
+  que funda um prop ao corpo subconta. Sem prova de LLM no eixo `form` (sem `--model`).

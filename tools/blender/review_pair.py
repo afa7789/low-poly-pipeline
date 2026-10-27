@@ -6,14 +6,14 @@
 Each run is a directory (runs/draft/<id>/<run>). One image per vote: for the front and the RTS
 view, `candidate | approved sheet panel | candidate`, the textured model when both runs have a
 model.glb, else the clay. The reviewer picks the left or the right candidate on three axes
-("looks like the sheet", "looks made by an artist", "reads as a WC3 game model") with one sentence
-each. The third axis has a fourth cell: a WC3 reference of the same rig class (WC3_REFS; a rig
+("looks like the sheet", "looks made by an artist", "reads as a WC3 game model", "continuous form":
+no steps, no boxes crossing, PIPELINE 24.L6-6) with one sentence each. The third axis has a fourth cell: a WC3 reference of the same rig class (WC3_REFS; a rig
 with none falls back to the unit's sheet-hard panel, a proxy). Four votes in the order A|B, A|B,
 B|A, B|A, majority per axis, a tie only at 2-2; all four on the same physical side = position bias =
 tie, flagged. Writes <runB>/pairwise.json and appends a line to <runB>/review.md
 ("pairwise vs <runA>: sheet A 3-1, artist B 4-0, wc3 tie 2-2").
 spec_pipeline --pair <runA> runs this for the new run and demotes its status one level when it
-loses 2 of the 3 axes (the verdict itself is untouched).
+loses most axes (the verdict itself is untouched).
 """
 import argparse
 import concurrent.futures
@@ -30,7 +30,7 @@ from views import layout_of  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CELL = 448
 VOTES = 4
-AXES = ("sheet", "artist", "wc3")
+AXES = ("sheet", "artist", "wc3", "form")
 WC3_REFS = {"biped": "artifacts/reference/wc3-footman.png"}   # rig class -> a real WC3 render
 VIEWS = ("front", "rts")
 LEVELS = ("rejected", "placeholder", "prototype-safe", "final-use")
@@ -45,10 +45,13 @@ on three axes:
           floating or clipped bits, deliberate colour, nothing that looks like a stack of boxes)
   wc3:    which of the two candidates reads more like a game model in the style of the fourth cell
           (clean silhouette, clear masses, nothing like stacked boxes)
+  form:   which one has the more continuous surface: flowing from part to part, no steps, no
+          ridges where slices meet, no boxes crossing through each other
 Answer with one JSON object and nothing else:
 {"sheet": "left" or "right", "sheet_why": "one sentence",
  "artist": "left" or "right", "artist_why": "one sentence",
- "wc3": "left" or "right", "wc3_why": "one sentence"}"""
+ "wc3": "left" or "right", "wc3_why": "one sentence",
+ "form": "left" or "right", "form_why": "one sentence"}"""
 
 
 def model_of(run, textured):
@@ -219,8 +222,10 @@ def line(result):
 
 
 def lost(result):
-    """True when the new run (B) loses 2 of the 3 axes (an older 2-axis result: both)."""
-    return sum(result[a]["winner"] == "A" for a in AXES if a in result) >= 2
+    """True when the new run (B) loses most of the axes the result has: 2 of 3 (an older 2-axis
+    result: both; with the form axis, 3 of 4: a 2-2 is not a loss)."""
+    axes = [a for a in AXES if a in result]
+    return 2 * sum(result[a]["winner"] == "A" for a in axes) > len(axes)
 
 
 def demote(status):

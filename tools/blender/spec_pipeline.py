@@ -946,8 +946,15 @@ def trial(spec, sheet, kind, work, name):
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
     tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), "lit", blender=True)
     red = [r["uncovered"] for r in report.values() if "uncovered" in r]
-    return ({view: r["iou"] for view, r in report.items()} | {"red": sum(red) / len(red) if red else 0.0},
+    return ({view: r["iou"] for view, r in report.items()}
+            | {"red": sum(red) / len(red) if red else 0.0, "form": form_cost(mesh_lint.lint(glb))},
             problem, {view: r["zones"] for view, r in report.items() if "zones" in r})
+
+
+def form_cost(m):
+    """Lower is a more continuous surface: the sliver share plus the mean normal_diff over 90 degrees
+    (mesh_lint.lint dict; PIPELINE 24.L6-6)."""
+    return m["sliver_pct"] / 100 + m["normal_diff"]["mean"] / 90
 
 
 def clay_args(kind):
@@ -1190,7 +1197,7 @@ def fit_accepted(prev, cur, gates, problems, rig=None):
     # passed may slip at most FIT_SLIP under its gate (n00U v6-r1: top 0.653 -> 0.640 was
     # refused while front/back gained 0.08; the stage 1 verdict still gates every view)
     held = all(cur[v] >= gates[v] - FIT_SLIP for v in seen if prev[v] >= gates[v])
-    margin = [sum(r[v] - gates[v] for v in seen) for r in (prev, cur)]
+    margin = [sum(r[v] - gates[v] for v in seen) - FORM_W * r.get("form", 0.0) for r in (prev, cur)]
     red_ok = cur.get("red", 0.0) <= prev.get("red", 0.0) + RED_SLIP      # the red may not grow
     return held and red_ok and margin[1] > margin[0] and rules_hold(*problems)
 
@@ -1392,6 +1399,7 @@ def stage_shape(spec_path, args, layout):
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
     sil_ok, report = shape_review(args, glb, layout)
+    args.summary["form"] = round(form_cost(mesh_lint.lint(glb)), 4)
     if args.summary.get("approved"):
         args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report),
                                                 args.summary.get("top_orientation", {}))
@@ -1430,7 +1438,7 @@ def margin_of(summary):
     gates = summary.get("gates") or {}
     red = [u for v, u in (summary.get("uncovered") or {}).items() if v in gates]
     return (sum(iou - gates[v] for v, iou in (summary.get("approved") or {}).items() if v in gates)
-            - RED_W * (sum(red) / len(red) if red else 0.0))
+            - RED_W * (sum(red) / len(red) if red else 0.0) - FORM_W * summary.get("form", 0.0))
 
 
 def author_specs(args, brief, images):
@@ -2041,6 +2049,7 @@ FIT_SLIP = 0.02       # fit_accepted: a passing view may slip this far under its
 VIEW_FLOOR = {None: ("front", "rts"), "spider": ("top", "bottom", "rts"),
               "spider_high": ("top", "bottom", "rts")}   # fit_accepted: the family's critical views never fall > FIT_SLIP
 RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
+FORM_W = 0.5          # fit_accepted / margin_of: form cost (slivers + mean normal_diff / 90), PIPELINE 24.L6-6
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
 RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status
 
@@ -2181,6 +2190,20 @@ def identity_line(summary):
     return f"Identity: {ident['ok']}/{ident['total']}" + (f" - missing: {', '.join(ident['missing'])}" if ident["missing"] else "") + "\n\n"
 
 
+def form_block(m):
+    """`### Forma` (PIPELINE 24.L6-6): normal_diff mean / p90 with its 6-band histogram, fairness, body
+    components, slivers, and the form cost the variant and fit rankings pay."""
+    nd = m["normal_diff"]
+    bands = ["0-5", "5-15", "15-30", "30-60", "60-100", "100+"]
+    return ("### Forma\n\n| medida | valor |\n|---|---|\n"
+            f"| normal_diff media / p90 | {nd['mean']} / {nd['p90']} graus |\n"
+            f"| normal_diff faixas (graus: % das arestas) | {', '.join(f'{b}: {h}' for b, h in zip(bands, nd['hist']))} |\n"
+            f"| fairness (desvio medio de 60 graus) | {m['fairness']} graus |\n"
+            f"| componentes do corpo (sem props) | {m['components_body']} |\n"
+            f"| slivers | {m['sliver_pct']} % |\n"
+            f"| custo de forma | {form_cost(m):.3f} |\n\n")
+
+
 def readiness_section(args, shape, colour, verdict):
     """`## Readiness`: mesh_lint numbers (criterion | value | gate) and the status."""
     glb, textured = lint_target(args, shape, colour)
@@ -2192,9 +2215,9 @@ def readiness_section(args, shape, colour, verdict):
     rows = [("file", glb.name, "-"), ("verts / faces", f"{m['verts']} / {m['faces']} (V/F {m['compactness']})", "-"),
             ("nodes / meshes / skins", f"{m['nodes']} / {m['meshes']} / {m['skins']}", "-"),
             ("face area median / p90 / max-over-median", f"{fa['median']:.4f} / {fa['p90']:.4f} / {fa['max_over_median']:.1f}", "-"),
-            ("slivers (<10 deg)", f"{m['sliver_pct']} %", "-"), ("degenerate faces", m["degenerate"], "-"),
+            ("slivers (<10 deg)", f"{m['sliver_pct']} %", "< 5 %"), ("degenerate faces", m["degenerate"], "-"),
             ("flipped faces", m["flipped"], "== 0"), ("boundary / non-manifold edges", f"{m['boundary_edges']} / {m['nonmanifold_edges']}", "-"),
-            ("components", m["components"], "-"), ("materials / images", f"{m['materials']} / {m['images']}", "images == 1" if textured else "-"),
+            ("components / body (without props)", f"{m['components']} / {m['components_body']}", "body == 1"), ("materials / images", f"{m['materials']} / {m['images']}", "images == 1" if textured else "-"),
             ("image size", m["image_size"] or "-", "-"), ("unique colours", m["unique_colours"] or "-", "-"),
             ("uv out of range", m["uv_out_of_range"], "== 0" if textured else "-"),
             ("uv overlap / atlas used", f"{m['uv_overlap_pct']} % / {m['atlas_used_pct']} %", "-"),
@@ -2205,7 +2228,7 @@ def readiness_section(args, shape, colour, verdict):
             ("root scale", m["root_scale"], "== 1")]
     body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows + decimate_rows(args, shape))
     return (f"## Readiness\n\n| criterion | value | gate |\n|---|---|---|\n{body}\n"
-            f"lint gates failed: {', '.join(bad) or 'none'}\n\n{identity_line(args.summary)}"
+            f"lint gates failed: {', '.join(bad) or 'none'}\n\n{form_block(m)}{identity_line(args.summary)}"
             f"status: **{final_status(args, verdict, bad)}**\n\n")
 
 
