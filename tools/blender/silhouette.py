@@ -108,10 +108,34 @@ def gaps(mask, axis, lo, hi):
     return found
 
 
-def concept_panels(path, size=768, layout="unit"):
+def _blob_panels(fg, split, layout, grow=6):
+    """concept_panels(blob=True): the 3 largest blobs above `split` and the 2 largest below, each
+    in reading order (x of the centroid), after a `grow`-px dilation joins a figure's loose
+    pieces (a rope, a detached lamp). A sheet with fewer blobs than panels stops."""
+    from scipy import ndimage
+    from views import LAYOUTS
+    panels = {}
+    names = iter(LAYOUTS[layout])
+    for lo, hi, count in ((0, split, 3), (split, fg.shape[0], 2)):
+        labels, n = ndimage.label(ndimage.binary_dilation(fg[lo:hi], iterations=grow))
+        areas = ndimage.sum(fg[lo:hi], labels, range(1, n + 1))
+        keep = sorted(np.argsort(areas)[::-1][:count] + 1,
+                      key=lambda k: ndimage.center_of_mass(labels == k)[1])
+        if len(keep) < count:
+            raise SystemExit(f"fewer than {count} figures in rows {lo}-{hi} of the sheet")
+        for k in keep:
+            name = next(names)
+            full = np.zeros_like(fg)
+            full[lo:hi] = fg[lo:hi] & (labels == k)
+            panels[name] = full
+    return panels
+
+
+def concept_panels(path, size=768, layout="unit", blob=False):
     """Key the flat background, split the 3+2 template on its empty bands, and
     return one boolean mask per panel in reading order, named by the sheet layout
-    (views.LAYOUTS: a unit's bottom row is top/bottom, a building's right/roof)."""
+    (views.LAYOUTS: a unit's bottom row is top/bottom, a building's right/roof).
+    `blob` splits by connected blob instead (quadruped, drake: a profile wider than a third of the page)."""
     from views import LAYOUTS
     fg = foreground(path, size)
 
@@ -123,6 +147,8 @@ def concept_panels(path, size=768, layout="unit"):
     top_x = gaps(fg, 0, 0, split)
     top_x = sorted(top_x, key=lambda r: r[1] - r[0], reverse=True)[:2]
     inner = sorted([(a, b) for a, b in top_x if a > 0.1 * size and b < 0.9 * size])
+    if blob:
+        return _blob_panels(fg, split, layout)
     cuts = [(a + b) // 2 for a, b in inner] if len(inner) == 2 else [size // 3, 2 * size // 3]
     bot_x = gaps(fg, 0, split, size)
     bot_x = sorted([r for r in bot_x if r[0] > 0.1 * size and r[1] < 0.9 * size],
