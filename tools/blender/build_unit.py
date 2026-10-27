@@ -814,6 +814,7 @@ def painted_image(name, rgb, size=64):
     return img
 
 
+FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
 DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
 
 
@@ -846,6 +847,19 @@ def nearest_part(meta, co):
     return best
 
 
+def face_span(mesh, poly, axis):
+    """(u, v) per loop of `poly`, its corners normalised over the face's own box in the
+    plane of its dominant axis, so a cel face spans its whole cell and the cell's border
+    (the ink line) lands on the face's edges."""
+    pts = []
+    for li in poly.loop_indices:
+        co = mesh.vertices[mesh.loops[li].vertex_index].co
+        pts.append((co.x, co.y) if axis == 2 else ((co.y, co.z) if axis == 0 else (co.x, co.z)))
+    lo = [min(q[i] for q in pts) for i in (0, 1)]
+    span = [max(max(q[i] for q in pts) - lo[i], 1e-6) for i in (0, 1)]
+    return [((q[0] - lo[0]) / span[0], (q[1] - lo[1]) / span[1]) for q in pts]
+
+
 def atlas_uvs(body, meta, block, cols, rows):
     """World-planar UVs per face, into the body-slot cell of its material's block.
     Bipeds use TEX_SLOTS; other rig families spread their bones over the same 8 cells."""
@@ -869,16 +883,19 @@ def atlas_uvs(body, meta, block, cols, rows):
         if STYLE == "cel":                      # the face's tone cell, sampled at its centre
             cell = SF.tone_index(normal_w.z)
             tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
-        for li in poly.loop_indices:
+        span = face_span(mesh, poly, axis) if STYLE == "cel" else None
+        for k, li in enumerate(poly.loop_indices):
             co = mesh.vertices[mesh.loops[li].vertex_index].co
             lu, lv = (co.x * 0.6, co.y * 0.6) if axis == 2 else ((co.x + co.y) * 0.6, co.z * 0.6)
-            if STYLE == "cel":
-                lu = lv = 0.5
             dec = decal_uv(centre_w, normal_w, world @ co)
             if dec:
                 cell, du, dv = dec
                 tx, ty = bx * 4 + cell % 4, by * 4 + cell // 4
                 uvs[li].uv = ((tx + 0.04 + 0.92 * du) / (4.0 * cols), (ty + 0.04 + 0.92 * dv) / (4.0 * rows))
+                continue
+            if span:                           # cel: the whole cell, ink border included
+                uvs[li].uv = ((tile_x + 0.01 + 0.98 * span[k][0]) / (4.0 * cols),
+                              (tile_y + 0.01 + 0.98 * span[k][1]) / (4.0 * rows))
                 continue
             uvs[li].uv = ((tile_x + 0.04 + 0.92 * (lu % 1.0)) / (4.0 * cols),
                           (tile_y + 0.04 + 0.92 * (lv % 1.0)) / (4.0 * rows))
@@ -903,6 +920,15 @@ def bind_atlas(body, img):
         seen[base] = slot.material
 
 
+def sheet_face(cell):
+    """(rgb, alpha) of the sheet's head sampled to a cell x cell decal (nearest); FACE is
+    already bottom-up, as Blender hands pixels over and the atlas stores them."""
+    import numpy as np
+    idx = ((np.arange(cell) + 0.5) * FACE.shape[0] / cell).astype(int)
+    face = FACE[idx][:, idx]
+    return face[..., :3], face[..., 3]
+
+
 def paint_decals(pixels, SF, x0, y0, size):
     """Paint each decal into its spare cell (8 + i) of one material block."""
     cell = size // 4
@@ -911,7 +937,7 @@ def paint_decals(pixels, SF, x0, y0, size):
         if colour:
             hexv = colour.lstrip("#")
             rgb = tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
-        paint, alpha = SF.decal(kind, rgb, cell)
+        paint, alpha = sheet_face(cell) if kind == "sheet" else SF.decal(kind, rgb, cell)
         cx, cy = x0 + ((8 + i) % 4) * cell, y0 + ((8 + i) // 4) * cell
         region = pixels[cy:cy + cell, cx:cx + cell, :3]
         region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
@@ -1134,7 +1160,7 @@ def build_spec_parts(spec, chamfers):
         obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
                          idx in chamfers)
         if (opts or {}).get("decal") and not CLAY:
-            obj["decal"] = opts["decal"]
+            obj["decal"] = "face" if opts["decal"] == "sheet" and FACE is None else opts["decal"]
             obj["decal_color"] = opts.get("decal_color", "")
         parts.append((obj, bone))
     return parts
@@ -1161,11 +1187,15 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY
+    global STYLE, CLAY, FACE
     CLAY = "clay" in rest
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
+        if arg.startswith("face=") and not CLAY:   # face=<rgba png>: the "sheet" decal's image
+            import numpy as np
+            img = bpy.data.images.load(arg[len("face="):])
+            FACE = np.array(img.pixels[:]).reshape(img.size[1], img.size[0], 4)
         if arg.startswith("atlas=") and not CLAY:
             atlas_path = arg[len("atlas="):]
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette

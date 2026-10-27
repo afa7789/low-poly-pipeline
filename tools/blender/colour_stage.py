@@ -148,8 +148,17 @@ def build_textured(spec, glb_clay, args, glb, work):
     path = work / "spec-colour.json"
     path.write_text(json.dumps(spec, indent=2))
     hi = BUDGETS[args.kind][1]
-    run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}", blender=True)
+    run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
+        *face_args(spec, args, work), blender=True)
     return glb.exists()
+
+
+def face_args(spec, args, work):
+    """["face=<png>"]: the approved sheet's head, cut out, when a part asks for the "sheet" decal."""
+    if not any(isinstance(p[5], dict) and p[5].get("decal") == "sheet" for p in spec["parts"]):
+        return []
+    from split_sheet import head_face
+    return [f"face={head_face(pathlib.Path(args.sheet), work / 'face.png')}"]
 
 
 def measure(glb, args, tilts, work):

@@ -1058,3 +1058,24 @@ renders `<out>/views/<tag>/model-<view>.png`.
 - Sheet vs cel vs painted (n01X hard-v1, zones mean/cover front, top): cel .42/.83, .33/.67; painted
   .32/.62, .27/.59; sheet .40/.91, .22/.61. `sheet` carries the drawn plates and outlines but smears
   where the model's limbs do not sit on the drawn ones and is weakest from above; `cel` is cleaner.
+
+### 18.J Sheet face as a decal, ink line on cel faces (2026-10-26)
+
+Both are stage 2 (colour); the shape is untouched.
+- **`"decal": "sheet"`** on a head/jaw part (same bone rule as every decal; in `surfaces.DECALS` as an
+  empty kind, so the validators and the colour pass accept it). `split_sheet.head_face(sheet, out)`
+  cuts the head of the approved sheet's front figure (its top down to the shoulder line,
+  `measure()["head_clear"]`) into a 64x64 RGBA png, the flat background keyed to alpha 0 as
+  `silhouette.foreground` does it (premultiplied resize, no halo). `colour_stage.face_args` passes it as
+  `face=<png>` to `build_unit.py`, which paints it into the decal cell and projects it on the part's
+  front face by the normal decal path. Without the png (or in clay) the kind falls back to `"face"`.
+  The author brief lists it next to `eyes2/eyes8/face/mask`. The crop is stretched to the head part's
+  front face: size that face like the sheet's head. Valve-wheel heads (n01X) have no face to show.
+- **Ink line.** In cel each face now spans its whole cell (`build_unit.face_span`: corners normalised
+  over the face's own box in its dominant plane, 1 % inset) and `surfaces.paint_cel` darkens the cell
+  border (1-2 px of 64, tone `INK` 0.55); a `glow` slot gets no line, alpha is not touched. The line
+  is relative to the face, so a bevel is mostly ink and a big plate gets a thin edge.
+- **Proof (no LLM, `--texture cel`, cameras of stage 1):** n005 and n01X v3-stages-r2, before/after in
+  `scratchpad/t2/zoom-n005.png` (before | ink | ink + sheet face) and `zoom-n01X.png`. Zones mean
+  front/left/back, n005 .531/.561/.586 -> .533/.581/.585; n01X .373/.372/.424 -> .38/.38/.42 (full
+  pipeline, stage 1 and 2 PASS). The line is subtle on dark palettes (n005) and clear on n01X.
