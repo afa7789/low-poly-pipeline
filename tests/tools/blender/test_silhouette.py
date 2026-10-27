@@ -485,9 +485,21 @@ class SheetCoherenceTest(unittest.TestCase):
         self.assertEqual(hull.shape, (32, 16, 10))        # y, x, z: widths scaled by the same 32 / 40
         self.assertTrue(hull.all())
 
+    def test_rts_of_the_hull_is_coherent_with_its_own_projection(self):
+        front, left = np.zeros((60, 30), bool), np.zeros((60, 20), bool)
+        front[:, 5:25] = True
+        left[:30, 4:16] = True
+        left[30:, 8:12] = True            # a wide head, a thin pair of legs: not a box
+        hull = S.hull_voxels(front, left, 32)
+        for cam, zflip in (((35, 30), False), ((55, -45), True)):
+            with self.subTest(cam=cam):
+                iou, found = S.rts_coherence(hull, S.hull_rts_mask(hull, cam, zflip))
+                self.assertGreater(iou, 0.95)
+        self.assertLess(S.rts_coherence(hull, np.ones((40, 40), bool), [(35, 30)])[0], 0.6)
+
     def test_sheets_measured(self):
         refs = ROOT / "artifacts/model-sheets/refs"
-        for sheet, sym, bad in (("n01X", True, []), ("hfoo", False, []), ("n00H", True, ["top", "bottom"])):
+        for sheet, sym, bad in (("n01X", True, []), ("hfoo", False, ["rts"]), ("n00H", True, ["top", "bottom", "rts"])):
             with self.subTest(sheet):
                 rep = S.sheet_report(refs / sheet / "sheet.jpg")
                 self.assertEqual(rep["r_sym"]["front"] >= S.SYM_MIN, sym)

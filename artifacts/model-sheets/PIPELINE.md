@@ -3058,3 +3058,25 @@ Rebuild textured (`--texture cel`) e clay de `runs/draft/{n01X,n005,n02X,hfoo}/v
   n005 e hfoo (Human) saem com a MESMA imagem (sha1 `96a9c695ff`, 12 colunas de 64); a do n005 construída antes do hfoo tinha só 6 colunas: reconstruir as unidades da raça com a tabela final antes de exportar. Zonas (média 5 vistas) próprio -> partilhado: n01X .212 -> .178, n005 .519 -> .562, n02X .304 -> .306, hfoo .196 -> .196. Pareado (A = próprio, B = partilhado): sheet A (4-0, 4-0, 3-1; n02X empate): o sheet tem os olhos/placas que o partilhado não pinta; artist/wc3/form B em n02X e hfoo (4-0 nos três), n01X wc3 e form B 3-1, n005 form B 4-0 mas artist A 3-1 (superfície mais limpa, sem as linhas de tinta). `shared-n005.png`, `shared-n02X.png` (linhas: próprio, partilhado, partilhado ramp 0.5).
 
 - **Piorou:** decais e tinta somem no partilhado (por isso opt-in e não default); a rampa por face e o `cull` não ligam. **Fora:** quantizar cores quase iguais numa só coluna (ΔE) quando a tabela da raça passar de 64, e colocar os decais num segundo atlas partilhado (hoje `images == 1` é gate); add quando uma raça encher a tabela.
+
+## 25. Leva 7 (2026-10-29)
+
+### 25.L7-2 Coerência do rts: hull front x left na câmera do jogo, `--redo-rts` (2026-10-27)
+
+- **Mudou:** `silhouette.sheet_report` ganha `coherence.rts` e `rts_cam`: o hull front⊗left (64³, `hull_voxels`) é projetado
+  (ortográfico, `hull_rts_mask`) em cada câmera de `views.RTS` x os 2 sentidos do painel left, e o melhor IoU com
+  `sheet-rts.jpg` é a coerência (`rts_coherence`). < 0.6 entra em `incoherent`: o veredito do estágio 1 ignora o rts
+  (como top/bottom, L6-9), `sheet_line`/`sheet_text` o dizem no review/brief. Sem run: varre os candidatos; `cams=` fixa.
+  `spec_pipeline.py --redo-rts refs/<id>/sheet.jpg` (`redo_rts`): referência = faixa front+left+back do sheet
+  (`silhouette.ortho_strip`), prompt `prompts/00-template-rts-redo.txt` (35° de elevação, 30° de azimute, mesma figura e
+  escala), até 2 chamadas; o antigo vai para `refs/<id>/old/sheet-rts-v<N>.jpg`, o novo só entra se a coerência subir e
+  mostrar 1 figura.
+- **Coerência do rts nos sheets (antes):** n005 .714, n00H .290, n00U .663, n010 .567, n017 .575, n01I .715, n01N .388,
+  n01X .744, n02X .714, hfoo .566; h05X sem rts. Incoerentes (<0.6): n00H, n010, n017, n01N, hfoo.
+- **Regeneração (6 chamadas de 8, ~$0.015):** n00H .290 -> .548 (aceito); n010 .567 -> .589 (aceito, 2ª tentativa; 1ª .560);
+  n017 .575 -> .588 (aceito pela regra, mas ver abaixo, revertido); n00U coerente (.663), não regenerado.
+- **IoU do rts no clay v10 (`silhouette.py --shape`):** n00H .232 -> .502; n010 .547 -> .671; n017 .692 -> .574 (-0.118);
+  n00U .617 (sem mudança). Nenhum passa o gate .70 (incoerência continua sendo reportada: n00H .548 < .6).
+- **Piorou / negativo:** n017: ganho de coerência +0.013 é ruído e o rts do modelo caiu; refs/n017/sheet-rts.jpg foi
+  restaurado do `old/` (o novo ficou em `old/sheet-rts-redo1-1.jpg`). Aceitar "coerência subiu" sem margem não basta:
+  adicionar margem (ex. +0.03) quando houver mais amostras. Nenhuma regeneração chega a 0.6 com 1-2 tentativas.

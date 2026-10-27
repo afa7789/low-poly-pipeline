@@ -226,9 +226,62 @@ def best_flip(panel, proj):
     return max(iou(a, stretched(f)) for f in (proj, np.fliplr(proj), np.flipud(proj), np.flipud(np.fliplr(proj))))
 
 
-def sheet_report(sheet, layout="unit"):
-    """{"r_sym": {view: r}, "coherence": {back, top, bottom: IoU with the hull of front x left}, "incoherent": [views
-    under COHERENCE_MIN]}; {} for a building sheet or one whose panels cannot be read."""
+RTS_RES = 2            # raster pixels per hull voxel when the hull is projected into the rts camera
+
+
+def hull_rts_mask(hull, cam, zflip=False):
+    """bool mask of the hull [y(down), x, z] seen from the rts camera cam = (elevation, azimuth) (views.rts_offset,
+    orthographic; x to the viewer's right, z toward the viewer, flipped when the side panel faces the other way)."""
+    from scipy import ndimage as ndi
+    e, a = math.radians(cam[0]), math.radians(cam[1])
+    ys, xs, zs = np.nonzero(hull)
+    x, y, z = xs - hull.shape[1] / 2, hull.shape[0] - ys, (zs - hull.shape[2] / 2) * (-1 if zflip else 1)
+    sx = x * math.cos(a) - z * math.sin(a)
+    sy = -x * math.sin(e) * math.sin(a) + y * math.cos(e) - z * math.sin(e) * math.cos(a)
+    px = ((sx - sx.min()) * RTS_RES).astype(int)
+    py = ((sy.max() - sy) * RTS_RES).astype(int)
+    m = np.zeros((py.max() + 1 + RTS_RES, px.max() + 1 + RTS_RES), bool)
+    m[py, px] = True
+    return ndi.binary_closing(ndi.binary_dilation(m, iterations=RTS_RES), iterations=RTS_RES)
+
+
+def rts_coherence(hull, rts, cams=None):
+    """(best IoU, (elevation, azimuth)) of an rts panel mask with the hull of front x left in the gameplay cameras
+    (default: every views.RTS candidate, both facings of the side panel, as the model sweep does)."""
+    from views import RTS
+    target = normalize(rts)
+    best = (0.0, None)
+    for cam in cams or RTS:
+        for zflip in (False, True):
+            best = max(best, (iou(target, normalize(hull_rts_mask(hull, cam, zflip))), cam), key=lambda b: b[0])
+    return best
+
+
+def rts_vs_sheet(sheet, rts_img, cams=None):
+    """(IoU, camera) of an rts image on disk with the hull of the sheet's front x left; None when unreadable."""
+    try:
+        panels = concept_panels(sheet)
+    except SystemExit:
+        return None
+    return rts_coherence(hull_voxels(panels["front"], panels["left"]), foreground(rts_img, 768), cams)
+
+
+def ortho_strip(sheet, out, margin=0.02):
+    """Write the top row of a unit sheet (front, left, back) as an image to `out`: the three orthographic panels
+    that tie the rts redraw to one figure. Rows come from the keyed panels' bounds (fractions of the page)."""
+    from PIL import Image
+    panels = concept_panels(sheet)
+    rows = np.where(sum(panels[v] for v in ("front", "left", "back")).any(axis=1))[0]
+    img = Image.open(sheet).convert("RGB")
+    size = panels["front"].shape[0]
+    y0, y1 = max(0, rows.min() / size - margin), min(1, (rows.max() + 1) / size + margin)
+    img.crop((0, round(y0 * img.height), img.width, round(y1 * img.height))).save(out, quality=92)
+
+
+def sheet_report(sheet, layout="unit", cams=None):
+    """{"r_sym": {view: r}, "coherence": {back, top, bottom, and rts when sheet-rts.jpg exists: IoU with the hull
+    of front x left}, "rts_cam": [elevation, azimuth] of the best hull match, "incoherent": [views under
+    COHERENCE_MIN]}; {} for a building sheet or one whose panels cannot be read."""
     if layout != "unit":
         return {}
     try:
@@ -239,7 +292,11 @@ def sheet_report(sheet, layout="unit"):
     foot = hull.any(axis=0).T            # [z, x]
     coh = {"back": iou(normalize(panels["back"]), normalize(np.fliplr(hull.any(axis=2)))),
            "top": best_flip(panels["top"], foot), "bottom": best_flip(panels["bottom"], foot)}
-    return {"r_sym": {v: round(r_sym(m), 4) for v, m in panels.items()},
+    extra = {}
+    if rts_path(sheet).exists():
+        coh["rts"], cam = rts_coherence(hull, foreground(rts_path(sheet), 768), cams)
+        extra["rts_cam"] = list(cam)
+    return {**extra, "r_sym": {v: round(r_sym(m), 4) for v, m in panels.items()},
             "coherence": {v: round(c, 4) for v, c in coh.items()},
             "incoherent": [v for v, c in coh.items() if c < COHERENCE_MIN]}
 
