@@ -1,6 +1,7 @@
 """python3 -m unittest discover -s tests/tools/blender"""
 import pathlib
 import sys
+import json
 import types
 import unittest
 
@@ -14,6 +15,7 @@ import preflight as PF  # noqa: E402
 import rig_families as RF  # noqa: E402
 
 REFS = HERE.parents[3] / "artifacts/model-sheets/refs"
+FIXTURES = HERE.parent / "fixtures"
 
 
 def figure():
@@ -87,6 +89,37 @@ class Build(unittest.TestCase):
 
     def test_other_families_have_no_massing(self):
         self.assertIsNone(M.build(REFS / "n01X/sheet.jpg", "quadruped"))
+
+
+@unittest.skipUnless((REFS / "n005/sheet-hard.jpg").exists(), "needs the n005 sheet")
+class PartsBuild(unittest.TestCase):
+    """PIPELINE 23.L5-2: refs/<id>/parts.json drives the pre-spec; without it the band massing is unchanged."""
+
+    def test_one_piece_per_part_and_no_parts_is_the_band_massing(self):
+        sheet, doc = REFS / "n005/sheet-hard.jpg", json.loads((FIXTURES / "parts-n005.json").read_text())
+        band = M.build(sheet, "biped", "Human", parts=False)
+        self.assertEqual(M.build(sheet, "biped", "Human"), band)         # no refs/n005/parts.json: nothing changes
+        spec = M.build(sheet, "biped", "Human", parts=doc)
+        kinds = {p[1] for p in spec["parts"]}
+        self.assertLessEqual({"lathe", "limb", "prism", "box", "frustum"}, kinds)
+        tank = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine"]
+        self.assertEqual(len(tank), 1)                                    # the tank is its own lathe on the spine
+        self.assertLess(tank[0][3][2], -0.5)                              # behind the torso
+        self.assertTrue(any(p[1] == "box" and p[0] == "forearm.L" for p in spec["parts"]))   # the held weapon
+
+    def test_half_written_parts_fall_back(self):
+        sheet, doc = REFS / "n005/sheet-hard.jpg", json.loads((FIXTURES / "parts-n005.json").read_text())
+        doc["parts"] = [q for q in doc["parts"] if q["role"] != "leg"]
+        self.assertEqual(M.build(sheet, "biped", "Human", parts=doc), M.build(sheet, "biped", "Human", parts=False))
+
+    def test_limb_knee_comes_from_the_joints(self):
+        doc = json.loads((FIXTURES / "parts-n005.json").read_text())
+        leg = next(q for q in doc["parts"] if q["bone"] == "thigh.L")
+        part = M.limb_part(leg, "z1", doc, 8, ("hip", "knee", "ankle"))[0]
+        self.assertEqual(part[1], "limb")
+        knee = M.lathe_limb.knee_of(part[5])
+        for got, want in zip(knee, doc["joints"]["knee.L"]["xyz"]):
+            self.assertAlmostEqual(got, want, 2)
 
 
 class Joints(unittest.TestCase):
