@@ -2332,3 +2332,25 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Bate com o overlay? (conferido a olho no compare.png).** n00U: sim em quase tudo. Pernas retas "de barraca" dão o vermelho externo no front/back e o verde entre elas; o rts tem verde nos joelhos altos (alto-esquerda/direita) e vermelho na cunha das pernas próximas; top/bottom: cantos vermelhos do casco retangular contra o oval do sheet; left: bloco vermelho do abdômen contra o bulbo. Erros: não cita o back (parecido com o front); a hipótese "joelho a ~0,6 da altura" é plausível, não medida. hfoo: sim. Vermelho atrás das costas no left/back = mochila funda e larga; o verde diagonal da lança no left/rts; o verde do boné (aba Brodie) no left e o espeto no topo do capacete que sai em vermelho no back; os lóbulos verdes dos braços abertos no top/bottom. Notou que o sheet é inconsistente na lança (vertical no front/back, diagonal no left/rts), o que é verdade. Omissões: o vermelho do front (19 %) no ombro/mochila, vista que passa o gate.
 - **Limites.** `part` é atribuição por nome + posição no resumo; o reviewer não vê um render por peça, então é hipótese, não medida (hfoo atribui a lança a `forearm.R`). Os "ganhos esperados" são palpites, sem verificação: a fase seguinte é rodar a mudança 1 e comparar. O dono "author" nos dois casos concorda com a leitura do §21 (a lacuna é do spec, não do DSL).
 - **Não feito.** Nenhum uso do diagnóstico no autor/repair/fit/variants (decisão do usuário). Sem paper novo em `docs/references.md` (item sem fonte nomeada no ROADMAP).
+
+### 22.L4-2 Kind `plate`: perfil extrudado (2026-10-27)
+
+- **O que mudou.** Parte `[bone, "plate", [w, h, t], at, mat, {"axis": "front|left|top", "profile": 3-8 pts [u, v] em 0-1 de w e h, "bevel": 0-0.3, "rot": ...}]`: o polígono extrudado t ao longo da normal (front: x/y, espessura z; left: z/y, espessura x; top: x/z, espessura y, v = frente), 2 faces n-gon + faixa de quads; bevel = 4 anéis, faces encolhidas pela fração. Sem `profile` o build lê o contorno do sheet na caixa da peça (como `cut`/`lathe`): front/left por `cut_hull.strip_outline`, top por `cut_hull.top_outline` (abertura morfológica `TOP_OPEN` tira as pernas). Geometria em `lathe_limb.py` (`plate_rings`, `bad_plate`, tris = 2(n-2) + 2n·(1 ou 3); sem perfil conta 8 pontos, o build usa ≤ 8), `build_unit.swept_part` (objeto com origem em `at`, rot como o box), `preflight` (`plate_box`: bbox com rot), `spec_pipeline` (KINDS, validate, DSL com asa/carapaça/leme), `fit_spec` (`part_points`; `PARAMS["plate"]=("plate",)`: escala do perfil em u,v ±15 % em torno do centroide, só com perfil gravado por `baked`; w, h, t já andam com `dims`).
+- **Orientação do painel top.** O sheet do n00U desenha o top com a cabeça em cima, não embaixo (`views.py` assume frente embaixo). `cut_hull.top_flipped` sobrepõe a união das caixas das peças ao painel nos dois sentidos e lê no melhor. Achado, fora do escopo: o IoU de top/bottom do n00U compara o modelo (cabeça embaixo) com o sheet (cabeça em cima) sem flip.
+- **Prova (a), harpy sintético** (n01X hard-v1 + rig harpy + 3 plates em wing1/wing2.upper/wing1.lower, 2 com perfil e rot espelhados, 1 lida do sheet no top): build OK, `attach loose=[]`, tris 740 reais vs 752 estimados (a lida tem 5 pontos, a estimativa 8), asas espelhadas visíveis em front/top/rts (`scratchpad/leva4-plate/harpy3.png`). Estouro de budget (740 > 700) é do n01X já em 620.
+- **Prova (b), n00U sobre `v7-r2/spec.json`** (rebuild sem LLM, `--no-fit --no-massing`; Base reproduz .779/.743/.786/.707/.676/.623):
+
+| variante | front / left / back / top / bottom / rts | unc top / bottom |
+|---|---|---|
+| Base (v7-r2) | .779 .743 .786 .707 .676 .623 | .079 / .075 |
+| A: shell (11,13-19) trocado por 1 plate top, lido (sem flip) | .689 .637 .696 .703 .666 .633 | .087 / .099 |
+| B: A mantendo o domo 15 | .689 .637 .696 .712 .672 .636 | .073 / .086 |
+| C: só o aro (11) vira plate lida | .774 .737 .781 .675 .651 .615 | .126 / .128 |
+| C2: aro com flip detectado | .778 .730 .785 .664 .646 .600 | .136 / .153 |
+| F: aro + domo viram plates | .754 .720 .761 .644 .620 .595 | .186 / .197 |
+| G: base + plate sob o shell, perfil do sheet (flip) | .778 .733 .785 .690 .670 .627 | .078 / .100 |
+| H: idem, perfil sem flip | .778 .733 .785 .687 .653 .637 | .072 / .099 |
+
+- **Resultado: negativo na meta.** Nenhuma variante dá top/bottom +0.02 sem perder front: a pilha de frustums do v7-r2 já cobre o top (unc .079), e o plate oval lido do sheet cobre menos que o aro retangular (unc sobe) ou, somado, só aumenta o spill. O que melhora: tris (A: 656 vs 700) e rts +0.01 (A/B). Plate de carapaça sozinho perde o front (-0.09) porque a pirâmide de frustums some. O kind fica opt-in (nenhum default muda); o ganho esperado é em asas/placas/leme, onde a alternativa é um box.
+- **Pendente.** Prova com LLM de asa (harpy/drake) em L4-4; `rot` não entra no fit (`rot_allowed` é por osso); a leitura do top assume que as caixas das peças desenham a mesma massa que o painel.
+- **Testes.** `test_lathe_limb.py::Plate` (tris, eixos, bevel, rot, validate, `top_outline`, `top_flipped`, pontos e params do fit).

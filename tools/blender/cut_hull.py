@@ -11,6 +11,8 @@ import json
 import math
 import pathlib
 
+import numpy as np
+
 import lathe_limb
 import preflight
 import silhouette as SIL
@@ -21,6 +23,7 @@ PAD = 0.1       # the strip is read this much wider than the part, then fitted b
 MIN_ROWS = 6    # a strip thinner than this (px) is not worth tracing
 PROFILE_WIN = 1.25   # a lathe reads the sheet this many r either side of its centre; a profile value is at most this
 PROFILE_MIN = 0.1
+TOP_OPEN = 0.12   # a plate read from the top panel drops what is thinner than this share of its strip (legs)
 
 
 def wants_cut(opts):
@@ -191,12 +194,82 @@ def chain_profiles(parts, sheet, layout="unit"):
     return out
 
 
+def top_outline(mask, extent, lo, hi):
+    """Outline of the top panel inside the box (lo, hi) as [[u, v]] in 0-1 of the box (u along x, v
+    toward +z, the front, which the sheet draws at the bottom). `extent` = (lo, hi) of the whole
+    figure: the panel's figure is stretched onto it, so the tilt of the panel costs a little depth.
+    None when the strip is empty or thinner than MIN_ROWS."""
+    ys, xs = mask.nonzero()
+    (flo, fhi), pad = extent, PAD
+    sx, sz = (xs.max() - xs.min() + 1) / ((fhi[0] - flo[0]) or 1), (ys.max() - ys.min() + 1) / ((fhi[2] - flo[2]) or 1)
+    k0, k1 = (int(round(xs.min() + (v - flo[0]) * sx)) for v in (lo[0] - pad * (hi[0] - lo[0]), hi[0] + pad * (hi[0] - lo[0])))
+    r0, r1 = (int(round(ys.min() + (v - flo[2]) * sz)) for v in (lo[2] - pad * (hi[2] - lo[2]), hi[2] + pad * (hi[2] - lo[2])))
+    strip = mask[max(r0, 0):r1 + 1, max(k0, 0):k1 + 1]
+    if strip.shape[0] < MIN_ROWS or not strip.any():
+        return None
+    from scipy import ndimage
+    body = ndimage.binary_opening(strip, iterations=max(1, int(TOP_OPEN * min(strip.shape))))   # legs are thinner than the shell
+    poly = SIL.outline(body if body.any() else strip, eps=0.02, limit=LIMIT)
+    if len(poly) > LIMIT:
+        return None
+    us, vs = zip(*poly)
+    return [[round((u - min(us)) / ((max(us) - min(us)) or 1), 3), round(1 - (v - min(vs)) / ((max(vs) - min(vs)) or 1), 3)]
+            for u, v in poly]
+
+
+def top_flipped(mask, boxes, extent):
+    """True when the top panel is drawn head up (the sheet's front at the top, rows running toward -z):
+    the union of the part boxes seen from above is laid on the panel's figure both ways and the better
+    overlap wins. A humanoid sheet draws it front down (views.py), a spider's straight top-down view
+    does not, and a plate read the wrong way round would land on the abdomen."""
+    ys, xs = mask.nonzero()
+    (flo, fhi) = extent
+    sx, sz = (xs.max() - xs.min() + 1) / ((fhi[0] - flo[0]) or 1), (ys.max() - ys.min() + 1) / ((fhi[2] - flo[2]) or 1)
+    top = np.zeros(mask.shape, bool)
+    for lo, hi in boxes:
+        c0, c1 = (int(round(xs.min() + (v - flo[0]) * sx)) for v in (lo[0], hi[0]))
+        r0, r1 = (int(round(ys.min() + (v - flo[2]) * sz)) for v in (lo[2], hi[2]))
+        top[max(r0, 0):max(r1, 0) + 1, max(c0, 0):max(c1, 0) + 1] = True
+    fig = mask[ys.min():ys.max() + 1]
+    boxes_fig = top[ys.min():ys.max() + 1]
+    return SIL.iou(fig[::-1], boxes_fig) > SIL.iou(fig, boxes_fig)
+
+
+def plate_profiles(parts, sheet, layout="unit"):
+    """{part index: {"profile": [[u, v]..]}} for the plates that bring no profile and whose strip of
+    the sheet could be read (front, left: strip_outline of the part's box; top: top_outline); the
+    others build the default polygon. The box is the plate's own, unrotated."""
+    wanted = [i for i, p in enumerate(parts) if p[1] == "plate" and not p[5].get("profile")]
+    if not wanted or sheet is None:
+        return {}
+    boxes = [preflight.bbox(p) for p in parts]
+    top = max(b[1][1] for b in boxes)
+    ext = (tuple(min(b[0][a] for b in boxes) for a in range(3)), tuple(max(b[1][a] for b in boxes) for a in range(3)))
+    panels = SIL.concept_panels(sheet, layout=layout)
+    out = {}
+    for i in wanted:
+        lo, hi = boxes[i]
+        axis = parts[i][5].get("axis", "front")
+        if axis == "top":
+            mask = panels["top"][::-1] if top_flipped(panels["top"], boxes, ext) else panels["top"]
+            prof = top_outline(mask, ext, lo, hi)
+        else:
+            a = 2 if axis == "left" else 0
+            poly = strip_outline(panels[axis], (top, (ext[0][a] + ext[1][a]) / 2), lo, hi, a)
+            prof = poly and [[round((u - lo[a]) / ((hi[a] - lo[a]) or 1), 3), round((v - lo[1]) / ((hi[1] - lo[1]) or 1), 3)]
+                             for u, v in poly]
+        if prof:
+            out[i] = {"profile": prof}
+    return out
+
+
 def args(spec, sheet, kind, work):
     """["cuts=<json>"] for build_unit.py: the outlines of the spec's cut parts and the sheet
     profiles of its lathes written to work/cuts.json; [] when there is neither."""
     cuts = cut_polys(spec["parts"], sheet, layout_of(kind))
     cuts.update(lathe_profiles(spec["parts"], sheet, layout_of(kind)))
     cuts.update(chain_profiles(spec["parts"], sheet, layout_of(kind)))
+    cuts.update(plate_profiles(spec["parts"], sheet, layout_of(kind)))
     if not cuts:
         return []
     path = pathlib.Path(work) / "cuts.json"

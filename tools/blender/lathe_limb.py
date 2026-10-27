@@ -18,6 +18,11 @@ chain  bone = the first bone `prefix.k` of a rig chain, dims = (r0..rN) the radi
        (cut_hull.chain_radii) else CHAIN_TAPER. `at` is ignored: the bones place the rings. opts
        bones N (1-8, required), sides 6-8, profile_axis "left" | "front" (the sheet panel read).
        One ring per joint, ring i skinned to bone i (the last ring to the last bone), n-gon caps.
+plate  dims = (w, h, t) around `at`, opts axis "front" | "left" | "top" (the sheet panel the outline is
+       read from, default "front"; the plate's normal is z, x, y), profile (3-8 [u, v] points in 0-1 of
+       w and h, default: the sheet strip of the part's box, else DEFAULT_PLATE), bevel 0-0.3 (the faces
+       shrink by that fraction), rot allowed. front: u = x, v = y; left: u = z, v = y; top: u = x,
+       v = z (forward). The polygon extruded t along the normal: two faces and a band of quads.
 """
 import math
 
@@ -28,6 +33,10 @@ SHEET_RINGS = 6                 # rings of a profile read from the sheet
 DEFAULT_PROFILE = (0.6, 0.9, 1.0, 1.0, 0.85, 0.5)
 PROFILE_MAX = 1.5               # a ring is at most this many times r
 KNEE = (0.5, 0.0, 0.0, 0.0)
+PLATE_AXES = ("front", "left", "top")
+PLATE_PTS = (3, 8)              # vertices of a plate outline (cut_hull.LIMIT reads at most 8)
+PLATE_BEVEL_MAX = 0.3
+DEFAULT_PLATE = ((0.5, 0.0), (1.0, 0.25), (1.0, 0.75), (0.5, 1.0), (0.0, 0.75), (0.0, 0.25))
 # upper segment word -> lower segment word in a bone name (leg1.upper/.lower, thigh/shin, arm/forearm)
 PAIRS = (("upper", "lower"), ("thigh", "shin"), ("arm", "forearm"))
 CHAIN_BONES = (1, 8)            # bones of a chain
@@ -53,6 +62,9 @@ def rings_of(opts):
 
 def tris(kind, opts):
     """Triangles of a lathe or a limb (the ends are triangulated n-gons)."""
+    if kind == "plate":
+        n = len(opts["profile"]) if opts.get("profile") else PLATE_PTS[1]
+        return 2 * (n - 2) + 2 * n * (3 if opts.get("bevel") else 1)
     n = sides_of(opts)
     rings = {"lathe": rings_of, "chain": lambda o: int(o["bones"]) + 1}.get(kind, lambda o: 3)(opts)
     return 2 * n * (rings - 1) + 2 * (n - 2)
@@ -75,7 +87,9 @@ def bad_chain(bone, dims, opts):
 
 
 def bad_opts(kind, dims, opts, bone=None):
-    """Why a lathe, limb or chain is outside the schema, or None."""
+    """Why a lathe, limb, chain or plate is outside the schema, or None."""
+    if kind == "plate":
+        return bad_plate(dims, opts)
     n = opts.get("sides", SIDES)
     if not isinstance(n, int) or not SIDES_RANGE[0] <= n <= SIDES_RANGE[1]:
         return f"sides outside {SIDES_RANGE}"
@@ -99,6 +113,21 @@ def bad_opts(kind, dims, opts, bone=None):
         return f"profile is {PROFILE_RANGE[0]}-{PROFILE_RANGE[1]} radii (x r) in 0.05-{PROFILE_MAX}"
     squash = opts.get("squash", 1.0)
     return None if isinstance(squash, (int, float)) and 0.5 <= squash <= 2.0 else "squash is x/z in 0.5-2"
+
+
+def bad_plate(dims, opts):
+    prof, bevel = opts.get("profile"), opts.get("bevel", 0)
+    if len(dims) != 3 or not all(isinstance(v, (int, float)) and v > 0 for v in dims) or "from" in opts or "to" in opts:
+        return "a plate is dims (w, h, t) > 0 around at: no from or to"
+    if opts.get("axis", "front") not in PLATE_AXES:
+        return "plate axis is front, left or top"
+    if prof is not None and not (isinstance(prof, list) and PLATE_PTS[0] <= len(prof) <= PLATE_PTS[1]
+                                 and all(isinstance(q, list) and len(q) == 2
+                                         and all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in q) for q in prof)):
+        return f"plate profile is {PLATE_PTS[0]}-{PLATE_PTS[1]} points [u, v] in 0-1"
+    if isinstance(bevel, bool) or not isinstance(bevel, (int, float)) or not 0 <= bevel <= PLATE_BEVEL_MAX:
+        return f"plate bevel is 0-{PLATE_BEVEL_MAX}"
+    return None
 
 
 def ngon(c, u, v, r, n, phase=0.0):
@@ -217,7 +246,25 @@ def chain_rings(bone, dims, opts, sheet=None):
 
 def half_extent(kind, dims, at, opts, bone=None):
     """((lo), (hi)) box of the kind around its geometry, in spec axes (preflight.bbox)."""
-    rings = {"lathe": lambda: lathe_rings(dims, at, opts), "chain": lambda: chain_rings(bone, dims, opts)}
+    rings = {"lathe": lambda: lathe_rings(dims, at, opts), "chain": lambda: chain_rings(bone, dims, opts),
+             "plate": lambda: plate_rings(dims, at, opts)}
     pts = [p for ring in rings.get(kind, lambda: limb_rings(dims, opts))() for p in ring]
     return (tuple(min(p[i] for p in pts) for i in range(3)),
             tuple(max(p[i] for p in pts) for i in range(3)))
+
+
+def plate_rings(dims, at, opts, sheet=None):
+    """[ring] of a plate, each the profile polygon at one depth along the normal (before opts rot):
+    2 rings, or 4 with a bevel (the cap rings are shrunk toward the centroid and sit at the faces).
+    `sheet` is the profile read from the sheet (cut_hull.plate_profiles), used when opts has none."""
+    w, h, t = dims
+    prof = opts.get("profile") or sheet or DEFAULT_PLATE
+    axis, bevel = opts.get("axis", "front"), float(opts.get("bevel", 0.0))
+    cu, cv = (sum(q[i] for q in prof) / len(prof) for i in (0, 1))
+    layers = [(-t / 2, 1.0), (t / 2, 1.0)]
+    if bevel:
+        layers = [(-t / 2, 1 - bevel), (-t / 2 * (1 - bevel), 1.0), (t / 2 * (1 - bevel), 1.0), (t / 2, 1 - bevel)]
+    place = {"front": lambda a, b, d: (a, b, d), "left": lambda a, b, d: (d, b, a), "top": lambda a, b, d: (a, d, b)}[axis]
+    return [[tuple(at[i] + c for i, c in enumerate(place((cu + (q[0] - cu) * s - 0.5) * w,
+                                                         (cv + (q[1] - cv) * s - 0.5) * h, d)))
+             for q in prof] for d, s in layers]
