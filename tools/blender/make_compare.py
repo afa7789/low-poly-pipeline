@@ -183,12 +183,25 @@ def concept_cells(run, tmp):
     return cells
 
 
+NO_STAGE2 = "stage 2 not run (clay)"
+
+
+def stamp(cell, text):
+    """`cell` with a label strip on its top edge."""
+    d = ImageDraw.Draw(cell)
+    f = font(13)
+    d.rectangle((0, 0, CELL[0], 20), fill=(60, 60, 60))
+    d.text((CELL[0] // 2, 10), text, fill=(255, 255, 255), font=f, anchor="mm")
+    return cell
+
+
 def render_cell(run, view, clay):
-    """Clay or textured render of `view`, or an empty cell naming the missing file."""
+    """Clay or textured render of `view`, or an empty cell naming the missing file. A run
+    without stage 2 has no textured render: that column shows the clay, labelled as such."""
     if not run["views"]:
         return empty_cell("no views/ in this run")
     if not clay and run["stem"] is None:
-        return empty_cell("stage 2 not run")
+        return stamp(render_cell(run, view, True), NO_STAGE2)
     shot = RENDER_NAME.get(view, view)
     names = (f"clay-{shot}.png", f"clay-{view}.png") if clay else (f"{run['stem']}-{shot}.png",)
     name = names[0]

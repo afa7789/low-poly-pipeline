@@ -11,6 +11,24 @@ import silhouette as S  # noqa: E402
 REFS = ROOT / "artifacts/model-sheets/refs/hfoo"
 
 
+class RigGates(unittest.TestCase):
+    def test_spider_lowers_front_and_back_only(self):
+        for rig in ("spider", "spider_high"):
+            g = S.gates_for(rig)
+            self.assertEqual((g["front"], g["back"]), (0.65, 0.65))
+            self.assertEqual({k: v for k, v in g.items() if k not in ("front", "back")},
+                             {k: v for k, v in S.GATES.items() if k not in ("front", "back")})
+
+    def test_other_families_keep_the_defaults(self):
+        self.assertEqual(S.gates_for("biped"), S.GATES)
+        self.assertEqual(S.gates_for(None), S.GATES)
+
+    def test_n00u_best_run_passes_and_the_worst_does_not(self):
+        g = S.gates_for("spider")
+        self.assertTrue(all(v >= g[k] for k, v in {"front": 0.667, "left": 0.658, "back": 0.675}.items()))
+        self.assertFalse(0.530 >= g["front"])
+
+
 HARD = REFS / "sheet-hard.jpg"
 
 

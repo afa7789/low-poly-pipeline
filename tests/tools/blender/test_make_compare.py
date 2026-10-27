@@ -72,6 +72,17 @@ class Contract(unittest.TestCase):
         self.assertEqual(no_mask.getpixel((0, 0)), MC.EMPTY)
         self.assertEqual(textured.getpixel((0, 0)), MC.BG)
 
+    def test_textured_column_without_stage_2_shows_the_clay_labelled(self):
+        run = self.run
+        (run["views"] / "n01X-front.png").rename(run["views"] / "clay-front.png")
+        run = MC.load_run(run["dir"])
+        self.assertIsNone(run["stem"])
+        cell = MC.render_cell(run, "front", False)
+        clay = MC.render_cell(run, "front", True)
+        self.assertEqual(cell.getpixel((0, 0)), (60, 60, 60))         # the label strip
+        self.assertEqual(cell.crop((0, 40, *MC.CELL)).tobytes(), clay.crop((0, 40, *MC.CELL)).tobytes())
+        self.assertEqual(CR.column_cell(run, "front", "textured").tobytes(), cell.tobytes())
+
     def test_overlay_marks_the_hit(self):
         cell = np.asarray(MC.overlay_cell(self.run, "front"))
         self.assertTrue((cell == MC.OVERLAY["hit"]).all(axis=2).any())
