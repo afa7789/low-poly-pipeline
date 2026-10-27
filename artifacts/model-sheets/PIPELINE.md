@@ -2377,6 +2377,27 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 
 ## 23. Leva 5 (2026-10-28)
 
+Sete frentes (L5-1 segmentação, L5-2/2b massing por partes, L5-3 props, L5-4 profundidade, L5-5 superfície, L5-6
+identidade, L5-7 juiz), integradas em `feat/models-v2-hard`. Bateria `v9-r1` em 8 unidades (3 de teste, n02X,
+hfoo, lobo n017, wyrm n00H, drake n010), gate de acoplamento ligado; imagens em `history/2026-10-28-v9/`
+(`*-full.png`: concept | clay | overlay | textured por run).
+
+| unidade | anterior | v9-r1 | veredito | por quê | juiz v9 × anterior |
+|---|---|---|---|---|---|
+| n01X | .836/.774/.836/.821/.775/.775 | .793/.804/.794/.797/.777/.776 | CHECK | preflight: pés soltos no spec final | sheet v9 3-1; artist/wc3 v8 3-1 |
+| n005 | .849/.721/.832/.696/.780/.778 | .795/.803/.814/.717/.716/.879 | CHECK | tris 748; vermelho top/bottom 23/26 % | empate |
+| n00U | .770/.744/.782/.688/.666/.609 | **.805/.738/.811**/.664/.654/.622 | CHECK | rts .622; spill rts 31 % | **v9 4-0 nos 3 eixos** |
+| n02X | .779/.715/.778/.735/.729/.736 | .777/.732/.755/.683/.678/.751 | CHECK | tris 768; bottom vermelho 20 % | **v9 4-0 nos 3** |
+| hfoo | .711/.638/.692/.669/.757/.690 | .766/.637/.666/.786/.817/.634 | CHECK | left .637, back .666, rts .634 | **v9 4-0 nos 3** |
+| n017 | .833/.733/.778/.821/.843/.693 | .829/.721/.776/.831/.842/.692 | CHECK | rts .692 | — |
+| n00H | .815/.663/.809/.728/.682/– | .813/.633/.807/.736/.685/– | CHECK | spine.3 solta; left .633 | — |
+| n010 | .685/.891/.575/.441/.449/.559 | .685/.877/.589/.456/.465/.556 | CHECK | sheet top/bottom girados 90° | — |
+
+0/8 PASS com os gates novos; o juiz de visão prefere o v9 por 4-0 nos três eixos em 3 das 5 comparadas. O que
+reprova agora: tris acima de 700 (8 lados + chanfro + lathe), spill/vermelho de top/bottom/rts, `overlap` no spec
+final (a edição do autor + fit desprendem pés/pescoço). Próximo: orçamento por grupo recalibrado para os kinds
+novos, contato por parte depois do fit, e sheets corrigidos das famílias novas.
+
 ### 23.L5-7 Juiz pareado: 4 votos 2+2 e eixo `wc3` (2026-10-27)
 
 - **O que mudou** (`review_pair.py`, `compare_runs.py`). (1) `VOTES = 4`, ordem fixa A|B, A|B, B|A, B|A (`sides()` não embaralha mais; os votos rodam em paralelo, a ordem só rotula). Empate só em 2-2; os 4 votos no mesmo lado físico = viés de posição = empate marcado `(position bias)`. (2) Eixo novo `wc3` ("qual dos dois candidatos lê mais como um modelo de jogo nesse estilo: silhueta limpa, massas claras, nada de caixas empilhadas"): a imagem do voto ganha uma 4ª célula (`left | sheet | right | wc3`, só na linha front) com uma referência WC3 da mesma classe de rig (`WC3_REFS`, rig lido do `spec.json` da run B, recortada ao boneco por `crop_figure`). (3) `pairwise.json` grava os 3 eixos (+ `wc3_proxy`); `lost()` = a run nova perde 2 de 3 eixos (resultado antigo de 2 eixos: perde os dois) e `spec_pipeline.final_status` rebaixa um nível como antes (nenhuma mudança em `spec_pipeline.py`, o gancho já chamava `lost`). (4) `compare_runs.py`: o cabeçalho de cada run mostra `pair vs <A> S B3-1 R B3-1 W tie2-2` (S sheet, R artist, W wc3).
