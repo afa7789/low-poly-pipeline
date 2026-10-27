@@ -1203,7 +1203,9 @@ def fit_stage(spec, args):
     from silhouette import gates_for
     fitted, report = fit_spec.fit(spec, args.sheet, args.kind, wide=not args.fit_fast, tilts=run_tilts(args),
                                hard=args.build if args.fit_edges else None,
-                               stages=fit_spec.STAGES if args.fit_stages else None)
+                               stages=fit_spec.STAGES if args.fit_stages else None,
+                               partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts,
+                               depth=args.depth)
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if report["changed"]:
         ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
@@ -1937,6 +1939,14 @@ def main():
     ap.add_argument("--fit-stages", action="store_true",
                     help="the fit runs trunk, limbs and profiles one after the other, 1/3 of the budget each "
                          "(PIPELINE 22.L4-3: not better than the single Powell, opt-in)")
+    ap.add_argument("--fit-parts", action="store_true",
+                    help="the fit also uses refs/<id>/parts.json: each part inside its 2D mask, depth order as a hard "
+                         "constraint (PIPELINE 23.L5-4; neutral on the silhouettes, opt-in)")
+    ap.add_argument("--depth", action="store_true",
+                    help="the fit starts from Depth Anything V2 small's z and occlusion order (depth_map.py, needs "
+                         "parts.json, implies --fit-parts; PIPELINE 23.L5-4b)")
+    ap.add_argument("--parts", type=pathlib.Path, default=None,
+                    help="a parts.json other than refs/<id>/parts.json for the fit (implies --fit-parts)")
     ap.add_argument("--no-fewshot", action="store_true",
                     help="leave the worked spec -> render example out of the author's prompt "
                          "(PIPELINE 21.F5)")

@@ -1,0 +1,445 @@
+{
+ "_note": "PROVISIONAL: drawn by eye from refs/n005/sheet.jpg by the L5-4 agent until L5-1 (segment_sheet) writes the real file. 2D = fraction of the split_sheet crop of each panel (y up); 3D in metres, H = 2.0, x right, y up, z forward; torso centre z = 0. bone .L = +x (image right in front).",
+ "unit": "n005",
+ "H": 2.0,
+ "views": [
+  "front",
+  "left"
+ ],
+ "joints": {},
+ "parts": [
+  {
+   "name": "hood",
+   "role": "head",
+   "bone": "head",
+   "box2d": {
+    "front": [
+     0.385,
+     0.738,
+     0.665,
+     0.943
+    ],
+    "left": [
+     0.485,
+     0.739,
+     0.767,
+     0.945
+    ]
+   },
+   "box3d": [
+    [
+     -0.242,
+     1.537,
+     -0.183
+    ],
+    [
+     0.202,
+     2.0,
+     0.316
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "mask",
+   "role": "face",
+   "bone": "head",
+   "box2d": {
+    "front": [
+     0.456,
+     0.686,
+     0.627,
+     0.895
+    ],
+    "left": [
+     0.66,
+     0.665,
+     0.814,
+     0.881
+    ]
+   },
+   "box3d": [
+    [
+     -0.13,
+     1.371,
+     0.126
+    ],
+    [
+     0.142,
+     1.893,
+     0.399
+    ]
+   ],
+   "depth_order": 1,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "torso",
+   "role": "torso",
+   "bone": "spine",
+   "box2d": {
+    "front": [
+     0.284,
+     0.507,
+     0.799,
+     0.77
+    ],
+    "left": [
+     0.418,
+     0.506,
+     0.761,
+     0.76
+    ]
+   },
+   "box3d": [
+    [
+     -0.403,
+     1.015,
+     -0.301
+    ],
+    [
+     0.415,
+     1.609,
+     0.304
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "skirt",
+   "role": "pelvis",
+   "bone": "pelvis",
+   "box2d": {
+    "front": [
+     0.284,
+     0.24,
+     0.792,
+     0.528
+    ],
+    "left": [
+     0.398,
+     0.237,
+     0.761,
+     0.527
+    ]
+   },
+   "box3d": [
+    [
+     -0.403,
+     0.41,
+     -0.337
+    ],
+    [
+     0.403,
+     1.063,
+     0.304
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "tank",
+   "role": "prop",
+   "bone": "spine",
+   "box2d": {
+    "front": [
+     0.336,
+     0.507,
+     0.74,
+     0.817
+    ],
+    "left": [
+     0.217,
+     0.453,
+     0.458,
+     0.818
+    ]
+   },
+   "box3d": [
+    [
+     -0.32,
+     0.897,
+     -0.657
+    ],
+    [
+     0.32,
+     1.715,
+     -0.23
+    ]
+   ],
+   "depth_order": -1,
+   "prop": true,
+   "zone": "#5D6568"
+  },
+  {
+   "name": "valve",
+   "role": "prop",
+   "bone": "spine",
+   "box2d": {
+    "left": [
+     0.304,
+     0.818,
+     0.398,
+     0.897
+    ]
+   },
+   "box3d": [
+    [
+     -0.3,
+     1.715,
+     -0.503
+    ],
+    [
+     0.3,
+     1.893,
+     -0.337
+    ]
+   ],
+   "depth_order": -1,
+   "prop": true
+  },
+  {
+   "name": "arm.R",
+   "role": "arm",
+   "bone": "arm.R",
+   "box2d": {
+    "front": [
+     0.082,
+     0.34,
+     0.411,
+     0.77
+    ],
+    "left": [
+     0.526,
+     0.316,
+     0.7,
+     0.739
+    ]
+   },
+   "box3d": [
+    [
+     -0.724,
+     0.588,
+     -0.112
+    ],
+    [
+     -0.202,
+     1.609,
+     0.197
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "arm.L",
+   "role": "arm",
+   "bone": "arm.L",
+   "box2d": {
+    "front": [
+     0.68,
+     0.256,
+     0.919,
+     0.77
+    ]
+   },
+   "box3d": [
+    [
+     0.225,
+     0.446,
+     -0.112
+    ],
+    [
+     0.605,
+     1.609,
+     0.197
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "pistol",
+   "role": "prop",
+   "bone": "hand.L",
+   "box2d": {
+    "front": [
+     0.867,
+     0.256,
+     1.031,
+     0.465
+    ]
+   },
+   "box3d": [
+    [
+     0.522,
+     0.446,
+     -0.112
+    ],
+    [
+     0.783,
+     0.921,
+     0.197
+    ]
+   ],
+   "depth_order": 1,
+   "prop": true,
+   "zone": "#5D6568"
+  },
+  {
+   "name": "lantern",
+   "role": "prop",
+   "bone": "pelvis",
+   "box2d": {
+    "front": [
+     0.605,
+     0.355,
+     0.695,
+     0.507
+    ]
+   },
+   "box3d": [
+    [
+     0.107,
+     0.671,
+     0.244
+    ],
+    [
+     0.249,
+     1.015,
+     0.399
+    ]
+   ],
+   "depth_order": 1,
+   "prop": true
+  },
+  {
+   "name": "leg.R",
+   "role": "leg",
+   "bone": "thigh.R",
+   "box2d": {
+    "front": [
+     0.314,
+     0.182,
+     0.485,
+     0.277
+    ]
+   },
+   "box3d": [
+    [
+     -0.356,
+     0.28,
+     -0.112
+    ],
+    [
+     -0.083,
+     0.493,
+     0.161
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "leg.L",
+   "role": "leg",
+   "bone": "thigh.L",
+   "box2d": {
+    "front": [
+     0.59,
+     0.182,
+     0.777,
+     0.277
+    ]
+   },
+   "box3d": [
+    [
+     0.083,
+     0.28,
+     -0.112
+    ],
+    [
+     0.38,
+     0.493,
+     0.161
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "foot.R",
+   "role": "foot",
+   "bone": "foot.R",
+   "box2d": {
+    "front": [
+     0.299,
+     0.058,
+     0.485,
+     0.214
+    ],
+    "left": [
+     0.499,
+     0.057,
+     0.727,
+     0.21
+    ]
+   },
+   "box3d": [
+    [
+     -0.38,
+     0.0,
+     -0.159
+    ],
+    [
+     -0.083,
+     0.351,
+     0.244
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  },
+  {
+   "name": "foot.L",
+   "role": "foot",
+   "bone": "foot.L",
+   "box2d": {
+    "front": [
+     0.59,
+     0.058,
+     0.784,
+     0.214
+    ]
+   },
+   "box3d": [
+    [
+     0.083,
+     0.0,
+     -0.159
+    ],
+    [
+     0.391,
+     0.351,
+     0.244
+    ]
+   ],
+   "depth_order": 0,
+   "prop": false,
+   "zone": "#2E2F31"
+  }
+ ],
+ "identity": []
+}
