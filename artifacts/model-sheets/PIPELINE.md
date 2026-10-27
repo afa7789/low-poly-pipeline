@@ -2814,3 +2814,40 @@ português está em `sheet_text`.
   - n017: o tronco é uma sequência de tijolos em z (`slab`); um lathe em pé não representa isso, nada mudou. Um lathe deitado (eixo z) seria um item à parte.
   - hfoo -0.002 (neutro); stage 1 segue FAIL por top/bottom/rts já antes.
   - Tris sobem 4-8 % (8 lados por anel x 4-5 anéis); n02X já estava acima de 700 antes.
+
+### 24.L6-4 Chen por default: união do corpo + limpeza + decimate com tolerância (2026-10-27)
+- **Mudou** (`build_unit.py`, `UNION_BODY = True`, argumento `nounion` volta ao join): as peças sem `prop` (e sem
+  `flame`) passam por `union_body`: `union_parts` (BOOLEAN EXACT, depois MANIFOLD, depois join só daquela peça se
+  nenhum dos dois passar em `union_holds`: caixa dentro das duas caixas e volume entre max e soma) -> `transform_apply`
+  -> pesos de osso e material por face transferidos da peça de origem mais próxima (`transfer_from_parts`; junta =
+  média) -> `clean_mesh` (1 mm + planar 6°) -> triangula (BEAUTY) -> `cull.decimate_union(floor=)` com tolerância H/32,
+  piso `UNION_FLOOR = 0.9` do orçamento (0.6 deu IoU -0.08 no n01X) e teto = orçamento menos os tris dos props. Sharp
+  por ângulo 35° (`soften`). Sem chanfro por caixa (o decimate o desfaria). Props e flame seguem componentes próprios,
+  com o skin da âncora. `attach.json` ganha `union` (placas, `joined_instead`, `components_body`, props);
+  `mesh_lint` lê `components_body` dele (sem arquivo: total) e `components_body == 1` é gate.
+- **Bug achado:** `obj.bound_box` fica velho até o próximo update da cena para peças feitas por bmesh (prism, ring):
+  a checagem do boolean usa os vértices. O anel do peito do n01X fazia o EXACT devolver um casco com buraco e
+  vértices longe; `union_holds` pega e cai no MANIFOLD.
+- **Medido** (8 `v9-r1/spec.json` reconstruídos sem LLM, clay, antes -> depois; `scratchpad/leva6-union/{before,after}`):
+
+| id | comps total -> corpo | tris | IoU front/left/back/top/bottom/rts antes -> depois | slivers % |
+|---|---|---|---|---|
+| n01X | 33 -> 4 | 684 -> 630 | .794/.802/.796/.795/.775/.777 -> .794/.806/.795/.795/.771/.775 | 8.8 -> 14.4 |
+| n005 | 25 -> 6 (corpo 1 + 5 props) | 716 -> 630 | .804/.860/.824/.718/.715/.879 -> .804/.860/.824/.719/.715/.880 | 15.9 -> 11.0 |
+| n00U | 34 -> 1 | 664 -> 628 | .811/.699/.807/.662/.656/.624 -> .805/.708/.804/.663/.658/.621 | 14.5 -> 18.5 |
+| n02X | 24 -> 3 (corpo 1) | 736 -> 630 | .715/.784/.726/.681/.677/.751 -> .717/.787/.728/.679/.678/.751 | 13.6 -> 19.5 |
+| hfoo | 23 -> 5 (corpo 1) | 604 -> 630 | .770/.511/.758/.786/.818/.635 -> .768/.512/.756/.786/.818/.638 | 12.9 -> 14.1 |
+| n017 | 24 -> 5 (corpo 2) | 556 -> 629 | .828/.721/.776/.831/.843/.692 -> .821/.723/.768/.830/.843/.690 | 11.2 -> 27.7 |
+| n00H | 17 -> 3 | 672 -> 625 | .812/.635/.804/.734/.685/.235 -> .809/.638/.801/.735/.684/.432 | 6.0 -> 10.1 |
+| n010 | 31 -> 3 (corpo 2) | 684 -> 627 | .690/.861/.600/.455/.464/.557 -> .689/.849/.598/.457/.461/.564 | 8.9 -> 15.6 |
+
+  IoU dentro de +-0.01 (exceto n00H rts, que antes tinha normal virada, e n010 left -0.012). Os corpos > 1 são placas
+  que o spec deixa soltas (`attach.json` `loose`: pés do n01X, `spine.2` do n010): a união não as solda, o gate
+  `components_body == 1` as acusa de verdade. Gate nas 8 reconstruções: 4 passam (n005, n02X, hfoo, n00U), 4 falham por
+  placa solta; nos runs antigos (join) falha sempre.
+- **Piorou:** slivers (ângulo < 10°) SOBEM em 7 de 8 (meta < 5 % não atingida): a triangulação das interseções e o QEM
+  fazem triângulos finos. Beautify global entortava as caixas (n01X front 0.794 -> 0.779); beautify só em arestas planas
+  e dissolve + re-triangulação depois do decimate não mexeram o número: não ficaram. Fica para L6-6 (`slivers`) e um
+  remesh planar. Piso de faces 0.6 do brief foi para 0.9: com 0.6 o n01X perdia 0.08 de IoU (QEM encolhe as caixas).
+- **Textura/UV/decal/animação:** `texture cel` rebuild de n01X/n005/hfoo: 1 imagem, `uv_out_of_range` 4 -> 1 (n005) e
+  2 -> 1 (hfoo), decals (olhos) intactos; `render_anim walk` n005/n01X antes/depois sem rasgo (`scratchpad/leva6-union/anim/walk.png`).

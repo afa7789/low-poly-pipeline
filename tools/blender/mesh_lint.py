@@ -269,6 +269,17 @@ def root_scale(doc):
     return float(max(scales, key=lambda s: abs(s - 1), default=1.0))
 
 
+def components_body(glb, comps):
+    """Components of the body alone: build_unit.py counts them (props are components of their own) and
+    writes them to the attach.json beside the GLB. No such file (an old run): every component counts."""
+    stem = pathlib.Path(glb).stem
+    path = pathlib.Path(glb).parent / ("attach.json" if stem in ("clay", "model") else f"{stem}-attach.json")
+    try:
+        return json.loads(path.read_text())["union"]["components_body"]
+    except (OSError, KeyError, ValueError):
+        return comps
+
+
 def lint(glb):
     doc, blob = read_glb(glb)
     pos, nor, uv, tri = geometry(doc, blob)
@@ -288,11 +299,13 @@ def lint(glb):
                          "max_over_median": float(area.max() / med) if med else 0.0},
            "sliver_pct": round(100.0 * float((angles_min(p[live]) < SLIVER_DEG).mean()), 1) if live.any() else 0.0,
            "degenerate": int((~live).sum()), "flipped": flipped, "boundary_edges": boundary,
-           "nonmanifold_edges": nonmanifold, "components": comps, "materials": len(doc.get("materials", [])),
+           "nonmanifold_edges": nonmanifold, "components": comps,
+           "components_body": components_body(glb, comps), "materials": len(doc.get("materials", [])),
            "images": len(doc.get("images", [])),
            "pivot": {"min_y": float(pos[:, 1].min()), "height": height}, "root_scale": root_scale(doc)}
     out["normal_diff"], out["fairness"] = form(pos, tri, live)
-    out["components_body"] = body_components(pos, tri, prop_tris(doc), attach_props(glb))
+    if out["components_body"] == comps:      # no union report beside the GLB: count the body geometrically (24.L6-6)
+        out["components_body"] = body_components(pos, tri, prop_tris(doc), attach_props(glb))
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
     out["atlas_kb"] = atlas_kb(doc)
     out.update(uv_report(uv, tri, out["image_size"], p, area))

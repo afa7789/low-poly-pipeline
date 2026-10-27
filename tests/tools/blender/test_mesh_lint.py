@@ -88,6 +88,14 @@ class Lint(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(L.body_components(pos, tri, flagged, props), want)
 
+    def test_components_body_reads_the_build_report(self):
+        g = glb(self.tmp / "clay.glb")
+        self.assertEqual(L.lint(g)["components_body"], 1)               # no attach.json: every component counts
+        (self.tmp / "attach.json").write_text('{"union": {"components_body": 3}}')
+        m = L.lint(g)
+        self.assertEqual((m["components"], m["components_body"]), (1, 3))
+        self.assertEqual(L.failing(m, textured=False), ["components_body == 1"])
+
     def test_committed_run_calibration(self):
         run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
         if not run.exists():

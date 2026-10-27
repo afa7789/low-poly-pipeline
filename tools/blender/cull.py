@@ -160,11 +160,12 @@ def tolerance_ratio(obj, tree, tol, steps=8):
     return best
 
 
-def decimate_union(obj, budget_faces, tol=None, blind=True):
+def decimate_union(obj, budget_faces, tol=None, blind=True, floor=0):
     """Decimate the unioned shell. blind (default, the pre-M12 behaviour): COLLAPSE to the face
     budget. Else: as far as it stays within `tol` (default height/32) of its own pre-decimate
-    surface; over the budget at that point -> the budget wins. Either way the deviation of the
-    result is measured. Returns {ratio, dev, tol, faces_before, faces_at_tol, faces, budget_bound}."""
+    surface; over the budget at that point -> the budget wins; under `floor` faces -> stop at the
+    floor (a tolerance that is loose on a smooth shell would eat the silhouette's detail).
+    Either way the deviation of the result is measured. Returns {ratio, dev, tol, faces_before, faces_at_tol, faces, budget_bound}."""
     tol = tol or height_of(obj) / 32.0
     n0 = len(obj.data.polygons)
     bm = bm_of(obj)
@@ -173,6 +174,8 @@ def decimate_union(obj, budget_faces, tol=None, blind=True):
     bound = blind or at_tol > budget_faces
     if bound and n0 > budget_faces:
         ratio = max(0.02, budget_faces / float(n0))
+    elif floor and n0 * ratio < floor:
+        ratio = min(1.0, floor / float(n0))
     if ratio < 1.0:
         mod = obj.modifiers.new("Dec", "DECIMATE")
         mod.decimate_type = "COLLAPSE"
