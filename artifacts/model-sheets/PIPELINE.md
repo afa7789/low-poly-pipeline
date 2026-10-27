@@ -1414,3 +1414,27 @@ Papers: Begemann & Hutson 2026 (geração / integração / prontidão medidas à
 - **Constantes escolhidas por mim** (o roadmap só dá 0.3/0.7): `T_MAX = 1200 s` (um run completo com autor `session` leva 3-10 min), `ZONE_FULL = 0.5` (hard-v1 fica perto de .37), pesos 0.6/0.4 de IoU/zonas. Mudar em `compare_runs.py`; os testes fixam a fórmula, não os números.
 - **Prova:** `scratchpad/papers-d2e1/cmp.png`, `compare_runs.py ... v4-oneshot-r1 v5-variants-r1 --show clay` imprime `v5-variants-r1 score 0.803 f 0.90 g 0.76 123 s` e `v4-oneshot-r1 score n/a` (o v4 não tem tempos: não inventei).
 - **Limite.** O score só ranqueia o que tem tempo gravado; os runs antigos não entram. O tempo do autor depende da máquina e da fila do `claude -p`, ruído entre runs. As zonas dos runs só de estágio 1 não existem, então um run só de forma e um completo não são comparáveis em g.
+
+### 19.E2 CLIP render × concept (2026-10-27) - NEGATIVO, fora do fluxo
+
+`tools/blender/clip_score.py` (open_clip ViT-B/32 OpenAI, CPU; ULIP 2023: CLIP como juiz cross-modal, média das vistas, vários
+templates de texto). `clip_score.py <run_dir> --id <unit>` dá JSON: cosine render×concept (embedding médio das 6 vistas contra o
+painel do concept da unidade), render×texto da card ("a low-poly render of X", "a Warcraft III unit, X", "a 3D game model of X";
+X = nome na 1ª linha de `prompts/<id>/unit-<id>.txt`), top-k zero-shot entre as 7 unidades com sheet. Tudo reportado como
+**pos − neg** (neg = média contra os concepts/textos das outras unidades). Vistas: `views/<id>/model-<v>.png` ou recorte do
+`compare.png` 1440x1536 (os 9 compares 1536x2112 antigos ficam fora). `--correlate` roda a prova.
+
+Prova (29 runs com `silhouette.json` e compare em grade, 7 unidades; saída em `scratchpad/papers-e2/correlate.json`):
+
+| alvo | Spearman concept pos−neg | Spearman texto pos−neg |
+|---|---|---|
+| nº de vistas que passam o gate (0-6) | **+0.27** | −0.27 |
+| IoU médio das 6 vistas | +0.27 | −0.25 |
+| veredito PASS/FAIL | n/a (só 3 runs têm `verdict:` no review.md, todos PASS) | n/a |
+
+Dentro de uma unidade (hfoo n=9, n01X n=5): concept +0.10 / +0.30, texto +0.02 / +0.30 (IoU). Top-1 zero-shot da unidade certa
+(render × texto): 20 de 29 runs; rank 4-6 em 6 runs. Limiar do roadmap: Spearman ≥ 0.6. **Não atinge** (melhor 0.27), então o
+script **não** entra no `review.md` e fica como experimento. O CLIP separa unidades (pos−neg do n01X hard-v1: concept +0.091,
+texto +0.042, rank 1/7), mas não mede fidelidade de forma: renders low-poly de qualquer unidade ficam em cosine ~0.80-0.89 entre si,
+e o gate de silhueta já captura o que o CLIP não vê. Texto negativo é esperado (nomes de raça/papel dominam, não a forma).
+Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda só na CLI).
