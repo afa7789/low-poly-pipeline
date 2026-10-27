@@ -1398,15 +1398,12 @@ def main():
                     help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
-<<<<<<< HEAD
     ap.add_argument("--hull", action="store_true",
                     help="building kinds: the base volume is the sheet's front x left hull "
                          "(building_hull.py); the author only writes roof and props (PIPELINE 20.L13)")
-=======
     ap.add_argument("--cull", action="store_true",
                     help="stage 1 build deletes the faces no view sees (cull.py, PIPELINE 20.M8); "
                          "visible/total tris are always reported")
->>>>>>> leva2/m8
     ap.add_argument("--fit", action="store_true",
                     help="after repair/passes and before the final build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
                          "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
