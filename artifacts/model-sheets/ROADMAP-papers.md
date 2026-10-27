@@ -228,3 +228,58 @@ sheet (front/left/back + top/bottom + turntable 8 vistas)
 Cinco geradores geométricos cobrem as 28 famílias de rig: `lathe` (existe), `limb` (existe), **`chain`** (novo: 14 famílias com `_chain`), **`plate`** (novo: asas em 8 famílias, placas, lagartas, carapaça), `wheel/ring` (existe). Ordem: L4-1 `chain` → L4-2 `plate` → L4-3 fit hierárquico + piso por vista/família (independente) → L4-4 sheets + massing de quadruped/serpent/drake → L4-5 baseline cruzado 6-10 unidades → L4-6 `joint_place` (landmarks de junta) → L4-7 experimento 2 caminhos (baseline × procedural, mesma sheet/câmeras/gates) → DFS: diagnóstico LLM só em CHECK.
 
 **Decisão do usuário (2026-10-27):** nenhum gerador image-to-3D (TRELLIS, Hunyuan3D, TripoSR), nem como experimento de registro. O pipeline é nosso e evolui por representação própria + fit + gates. Briefs dos 3 primeiros no arquivo de análise.
+
+---
+
+# Leva 5 (2026-10-28) — FORMA: partes, profundidade e props separados
+
+Fonte: feedback do usuário ("forma principalmente; props mergeados com o corpo; parece outra coisa"),
+`analysis/2026-10-28-feedback-n005.md` (arma fundida, tanque em bloco, máscara plana, top assimétrico,
+detalhes inconsistentes; sugestões: profundidade monocular, VLM como segmentador/Point QA, renderização
+diferenciável) e a leitura do v8. Diagnóstico comum: o pipeline mede largura por faixa e silhueta, sem saber
+**que parte** é cada coisa nem **em que profundidade** está; a oclusão (arma na frente, tanque atrás) vira
+volume em bloco e o `overlap` obriga o prop a afundar no corpo. Regras do projeto mantidas: BFS, nada de gerador
+image-to-3D, nenhum loop de volta ao modelo.
+
+## Ordem de desenvolvimento
+- **L5-1 Segmentação semântica do sheet (VLM como segmentador, não autor).** Uma chamada por sheet
+  (session:opus, Point QA): para front e left, as coordenadas 2D das juntas do rig (ombro, cotovelo, punho,
+  quadril, joelho, tornozelo, topo da cabeça, queixo; para aranha: raiz e joelho de cada perna) e as caixas 2D
+  de cada parte semântica (cabeça/capuz, máscara, torso, pelvis/saia, braços, pernas, pés, cada prop da card:
+  tanque, arma, lanterna, crachá). Triangulação front×left → juntas 3D e caixa 3D por parte. Saída
+  `refs/<id>/parts.json` (versionado; gerado uma vez por sheet). Máscaras por parte = caixa 2D ∩ zona de cor.
+  Prova: overlay das juntas/caixas sobre o sheet nas 5 unidades; `joint_place` passa a usar isto (lê 8/8
+  juntas, não 2/8).
+- **L5-2 Massing por partes.** O pré-spec nasce das caixas 3D de L5-1, uma peça (ou lathe/limb/plate) por
+  parte semântica com o material da zona: tanque é tanque (lathe atrás do torso), capuz é capuz, arma é arma.
+  Largura por faixa só como refino dentro da parte. Substitui o massing por faixa quando `parts.json` existe.
+  Prova sem LLM: massing sozinho nas 5 unidades; `zones_clay` por parte (a peça do material X dentro da zona X)
+  sobe; o tanque e a arma aparecem como peças próprias no `attach.json`.
+- **L5-3 Props separados do corpo.** Prop é um objeto: ancorado num ponto (mão, costas, cinto) com folga
+  mínima (`prop_clearance`: fração do volume do prop dentro do corpo ≤ 20 %), material próprio, textura do
+  `sheet-props` projetada na peça. O `overlap` exige só o ponto de ancoragem. Regra `prop_reads`: no render ID,
+  a zona do prop é visível e separada (componente próprio) nas vistas onde o sheet o mostra. Fit: prop move
+  junto com a âncora, não escala para encher silhueta. Prova: n005 (tanque, arma, lanterna), hfoo (lança,
+  mochila), n02X (clava): compare antes/depois; juiz pareado.
+- **L5-4 Profundidade e oclusão no fit (sem rede, sem GPU).** Ordem de profundidade por parte vinda de L5-1
+  (left view diz o z de cada parte) vira restrição do fit: cada peça projeta dentro da própria máscara de parte
+  (zones_clay generalizado para partes) e a ordem z entre pares (arma na frente do peito, tanque atrás) é dura.
+  Isso é o que a renderização diferenciável resolveria; aqui entra no proxy raster que já existe. Prova: n005
+  left uncovered 21 % → < 15 %; arma e máscara deixam de fundir.
+  - **L5-4b (decisão do usuário):** profundidade monocular (Depth Anything V2 small, open-source, só inferência,
+    CPU/MPS). Não é gerador 3D, mas é rede pré-treinada: só entra se você aprovar. Uso: mapa Z por parte para
+    inicializar `at.z` e a ordem de oclusão onde o left não resolve (partes alinhadas no eixo).
+- **L5-5 Superfície por default.** 8 lados em tudo, bevel, `lathe` em cabeça/máscara/tanque (perfil do sheet,
+  squash), `limb` com joelho (de L5-1) nos membros, pés em lathe/frustum arredondado; máscara/rosto com volume
+  (lathe do perfil left) e o decal dos olhos sempre do sheet (dois pontos, não fenda). Prova: tris dentro do
+  orçamento; juiz pareado contra o run anterior; `edge_chamfer` e `spill` top/bottom caem.
+- **L5-6 Consistência de detalhes.** Checklist de identidade por sheet (de L5-1: props, olhos, crachá, válvula)
+  e regra `identity_present` (relatório → gate): cada item tem peça ou decal e aparece no render ID. Prova: o
+  crachá do n005 não some entre runs.
+- **L5-7 Juiz.** Pareado com 4 votos (2+2, sem viés de posição) e, além do run anterior, contra um modelo WC3
+  de referência da mesma classe (silhueta e leitura), eixo "parece WC3". Métrica principal de "parece".
+
+## Fora
+- Renderização diferenciável (PyTorch3D/nvdiffrast/Kaolin): sem CUDA; L5-4 põe profundidade e partes no proxy
+  que já roda em ms. Reavaliar só se L5-4 não resolver a fusão.
+- VLM escrevendo o modelo inteiro: continua só editando o pré-spec (massing por partes).
