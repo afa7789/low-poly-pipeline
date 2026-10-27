@@ -1131,3 +1131,69 @@ Both are stage 2 (colour); the shape is untouched.
   `scratchpad/t2/zoom-n005.png` (before | ink | ink + sheet face) and `zoom-n01X.png`. Zones mean
   front/left/back, n005 .531/.561/.586 -> .533/.581/.585; n01X .373/.372/.424 -> .38/.38/.42 (full
   pipeline, stage 1 and 2 PASS). The line is subtle on dark palettes (n005) and clear on n01X.
+
+## 19. Papers (2026-10-27)
+
+### 19.A1 `mesh_lint.py`, the Readiness block and the four statuses (2026-10-27)
+
+Papers: Chen 2023 (manifold / self-intersection table), Wiersma 2026 (sliver < 10 deg), Begemann &
+Hutson 2026 (technical matrix, four statuses), MeshGPT 2024 (|V|/|F|, face area), EdgeRunner 2024 (face
+orientation, degenerates, components; watertight is not required, a unit is a union of closed parts).
+- **`tools/blender/mesh_lint.py`**: numpy over the glTF JSON + BIN (no Blender; `check_gates.stats`
+  only reads the JSON, so the accessor reader is new). `lint(glb)` returns verts, faces, nodes, meshes,
+  skins, `compactness` (|V|/|F|), `face_area{median,p90,max_over_median}`, `sliver_pct`, `degenerate`,
+  `flipped` (accessor normal . geometric normal < 0), `boundary_edges` / `nonmanifold_edges` /
+  `components` (on welded vertices, 1e-5), `uv_out_of_range`, `uv_overlap_pct` and `atlas_used_pct`
+  (1024 raster, the decal cells 8-15 of each 256 px block excluded; glTF v is top-down, the cells are
+  bottom-up), `texel{min,max,ratio}`, materials, images, `image_size`, `unique_colours`
+  (Pillow), `pivot{min_y,height}`, `root_scale`. About 0.3 s per GLB. `python3.14 tools/blender/mesh_lint.py a.glb`
+  prints the JSON.
+- **Gates on** (`mesh_lint.GATES`, the obvious ones): `flipped == 0`, `uv_out_of_range == 0`,
+  `images == 1`, `abs(min_y) <= 0.01 H`, `root_scale == 1`. The three texture ones only count on the
+  textured model (not on `clay.glb`). Everything else is reported only.
+- **`check_gates.py`** prints flipped / sliver % / components and fails on the lint gates.
+  **`spec_pipeline.write_review`** adds `## Readiness` (criterion | value | gate, from `model.glb` when
+  stage 2 wrote it, else `clay.glb`) and `status:` from `status_of`: SHAPE-PASS -> `prototype-safe`;
+  PASS + clean lint -> `final-use`; PASS + a failed lint gate -> `prototype-safe` (a choice not in the
+  roadmap: the shape and colour are fine, the file is not); CHECK with front IoU < front gate - 0.10 ->
+  `rejected`; any other CHECK -> `placeholder`. The lint never changes the verdict or the exit code of
+  `spec_pipeline`, only the status.
+- **Calibration (68 committed GLBs, 47 textured, `runs/draft/*/*/*.glb`).** Failures per gate:
+  `abs(min_y) <= 0.01 H` 28, `images == 1` 20 (legacy runs: 0 images in `opus55`/`v3`, 3-4 in
+  v8-v13), `uv_out_of_range` 14 (1-3 vertices slightly under 0 or over 1, planar UVs of the old
+  texturizer), `flipped` 0. Not gated: non-manifold edges in 2 files (v6/v10 hand models), degenerate faces in none.
+- **Negative: `image_size <= 512` is NOT a gate** (the roadmap listed it). 33 of 47 textured GLBs
+  are 768 x 512 or 768 x 768, because `texturize` gives each of 5-8 materials a 256 px block (3 columns),
+  and the current pipeline's own `v4-oneshot-r1/model.glb` of n01X (6 materials) is 768 x 512. A gate would
+  fail every legitimate run. Re-enable when the atlas is packed to 512 (fewer blocks or 128 px blocks).
+- **Not usable yet:** `uv_overlap_pct` is 60-85 % on healthy models (cels and planar UVs share cells
+  on purpose, the face spans a whole cell) and 100 % with 0 % atlas used on the v2-hard runs
+  (degenerate UVs, 1 unique colour); `texel.ratio` is 20-90000 (cel `face_span` stretches a cell over any
+  face). Neither separates good from bad as the texturizer maps today; they stay as columns.
+- `abs(min_y)` at 0.01 H is tight for the spider: n00U v4-oneshot-r1 clay is 0.0104 H and v3-stages-r1
+  clays of n005 / n01X are 0.019 / 0.041 H (feet floating: real, `ground_fix` territory). Not relaxed.
+
+Calibration table (min_y as a fraction of H; sliver = % of faces with a smallest angle < 10 deg;
+V/F = |V|/|F|; gate = failed lint gates on that file, texture gates only if textured):
+
+| run | tris | V/F | sliver % | comp. | bnd/nm edges | images | image size | uv oor | uv overlap % | min_y/H | gate |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| n01X hard-v1 | 620 | 1.65 | 0.0 | 32 | 0/0 | 1 | 512x512 | 0 | 77.7 | 0.000 | none |
+| n01X v13 | 652 | 1.45 | 2.5 | 32 | 0/0 | 4 | 256x256 | 0 | 97.0 | 0.000 | images == 1 |
+| n01X v4-oneshot-r1 clay | 640 | 1.53 | 7.5 | 31 | 0/0 | 0 | - | 0 | - | 0.000 | none |
+| n01X v4-oneshot-r1 model | 640 | 1.83 | 7.5 | 31 | 0/0 | 1 | 768x512 | 0 | 83.5 | 0.000 | none (768 reported) |
+| n005 hard-v1 | 600 | 1.63 | 0.7 | 31 | 0/0 | 1 | 768x512 | 1 | 60.9 | 0.000 | uv_out_of_range |
+| n005 v4-oneshot-r1 clay | 668 | 1.30 | 10.8 | 27 | 0/0 | 0 | - | 0 | - | 0.000 | none |
+| n00U hard-v1 | 512 | 1.74 | 37.5 | 24 | 0/0 | 1 | 768x512 | 2 | 50.0 | 0.025 | uv_out_of_range, min_y |
+| n00U v4-oneshot-r1 clay | 496 | 1.65 | 42.7 | 24 | 0/0 | 0 | - | 0 | - | 0.010 | min_y (0.0104) |
+| hfoo hard-v1 | 528 | 1.68 | 3.0 | 28 | 0/0 | 1 | 768x512 | 0 | 63.0 | 0.000 | none |
+| hfoo v2-hard-r1 | 648 | 1.38 | 18.8 | 28 | 0/0 | 1 | 768x768 | 0 | 100.0 | 0.020 | min_y |
+| n01X v10 | 884 | 1.55 | 2.7 | 36 | 0/16 | 3 | 256x256 | 0 | 99.9 | 0.000 | images == 1 |
+| n01X v6 hand-n01X | 684 | 1.58 | 5.3 | 32 | 0/12 | 0 | - | 0 | - | 0.000 | images == 1 |
+
+Sliver % splits by design more than by quality: the spider (thin legs) is 37-43 % in every run, the
+biped 0-15 %, the v2-hard runs 10-25 % (more than hard-v1 of the same unit). That is the only
+column that moved with the v2-hard regression; it is not gated until a ceiling per rig family is chosen.
+Proof of the block: `scratchpad/papers-a1/readiness.md` (n01X v4-oneshot-r1). Tests:
+`tests/tools/blender/test_mesh_lint.py` (synthetic cube: clean, flipped, open, lifted, scaled; the
+n01X hard-v1 calibration; the four statuses).
