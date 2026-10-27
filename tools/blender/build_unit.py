@@ -830,6 +830,12 @@ CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
             "thigh.R": "legR", "shin.R": "legR", "foot.R": "legR"}
 
 
+def union_decimate(body_u, faces_budget, tolerance):
+    """Decimate the unioned shell: blind to the face budget, or (`toldec`, PIPELINE 20.M12)
+    as far as it stays within height/32 of its own surface. Logs the deviation either way."""
+    print("union decimate:", sibling("cull").decimate_union(body_u, faces_budget, blind=not tolerance))
+
+
 def union_parts(parts, meta, per_chain=False):
     """Boolean-union the plates into one connected shell so the junctions stop showing
     as steps and teeth, then bevel the new intersection edges. Keeps the hard-surface
@@ -1418,13 +1424,8 @@ def main():
         plan.decimate_type = "DISSOLVE"
         plan.angle_limit = math.radians(6)
         bpy.ops.object.modifier_apply(modifier=plan.name)
-        faces = len(body_u.data.polygons)
         budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
-        if faces > budget // 2:
-            dec = body_u.modifiers.new("Dec", "DECIMATE")
-            dec.decimate_type = "COLLAPSE"
-            dec.ratio = max(0.02, (budget // 2) / float(faces))
-            bpy.ops.object.modifier_apply(modifier=dec.name)
+        union_decimate(body_u, budget // 2, "toldec" in rest)
         print(f"union: {len(body_u.data.polygons)} faces after boolean + bevel + decimate")
     for obj, _ in parts:
         obj.select_set(True)
@@ -1437,6 +1438,8 @@ def main():
         before = len(body.data.polygons)
         clean_mesh(body)
         print(f"clean: {before} -> {len(body.data.polygons)} faces")
+    if "cull" in rest or "cull=remove" in rest:
+        sibling("cull").cull(body, out, remove="cull=remove" in rest)
     if len(cli) > 1 and cli[1] == "morph":
         faces = morph(body, target=int(cli[2]) if len(cli) > 2 else 650)
         print(f"morph: {faces} faces after subdiv + decimate")

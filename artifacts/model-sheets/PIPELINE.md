@@ -1462,6 +1462,7 @@ Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda s�
 ## 20. Leva 2 (2026-10-27)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ### 20.E15 Arestas internas do hard sheet, facetas no brief, Chamfer no review (2026-10-27) - budget_split por saliência NEGATIVO, desligado
 
 **O que mudou.** `silhouette.edges(path, mask)`: Sobel do luma suavizado (sigma 1), limiar relativo (30 % do percentil 99 do painel, então sombra mole fica de fora), menos um anel de 7 px na borda da máscara (o contorno não é aresta interna), fechamento de 1 px (a linha de tinta dá duas cristas). `edge_bands(hard, shoulder_frac)`: por faixa (cabeça acima do ombro, torso até o quadril, pernas, os mesmos cortes de `band_areas`) devolve `salience` (parcela dos pixels de aresta), `facets` (mediana de linhas de aresta cruzadas por uma linha de varredura, mais 1) e `direction` (vertical/horizontal/mixed, por abertura 9x1 vs 1x9 com razão 1.5). `measure` ganhou `shoulder_frac`. `spec_pipeline.facet_text` põe a linha `FACETS drawn on the hard sheet's front view ...` no `measured_text` (só biped); `make_brief` calcula as bordas do `args.build`. `silhouette.edge_chamfer/edge_report`: Chamfer entre `edges(hard)` e o `wire-<view>.png` do clay (ambos recortados na caixa da figura e ajustados ao mesmo canvas; melhor dos dois espelhos). Linha nova no review: `edge chamfer hard->wire (/H)` (= `drawn`: distância média de uma aresta desenhada à aresta de wire mais próxima), e `silhouette.json` guarda também `extra` (wire -> desenho; grande por construção, o wire traz a triangulação).
@@ -1638,3 +1639,65 @@ Teste: `test_redo_topbottom.py` (corte na faixa vazia entre as fileiras, sem API
   n=1: a variância do autor é maior que a diferença. O ganho é front/back e menos tris; o left piorou (o autor sem hull desenhou o braço do guindaste e a plataforma sobre a lateral).
 - **Piorou / pendente.** Um volume de duas vistas ignora pisos mais baixos e alas (a "ponta fina" também leva uma ala baixa: o autor tem de recolocá-la). O estimador do preflight conta caixa chanfrada abaixo do GLB (468 vs 628): vale para as duas runs. Pulado: QEM (`-> skipped: QEM, add when hull > 1/4 do orçamento`; dissolve basta com 12-28 tris), `hull` como kind no DSL (a peça é box + `cut`, nada muda no schema). Falta rodar nos 53 specs; os dois sheets de edifício são o que existe, mais sheets de edifício antes de decidir `--hull` como default.
 >>>>>>> leva2/l13
+=======
+### 20.M8 Faces nunca vistas: `cull` (2026-10-27) - relatório sempre, remoção opt-in
+
+`tools/blender/cull.py` (novo, chamado por `build_unit.py` com `sibling("cull")`). Argumento `cull` no `build_unit.py`: depois do
+join (e do `clean`), antes de `morph`/`atlas_uvs`/`texturize`, atira raios ortográficos, um por pixel (192 px no maior lado), em
+12 vistas (4 laterais a 0°, 4 laterais a 45°, topo, fundo, 2 diagonais por baixo) contra um BVH da malha; a face atingida é "vista".
+É a mesma resposta de um render-ID (uma cor por face, sem sombra), sem motor de render: 0.8 s por unidade. Grava `cull.json` ao
+lado do GLB (`visible_tris`, `total_tris`, `visible_faces`, `total_faces`, `rays`, `removed`) e imprime `cull: 534/620 tris visible`.
+`cull=remove` apaga as faces não vistas e os vértices soltos (`bmesh.ops.delete`); os grupos de vértice ficam nos vértices que
+sobram e os UVs nascem depois (`atlas_uvs` lê só as faces que restam), então peso e atlas não são tocados.
+
+`spec_pipeline`: o estágio 1 sempre passa `cull` ao build; `review.md` ganha a linha `visible tris | 540/620 (87%), kept (--cull removes)`.
+`--cull` passa `cull=remove` (default desligado). Só o build final do estágio 1 mede; os trials de repair/passes não (ficam rápidos).
+
+Medida (specs existentes, clay, mesmos args do estágio 1; saída em `scratchpad/leva2-m8/{n01X,n005}/{base,cull}`):
+
+| unidade (run) | tris | visíveis | com `--cull` | IoU 6 vistas (front/left/back/top/bottom/rts) |
+|---|---|---|---|---|
+| n01X hard-v1 | 620 | 540 (87 %) | 540 | idêntico nas 6 (0.870/0.770/0.869/0.803/0.781/0.789, Δ 0.0000) |
+| n005 v5-fit-r3 | 704 | 577 (82 %) | 577 | idêntico nas 6 (0.853/0.825/0.894/0.746/0.774/0.865, Δ 0.0000) |
+
+Textura cel (`build_unit ... tex style=cel`, render_unit 5 vistas, pixels que diferem > 8/255): n01X 0.000-0.031 %, n005 0.000-0.002 %;
+`mesh_lint`: 1 skin, 1 imagem, `uv_out_of_range` igual ao sem cull (0 e 1). n01X 620 -> 534 tris texturizado, n005 584 -> 497.
+Os números do build do estágio 1 e do standalone diferem um pouco (540 x 534) porque o estágio 1 inclui o `cuts=` do hull.
+
+O que piorou / limite: nada na silhueta nem na cor. O raio tem pixel de ~1 % de H: uma face menor que isso pode ser marcada
+escondida sem ser (a remoção é opt-in por isso). Costas de face contam como vistas (sem back-face culling), então uma face
+visível só por dentro de um oco fica. Faces escondidas são 13-18 % dos tris nas duas unidades: espaço de orçamento para o autor,
+mas hoje o orçamento do preflight conta tris antes do cull, então `--cull` encolhe o GLB para baixo do que o autor planejou
+(n005: 704 -> 577); se cair abaixo do piso de tris (400) o gate `tris` reprova, por isso fica fora do default.
+Papers: nenhum da lista identificado para este item (técnica padrão de ID buffer / visibilidade por raio).
+
+### 20.M12 Decimate do `union` com tolerância de tela (2026-10-27) - NEGATIVO, opt-in `toldec`
+
+`cull.decimate_union(obj, budget_faces, tol=None, blind=True)`: o ramo `union` do `build_unit` chama `union_decimate`. `blind` (default,
+o comportamento de antes): COLLAPSE até `budget//2` faces. `toldec`: bisseção (8 passos) no ratio do COLLAPSE sobre cópias; para no
+menor ratio cuja distância máxima, dos vértices e centróides de triângulo do resultado à malha pré-decimate (BVH `find_nearest`), fica
+em `d = H/32`; se isso ainda estoura o orçamento, o orçamento vence. A distância do resultado é medida e impressa nos dois modos
+(`union decimate: {...}`). Centróide de triângulo e não centro de polígono: o centro de um n-gono côncavo cai fora da própria superfície
+(a primeira versão media 0.185 numa malha sem decimar).
+
+Medida (union, clay, IoU contra `sheet.jpg`, 6 vistas front/left/back/top/bottom/rts; orçamento 700 e 1600):
+
+| unidade | modo | tris | dev (H/32 = tol) | IoU |
+|---|---|---|---|---|
+| n01X hard-v1, orç. 700 | blind | 683 | 0.017 (tol 0.081) | .875/.769/.873/.801/.779/.786 |
+| | toldec | 358 | 0.061 | .862/.791/.862/.799/.778/.769 |
+| n01X, orç. 1600 | blind | 1588 | 0.011 | .872/.768/.870/.800/.781/.782 |
+| | toldec | 219 | 0.078 | .837/.783/.836/.777/.777/.764 |
+| n005 v5-fit-r3, orç. 700 | blind | 708 | 0.007 (tol 0.085) | .855/.820/.896/.736/.741/.865 |
+| | toldec | 284 | 0.079 | .823/.788/.841/.725/.735/.876 |
+| n005, orç. 1600 | blind | 1634 | 0.001 | .856/.820/.896/.736/.742/.864 |
+| | toldec | 284 | 0.079 | idem a 700 |
+
+Leitura: o decimate cego ao orçamento já fica dentro de H/32 (desvio 0.001-0.017, 2-20 % da tolerância), então a tolerância
+de tela nunca é o limite ativo no orçamento; sozinha ela só deixa a malha cair para 220-360 tris, abaixo do piso 400 do gate `tris`,
+e perde IoU (front -0.013 a -0.035, back -0.011 a -0.055, rts -0.017). Dois lados: left de n01X sobe (+0.022) e rts de n005 sobe (+0.011);
+a média das 6 vistas cai em todos os casos. H/32 (~3 % da altura) é folgado demais para a silhueta, que pena desvios de ~1 %.
+Fica `blind` como default; `toldec` só serve para medir quantos tris a unidade "precisa" (a coluna dev do blind já responde:
+o orçamento está folgado em geometria, apertado em leitura). Se voltar a tentar: tolerância H/128 e piso de faces por orçamento.
+Papers: Garland, Heckbert 1997 (o COLLAPSE do Blender é quadric error metrics; aqui só se mede o erro do resultado).
+>>>>>>> leva2/m8

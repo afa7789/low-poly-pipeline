@@ -959,7 +959,8 @@ def stage_shape(spec_path, args, layout):
     glb = args.out / "clay.glb"
     spec = json.loads(pathlib.Path(spec_path).read_text())
     build = tool("build_unit.py", spec_path, glb, *clay_args(args.kind),
-                 *cut_hull.args(spec, args.sheet, args.kind, args.out), blender=True)
+                 *cut_hull.args(spec, args.sheet, args.kind, args.out),
+                 "cull=remove" if args.cull else "cull", blender=True)
     if not glb.exists():
         print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
         return {"ok": False, "glb": None, "tilts": {}, "checks": {"build": False},
@@ -977,7 +978,22 @@ def stage_shape(spec_path, args, layout):
     failed = [k for k, v in checks.items() if not v]
     return {"ok": not failed, "glb": glb, "tilts": tilts_of(report), "checks": checks,
             "failed": failed, "pre": pre.stdout, "tris": tris, "skins": skins, "anims": anims,
-            "smear": smear_pct, "t_pre": t_pre, "t_build": time.monotonic() - t0 - t_pre}
+            "smear": smear_pct, "cull": cull_stats(glb), "t_pre": t_pre, "t_build": time.monotonic() - t0 - t_pre}
+
+
+def cull_stats(glb):
+    """cull.json that build_unit.py (cull.py) wrote beside `glb`, or None."""
+    path = glb.parent / "cull.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def cull_row(shape):
+    """review.md row: tris seen by some of 12 views / all tris (PIPELINE 20.M8)."""
+    c = shape.get("cull")
+    if not c:
+        return ""
+    after = f", removed -> {c['tris_after']} tris" if c.get("removed") else ", kept (--cull removes)"
+    return f"| visible tris | {c['visible_tris']}/{c['total_tris']} ({c['visible_tris'] / c['total_tris']:.0%}){after} |\n"
 
 
 def margin_of(summary):
@@ -1382,9 +1398,15 @@ def main():
                     help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
+<<<<<<< HEAD
     ap.add_argument("--hull", action="store_true",
                     help="building kinds: the base volume is the sheet's front x left hull "
                          "(building_hull.py); the author only writes roof and props (PIPELINE 20.L13)")
+=======
+    ap.add_argument("--cull", action="store_true",
+                    help="stage 1 build deletes the faces no view sees (cull.py, PIPELINE 20.M8); "
+                         "visible/total tris are always reported")
+>>>>>>> leva2/m8
     ap.add_argument("--fit", action="store_true",
                     help="after repair/passes and before the final build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
                          "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
@@ -1482,7 +1504,7 @@ def stage1_section(args, shape):
     return (f"## Stage 1 - shape (clay): **{'PASS' if shape['ok'] else 'FAIL'}**\n\n"
             f"| gate | value |\n|---|---|\n{rows}"
             f"| tris | {shape['tris']}/{lo}-{hi} |\n| skins | {shape['skins']} |\n"
-            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n"
+            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n{cull_row(shape)}"
             f"{iou_rows(args.summary)}{prop_row(args.summary)}\n")
 
 
