@@ -1262,9 +1262,6 @@ def stage_one(args, brief, images, tmp, layout):
         spec, shape = best_of_n(specs, args, layout)
     else:
         spec = specs[0][1]
-    if args.fit:
-        spec = fit_stage(spec, args)
-        shape = None
     # the repair pass (preflight failures -> patch) runs even without --passes: it is
     # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
     if args.passes or not args.no_repair:
@@ -1273,6 +1270,11 @@ def stage_one(args, brief, images, tmp, layout):
         spec = run_passes(spec, args, brief, views)
         args.times["passes"], args.times["n_passes"] = time.monotonic() - t0, len(views)
         shape = None         # the spec changed: its stage 1 is measured again below
+    # --fit comes last: a numeric fit of dims/at that an LLM repair after it would undo
+    # (n005 v5-fit-r1: fit took front 0.72 -> 0.82, the repair pass then put it back at 0.71)
+    if args.fit:
+        spec = fit_stage(spec, args)
+        shape = None
     spec_path = args.out / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2))
 
@@ -1340,7 +1342,7 @@ def main():
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
     ap.add_argument("--fit", action="store_true",
-                    help="before the first build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
+                    help="after repair/passes and before the final build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
                          "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
     ap.add_argument("--variants", type=int, default=1,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "
