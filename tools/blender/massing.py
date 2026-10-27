@@ -593,7 +593,7 @@ def lathe_part(part, slot, front, side, sides):
     size, ctr = box_dims(part)
     opts = {"profile": box_profile(part, front, side), "squash": r3(float(np.clip(size[0] / max(size[2], 1e-3), 0.5, 2.0))),
             "sides": LATHE_SIDES["head"]}
-    if part.get("role") == "head":
+    if part.get("role") in ("head", "face"):
         opts["decal"] = "sheet"     # the face is always the sheet's own (PIPELINE 18.J, 23.L5-5): two eyes, not a slit
     return [[part["bone"], "lathe", [r3(size[0] / 2), r3(size[1])], [r3(c) for c in ctr], slot, opts]]
 
@@ -835,7 +835,7 @@ def leg_side(S, tag, slot_of, fit, sides):
     w = min(w, 0.25 * fit["H"])
     z = ctr[2] - box_dims(foot)[0][2] / 2 + d / 2        # the heel stays, the toe grows
     out.append([foot["bone"], "frustum", [r3(w), r3(h), r3(d)], [r3(ankle[0]), r3(h / 2), r3(z)],
-                slot_of(foot), {"top": [0.9, 0.8], "shift": [0, 0]}])
+                slot_of(foot), {"top": [0.9, 0.8], "shift": [0, 0], "sides": 8}])   # a rounded boot (23.L5-5)
     return out
 
 
@@ -985,6 +985,15 @@ def balance(groups, targets):
             return
 
 
+def one_face(parts):
+    """Keep the sheet's face decal on one head-bone part only: the last lathe there (the mask in front
+    of the hood on n005), so two parts never stack two pairs of eyes (23.L5-5)."""
+    faced = [p for p in parts if p[0] == "head" and isinstance(p[5], dict) and p[5].get("decal") == "sheet"]
+    for p in faced[:-1]:
+        p[5].pop("decal")
+    return parts
+
+
 def parts_prespec(sheet, doc, H, palette, labels_for, sides):
     """The biped parts of parts.json (PIPELINE 23.L5-2b): symmetric, sized by the sheet's measures, each group that
     still fails a preflight rule swapped for the band massing's; None only when no group is left of it."""
@@ -1000,7 +1009,7 @@ def parts_prespec(sheet, doc, H, palette, labels_for, sides):
     targets = preflight.targets_from(sheet)
     settle(groups, functools.cache(lambda: band_groups(biped(sheet, H, labels_for, sides))), targets)
     balance(groups, targets)
-    return flat(groups)
+    return one_face(flat(groups))
 
 
 def sheet_fit(front, side, H, m, S):
