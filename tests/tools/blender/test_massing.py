@@ -61,14 +61,38 @@ class Stack(unittest.TestCase):
         self.assertAlmostEqual(parts[0][5]["top"][0], 0.5, 1)
         self.assertTrue(all(p[1] == "frustum" and p[0] == "spine" for p in parts))
 
+    def test_ring_stack_is_one_lathe_through_the_breakpoints(self):
+        g = {"y0": 0.0, "y1": 1.0, "w": lambda y: 1.0 if y < 0.5 else 0.6, "d": lambda y: 0.4, "zc": lambda y: 0.1 * y}
+        (part,) = M._ring_stack("torso", "spine", "z1", g)
+        rings = part[5]["profile"]
+        self.assertEqual(part[1], "lathe")
+        self.assertTrue(3 <= len(rings) <= 6)
+        self.assertEqual(max(q[0] for q in rings), 1.0)                      # r = the widest half width
+        self.assertEqual([q[4] for q in rings], sorted(q[4] for q in rings))
+        self.assertGreater(part[2][1], 1.0)                                  # the end rings moved out to overlap the neighbours
+        self.assertIsNone(LL.bad_opts("lathe", part[2], part[5]))
+
+    def test_emit_uses_rings_for_the_trunk_unless_stack_lathe_is_off(self):
+        g = {"y0": 0.0, "y1": 1.0, "w": lambda y: 1.0, "d": lambda y: 0.5, "zc": lambda y: 0.0}
+        saved = M.STACK_LATHE
+        try:
+            for flag, kind in ((True, "lathe"), (False, "frustum")):
+                with self.subTest(flag):
+                    M.STACK_LATHE = flag
+                    self.assertEqual({p[1] for p in M.emit("torso", "spine", "z1", g)}, {kind})
+        finally:
+            M.STACK_LATHE = saved
+
     def test_emit_falls_back_for_a_kind_without_emitter(self):
         saved = dict(M.KIND_FOR)
         try:
             M.KIND_FOR["torso"] = "dome"                 # a kind with no emitter
+            M.STACK_LATHE = False
             g = {"y0": 0.0, "y1": 1.0, "w": lambda y: 1.0, "d": lambda y: 1.0, "zc": lambda y: 0.0}
             self.assertEqual(M.emit("torso", "spine", "z1", g)[0][1], "frustum")
         finally:
             M.KIND_FOR.update(saved)
+            M.STACK_LATHE = True
 
 
 class Slots(unittest.TestCase):
@@ -107,8 +131,10 @@ class PartsBuild(unittest.TestCase):
         band = M.build(self.sheet, "biped", "Human", self.hard, parts=False)
         spec = M.build(self.sheet, "biped", "Human", self.hard, parts=self.doc)
         self.assertLessEqual({"lathe", "limb", "prism", "box", "frustum"}, {p[1] for p in spec["parts"]})
-        tank = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine"]
+        tank = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine" and p[5].get("asym")]
         self.assertEqual(len(tank), 1)                                    # the tank is its own lathe on the spine
+        (torso,) = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine" and not p[5].get("asym")]
+        self.assertTrue(lathe_limb.is_ring_profile(torso[5]["profile"]))   # and the torso one ring lathe (L6-1), not a stack
         self.assertLess(tank[0][3][2], -0.5)                              # behind the torso
         self.assertTrue(any(p[1] == "box" and p[0] == "forearm.L" for p in spec["parts"]))   # the held weapon
         self.assertNotEqual(spec, band)

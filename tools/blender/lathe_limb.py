@@ -32,6 +32,8 @@ PROFILE_RANGE = (6, 10)         # rings of a profile
 SHEET_RINGS = 6                 # rings of a profile read from the sheet
 DEFAULT_PROFILE = (0.6, 0.9, 1.0, 1.0, 0.85, 0.5)
 PROFILE_MAX = 1.5               # a ring is at most this many times r
+RING_RANGE = (3, 10)            # rings of a ring profile
+RING_MAX = 3.0                  # w and d of a ring, x r (a trunk is deeper than it is wide only up to here)
 KNEE = (0.5, 0.0, 0.0, 0.0)
 PLATE_AXES = ("front", "left", "top")
 PLATE_PTS = (3, 8)              # vertices of a plate outline (cut_hull.LIMIT reads at most 8)
@@ -53,6 +55,11 @@ def set_rig(family, extras=None):
 
 def sides_of(opts):
     return int(opts.get("sides", SIDES))
+
+
+def is_ring_profile(prof):
+    """True for a profile of [w, d, zc, xc(, t)] rings, False for one of radii (or none)."""
+    return bool(prof) and isinstance(prof[0], (list, tuple))
 
 
 def rings_of(opts):
@@ -103,16 +110,44 @@ def bad_opts(kind, dims, opts, bone=None):
                 and 0.15 <= knee[0] <= 0.85):
             return "knee is [frac 0.15-0.85, dx, dz, optional dy]"
         return None
-    prof = opts.get("profile")
     if len(dims) != 2 or "from" in opts or "to" in opts or "rot" in opts:
         return "a lathe stands upright: dims (r, h), no from, to or rot"
     if opts.get("axis", "front") not in ("front", "left"):
         return "axis is front or left"
+    bad = bad_profile(opts.get("profile"))
+    if bad:
+        return bad
+    return bad_corner_squash(opts)
+
+
+def bad_corner_squash(opts):
+    corner, squash = opts.get("corner", 0.0), opts.get("squash", 1.0)
+    if isinstance(corner, bool) or not isinstance(corner, (int, float)) or not 0 <= corner <= 1:
+        return "corner is 0-1"
+    return None if isinstance(squash, (int, float)) and 0.5 <= squash <= 2.0 else "squash is x/z in 0.5-2"
+
+
+def bad_profile(prof):
+    """Why a lathe profile (radii, or rings) is outside the schema, or None (also for no profile)."""
+    if is_ring_profile(prof):
+        return bad_ring_profile(prof)
     if prof is not None and not (PROFILE_RANGE[0] <= len(prof) <= PROFILE_RANGE[1]
                                  and all(isinstance(v, (int, float)) and 0.05 <= v <= PROFILE_MAX for v in prof)):
         return f"profile is {PROFILE_RANGE[0]}-{PROFILE_RANGE[1]} radii (x r) in 0.05-{PROFILE_MAX}"
-    squash = opts.get("squash", 1.0)
-    return None if isinstance(squash, (int, float)) and 0.5 <= squash <= 2.0 else "squash is x/z in 0.5-2"
+    return None
+
+
+def bad_ring_profile(prof):
+    """Why a profile of rings is outside the schema, or None."""
+    ok = (RING_RANGE[0] <= len(prof) <= RING_RANGE[1]
+          and all(isinstance(q, (list, tuple)) and len(q) in (4, 5) and all(isinstance(v, (int, float)) for v in q) for q in prof))
+    if not ok:
+        return f"a ring profile is {RING_RANGE[0]}-{RING_RANGE[1]} rings [w, d, zc, xc] or [w, d, zc, xc, t]"
+    ts = [q[4] for q in prof if len(q) == 5]
+    if (any(not 0.05 <= v <= RING_MAX for q in prof for v in q[:2]) or any(abs(v) > RING_MAX for q in prof for v in q[2:4])
+            or (ts and (len(ts) != len(prof) or ts != sorted(ts) or not 0 <= ts[0] <= ts[-1] <= 1))):
+        return f"ring w, d in 0.05-{RING_MAX}, zc and xc within +-{RING_MAX}, t rising in 0-1 on every ring or none"
+    return None
 
 
 def bad_plate(dims, opts):
@@ -142,6 +177,8 @@ def lathe_rings(dims, at, opts, sheet=None):
     the sheet (cut_hull.lathe_profiles), used when opts has none."""
     r, h = dims
     prof = opts.get("profile") or sheet or DEFAULT_PROFILE
+    if is_ring_profile(prof):
+        return ring_surface(r, h, at, prof, sides_of(opts), float(opts.get("corner", 0.0)))
     n, squash = sides_of(opts), float(opts.get("squash", 1.0))
     out = []
     for i, p in enumerate(prof):
@@ -150,6 +187,21 @@ def lathe_rings(dims, at, opts, sheet=None):
         out.append([(at[0] + x, y, at[2] + z) for x, _, z in
                     ((rx * math.cos(a), 0, rx / squash * math.sin(a)) for a in
                      (2 * math.pi * k / n for k in range(n)))])
+    return out
+
+
+def ring_surface(r, h, at, prof, n, corner=0.0):
+    """[ring] of a lathe whose profile is [w, d, zc, xc(, t)] rings: ellipses of x radius r*w and z radius r*d,
+    centred (at.x + r*xc, y, at.z + r*zc), y = at.y - h/2 + t*h. `corner` scales a vertex by
+    1 + corner * (sqrt 2 - 1) * |sin 2a|: the diagonal ones of an 8-gon reach the box's corner at corner = 1."""
+    out = []
+    for i, q in enumerate(prof):
+        t = q[4] if len(q) == 5 else i / (len(prof) - 1)
+        cx, cz = at[0] + r * q[3], at[2] + r * q[2]
+        angles = [2 * math.pi * k / n for k in range(n)]
+        push = [1 + corner * (math.sqrt(2) - 1) * abs(math.sin(2 * a)) for a in angles]
+        out.append([(cx + r * q[0] * f * math.cos(a), at[1] - h / 2 + t * h, cz + r * q[1] * f * math.sin(a))
+                    for a, f in zip(angles, push)])
     return out
 
 

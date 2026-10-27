@@ -2792,3 +2792,25 @@ rts .512 -> .553, `fist_span` 1.29 -> 1.20 (alvo 0.55); n005 front .877 -> .877,
 diferentes; n02X é assimétrico mas o front não foi espelhado: o desequilíbrio de massa é pequeno, 24550 x 24182 px, a assimetria é de pose). (4) Só o veredito de `silhouette.py` ignora a vista incoerente;
 `margin_of`/`fit_accepted` ainda usam `GATES` inteiro. (5) O brief fala inglês (o autor lê inglês): o texto do roadmap em
 português está em `sheet_text`.
+
+### 24.L6-1 Tronco, pelve e cabeça como UMA superfície contínua: `STACK_LATHE` (2026-10-27) - ligado; casca da aranha NEGATIVA (fica em fatias)
+
+- **O que mudou.** `lathe_limb`: `profile` de um `lathe` pode ser lista de anéis `[w, d, zc, xc(, t)]` (x = r*w, z = r*d, centro deslocado r*(xc, zc), `t` = altura 0-1 de h; sem `t`, uniforme), 3-10 anéis, `corner` 0-1 empurra os vértices diagonais do 8-gon para o canto da caixa (0 = círculo: de cima enche 71 % da caixa; 1 = retângulo). `massing._ring_stack` (emissor `ring`, roteado por `emit` quando `STACK_LATHE and role in RING_ROLES`) emite UM `lathe` por torso/pelve/cabeça com os anéis nos `breakpoints` que a pilha já calculava (4-5 anéis) e w/d/zc lidos do sheet; os anéis das pontas saem `RING_OVERLAP = 5 %` da altura para a parte vizinha sobrepor a 80 % (`overlap`). `lathe_part` (cabeça/máscara do `parts.json`) lê 5 anéis na caixa (largura do front, profundidade e centro z do left). `fit_spec.apply_profile` move w/d dos anéis ±15 % (último valor = papel do squash); `preflight.part_tris`/`bbox`, `build_unit.swept_part`, `cut_hull.lathe_profiles` leem a mesma `lathe_rings` e não mudaram. `touch` deixou de mover o corpo na direção de um prop (bug exposto: o torso único foi puxado 0.13 m para o tanque). Flag `STACK_LATHE = False` volta às fatias.
+- **Por quê.** Chen 2023 (superfície contínua, sem cascas que se atravessam) e Sano 2026 (volume de base regular): na pilha de `frustum` cada fatia tem a sua largura e toda junta vira degrau; anéis compartilhados dão uma junta só.
+- **Medido** (massing sozinho, `--no-fit --no-repair`, IoU vs sheet front/left/back/top/bottom/rts; antes -> depois; provas em `scratchpad/leva6-surface/{base,fin}`):
+
+| unidade | IoU antes | IoU depois | média | tris | slivers | componentes |
+|---|---|---|---|---|---|---|
+| n005 | .824 .874 .823 .752 .744 .856 | .826 .899 .824 .756 .777 .843 | .812 -> .821 | 592 -> 628 | 8.1 -> 5.1 % | 20 -> 15 |
+| hfoo | .708 .669 .698 .495 .527 .488 | .700 .675 .691 .493 .526 .486 | .597 -> .595 | 564 -> 600 | 10.6 -> 8.0 % | 21 -> 16 |
+| n02X | .742 .769 .743 .638 .681 .709 | .759 .797 .760 .640 .679 .716 | .714 -> .725 | 768 -> 772 | 17.2 -> 13.7 % | 24 -> 19 |
+| n00U (aranha) | .765 .681 .760 .628 .619 .606 | .765 .681 .760 .629 .619 .607 | .676 -> .677 | 608 -> 656 | 17.4 -> 16.2 % | 40 -> 36 |
+| n017 (quadrúpede) | = | = | .759 | 412 | 10.2 % | 21 |
+
+  Todas dentro de ±0.02 por vista (n005 left +.025 e bottom +.033, a favor); n005 passa o estágio 1 como antes. Wire no compare (`compare_runs --show clay+wire+overlay`, `cmp-n005.png`): capuz, torso e pelve são uma malha contínua, sem os degraus da pilha.
+- **O que piorou / não entrou.**
+  - Octógono puro (`corner 0`) perdeu 0.05 em top/bottom (n005 .752 -> .698, estágio 1 FAIL): de cima ele enche 71 % da caixa que a pilha de 4 lados enchia; por isso `corner` (tronco 1.0, cabeça 0.5).
+  - Casca da aranha: o corpo todo (`body`) como UM lathe perdeu 0.044 no left (.681 -> .637; a pilha de fatias carrega a linha de barriga e costas de cada fatia, um lathe é reto), top/bottom +0.02, tris 608 -> 500. Fica em fatias; só `abdomen` e `head` viram anéis (`SHELL_RINGS`), IoU neutro, +48 tris. Média de alturas por fatia em vez de min/max foi pior (.610).
+  - n017: o tronco é uma sequência de tijolos em z (`slab`); um lathe em pé não representa isso, nada mudou. Um lathe deitado (eixo z) seria um item à parte.
+  - hfoo -0.002 (neutro); stage 1 segue FAIL por top/bottom/rts já antes.
+  - Tris sobem 4-8 % (8 lados por anel x 4-5 anéis); n02X já estava acima de 700 antes.
