@@ -2397,8 +2397,6 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Testes.** `test_review_pair.py`: ordem 2+2, tally/empate 2-2/viés com 4 votos, `lost` 2 de 3 e resultado antigo, `wc3_ref`/`crop_figure`, imagem de 4 células, `compare_runs.pair_text`.
 
 
-## 23. Leva 5 (2026-10-28)
-
 ### 23.L5-6 Consistência de identidade: `identity_present` (preflight) + `identity_reads` (render ID), status (2026-10-27) - relatório, status rebaixa
 
 Feedback n005 (v6-r4, v7-r1, v7-r2): o detalhe azul, os olhos e a lanterna somem entre runs; IoU e zonas grandes não veem (< 3 % da figura).
