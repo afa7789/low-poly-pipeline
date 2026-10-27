@@ -187,3 +187,26 @@ class SheetMeasures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Outline(unittest.TestCase):
+    def test_douglas_peucker_keeps_corners_drops_noise(self):
+        line = [(0, 0), (5, 0.2), (10, 0), (10, 5), (10, 10)]
+        kept = S.douglas_peucker(line, 0.5)
+        self.assertEqual(kept.tolist(), [[0, 0], [10, 0], [10, 10]])
+
+    def test_outline_of_a_t_shape(self):
+        import numpy as np
+        m = np.zeros((60, 60), bool)
+        m[5:55, 25:35] = True        # stem
+        m[5:15, 10:50] = True        # bar
+        poly = S.outline(m)
+        self.assertTrue(8 <= len(poly) <= 12)
+        self.assertGreater(max(y for _, y in poly), 0.97)
+        self.assertEqual(max(x for x, _ in poly), -min(x for x, _ in poly))   # centred
+        self.assertTrue(any(abs(x - 0.4) < 0.03 and y > 0.8 for x, y in poly))  # the bar's tip
+
+    def test_band_areas_sum_to_one(self):
+        import numpy as np
+        m = np.ones((100, 20), bool)
+        self.assertEqual(S.band_areas(m, 0.2), [0.2, 0.3, 0.5])

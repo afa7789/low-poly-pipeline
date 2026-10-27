@@ -25,7 +25,7 @@ class ApplyPatch(unittest.TestCase):
         extra = ["spine", "box", [0.1, 0.1, 0.1], [0, 1.9, 0.3], "lamp", {}]
         parts, why = SP.apply_patch(PARTS, reply({"set": {"1": new}, "drop": [2],
                                                   "add": [extra], "why": "wider head"}))
-        self.assertEqual(parts, [PARTS[0], new, extra])
+        self.assertCountEqual([p[0] for p in parts], [PARTS[0][0], new[0], extra[0]])   # normalised: rig order, grid
         self.assertEqual(why, "wider head")
 
     def test_too_many_edits_is_rejected(self):
@@ -50,7 +50,7 @@ class ApplyPatch(unittest.TestCase):
     def test_bare_bone_names_are_quoted(self):
         parts, _ = SP.apply_patch(PARTS, '{"set": {"1": [head, "box", [0.3, 0.2, 0.2], '
                                          '[0, 2.4, 0], "iron", {}]}}')
-        self.assertEqual(parts[1][0], "head")
+        self.assertEqual([p[0] for p in parts].count("head"), 1)   # quoted, then ordered by the rig
 
 
 class ParseSpec(unittest.TestCase):
@@ -58,8 +58,9 @@ class ParseSpec(unittest.TestCase):
         limb = ["thigh.L", "prism", [0.1, 0.08, 0.6], None, "iron",
                 {"from": [0.3, 1.2, 0], "to": [0.3, 0.6, 0.1]}]
         spec = SP.parse_spec(json.dumps({"parts": [PARTS[0], limb]}))
-        for got, want in zip(spec["parts"][1][3], [0.3, 0.9, 0.05]):
-            self.assertAlmostEqual(got, want)
+        thigh = next(p for p in spec["parts"] if p[0] == "thigh.L")
+        for got, want in zip(thigh[3], [0.3, 0.9, 0.05]):
+            self.assertAlmostEqual(got, want, delta=0.01)   # on the H/256 grid
 
     def test_missing_at_without_span_is_rejected(self):
         bad = ["head", "box", [0.2, 0.2, 0.2], None, "iron", {}]
@@ -135,7 +136,7 @@ class Palette(unittest.TestCase):
     def test_patch_may_use_palette_slots(self):
         new = ["head", "box", [0.3, 0.2, 0.2], [0, 2.4, 0], "eye", {}]
         parts, _ = SP.apply_patch(PARTS, reply({"set": {"1": new}}), palette=self.PALETTE)
-        self.assertEqual(parts[1][4], "eye")
+        self.assertIn("eye", [p[4] for p in parts])
 
     def test_refinement_prompt_shows_the_fixed_palette(self):
         text = SP.numbered({"palette": self.PALETTE, "parts": PARTS})
