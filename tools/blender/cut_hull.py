@@ -4,11 +4,13 @@ extrusion of the front outline intersected with the extrusion of the left outlin
 Runs in the system Python (numpy, scipy), before the Blender build: for every part that asks
 for the cut it returns the two simplified outlines (<= 8 vertices) of the strip of the
 approved sheet's front and left masks that the part covers, fitted to the part's own box.
-build_unit.py only extrudes and intersects them (`cuts=<json>` argument).
+build_unit.py only extrudes and intersects them (`cuts=<json>` argument). A `lathe` part without
+a profile of its own gets one read from the same masks (lathe_profile); it travels in the same json.
 """
 import json
 import pathlib
 
+import lathe_limb
 import preflight
 import silhouette as SIL
 from views import layout_of
@@ -16,6 +18,8 @@ from views import layout_of
 LIMIT = 8       # vertices per outline
 PAD = 0.1       # the strip is read this much wider than the part, then fitted back to it
 MIN_ROWS = 6    # a strip thinner than this (px) is not worth tracing
+PROFILE_WIN = 1.25   # a lathe reads the sheet this many r either side of its centre; a profile value is at most this
+PROFILE_MIN = 0.1
 
 
 def wants_cut(opts):
@@ -76,10 +80,59 @@ def cut_polys(parts, sheet, layout="unit"):
     return out
 
 
+def lathe_profile(mask, frame, part, axis):
+    """The profile (lathe_limb.SHEET_RINGS radii, bottom to top, as fractions of the part's r) of a
+    lathe from the rows of `mask` it covers, or None when the strip is empty. frame = (H, centre)
+    as in strip_outline; axis 0 reads the front panel (x radius), 2 the left one (z radius, times
+    squash). Only the columns within PROFILE_WIN * r of the part's centre count, so an arm beside
+    a torso is not part of it."""
+    height, centre = frame
+    (r, h), at, opts = part[2], part[3], part[5]
+    if not mask.any():
+        return None
+    ys, xs = mask.nonzero()
+    bottom, scale, c0 = ys.max(), (ys.max() - ys.min() + 1) / height, (xs.min() + xs.max()) / 2
+    k0, k1 = (int(round(c0 + (at[axis] + s * PROFILE_WIN * r - centre) * scale)) for s in (-1, 1))
+    step, out = h / (lathe_limb.SHEET_RINGS - 1), []
+    for i in range(lathe_limb.SHEET_RINGS):
+        y = at[1] - h / 2 + i * step
+        r0, r1 = (int(round(bottom - (y + s * step / 2) * scale)) for s in (1, -1))
+        cols = mask[max(r0, 0):max(r1, 0) + 1, max(k0, 0):k1 + 1].any(axis=0).nonzero()[0]
+        if not len(cols):
+            out.append(None)
+            continue
+        half = (cols.max() - cols.min() + 1) / 2 / scale
+        out.append(half * (float(opts.get("squash", 1.0)) if axis == 2 else 1.0) / r)
+    if not any(v is not None for v in out):
+        return None
+    known = [v for v in out if v is not None]
+    return [round(min(max(v if v is not None else min(known), PROFILE_MIN), PROFILE_WIN), 3) for v in out]
+
+
+def lathe_profiles(parts, sheet, layout="unit"):
+    """{part index: {"profile": [...]}} for the lathe parts that bring no profile and whose strip of
+    the sheet could be read; the others build from their own or the default profile."""
+    wanted = [i for i, p in enumerate(parts) if p[1] == "lathe" and not p[5].get("profile")]
+    if not wanted or sheet is None:
+        return {}
+    boxes = [preflight.bbox(p) for p in parts]
+    top = max(b[1][1] for b in boxes)
+    centre = {a: (min(b[0][a] for b in boxes) + max(b[1][a] for b in boxes)) / 2 for a in (0, 2)}
+    panels = SIL.concept_panels(sheet, layout=layout)
+    out = {}
+    for i in wanted:
+        axis = 2 if parts[i][5].get("axis") == "left" else 0
+        prof = lathe_profile(panels["left" if axis else "front"], (top, centre[axis]), parts[i], axis)
+        if prof:
+            out[i] = {"profile": prof}
+    return out
+
+
 def args(spec, sheet, kind, work):
-    """["cuts=<json>"] for build_unit.py: the outlines of the spec's cut parts written to
-    work/cuts.json; [] when no part is cut or none could be read."""
+    """["cuts=<json>"] for build_unit.py: the outlines of the spec's cut parts and the sheet
+    profiles of its lathes written to work/cuts.json; [] when there is neither."""
     cuts = cut_polys(spec["parts"], sheet, layout_of(kind))
+    cuts.update(lathe_profiles(spec["parts"], sheet, layout_of(kind)))
     if not cuts:
         return []
     path = pathlib.Path(work) / "cuts.json"

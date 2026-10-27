@@ -63,6 +63,7 @@ import urllib.request
 
 import building_hull
 import cut_hull
+import lathe_limb
 import mesh_lint
 import review_pair
 import rig_families as RF
@@ -74,7 +75,7 @@ SKILLS = pathlib.Path.home() / ".config" / "opencode" / "skills"
 RIG_MEASURE = None            # the sheet's spider numbers when the rig was scaled by them
 RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
-KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
+KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring", "lathe", "limb"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
 from preflight import BUDGETS, CLIPS, bbox, ground_fix, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
@@ -84,6 +85,8 @@ Kinds and dims, exactly:
 - "prism": a tapered n-gon tube - THE limb and torso primitive. dims = (radius_bottom, radius_top, height). opts {{"sides": 6 or 8, "axis": "up" | "fwd"}}. Use a smaller radius_top so the limb tapers away from the body.
 - "frustum": a box with a scaled, offset top - THE wedge primitive. dims = (width_x, height_y, depth_z). opts {{"top": (scale_x, scale_z), "shift": (offset_x, offset_z)}}. Use for boots, trapezoid pelvis, waist taper and stepped fists.
 - "ring": a flat annulus with optional spokes and hub - THE valve-wheel primitive. dims = (outer_radius, radial_width, thickness). opts {{"sides": 10, "spokes": 3, "hub": 0.05, "axis": "up" | "fwd" | "side", "tilt": degrees, "spin": degrees}}. `axis` is the disc normal; a halo/steering wheel is axis "up" with tilt 20-30, NOT a disc facing the camera.
+- "lathe": a body of revolution around the vertical axis through `at` - THE hood, torso and spider-abdomen primitive (a round mass a box or prism cannot draw). dims = (r, height), `at` = its centre. The width of the mass at each height is a profile: opts {{"profile": [6 to 10 radii, bottom to top, each a fraction of r, 0.05 to 1.5], "sides": 6 to 8 (default 6), "squash": x/z ratio (default 1; 1.2 = wider than deep), "axis": "front" | "left"}}. Without "profile" the build reads it from the sheet: the width of the figure in the part's height band, from the sheet's front panel (or the left one with "axis": "left"), limited to 1.25 r each side of `at` so a neighbouring arm is not read; then r is the radius you expect at the widest row. About 70 triangles. No rot, no from/to, no cut. Examples: a hood on the head bone {{"lathe", dims [0.42, 0.6], opts {{"squash": 1.05}}}}; a torso on spine {{"lathe", dims [0.45, 0.75], opts {{"profile": [0.7, 0.85, 0.95, 1.0, 1.0, 0.8], "sides": 8}}}}; a spider abdomen on the abdomen bone {{"lathe", dims [0.3, 0.45], opts {{"profile": [0.4, 0.85, 1.0, 0.9, 0.6, 0.25], "squash": 0.9}}}}.
+- "limb": two tapered tubes from `from` to `to` with a knee between them - THE leg and arm primitive, one part where you would put two prisms or cylinders. dims = (r_top, r_knee, r_base), the radii at `from`, at the knee and at `to`. opts {{"from": [x,y,z], "to": [x,y,z], "knee": [fraction 0.15 to 0.85, dx, dz] (default [0.5, 0, 0]), "sides": 6 to 8}}. The knee sits at from + fraction * (to - from) + (dx, 0, dz): dx moves it sideways, dz forward (a bent knee points forward, dz > 0); add a fourth number to lift it (an arched spider leg: [0.5, 0.1, 0, 0.3]). Bind it to the upper bone (thigh.L, arm.L, leg3.upper): the upper tube follows that bone, the lower tube follows its pair (shin.L, forearm.L, leg3.lower) when the rig has one. About 32 triangles. Example: a left leg {{"limb", dims [0.2, 0.17, 0.14], opts {{"from": [0.28, 1.1, 0], "to": [0.28, 0.1, 0.05], "knee": [0.5, 0, 0.08]}}}}; a spider leg {{"limb", dims [0.05, 0.03, 0.018], opts {{"from": [0.17, 0.46, 0.09], "to": [0.39, 0.04, 0.16], "knee": [0.76, 0.05, 0]}}}}.
 - ROTATION: a box, prism, frustum or dome that is not a from/to part takes opts {{"rot": [rx, ry, rz]}}, degrees, each within +-60, turning around the part centre. rx: top tips forward (+z). ry: turns around up (front toward +x). rz: top tips toward -x, so the bottom swings toward +x. Examples: a hanging arm 15 degrees out is a prism with "rot": [0, 0, 15] when it stands at +x and [0, 0, -15] at -x; a drooping pauldron slab "rot": [0, 0, 20] at +x; a hood tipped forward a frustum with "rot": [25, 0, 0]; a leg stepping out [0, 0, 12] at +x. The preflight measures the rotated part, so keep `at` at the part centre.
 - CUT: a box, prism or frustum with NO rot and no from/to may take opts {{"cut": "sheet"}}: the build then cuts that part to the sheet's own silhouette (the front and left outlines of the sheet in the part's height band, each reduced to at most 8 points, extruded and intersected, then fitted to the part's box). The part keeps its `at` and dims as the box it must fill. Use it for the masses whose outline the primitive cannot draw: torso, pelvis, hood or cowl, carapace, abdomen, a bulky chest plate. Never on a limb, hand, foot, weapon, head or thin plate: the strip of a limb would also pick up whatever is drawn beside it. At most 3 cut parts per unit; each costs about 60 triangles.
 - "dome": only for a genuinely domed organic cap. Never a mechanical pauldron: use a box slab instead.
@@ -777,6 +780,8 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
         if isinstance(p[5], dict) and bad_cut(p):
             raise ValueError(f"part {i}: opts cut is \"sheet\" on a box, prism or frustum with no rot, from or to")
+        if isinstance(p[5], dict) and p[1] in ("lathe", "limb") and lathe_limb.bad_opts(p[1], p[2], p[5]):
+            raise ValueError(f"part {i}: {lathe_limb.bad_opts(p[1], p[2], p[5])}")
         if isinstance(p[5], dict) and bad_rot(p[5]):
             raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
         if bbox(p)[0][1] < -0.02:          # the box, not `at`: a span part's `at` is an offset

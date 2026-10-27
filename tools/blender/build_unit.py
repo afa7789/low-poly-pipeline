@@ -314,7 +314,7 @@ def build_armature(rest_pose=None):
 
 
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28,
-             "ring": 144}
+             "ring": 144, "lathe": 68, "limb": 32}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
 
@@ -508,6 +508,47 @@ def cut_part(bone, mat_name, idx):
     obj.data.materials.clear()          # the boolean leaves an empty slot behind
     obj.data.materials.append(material(mat_name))
     return obj
+
+
+def swept_part(kind, dims, at, opts, name, idx):
+    """A lathe or a limb (lathe_limb.py makes the rings): quads between consecutive rings, n-gon
+    ends. A limb keeps its vertex order (from ring, knee ring, to ring) for the skin weights."""
+    LL = sibling("lathe_limb")
+    rings = (LL.lathe_rings(dims, at, opts, (CUTS.get(str(idx)) or {}).get("profile"))
+             if kind == "lathe" else LL.limb_rings(dims, opts))
+    me = bpy.data.meshes.new(kind)
+    bm = bmesh.new()
+    grid = [[bm.verts.new(bp(p)) for p in ring_] for ring_ in rings]
+    n = len(grid[0])
+    for lo, hi in zip(grid, grid[1:]):
+        for i in range(n):
+            bm.faces.new((lo[i], lo[(i + 1) % n], hi[(i + 1) % n], hi[i]))
+    for cap in (grid[0], grid[-1]):
+        bm.faces.new(cap)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    if kind == "limb":
+        obj["limb_sides"] = n
+    return obj
+
+
+def skin_part(obj, bone):
+    """Rigid skin: weight 1 on the part's bone. A limb whose rig has an upper/lower pair
+    (leg1.upper/.lower, thigh/shin, arm/forearm) weights its upper tube on the upper bone, its lower
+    tube on the lower bone and the knee ring half and half, so the knee bends."""
+    n = obj.get("limb_sides")
+    pair = sibling("lathe_limb").limb_bones(bone, {b[0] for b in BONES}) if n else None
+    if not pair:
+        obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+        return
+    up, low = (obj.vertex_groups.new(name=b) for b in pair)
+    up.add(range(0, 2 * n), 1.0, "REPLACE")
+    up.add(range(n, 2 * n), 0.5, "REPLACE")
+    low.add(range(n, 3 * n), 1.0, "REPLACE")
+    low.add(range(n, 2 * n), 0.5, "REPLACE")
 
 
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
@@ -889,7 +930,7 @@ def painted_image(name, rgb, size=64):
     return img
 
 
-CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut" (cut_hull.py)
+CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut", {"profile"} of a lathe (cut_hull.py)
 FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
 DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
 
@@ -1261,6 +1302,9 @@ def build_spec_parts(spec, chamfers):
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
         if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
             obj = cut_part(bone, mat_name, idx)
+        elif kind in ("lathe", "limb"):
+            obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx)
+            obj.data.materials.append(material(mat_name))
         else:
             obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
                              idx in chamfers)
@@ -1408,7 +1452,7 @@ def main():
     # engine draws a single mesh with three material slots
     bpy.ops.object.select_all(action="DESELECT")
     for obj, bone in parts:
-        obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+        skin_part(obj, bone)
     meta = parts_meta(parts)
     report = attach_report(parts)
     stem = pathlib.Path(out).stem       # the run's clay.glb / model.glb: attach.json; a trial: <name>-attach.json

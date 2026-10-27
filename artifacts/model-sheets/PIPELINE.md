@@ -2114,3 +2114,28 @@ decomposta (Sketch2Mesh, Eq. 5-6, a mesma região que o `failing_band` do fit j�
   O teste de `cut` custa 1 clay a mais (~60 s) por unidade.
 - Papers: Sketch2Mesh 2021 (contorno 2D multi-vista, só onde falha), Wiersma 2026 (restrições duras: regras do preflight e
   ligação ao pai), MeshGPT 2024 (congelar o que já está bom: peças fora da faixa não entram na busca).
+
+### 21.F2 Kinds `lathe` e `limb` (2026-10-27)
+
+**Interface (F1 `massing.py` usa isto; código único em `tools/blender/lathe_limb.py`, eixos do spec: x direita, y cima, z frente).**
+
+| kind | dims | opts (default) | tris |
+|---|---|---|---|
+| `lathe` | `(r, h)`, `at` = centro | `profile`: 6-10 raios em fração de r (0.05-1.5), de baixo para cima (sem ele: lido do sheet; sem sheet: `DEFAULT_PROFILE`); `axis` `front` ou `left` = painel lido (`front`); `sides` 6-8 (6); `squash` = raio x / raio z, 0.5-2 (1). Sem `rot`, `from/to`, `cut`. | `2*sides*(anéis-1) + 2*(sides-2)`: 68 com os defaults (6 anéis) |
+| `limb` | `(r_topo, r_joelho, r_base)` | `from`, `to` (obrigatórios); `knee` `[frac 0.15-0.85, dx, dz, dy opcional]` (`[0.5,0,0,0]`): joelho = `from + frac*(to-from) + (dx, dy, dz)`; `sides` 6-8 (6). | `4*sides + 2*(sides-2)`: 32 com os defaults |
+
+O raio de cada anel do lathe é `r * profile[i]` no eixo x e esse valor dividido por `squash` no eixo z. Perfil lido do sheet: `cut_hull.lathe_profile` pega, em 6 faixas da altura `[y0,y1]` da peça, a largura da máscara do painel (colunas só dentro de `1.25 r` de `at`, para não ler o braço ao lado), dividida por `r` e limitada a 0.1-1.25; viaja no mesmo `cuts.json`. Então **`r` = o raio esperado na linha mais larga**; 1.25 em várias faixas = `r` pequeno demais. `limb` pesa o tubo de cima no osso `bone` (`.upper`, `thigh`, `arm`), o de baixo no par (`.lower`, `shin`, `forearm`) e o anel do joelho meio a meio, quando o rig tem o par; senão tudo no osso. A regra `bones` do preflight conta o par como coberto; `shin_mass` lê um limb em `thigh.*`.
+
+- **O que mudou.** `lathe_limb.py` (geometria, schema `bad_opts`, tris, par de ossos), `build_unit.swept_part`/`skin_part` (malha, pesos; entra por `build_spec_parts`), `preflight` (`part_tris`, `bbox`, `bones`, `shin_mass`), `spec_pipeline` (`KINDS`, `validate`, DSL com capuz, torso, abdômen de aranha, perna biped e perna de aranha), `fit_spec` (`part_points`; parâmetros extras: raios do profile e squash ±15 %, knee frac ±0.15 e dx/dz; torso `NO_GROW` só encolhe o profile; o fit grava o perfil do sheet no spec antes de mexer), `cut_hull` (`lathe_profiles`; peças `cut` continuam só box/prism/frustum). Os dois kinds levam tampa nas pontas (n-gon), senão o limb deixava buraco visto de baixo: 32 tris, não os 2×(sides×2) = 24 do roadmap. Papers: Sano 2026 (perfil de largura por faixa), Sketch2Mesh (parâmetros contínuos no contorno).
+- **Prova sem LLM** (`spec_pipeline --spec ... --no-repair --no-fit`; saídas em `scratchpad/leva3-f2/`; IoU contra o sheet aprovado):
+
+| run | tris | front | left | back | top | bottom | rts | média | solta em `attach.json` |
+|---|---|---|---|---|---|---|---|---|---|
+| n005 v6-r4 (base) | 608 | 0.822 | 0.809 | 0.870 | 0.722 | 0.775 | 0.833 | 0.805 | 1 (foot.R) |
+| n005 capuz + torso em `lathe` | 640 | 0.826 | 0.784 | 0.862 | 0.715 | 0.772 | 0.827 | 0.798 | 1 (foot.R) |
+| n005 lathe + `fit_spec` (3 vistas) | 640 | 0.870 | 0.798 | 0.891 | 0.722 | 0.735 | 0.823 | 0.807 | 0 |
+| n00U v6-r3 (base) | 550 | 0.777 | 0.686 | 0.778 | 0.640 | 0.617 | 0.631 | 0.688 | 0 |
+| n00U abdômen `lathe` + 8 `limb` (24 -> 16 peças) | 500 | 0.778 | 0.683 | 0.784 | 0.624 | 0.618 | 0.633 | 0.687 | 0 |
+
+- **Leitura.** Sem fit os kinds trocam peças sem mexer no IoU (±0.01 por vista; média 0.805 -> 0.798 e 0.688 -> 0.687): a forma não melhora sozinha, o ganho é estrutural. O n00U perde 8 peças e 50 tris com cada perna em um limb, mesma silhueta, nenhuma solta; o n005 gasta 32 tris a mais (torso 28 -> 68, capuz 12 -> 68), o que derruba `budget_split` (pernas 19 % no piso da faixa) e o preflight desse spec de prova: o massing precisa decidir o orçamento por osso. O fit com os parâmetros novos subiu front 0.826 -> 0.870 e back 0.862 -> 0.891 no render real (o proxy deu 0.870/0.884), ao custo de bottom 0.772 -> 0.735 (o fit só olha front/left/back; F4 amplia). Os perfis lidos do sheet do n005 saturam em 1.25 no torso (`r` = 0.48 é pequeno para a barra do casaco): o massing deve passar `r` = largura máxima medida.
+- **Piorou / pendente.** n00U continua FAIL no estágio 1 (top/bottom/rts, igual à base; é F3/F4). O perfil lido não segmenta: um braço colado ao torso dentro da janela entra na largura. O proxy do fit usa o casco convexo dos anéis. Sem teste Blender automático dos kinds: a prova é o rebuild acima; `test_lathe_limb.py` cobre geometria, schema, preflight, perfil do sheet e fit.

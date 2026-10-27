@@ -36,6 +36,8 @@ from scipy.spatial import ConvexHull, QhullError
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import cut_hull  # noqa: E402
+import lathe_limb  # noqa: E402
 import preflight  # noqa: E402
 import rig_families as RF  # noqa: E402
 import silhouette  # noqa: E402
@@ -55,10 +57,12 @@ CUT_MAX = 3             # the DSL allows 3 cut parts per unit
 DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
 LEG_GROW = False        # spider legs may grow to the sheet's leg_w: off, n00U v6-r3 lost .002-.008 on 5 views (PIPELINE 21.F3)
 AT_RANGE = 0.03         # `at` may move by this fraction of the height
+PROFILE_RANGE = 0.15    # a lathe's profile radii and squash may move by this fraction (PIPELINE 21.F2)
+KNEE_RANGE = 0.15       # a limb's knee fraction may move by this much, its dx/dz by AT_RANGE * height
 LOOSE_W = 0.3           # objective cost of each part not connected to its parent (80 % boxes)
 # bones whose parts keep their width and depth: the torso, and the hood (the widest part on the head)
 NO_GROW = ("spine", "pelvis", "body", "abdomen")
-HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,)}
+HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,), "lathe": (0,)}
 CHAMFER_W = 1.0         # objective = (1 - IoU) + CHAMFER_W * chamfer, per view
 EDGE_W = 0.1            # weight of the optional --fit-edges term (edge_term), per view mean
 PENALTY = 10.0          # a preflight rule that held and breaks costs this much, plus 1 per rule
@@ -194,6 +198,10 @@ def part_points(part):
     """World points (Blender axes) whose convex hull is the part's outline."""
     _, kind, dims, at, _, opts = part
     opts = opts or {}
+    if kind in ("lathe", "limb"):
+        rings = lathe_limb.lathe_rings(dims, at, opts) if kind == "lathe" else lathe_limb.limb_rings(dims, opts)
+        pts = np.array([p for ring in rings for p in ring], float)
+        return np.stack([pts[:, 0], -pts[:, 2], pts[:, 1]], 1)
     span = "from" in opts and "to" in opts
     if span:
         a, b = tuple(opts["from"]), tuple(opts["to"])
@@ -410,6 +418,8 @@ def flip_x(part):
     for key in ("from", "to", "shift"):
         if key in opts:
             opts[key][0] = -opts[key][0]
+    if "knee" in opts:
+        opts["knee"][1] = -opts["knee"][1]
     if "rot" in opts:
         rx, ry, rz = spec_rot(opts)
         opts["rot"] = [rx, -ry, -rz]
@@ -445,7 +455,7 @@ def groups_of(parts, free):
     return groups
 
 
-def apply_rot(part, values, mirror):
+def apply_rot(part, values, mirror, height):
     """rot += ROT_RANGE x values (right, up, forward); the mirrored twin turns (right, -up, -forward)."""
     opts = part[5] if isinstance(part[5], dict) else {}
     sign = (1, -1, -1) if mirror else (1, 1, 1)
@@ -458,19 +468,53 @@ def rot_allowed(part, hood):
     return "from" not in opts and (hood or part[0].startswith(ROT_BONES))
 
 
+def clip(v, lo, hi):
+    return round(min(max(v, lo), hi), 4)
+
+
+def apply_profile(part, values, mirror, height):
+    """A lathe's profile radii and squash moved by PROFILE_RANGE x values (PIPELINE 21.F2)."""
+    opts = part[5]
+    prof = opts.get("profile") or []
+    opts["profile"] = [clip(v * (1 + PROFILE_RANGE * s), 0.05, lathe_limb.PROFILE_MAX) for v, s in zip(prof, values)]
+    opts["squash"] = clip(float(opts.get("squash", 1.0)) * (1 + PROFILE_RANGE * values[len(prof)]), 0.5, 2.0)
+
+
+def profile_bounds(part, no_grow):
+    cap = 0 if no_grow and part[1] == "lathe" else 1       # a no-grow lathe's profile only shrinks
+    return [(-1, cap)] * len(part[5].get("profile") or ()) + [(-1, 1)]
+
+
+def apply_knee(part, values, mirror, height):
+    """A limb's knee fraction moved by KNEE_RANGE, its dx/dz by AT_RANGE x height."""
+    opts = part[5]
+    frac, dx, dz, *rest = opts.get("knee", lathe_limb.KNEE)
+    step = AT_RANGE * height
+    opts["knee"] = [clip(frac + KNEE_RANGE * values[0], 0.15, 0.85),
+                    round(dx + step * values[1] * (-1 if mirror else 1), 4), round(dz + step * values[2], 4), *rest]
+
+
 # Extra continuous parameters of a part kind, after its dims and `at`: PARAMS[kind] lists names, EXTRAS[name]
 # says how many unit values it takes, when it applies and how it moves the part. A new kind (lathe, limb)
 # adds its own entries here and touches nothing else.
-PARAMS = {kind: ("rot",) for kind in ("box", "prism", "frustum", "dome")}
-EXTRAS = {"rot": {"size": 3, "allowed": rot_allowed, "apply": apply_rot}}
+PARAMS = {**{kind: ("rot",) for kind in ("box", "prism", "frustum", "dome")}, "lathe": ("profile",), "limb": ("knee",)}
+EXTRAS = {"rot": {"size": 3, "allowed": rot_allowed, "apply": apply_rot},
+          "profile": {"size": lambda p: len(p[5].get("profile") or ()) + 1, "allowed": lambda p, hood: True,
+                      "apply": apply_profile, "bounds": profile_bounds},
+          "knee": {"size": 3, "allowed": lambda p, hood: True, "apply": apply_knee}}
 
 
 def extras_of(part, hood=False):
     return tuple(n for n in PARAMS.get(part[1], ()) if EXTRAS[n]["allowed"](part, hood))
 
 
+def extra_size(part, name):
+    size = EXTRAS[name]["size"]
+    return size(part) if callable(size) else size
+
+
 def group_size(part, extra=()):
-    return len(part[2]) + 3 + sum(EXTRAS[n]["size"] for n in extra)
+    return len(part[2]) + 3 + sum(extra_size(part, n) for n in extra)
 
 
 def moved(part, x, height, mirror=False, extra=()):
@@ -486,8 +530,8 @@ def moved(part, x, height, mirror=False, extra=()):
             opts[end] = [a + d for a, d in zip(opts[end], delta)]
     k = n + 3
     for name in extra:
-        size = EXTRAS[name]["size"]
-        EXTRAS[name]["apply"](out, x[k:k + size], mirror)
+        size = extra_size(out, name)
+        EXTRAS[name]["apply"](out, x[k:k + size], mirror, height)
         k += size
     return out
 
@@ -529,7 +573,10 @@ def bounds_of(part, no_grow, wide=False, extra=(), grow=1.0):
     top = ATTACHED_RANGE / DIMS_RANGE if wide else 1
     bounds = [(-1, 0) if no_grow and k in horizontal else (-top, max(top, grow) if k in horizontal else top)
               for k in range(len(part[2]))]
-    return bounds + [(-1, 1)] * (3 + sum(EXTRAS[e]["size"] for e in extra))
+    bounds += [(-1, 1)] * 3
+    for name in extra:
+        bounds += EXTRAS[name].get("bounds", lambda p, g: [(-1, 1)] * extra_size(p, name))(part, no_grow)
+    return bounds
 
 
 def sheet_leg_w(doc, sheet):
@@ -638,6 +685,18 @@ def search_space(parts, groups, hood, parent_of, loose0, wide, leg_w=None, heigh
     return extra, bounds
 
 
+def baked(parts, sheet):
+    """The parts with the sheet profile written into every lathe that has none, so the fit can move
+    its radii; a copy, the doc is untouched until a fit is accepted."""
+    read = cut_hull.lathe_profiles(parts, sheet) if any(p[1] == "lathe" for p in parts) else {}
+    if not read:
+        return parts
+    out = copy.deepcopy(parts)
+    for i, found in read.items():
+        out[i][5]["profile"] = found["profile"]
+    return out
+
+
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
         seconds=MAX_SECONDS, hard=None):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
@@ -645,7 +704,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
     top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec."""
     t0 = time.monotonic()
-    parts = doc["parts"] if "parts" in doc else None
+    parts = baked(doc["parts"], sheet) if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))
     concept = concept_masks(sheet, views or (WIDE_VIEWS if wide else FIT_VIEWS), wide)
     proxy = Proxy(concept, tuple(concept), hard=hard_canvas_edges(hard, tuple(concept)) if hard else None)
