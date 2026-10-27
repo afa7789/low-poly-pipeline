@@ -467,3 +467,37 @@ class IdentityReads(unittest.TestCase):
             got = S.identity_reads(details, pathlib.Path(d), "u")
         self.assertEqual([(r["read"], r["view"]) for r in got], [(True, "front"), (False, "")])
         self.assertAlmostEqual(got[0]["ratio"], 1.0, places=1)
+
+
+class SheetCoherenceTest(unittest.TestCase):
+    def test_r_sym_is_one_for_a_mirror_and_drops_with_a_one_sided_prop(self):
+        m = np.zeros((40, 40), bool)
+        m[:, 15:25] = True
+        self.assertEqual(S.r_sym(m), 1.0)
+        m[10:20, 25:35] = True        # a club on one side
+        self.assertLess(S.r_sym(m), S.SYM_MIN)
+
+    def test_hull_is_front_by_left_on_the_grid(self):
+        front, left = np.zeros((40, 30), bool), np.zeros((40, 20), bool)
+        front[:, 5:25] = True
+        left[:, 4:16] = True
+        hull = S.hull_voxels(front, left, 32)
+        self.assertEqual(hull.shape, (32, 16, 10))        # y, x, z: widths scaled by the same 32 / 40
+        self.assertTrue(hull.all())
+
+    def test_sheets_measured(self):
+        refs = ROOT / "artifacts/model-sheets/refs"
+        for sheet, sym, bad in (("n01X", True, []), ("hfoo", False, []), ("n00H", True, ["top", "bottom"])):
+            with self.subTest(sheet):
+                rep = S.sheet_report(refs / sheet / "sheet.jpg")
+                self.assertEqual(rep["r_sym"]["front"] >= S.SYM_MIN, sym)
+                self.assertEqual(rep["incoherent"], bad)
+        self.assertEqual(S.sheet_report(refs / "n01X" / "sheet.jpg", "building"), {})
+
+    def test_text_names_the_problem_only_when_there_is_one(self):
+        ok = {"r_sym": {"front": 0.95}, "coherence": {"back": 0.8}, "incoherent": []}
+        bad = {"r_sym": {"front": 0.78}, "coherence": {"back": 0.8, "top": 0.52}, "incoherent": ["top"]}
+        self.assertEqual(S.sheet_text(ok), "")
+        self.assertIn("asymmetric in the front view (r_sym 0.78)", S.sheet_text(bad))
+        self.assertIn("top panel disagrees", S.sheet_text(bad))
+        self.assertIn("top-vs-hull 0.52 (incoherent)", S.sheet_line(bad))

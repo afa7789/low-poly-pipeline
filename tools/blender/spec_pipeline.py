@@ -1271,7 +1271,7 @@ def shape_review(args, glb, layout):
     compare. Returns (gate passed, approved report)."""
     sil_ok, report, summary = True, {}, {"drift": args.drift}
     if not args.no_silhouette:
-        from silhouette import gates_for
+        from silhouette import gates_for, sheet_report
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
@@ -1280,6 +1280,7 @@ def shape_review(args, glb, layout):
         for key in ("uncovered", "spill", "red"):     # coupling (PIPELINE 21.F7)
             summary[key] = {k: r[key] for k, r in report.items() if key in r}
         summary["gates"] = gates_for(args.rig)
+        summary["sheet"] = sheet_report(args.sheet, layout)     # r_sym and coherence; incoherent views are not gated
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
@@ -1561,7 +1562,7 @@ def spider_measure(args):
 def make_brief(args, lo, hi):
     """The spec brief for this sheet: the unit brief, or the building brief for a
     static rig, both around the same part DSL and code-measured numbers."""
-    from silhouette import measure, sheet_colours
+    from silhouette import measure, sheet_colours, sheet_report, sheet_text
     limb_note, rig_note = rig_text(args.rig)
     sheet_m = measure(args.sheet)
     if args.rig == "biped" and args.build.exists():
@@ -1576,7 +1577,7 @@ def make_brief(args, lo, hi):
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
     return template.format(race=args.race, name=args.name, uid=args.id, role=args.role,
                            dsl=dsl, budget=f"{lo} to {hi}", bones=rig_table(), rig_note=rig_note,
-                           measured=measured_text(args.rig, sheet_m) + outline_text(sheet_m)
+                           measured=measured_text(args.rig, sheet_m) + sheet_text(sheet_report(args.sheet, layout_of(args.kind))) + outline_text(sheet_m)
                            + split_text(args.rig, sheet_m, lo, hi) + props_text(load_props(args.id))
                            + identity_text(identity_items(args.id, args.sheet, args.rig == "biped", layout_of(args.kind)))
                            + (building_hull.brief_text(args.hull_part) if args.hull_part else ""))
@@ -1654,9 +1655,17 @@ RUNS = MSHEETS / "runs" / "draft"
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 
 
+def sheet_row(summary):
+    """review.md row: front r_sym and how each panel agrees with the hull of front x left."""
+    if not summary.get("sheet"):
+        return ""
+    from silhouette import sheet_line
+    return f"| sheet (report; an incoherent view is not gated) | {sheet_line(summary['sheet'])} |\n"
+
+
 def signal_rows(summary, row, shape):
     """The report-only rows of the stage 1 table: contour chamfer, edge chamfer, clay zones."""
-    out = ""
+    out = sheet_row(summary)
     if summary.get("chamfer"):
         out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"

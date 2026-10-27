@@ -2742,3 +2742,53 @@ Feedback do n005: máscara plana nas laterais, pés blocados, olhos viram fenda 
   no caminho `union` de `build_unit`, ainda não usado no clay); quando L6-4 ligar a união, trocar o collapse por `toldec`.
   Silhueta insensível acima de 400 não prova que o olho não veja facetas: o juiz pareado decide.
 - Provas: `/private/tmp/claude-501/-Users-afa-Developer-arthur-castle-fight/9830c746-7a9c-4c31-80db-2e0ef88f25b7/scratchpad/leva6-budgets/<id>/` (400-1000), `low-<id>/` (150-400), `n005/cmp.png`.
+
+### 24.L6-9 Sano: simetria e coerência entre painéis do sheet (2026-10-27)
+
+**O que mudou.** `silhouette.py`: `r_sym(mask)` (IoU do recorte com o espelho horizontal, Sano §3.3) e
+`sheet_report(sheet)`: hull 64³ de front x left (`hull_voxels`, a mesma ideia do `preflight.hull_masks`, mas
+voxelizada aqui), projetado em back (espelhado), top e bottom e comparado com o painel desenhado. Top/bottom: IoU
+após esticar os dois ao mesmo quadrado (extensões iguais por construção, a vista é desenhada inclinada e em escala
+própria) e melhor dos 4 flips (cabeça para cima ou para baixo, left virado para qualquer lado). `COHERENCE_MIN = 0.6`:
+abaixo disso o painel não é uma vista da figura de front x left e `silhouette.py` não o conta no veredito
+(`PASS/FAIL (sheet incoherent: report)`, `incoherent: true` no `silhouette.json` da vista, `sheet.json` ao lado). Vai
+para o `silhouette.json` do run (`sheet`), uma linha no review (`sheet (report...)`) e para o brief
+(`sheet_text`: figura assimétrica no front, painel que não deve ser usado). `massing.clean_side`: com `r_sym` do front
+< `SYM_MIN = 0.85`, o front é espelhado de modo que o lado +x (de onde braços e pernas são lidos e depois espelhados)
+seja o mais leve, dividido no centro dos pés: o lado do prop não vira braço nos dois lados. `silhouette.py <sheet> x x --measure` imprime a tabela (chave `sheet`).
+
+**Medida (12 sheets de `refs/`, `silhouette.py <sheet> x x --measure`).**
+
+| sheet | front r_sym | back | top | bottom | incoerente |
+|---|---|---|---|---|---|
+| h05X | .93 | .60 | .68 | .87 | back (.5975, no limite) |
+| h09B | .96 | .79 | .68 | .89 | - |
+| hfoo | **.66** | .83 | .78 | .75 | - |
+| n005 | **.76** | .88 | .65 | .72 | - |
+| n00H | .94 | .89 | .39 | .38 | top, bottom |
+| n00U | .97 | .91 | .53 | .49 | top, bottom (spider: pernas radiais; o hull cheio de front x left é gordo) |
+| n010 | .84 | .57 | .60 | .62 | back, top (.5989; bottom .62 passa por pouco) |
+| n017 | .94 | .80 | .67 | .69 | - |
+| n01I | .90 | .79 | .61 | .45 | bottom |
+| n01N | .96 | .80 | .29 | .30 | top, bottom |
+| n01X | .98 | .89 | .74 | .71 | - |
+| n02X | **.72** | .91 | .73 | .63 | - |
+
+hfoo, n005, n02X saem assimétricos no front (clava/escudo/vaporizador de um lado). n00H e n010 saem incoerentes como
+esperado (n010: back e top; o bottom .62 fica a .02 do corte, o back tem r_sym .30 contra o front: outra pose).
+n00U: top/bottom baixos (.53/.49) por ser aranha: registrado, o corte os trata como incoerentes.
+
+**Veredito (n00U, spec `v4-oneshot-r1` reconstruído sem LLM).** top .562 e bottom .537 (gate .65) saem
+`FAIL (sheet incoherent: report)` e não contam: 2/6 gates passam em vez de 0/6; front, left, back e rts
+seguem FAIL. A linha do review: `sheet (report...) | front r_sym 0.97, back-vs-hull 0.91, top-vs-hull 0.53 (incoherent), bottom-vs-hull 0.49 (incoherent)`.
+
+**Negativo / limites.** (1) Uma primeira versão comparava os painéis em escala de altura (aspect preservado): 8 de
+12 sheets saíam incoerentes em top/bottom, porque o top é inclinado e em perspectiva; o esticado separa n01X/n017
+(.67-.74) de n00H/n01N (.29-.39), mas n010 e h05X ficam a ~0.02 do limiar (0.60 é do brief, não calibrado). (2) A
+contenção (painel dentro do hull) não discrimina nada: o hull é gordo e contém tudo (.93-1.0 em todas). (3) Efeito do
+`clean_side` nos massings sem LLM (`--no-massing --spec`, clay, sem repair): hfoo front .434 -> .437, left .473 -> .430,
+rts .512 -> .553, `fist_span` 1.29 -> 1.20 (alvo 0.55); n005 front .877 -> .877, left .736 -> .728, top .749 -> .747: neutro
+(o massing de hfoo é ruim com e sem a mudança; o ganho é só a mão sair do prop). n02X e n01X: sem mudança (0 de 13/12 peças
+diferentes; n02X é assimétrico mas o front não foi espelhado: o desequilíbrio de massa é pequeno, 24550 x 24182 px, a assimetria é de pose). (4) Só o veredito de `silhouette.py` ignora a vista incoerente;
+`margin_of`/`fit_accepted` ainda usam `GATES` inteiro. (5) O brief fala inglês (o autor lê inglês): o texto do roadmap em
+português está em `sheet_text`.
