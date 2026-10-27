@@ -1584,3 +1584,33 @@ n005 sem sinal (clay, o reviewer escolhe sempre a esquerda). Nenhum par perde os
 2+1 não cancelam o viés de posição; a regra só o detecta, não corrige (4 votos 2+2 seria o passo seguinte, custo +1 chamada).
 Custo: 3 chamadas `claude -p` em paralelo, ~30 s por par. O gate é opt-in (`--pair`) e só rebaixa status; não bloqueia a run.
 
+### 20.N4 Sheets top/bottom ortográficos (2026-10-27) - NEGATIVO, sheets antigos continuam o default
+
+**O que mudou.** `redo_topbottom.py <id> --race R --name N [--sheet sheet.jpg]` + `prompts/00-template-topbottom.txt`:
+copia o sheet para `refs/<id>/old/` (nunca sobrescreve), pinta a fileira de baixo de cinza, manda o resto ao
+`nano-banana-2-1-edit` (mesma chave/endpoint do `generate.py`) pedindo só os dois painéis de baixo como plantas
+ortográficas ("câmera exatamente acima/abaixo, sem perspectiva, sem inclinação, mesma pose e escala") e cola só a
+fileira de baixo da resposta sob a fileira de cima original. Custo: ~$0.004 por chamada (6 chamadas, sem erro de API).
+Sem a pintura da fileira, o modelo devolve o sheet inalterado (diff médio 1.5/255): a primeira tentativa não mudou nada.
+Os sheets novos ficam em `refs/<id>/sheet-ortho.jpg` (opt-in); `sheet.jpg` voltou ao original.
+O template de 5 painéis (`00-template-unit.txt`) não foi alterado: o prompt já dizia "orthographic".
+
+**Medida** (clay do melhor run v5 de cada unidade, `silhouette.py --shape`, IoU top/bottom @ tilt escolhido; meta tilt 0 ± 5):
+
+| unidade (clay) | antes top / bottom | v1 (prompt ortográfico) | v2 (+ "planta, não frente virada") |
+|---|---|---|---|
+| n01X v5-fit-r1 | .840 @10 / .811 @20 | .572 @20 / .741 @40 | .653 @20 / .819 @10 |
+| n005 v5-fit-r3 | .746 @-30 / .773 @30 | .767 @-20 / .769 @30 | .789 @-10 / .731 @30 |
+| n00U v5-fit-r2 | .630 @-30 / .599 @10 | .554 @0 / .568 @20 | .528 @-30 / .597 @30 |
+
+Tilt dentro de ±5: antes 0/6, v1 1/6, v2 0/6. IoU melhora em 1 de 6 células no v1 (n005 top) e em 2 de 6 no v2 (n005 top, n01X bottom), piora
+nas outras; o n01X top cai de .84 para .65. Imagens (antigo / v1 / v2, só a fileira de baixo):
+`history/2026-10-27-n4/<id>-bottom-row-old-v1-v2.jpg`; sheets completos em `refs/<id>/old/` (antigo, v1) e `refs/<id>/sheet-ortho.jpg` (v2).
+
+**Por quê não funcionou.** O modelo de imagem não sabe projetar: redesenha o frontal "visto de cima" com inclinação
+(n01X: braços e punhos longos, rodas à vista) e ainda piora o que já era certo (a aranha antiga já era uma planta verdadeira;
+a nova mostra a cabeça de frente). O tilt que o sweep acha também mede o desacordo modelo × desenho, não só a câmera do
+desenho: com a aranha já ortográfica ele escolhe -30. Não foi regenerado `sheet-hard.jpg` (sem ganho no judge, sem motivo).
+**Próximo passo se importar:** derivar top/bottom do modelo (render ortográfico do clay aprovado como referência de
+imagem-para-imagem) em vez de pedir ao modelo de imagem a projeção; ou calcular o tilt do sheet e aplicá-lo na câmera.
+Teste: `test_redo_topbottom.py` (corte na faixa vazia entre as fileiras, sem API).
