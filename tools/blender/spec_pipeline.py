@@ -42,6 +42,7 @@ Writes, under <out>:
     review.md, silhouette.json, turntable.gif       the verdict, one section per stage
     views/<id>/clay-<view>.png                      stage 1 renders (lit clay), view in
                                                     front/left/back/top/bottom/rts
+    views/<id>/wire-<view>.png                      the same clay with its triangle edges (compare `wire`)
     sil/, passes/                                   local intermediates (gitignored)
 and prints one gate line: id, run, tag, tris, budget, skins, anims, smear, preflight, stage 1,
 stage 2, verdict. Exit code 1 if a stage fails; a failed gate never stops the run before its
@@ -874,6 +875,7 @@ def shape_review(args, glb, layout):
     view_dir = args.out / "views" / args.id
     # lit: an unlit grey solid is one flat blob; the form has to read in the review image
     tool("render_unit.py", glb, view_dir, tilt_arg(report), "lit", blender=True)
+    tool("render_wire.py", glb, view_dir, tilt_arg(report), blender=True)     # wire-<view>.png, compare column
     gameplay = view_dir / f"{glb.stem}-wc3.png"        # render_unit's name for the rts view
     if gameplay.exists():
         shutil.copy(gameplay, view_dir / f"{glb.stem}-rts.png")
@@ -1314,6 +1316,12 @@ def readiness_section(args, shape, colour, verdict):
             f"status: **{status_of(verdict, args.summary, bad)}**\n\n")
 
 
+# 1-5 per axis, left empty for the vision reviewer (EdgeRunner 2024: Input Consistency,
+# Triangle Aesthetic, Overall; MeshGPT 2024 user study: shape x triangulation)
+EVALUATION = ("## Avaliação\n\n| eixo | nota (1-5) |\n|---|---|\n| consistência com o sheet | |\n"
+              "| estética da triangulação | |\n| qualidade geral | |\n\n")
+
+
 def write_review(args, shape, colour, verdict):
     """review.md: the run header, one section per stage, readiness, the verdict."""
     (args.out / "review.md").write_text(
@@ -1321,11 +1329,12 @@ def write_review(args, shape, colour, verdict):
         f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
+        f"{EVALUATION}"
         f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
-        f"approved sheet), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
+        f"approved sheet; wire and uv columns), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
         f"model.glb, turntable.gif\n")
     # the review sheets read review.md (header, stage verdicts) and the run's files, so they
     # come last; compare-hard: the same renders against the faceted drawing the model was

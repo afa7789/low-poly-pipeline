@@ -94,5 +94,21 @@ class Contract(unittest.TestCase):
         self.assertIn("no measurement", "".join(p[0] for p in CR.cell_footer(self.run, "left")))
 
 
+class WireColumn(unittest.TestCase):
+    def test_wire_and_uv_columns_status_and_view_discovery(self):
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        fake_run(tmp)
+        (tmp / "review.md").write_text(REVIEW + "status: **placeholder**\n")
+        run = MC.load_run(tmp)
+        self.assertEqual(run["meta"]["status"], "placeholder")
+        self.assertEqual(MC.COLUMNS[2::3], ("wire", "uv"))
+        Image.new("RGB", (64, 64), 255).save(run["views"] / "wire-front.png")
+        self.assertEqual(MC.find_views(tmp)[1], "n01X")          # wire-*.png is not a textured stem
+        self.assertEqual(MC.wire_cell(run, "front").size, MC.CELL)
+        self.assertEqual(MC.wire_cell(run, "left").getpixel((5, 5)), MC.EMPTY)   # absent -> empty cell
+        self.assertEqual(MC.uv_cell(run, "left").getpixel((5, 5)), MC.EMPTY)     # first row only
+        self.assertEqual(CR.column_cell(run, "front", "wire").size, MC.CELL)
+
+
 if __name__ == "__main__":
     unittest.main()

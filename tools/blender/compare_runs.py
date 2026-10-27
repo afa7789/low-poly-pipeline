@@ -2,7 +2,7 @@
 """Sheet across runs of one unit: a row per view, the concept first, then one column per run.
 
     python3 tools/blender/compare_runs.py <out.png> <run_dir> [<run_dir> ...]
-        [--against approved|hard] [--show textured|clay|overlay]
+        [--against approved|hard] [--show textured|clay|wire|overlay|uv]
 
     e.g. compare_runs.py cmp.png runs/draft/n01X/hard-v1 runs/draft/n01X/v2-hard-r1 ...
 
@@ -21,12 +21,16 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import make_compare as MC  # noqa: E402
 
-SHOWS = ("textured", "clay", "overlay")
+SHOWS = ("textured", "clay", "wire", "overlay", "uv")
 
 
 def column_cell(run, view, show):
     if show == "overlay":
         return MC.overlay_cell(run, view)
+    if show == "wire":
+        return MC.wire_cell(run, view)
+    if show == "uv":
+        return MC.uv_cell(run, view)
     return MC.render_cell(run, view, show == "clay")
 
 
@@ -55,6 +59,7 @@ def run_head(run, width):
                                 ("  S2 ", MC.INK), (st.get("2", "n/a"), MC.tone(st.get("2"))),
                                 ("  verdict ", MC.INK), (m.get("verdict", "n/a"), MC.tone(m.get("verdict")))],
                   MC.font(14))
+    d.text((10, 80), f"status {m.get('status', 'n/a')}", fill=MC.INK, font=MC.font(14))
     return img
 
 
