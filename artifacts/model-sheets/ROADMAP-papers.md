@@ -1,5 +1,7 @@
 # Roadmap — mudanças do pipeline tiradas dos papers (2026-10-27)
 
+**Estado (2026-10-27, fim do dia):** os 14 itens estão integrados (PIPELINE §19). Ligados por default: A1, A2, A3, B1, B2, E1. Opt-in: B3 (`clean`), B4 (`cut: sheet`), C1 (`ramp=`), C2 (`--ramp`, `--space oklab`), D1 (`--fit`), D2 (`--variants N`). Relatório sem gate: B5 (`HULL_BLOCKING=False`). Fora do fluxo: E2 (`clip_score.py`). Resultado da bateria v5 em §19 e `history/2026-10-27-v5/`.
+
 Fonte: 10 PDFs em `~/Desktop/genAI/` (`MANIFEST.md`, `references.bib`). Cada item cita o paper
 e o lugar do pipeline. Ordem = ordem de desenvolvimento (fundação → forma → cor → refino → protocolo).
 Regra do projeto: nada de treinar redes, nada de gerador image-to-3D como produto; DSL + Blender + gates.

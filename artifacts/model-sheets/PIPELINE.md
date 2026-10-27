@@ -1134,6 +1134,22 @@ Both are stage 2 (colour); the shape is untouched.
 
 ## 19. Papers (2026-10-27)
 
+Dez papers de `~/Desktop/genAI` (lista e ordem em `ROADMAP-papers.md`), 14 itens implementados em worktrees
+paralelos e integrados em `feat/models-v2-hard`. Bateria de prova `v5` nas 3 unidades de teste, autor
+session:opus, sem passes (imagens em `history/2026-10-27-v5/`):
+
+| unidade | v4-oneshot | v5-oneshot | v5 + `--fit` | veredito v5+fit |
+|---|---|---|---|---|
+| n01X | .776/.782/.774/.856/.804/.777 | .768/.777/.766/.830/.789/.797 | **.832/.802/.829/.840/.811/.796** | PASS, final-use |
+| n005 | .695/.700/.746/.669/.727/.817 | .721/.795/.758/.707/.775/.811 | **.853/.826/.894/.746/.773/.864** | **PASS** (primeiro do n005) |
+| n00U | .398/.555/.392/.514/.531/.516 | .254/.368/.257/.411/.404/.490 | .618/.569/.612/.630/.599/.610 | CHECK (gate spider .65) |
+
+O ganho é do `--fit` (§19.D1, numérico, sem LLM), que agora roda depois do repair (`2748a218`: antes, o patch do
+LLM desfazia o ajuste: n005 .82 → .71). O estágio 1 aceita o GLB 2 % acima do teto de tris (`TRI_SLACK`), porque
+o preflight estima e o GLB conta (n005: 704 vs 700). Ficou opt-in sem ganho medido: C1/C2 (rampa), B3 (limpeza),
+B4 (`cut`), B5 (`outside_hull`, só relatório). Negativos: A2 (chamfer como gate), E2 (CLIP, Spearman 0.27).
+Aranha: corpo pequeno e pernas longas vêm do rig `spider`; próximo passo é o rig, não o autor.
+
 ### 19.A1 `mesh_lint.py`, the Readiness block and the four statuses (2026-10-27)
 
 Papers: Chen 2023 (manifold / self-intersection table), Wiersma 2026 (sliver < 10 deg), Begemann &
