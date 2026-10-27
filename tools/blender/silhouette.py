@@ -259,7 +259,7 @@ def snap_axes(poly, deg=SNAP_DEG):
     return poly
 
 
-def outline(mask, eps=OUTLINE_EPS):
+def outline(mask, eps=OUTLINE_EPS, limit=OUTLINE_MAX):
     """Simplified exterior polygon of a figure mask: [(x/H, y/H)] clockwise on screen, x from
     the figure's centre line (right positive), y up from the feet, H the figure height.
     Morphology first (close, fill, largest blob), then Douglas-Peucker on the closed contour."""
@@ -276,7 +276,7 @@ def outline(mask, eps=OUTLINE_EPS):
     while True:
         poly = np.vstack([douglas_peucker(halves[0], eps * h)[:-1], douglas_peucker(halves[1], eps * h)[:-1]])
         poly = snap_axes(poly)
-        if len(poly) <= OUTLINE_MAX or eps > 0.2:
+        if len(poly) <= limit or eps > 0.2:
             break
         eps *= 1.25
     cx = (xs.min() + xs.max()) / 2

@@ -1359,3 +1359,19 @@ Papers: Le 2026 (a rampa da arte), Wiersma 2026 (cor em Oklab).
   Custo do `--fit` no pipeline: fit (30-120 s) + 2 builds clay extras (~80 s cada).
 - Papers: Sketch2Mesh 2021 (refinar parâmetros com Chamfer 2D de contorno; só onde o contorno falha), Wiersma 2026
   (regularizadores como restrição dura), MeshGPT 2024 (congelar o que já está bom).
+
+### 19.B4 Peça cortada pela silhueta do sheet (2026-10-27) - NEUTRO no IoU, opt-in
+- **O que.** `opts {"cut": "sheet"}` em box/prism/frustum sem `rot`/`from`/`to` (`spec_pipeline.bad_cut` rejeita o resto). `cut_hull.py` (Python do sistema, antes do Blender) lê as máscaras front e left do sheet aprovado (`silhouette.concept_panels`), pega a faixa de linhas e colunas que o bbox da peça cobre (+10 %), `silhouette.outline(limit=8)` reduz cada contorno a <= 8 vértices e o encaixa no bbox (`preflight.bbox`); grava `cuts.json` e passa `cuts=<json>` ao `build_unit.py` (`cut_hull.args`, chamado em `trial`, `stage_shape` e `colour_stage.build_textured`). `build_unit.cut_part`: extrude o contorno front ao longo de z, o left ao longo de x, `BOOLEAN INTERSECT` EXACT. Sem sheet legível ou faixa < 6 px a peça sai como a primitiva (sem erro). `preflight.part_tris` conta `CUT_TRIS = 60`. DSL no brief: torso, pelvis, capuz, carapaça, abdômen; nunca membro, mão, pé, arma, cabeça (a faixa de um membro pega o que está desenhado ao lado); máx. 3 por unidade.
+- **Paper.** Sano 2026 §3.5 (visual hull = front extrudado ∩ left extrudado).
+- **Medida (sem LLM, `--shape-only --no-repair`, specs v4-oneshot-r1 reconstruídos; IoU front/left/back/top/bottom/rts; provas em `scratchpad/papers-b4/`).**
+
+| spec | variante | tris | IoU vs approved |
+|---|---|---|---|
+| n005 | antes | 668 | 0.698 / 0.699 / 0.749 / 0.668 / 0.723 / 0.819 |
+| n005 | torso(3)+pelvis prism(2) com cut | 734 | 0.695 / 0.696 / 0.746 / 0.672 / 0.742 / 0.832 |
+| n005 | + capuz (head frustum sem rot) | 758 | 0.701 / 0.695 / 0.749 / 0.670 / 0.740 / 0.829 |
+| n00U | antes | 496 | 0.398 / 0.554 / 0.393 / 0.513 / 0.531 / 0.517 |
+| n00U | 2 frustums da carapaça com cut | 556 | 0.391 / 0.552 / 0.385 / 0.515 / 0.531 / 0.519 |
+
+  Cada peça cortada custa 42-61 tris (vs 28 do prisma, 12 do frustum), polígonos de 6-8 lados nos dois eixos.
+- **Piorou / pendente.** O IoU não sobe: front -0.003 / +0.003 (capuz), n00U front -0.007. Torso e pelvis são faixas pequenas da silhueta e o erro dominante do n005/n00U está em outras massas (capuz alto, braço, pernas do spider); o cut só ganha forma local (ombro mais largo que a cintura, vista left visivelmente mais fiel). Fica opt-in, nenhum default muda. O cut não herda `rot` (por isso o capuz do n005 perdeu o `rot [10,0,0]` na prova); o left assume o mesmo sentido de z do render (frente à direita), sem tentar o espelho. Custo em tris sobe 60-66 por unidade com 2 cuts: o gate de orçamento da n005 passou de 668 para 734 (> 700, FAIL), então o brief limita a 3 e o `part_tris` já avisa. Falta medir o efeito com LLM (decidir se a faixa melhora o one-shot) e rever o `B5` (`outside_hull`), que reusa as máscaras.

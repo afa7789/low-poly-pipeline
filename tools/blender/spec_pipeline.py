@@ -59,6 +59,7 @@ import sys
 import urllib.error
 import urllib.request
 
+import cut_hull
 import mesh_lint
 import rig_families as RF
 from surfaces import DECALS, SURFACES
@@ -79,6 +80,7 @@ Kinds and dims, exactly:
 - "frustum": a box with a scaled, offset top - THE wedge primitive. dims = (width_x, height_y, depth_z). opts {{"top": (scale_x, scale_z), "shift": (offset_x, offset_z)}}. Use for boots, trapezoid pelvis, waist taper and stepped fists.
 - "ring": a flat annulus with optional spokes and hub - THE valve-wheel primitive. dims = (outer_radius, radial_width, thickness). opts {{"sides": 10, "spokes": 3, "hub": 0.05, "axis": "up" | "fwd" | "side", "tilt": degrees, "spin": degrees}}. `axis` is the disc normal; a halo/steering wheel is axis "up" with tilt 20-30, NOT a disc facing the camera.
 - ROTATION: a box, prism, frustum or dome that is not a from/to part takes opts {{"rot": [rx, ry, rz]}}, degrees, each within +-60, turning around the part centre. rx: top tips forward (+z). ry: turns around up (front toward +x). rz: top tips toward -x, so the bottom swings toward +x. Examples: a hanging arm 15 degrees out is a prism with "rot": [0, 0, 15] when it stands at +x and [0, 0, -15] at -x; a drooping pauldron slab "rot": [0, 0, 20] at +x; a hood tipped forward a frustum with "rot": [25, 0, 0]; a leg stepping out [0, 0, 12] at +x. The preflight measures the rotated part, so keep `at` at the part centre.
+- CUT: a box, prism or frustum with NO rot and no from/to may take opts {{"cut": "sheet"}}: the build then cuts that part to the sheet's own silhouette (the front and left outlines of the sheet in the part's height band, each reduced to at most 8 points, extruded and intersected, then fitted to the part's box). The part keeps its `at` and dims as the box it must fill. Use it for the masses whose outline the primitive cannot draw: torso, pelvis, hood or cowl, carapace, abdomen, a bulky chest plate. Never on a limb, hand, foot, weapon, head or thin plate: the strip of a limb would also pick up whatever is drawn beside it. At most 3 cut parts per unit; each costs about 60 triangles.
 - "dome": only for a genuinely domed organic cap. Never a mechanical pauldron: use a box slab instead.
 - "box": for flat plates, slabs, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
 - "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd"}}.
@@ -630,6 +632,13 @@ def bad_rot(opts):
             or not all(isinstance(v, (int, float)) and abs(v) <= MAX_ROT for v in vals))
 
 
+def bad_cut(part):
+    """True when opts["cut"] is anything but "sheet" on an unrotated box/prism/frustum (a limb is never cut)."""
+    opts = part[5]
+    return "cut" in opts and (opts["cut"] != "sheet" or part[1] not in ("box", "prism", "frustum")
+                              or any(k in opts for k in ("rot", "from", "to")))
+
+
 def validate(parts, palette=None, extra=()):
     if not isinstance(parts, list) or not parts:
         raise ValueError("no parts array")
@@ -642,6 +651,8 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i} below the ground plane")
         if isinstance(p[5], dict) and p[5].get("decal", "eyes2") not in DECALS:
             raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
+        if isinstance(p[5], dict) and bad_cut(p):
+            raise ValueError(f"part {i}: opts cut is \"sheet\" on a box, prism or frustum with no rot, from or to")
         if isinstance(p[5], dict) and bad_rot(p[5]):
             raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
     bad = misplaced_decals(parts)
@@ -675,7 +686,8 @@ def trial(spec, sheet, kind, work, name):
     glb = work / f"{name}.glb"
     pre = tool("preflight.py", path, kind, sheet)     # landmark targets from this sheet
     problem = pre.stdout if pre.returncode else None
-    build = tool("build_unit.py", path, glb, *clay_args(kind), blender=True)
+    build = tool("build_unit.py", path, glb, *clay_args(kind), *cut_hull.args(spec, sheet, kind, work),
+                 blender=True)
     if not glb.exists():
         return None, (problem or "") + build.stderr[-400:], None
     tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind), "--shape",
@@ -925,7 +937,9 @@ def stage_shape(spec_path, args, layout):
     if pre.returncode:
         print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
     glb = args.out / "clay.glb"
-    build = tool("build_unit.py", spec_path, glb, *clay_args(args.kind), blender=True)
+    spec = json.loads(pathlib.Path(spec_path).read_text())
+    build = tool("build_unit.py", spec_path, glb, *clay_args(args.kind),
+                 *cut_hull.args(spec, args.sheet, args.kind, args.out), blender=True)
     if not glb.exists():
         print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
         return {"ok": False, "glb": None, "tilts": {}, "checks": {"build": False},

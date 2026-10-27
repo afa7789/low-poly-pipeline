@@ -37,6 +37,7 @@ import sys
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
              "dome": 28, "ring": 144}
+CUT_TRIS = 60   # a part cut by the sheet silhouette (cut_hull.py), upper end of the measured range
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
@@ -262,6 +263,8 @@ def load_parts(doc):
 
 def part_tris(part):
     _, kind, dims, _, _, opts = part
+    if opts.get("cut") == "sheet":      # two <= 8-gon extrusions intersected: 42-61 tris measured (PIPELINE 19.B4)
+        return CUT_TRIS
     if kind == "prism":
         return 4 * int(opts.get("sides", 8)) - 4
     if kind != "ring":
