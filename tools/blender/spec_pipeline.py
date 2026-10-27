@@ -68,6 +68,7 @@ import urllib.request
 
 import building_hull
 import cut_hull
+import deform_to_sheet
 import diagnose
 import lathe_limb
 import massing
@@ -1388,6 +1389,10 @@ def stage_shape(spec_path, args, layout):
         return {"ok": False, "glb": None, "tilts": {}, "checks": {"build": False},
                 "failed": ["build"], "pre": pre.stdout, "tris": 0, "skins": 0, "anims": 0,
                 "smear": 0.0, "t_pre": t_pre, "t_build": time.monotonic() - t0 - t_pre}
+    deformed = deform_to_sheet.apply(glb, args)       # after the fit, before the texture: stage 2 reads this shape
+    if deformed:
+        print(f"deform: {deformed['steps']} steps, {deformed['refused']} refused, "
+              f"slivers {deformed['slivers_before']} -> {deformed['slivers_after']}")
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -1960,6 +1965,9 @@ def main():
     ap.add_argument("--decimate", action="store_true",
                     help="Readiness: decimate the clay 50 %% in Blender and report the IoU lost per 100 tris "
                          "(report only, about 8 s; PIPELINE 20.M10)")
+    ap.add_argument("--no-deform", dest="deform", action="store_false", default=DEFORM,
+                    help="skip the Sketch2Mesh deformation of the unioned body onto the sheet's outlines "
+                         "(deform_to_sheet.py, PIPELINE 24.L6-5)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -1977,6 +1985,7 @@ def main():
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
+    args.union_body = UNION_BODY
 
     resolve_paths(args)
 
@@ -2041,6 +2050,8 @@ FIT_SLIP = 0.02       # fit_accepted: a passing view may slip this far under its
 VIEW_FLOOR = {None: ("front", "rts"), "spider": ("top", "bottom", "rts"),
               "spider_high": ("top", "bottom", "rts")}   # fit_accepted: the family's critical views never fall > FIT_SLIP
 RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
+DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the sheet's outlines (--no-deform)
+UNION_BODY = False    # L6-4 turns the union build on; until then the deformation has no connected body to work on
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
 RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status
 
