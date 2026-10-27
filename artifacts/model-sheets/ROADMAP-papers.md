@@ -144,6 +144,8 @@ Paper: ULIP 2023 (CLIP como juiz cross-modal; ensemble multi-vista; templates de
 
 # Leva 2 (2026-10-27, tarde) — o que ficou de fora + o que a bateria v5 ensinou
 
+**Estado (2026-10-27, noite):** os 20 itens estão integrados (PIPELINE §20). Ligados por default: N1 (`attach.json`, `overlap_80` relatório), N2 (fit com âncora), **S2 (`--fit` default, `--no-fit` desliga)**, S1 (schema + reenvio), S3/M11 (REFINE/REPAIR com `[FROZEN]`), E15 (facetas no brief, edge chamfer no review), S5/S7/S6 (estabilidade, KB/texel, engine import), M8 (tris visíveis, relatório), N3 (`zones_clay`, relatório), L14 (rig spider medido do sheet). Opt-in: M8 `--cull`, M10 `--decimate`, M12 `toldec`, L13 `--hull`, S4/N5 `--pair`, N4 `sheet-ortho.jpg`. Negativos registrados: M9 saliência no `budget_split` (45/49 FAIL), M12 (perde forma), N4 (modelo de imagem não faz planta ortográfica), viés de posição no review pareado (detectado, vira empate).
+
 Regras iguais às da leva 1: medir antes de gatear (regra nova nasce como relatório), opt-in quando não houver ganho medido, nunca apagar runs, sem trailer no commit.
 
 ## Onda 1
