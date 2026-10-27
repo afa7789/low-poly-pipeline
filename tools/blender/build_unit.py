@@ -1592,7 +1592,7 @@ def parts_meta(parts):
     return meta
 
 
-PROP_GAP = 0.03     # attach: a prop's mesh may stand this far (spec metres) off its anchor's before it is loose
+PROP_GAP = 0.1      # attach: a prop's mesh may stand this far (spec metres) off its anchor's before it is loose (0.03 until 24.L6-3: the clearance gap, 0.02 H, is the contact now)
 
 
 def mesh_gap(obj, near, trees):

@@ -703,9 +703,10 @@ PROP_ANCHORS = {"hand.R": "forearm.R", "hand.L": "forearm.L", "back": "spine", "
 PROP_BODY = ("spine", "pelvis", "head", "body", "abdomen")   # prop_clearance: these bones' non-prop parts are the body
 HAND_SHARE = 0.4          # a hand anchor is the lower 40 % (in y) of the forearm parts
 CLEARANCE_MAX = 0.20      # share of a prop's box allowed inside the body
-CLEARANCE_BLOCKING = False  # report only until calibrated: FAIL rate over the draft specs is in PIPELINE 23.L5-3
+CLEARANCE_BLOCKING = True   # a gate since PIPELINE 24.L6-3: massing and the fit push a prop out of the body (clear_props)
+PROP_GAP = 0.02           # clear_props: a prop stands at least this share of H outside the body boxes
 CLEARANCE_GRID = 12
-PROP_REACH = 0.05         # a prop's box may stand this far (spec metres) off its anchor's and still be held
+PROP_REACH = 0.08         # (was 0.05: PROP_GAP of a 2.72 m figure is 0.054) a prop's box may stand this far (spec metres) off its anchor's and still be held
 
 
 def is_prop(part):
@@ -789,6 +790,83 @@ def clearance_checks(parts):
     return [("prop_clearance", not bad or not CLEARANCE_BLOCKING,
              ", ".join(f"{n} {s:.0%} in the body" + (" - OUT" if n in bad else "") for n, s in shares.items())
              + f" (max {CLEARANCE_MAX:.0%})")]
+
+
+def shift_part(part, d):
+    """Part moved by the vector d (spec metres), in place: its centre and the ends of a from/to part."""
+    if part[3] is not None:
+        part[3] = [part[3][i] + d[i] for i in range(3)]
+    for end in ("from", "to"):
+        if end in part[5]:
+            part[5][end] = [part[5][end][i] + d[i] for i in range(3)]
+
+
+def touching(box, bodies, gap):
+    return [b for b in bodies if all(box[0][i] < b[1][i] + gap and b[0][i] - gap < box[1][i] for i in range(3))]
+
+
+def sweep(box, bodies, gap, axis, sign):
+    """The least distance box must travel along `axis` in direction `sign` to stand off every body by gap."""
+    ends = [(b[1][axis] + gap - box[0][axis]) if sign > 0 else (box[1][axis] - b[0][axis] + gap) for b in bodies]
+    for t in sorted(e for e in ends if e > 0):
+        moved = [[v + sign * t * (i == axis) for i, v in enumerate(c)] for c in box]
+        if not touching(moved, bodies, gap - 1e-9):
+            return t
+    return 0.0
+
+
+PUSH_DIRS = {"back": ((2, -1),), "belt": ((0, 1), (0, -1))}    # a pack goes behind, a lantern to the hip; the rest the cheapest way
+ALL_DIRS = tuple((i, s) for i in range(3) for s in (1, -1))
+
+
+def push_out(box, bodies, gap, dirs=ALL_DIRS):
+    """The vector that moves `box` off every body box it touches (each grown by gap) along the single (axis, sign)
+    of `dirs` that costs least; zero when it already stands clear."""
+    if not touching(box, bodies, gap):
+        return [0.0, 0.0, 0.0]
+    dist, axis, sign = min((sweep(box, bodies, gap, i, s), i, s) for i, s in dirs)
+    d = [0.0, 0.0, 0.0]
+    d[axis] = sign * dist
+    return d
+
+
+PROP_CUT = 0.4            # clear_props: a lone box prop is cut at the body's face (its far face stays where the sheet has it)
+                          # when at least this share of its depth survives, else it moves whole
+
+
+def move_prop(mine, d):
+    """The prop's parts moved by d; a lone unturned box is instead cut on the side facing the body (its far face
+    keeps the sheet's silhouette) while PROP_CUT of its size is left."""
+    axis = max(range(3), key=lambda i: abs(d[i]))
+    part = mine[0]
+    if len(mine) == 1 and part[1] == "box" and "rot" not in part[5] and abs(d[axis]) <= (1 - PROP_CUT) * part[2][axis]:
+        part[2] = [v - (abs(d[axis]) if i == axis else 0.0) for i, v in enumerate(part[2])]
+        part[3] = [c + (d[axis] / 2 if i == axis else 0.0) for i, c in enumerate(part[3])]
+        return
+    for p in mine:
+        shift_part(p, d)
+
+
+def clear_props(parts, height):
+    """Every prop (the parts sharing an opts "prop" name move together) stands PROP_GAP * height outside the body
+    parts of its anchor bone, and, when it still has more than CLEARANCE_MAX / 2 of its box inside any other body
+    part (PROP_BODY bones), clear of those too: the prop is pushed away, never the body toward it (PIPELINE
+    24.L6-3). In place; returns parts."""
+    bones = {p[0] for p in parts}
+    body = [(p[0], bbox(p)) for p in parts if not is_prop(p) and p[0] in PROP_BODY]
+    for name in prop_names(parts):
+        mine = [p for p in parts if is_prop(p) and str(p[5]["prop"]) == name]
+        bone = anchor_bone(mine[0], bones)
+        near = [b for n, b in body if n == bone]     # a hand or a shoulder carries its prop: no gap to a body it is not on
+        for gap, bodies in ((PROP_GAP * height, near), (0.0, [b for _, b in body])):
+            if not bodies:
+                continue
+            boxes = [bbox(p) for p in mine]
+            box = ([min(b[0][i] for b in boxes) for i in range(3)], [max(b[1][i] for b in boxes) for i in range(3)])
+            if gap == 0.0 and prop_inside(box, bodies) <= CLEARANCE_MAX / 2:
+                break
+            move_prop(mine, push_out(box, bodies, gap, PUSH_DIRS.get(mine[0][5].get("anchor"), ALL_DIRS)))
+    return parts
 
 
 # Spider rules that fail the preflight: FAIL rate over the 15 spider specs of runs/draft/*/*/ was

@@ -136,7 +136,7 @@ class PartsBuild(unittest.TestCase):
         (torso,) = [p for p in spec["parts"] if p[1] == "lathe" and p[0] == "spine" and not p[5].get("asym")]
         self.assertTrue(lathe_limb.is_ring_profile(torso[5]["profile"]))   # and the torso one ring lathe (L6-1), not a stack
         self.assertLess(tank[0][3][2], -0.5)                              # behind the torso
-        self.assertTrue(any(p[1] == "box" and p[0] == "forearm.L" for p in spec["parts"]))   # the held weapon
+        self.assertTrue(any(p[1] == "plate" and p[0] == "forearm.L" for p in spec["parts"]))   # the held weapon: a plate (24.L6-3)
         self.assertNotEqual(spec, band)
         self.assertTrue(M.PARTS_MASSING)                                  # on by default: parts.json of the sheet's folder is read
 
@@ -311,6 +311,79 @@ class Families(unittest.TestCase):
 
     def test_slot_groups_hand_out_zones_for_the_new_families(self):
         self.assertTrue(set(M.SLOT_GROUPS_FOR) == {"quadruped", "wyrm", "drake"})
+
+
+class Props(unittest.TestCase):
+    """PIPELINE 24.L6-3: a prop is a lathe, a plate or a pole by name, marked on its anchor, pushed out of the body."""
+
+    def part(self, name, lo, hi, bone="forearm.R", anchor="hand.R"):
+        return {"name": name, "role": "prop", "bone": bone, "anchor": anchor, "prop": True, "box3d": [lo, hi]}
+
+    def panel(self, lean=0):
+        """A 180 px figure facing +columns (toe stub at the feet); lean +1: a pole from col 30 to 190 rising toward
+        the higher columns (the front), -1: falling."""
+        m = np.zeros((200, 220), bool)
+        m[10:190, 100:120] = True
+        m[180:190, 100:140] = True
+        for k in range(161 if lean else 0):
+            row = 154 - k * 135 // 160 if lean > 0 else 19 + k * 135 // 160
+            m[row:row + 3, 30 + k] = True
+        return m
+
+    def test_prop_kind_follows_the_name(self):
+        front, side = M.View(self.panel(), 2.0), M.side_of(self.panel(), 2.0)
+        low, high = [-0.2, 1.0, -0.2], [0.2, 1.4, 0.2]
+        for name, want in (("drill-pipe club", "prism"), ("shield", "plate"), ("pressure tank", "lathe"), ("belt lantern", "box")):
+            with self.subTest(name):
+                box = ([-0.05, 0.1, -0.8], [0.05, 1.9, 0.8]) if want == "prism" else (low, high)
+                rows = M.prop_rows(self.part(name, *box), "s", front, side, 8)
+                self.assertEqual(rows[0][1], want)
+                self.assertEqual((rows[0][5]["prop"], rows[0][5]["anchor"]), (name, "hand.R"))
+
+    def test_plate_is_thin_along_the_shallower_axis(self):
+        rows = M.plate_part(self.part("shield", [-0.3, 1.0, -0.05], [0.3, 1.5, 0.05]), "s")
+        self.assertEqual((rows[0][1], rows[0][5]["axis"]), ("plate", "front"))
+        rows = M.plate_part(self.part("pistol", [-0.05, 1.0, -0.3], [0.05, 1.2, 0.3]), "s")
+        self.assertEqual(rows[0][5]["axis"], "left")
+
+    def test_hull_profile_is_a_small_polygon_in_unit_box(self):
+        m = np.zeros((40, 40), bool)
+        m[5:35, 10:20] = True
+        prof = M.hull_profile(m, keep=4)
+        self.assertLessEqual(len(prof), 4)
+        self.assertEqual((min(u for u, _ in prof), max(u for u, _ in prof), min(v for _, v in prof), max(v for _, v in prof)), (0, 1, 0, 1))
+
+    def test_pole_leans_where_the_sheet_leans(self):
+        part = self.part("pike", [-0.05, 0.4, -0.8], [0.05, 1.9, 0.8])
+        for lean in (1, -1):
+            with self.subTest(lean):
+                self.assertEqual(M.pole_lean(part, M.side_of(self.panel(lean), 2.0)), lean)
+        self.assertEqual(M.pole_lean(part, M.side_of(self.panel(), 2.0)), 1)          # no pole drawn: forward, as before
+
+    def test_clear_props_pushes_out_by_the_gap_and_keeps_the_prop_whole(self):
+        torso = ["spine", "box", [1.0, 0.8, 0.6], [0, 1.9, 0], "s", {}]
+        tank = ["spine", "box", [0.4, 0.8, 0.4], [0, 1.9, -0.2], "s", {"prop": "tank", "anchor": "back"}]
+        valve = ["spine", "box", [0.1, 0.1, 0.1], [0, 2.35, -0.2], "s", {"prop": "tank", "anchor": "back"}]
+        PF.clear_props([torso, tank, valve], 2.0)
+        lo, hi = PF.bbox(tank)
+        self.assertGreaterEqual(-0.3 - hi[2], PF.PROP_GAP * 2.0 - 1e-6)           # behind the torso's back face, by the gap
+        self.assertAlmostEqual(PF.bbox(valve)[0][2] - lo[2], -0.25 - -0.4, 3)       # the valve moved with it
+        self.assertEqual(PF.loose_props([torso, tank, valve], {"spine"}), [])
+
+    def test_worn_part_is_not_a_prop(self):
+        torso = ["spine", "box", [1.0, 0.8, 0.6], [0, 1.9, 0], "s", {}]
+        belt = ["spine", "box", [1.1, 0.2, 0.7], [0, 1.9, 0], "s", {"prop": "belt", "anchor": "belt"}]
+        pad = ["arm.L", "box", [0.3, 0.3, 0.3], [0.8, 2.1, 0], "s", {"prop": "pad", "anchor": "shoulder.L"}]
+        flask = ["forearm.L", "box", [0.1, 0.3, 0.1], [1.2, 1.0, 0], "s", {"prop": "flask", "anchor": "hand.L"}]
+        M.unmark_worn([torso, belt, pad, flask])
+        self.assertEqual([PF.is_prop(p) for p in (belt, pad, flask)], [False, False, True])
+
+    def test_touching_props_of_one_anchor_share_a_name(self):
+        club = ["forearm.R", "box", [0.2, 1.6, 0.2], [0, 1.0, 0], "s", {"prop": "club", "anchor": "hand.R"}]
+        disc = ["forearm.R", "box", [0.3, 0.05, 0.3], [0, 1.8, 0], "s", {"prop": "disc", "anchor": "hand.R"}]
+        far = ["forearm.R", "box", [0.1, 0.1, 0.1], [2, 0, 0], "s", {"prop": "far", "anchor": "hand.R"}]
+        M.merge_props([disc, club, far])
+        self.assertEqual((disc[5]["prop"], far[5]["prop"]), ("club", "far"))
 
 
 if __name__ == "__main__":

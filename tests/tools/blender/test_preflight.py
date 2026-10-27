@@ -222,7 +222,7 @@ class PropParts(unittest.TestCase):
     def test_a_valve_held_by_its_tank_is_held(self):
         tank = self.prop("spine", "back", [0, 1.9, -0.4], (0.4, 0.8, 0.4), "tank")       # z -0.6..-0.2, y 1.5-2.3
         valve = self.prop("spine", "back", [0, 2.35, -0.4], (0.1, 0.1, 0.1), "tank")
-        other = self.prop("spine", "back", [0, 2.35, -0.4], (0.1, 0.1, 0.1), "other")
+        other = self.prop("spine", "back", [0, 2.35, -0.6], (0.1, 0.1, 0.1), "other")
         self.assertEqual(PF.floating_parts([self.TORSO, tank, valve], self.PARENTS), [])
         self.assertEqual(PF.floating_parts([self.TORSO, tank, other], self.PARENTS), ["spine"])
 
