@@ -1870,6 +1870,25 @@ Papers: Sketch2Mesh 2021 (Eq. 6: refinar só perto da região que falha), MeshGP
 
 ## 21. Leva 3 (2026-10-27)
 
+Sete frentes em paralelo (F1 massing, F2 lathe/limb, F3 leg_w, F4 fit largo, F5 few-shot+variants, F6 turntable,
+F7 acoplamento), integradas em `feat/models-v2-hard`. Bateria `v7` nos 3 de teste + 2 unidades nunca vistas
+(n02X, hfoo); `v7-r2` = o vermelho decide (`margin_of` paga o uncovered médio, `fit_accepted` recusa fit que o
+aumenta, PASS com vermelho acima de `UNCOVERED_MAX` numa vista crítica fica em prototype-safe; commit `9af56ccf`).
+Imagens em `history/2026-10-27-v7/`.
+
+| unidade | v6 | v7-r2 | veredito | vermelho f/l/b |
+|---|---|---|---|---|
+| n01X | .787/.823/.787/.782/.833/.795 | **.839/.809/.839/.812/.775/.779** | PASS final-use | 8/10/8 % |
+| n005 | .823/.810/.870/.723/.774/.835 | .838/.785/.841/.688/.792/.749 | PASS final-use, juiz prefere r2 3-0 | 11/17/13 % |
+| n00U | .781/.686/.789/.640/.620/.643 | **.780/.742/.787/.707/.676**/.622 | CHECK (só rts) | 9/9/9 % |
+| n02X (novo) | hard-v1 .705/.638/.749 | **.806/.724/.786/.722/.696/.728** (v7-r1) | PASS final-use | 8/14/11 % |
+| hfoo (novo) | hard-v1 .820/.551/.665 | .765/.606/.694/.699/.768/.702 (v7-r1) | CHECK (left, back) | 7/18/13 % |
+
+Depois da bateria: massing com 4 fatias no torso (era 8, lia como pilha de degraus; IoU igual ±0.02, runs
+`leva3-massing-few`), massing com lathe medido e deixado opt-in (`LATHE_MASSING`: perde 0.03-0.06 em
+left/top/bottom porque o eixo do lathe não segue o centro de profundidade). Próximo salto de forma é de kinds de
+superfície (leva 4: `chain`, `plate`), não de regras.
+
 ### 21.F3 `leg_w` da aranha (2026-10-27) - medida e brief ligados, crescimento de perna no fit NEGATIVO (desligado)
 
 Sem paper novo: fecha a pendência do §20.L14 (o rig mede comprimento, não diâmetro de perna).
