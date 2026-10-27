@@ -2459,3 +2459,26 @@ O que o VLM acertou / errou (a olho):
 - **Negativo/limites.** (1) Precisão do VLM na régua: ±0.03-0.06 H por vista (daí `COHERENT = 0.05` marcar 1-6 itens por sheet). (2) Prop inclinado (lança) e prop só visível no front (n005) não têm caixa 3D fiável. (3) Spider: 6/16. (4) Zona não discrimina partes da mesma cor. (5) Os painéis do `split` sobrepõem a borda da vista vizinha (o left do n005 mostra um pedaço do prop do front); o VLM ignorou, mas o painel ideal seria a máscara do `concept_panels`.
 - **Fora do item.** Nenhum consumidor além de `joint_place` lê o `parts.json` ainda (L5-2/3/4/6).
 - **Testes.** `test_segment_sheet.py` (triangulação com quadro linear: xyz, gap, espelho, caixa 3D, `depth_order`; `check_reply`; schema; ponta a ponta no n005 com VLM stub) e 2 casos em `test_preflight.py::JointPlace`.
+
+### 23.L5-2 Massing por partes: `parts.json` -> uma peça por parte semântica (2026-10-27) - n005 forte, n01X misto; fixtures provisórias
+
+**O que mudou.** `massing.build` lê `refs/<id>/parts.json` (contrato do L5-1) quando existe e, num biped, o pré-spec nasce das `box3d`: `head`/`mask` e prop com nome de cilindro (tank, bottle...) -> `lathe` com perfil lido do sheet DENTRO da caixa (front para o corpo, left para o prop que o corpo esconde); `torso`/`pelvis` -> pilha de frustums (4/3 fatias) com largura, profundidade e centro da faixa cortados pela caixa; `leg` -> `limb` com o joelho de `joints`; `arm` -> dois prismas unidos no cotovelo de `joints` (flag `ARM_LIMB`); `foot`/`hand` -> frustum; `prop` -> peça própria no `bone` (`hand.X` vira `forearm.X`), `box`, fora do volume do torso (a folga/âncora é do L5-3). Material = a cor do slot da paleta mais próxima de `zone`. Sem `parts.json` (ou `parts=False`, `--no-parts`) o massing por faixa fica igual (teste: `build` sem arquivo == `parts=False`); `parts.json` sem peça para algum osso obrigatório cai no massing por faixa. `massing.py ... --parts <json>` roda com outro arquivo. Spider ignora o arquivo.
+
+**Fixtures provisórias.** `tests/tools/blender/fixtures/parts-n005.json` e `parts-n01X.json`: caixas e juntas LIDAS A OLHO no `sheet-hard.jpg` (metros, eixos do spec; sem `box2d`), depois ajustadas até o preflight passar (cabeça do capuz mais larga, cotovelo e punho dentro do alcance). Não são medida: valem até o L5-1 gerar os `parts.json` reais. Os números abaixo medem o PIPELINE com essas caixas, não o L5-1.
+
+**Prova sem LLM** (`spec_pipeline --spec <massing> --no-repair`, estágio 1 do pré-spec sozinho; antes = massing por faixa de hoje, depois = por partes; `scratchpad/leva5-massing/run-*`):
+
+| unidade | | IoU front / left / back / top / bottom / rts | zones_clay mean front / left / back / top / bottom | uncovered front / left / back / top / bottom / rts |
+|---|---|---|---|---|
+| n005 | faixa | .819 / .674 / .854 / .723 / .837 / .756 | .643 / .072 / .106 / .062 / .325 | .113 / .284 / .107 / .206 / .062 / .100 |
+| n005 | partes | .803 / .807 / .854 / .739 / .767 / .839 | .634 / .696 / .672 / .406 / .240 | .089 / .170 / .075 / .199 / .191 / .059 |
+| n01X | faixa | .814 / .881 / .815 / .817 / .790 / .805 | .275 / .233 / .248 / .164 / .170 | .076 / .052 / .075 / .083 / .150 / .044 |
+| n01X | partes | .806 / .845 / .803 / .785 / .770 / .756 | .288 / .116 / .348 / .175 / .285 | .090 / .082 / .090 / .154 / .065 / .122 |
+
+Preflight 22/22 (n005) e 21/21 (n01X); tris 624 (n005 partes). `attach.json`: 22 peças, 0 soltas (faixa: 23 / 0 em n005; n01X faixa tinha 2 coxas soltas); o tanque é um `lathe` próprio na `spine` atrás do torso (z < -0.5) e a arma uma `box` própria em `forearm.L`.
+
+**Leitura.** n005 (o caso do feedback): left IoU .674 -> .807, zones_clay do left .07 -> .70 e do back .11 -> .67, uncovered left .28 -> .17, rts +.08; custo: bottom -.07 (uncovered .06 -> .19: a caixa do tanque/pé deixa buraco embaixo) e front -.016. n01X (sem props, corpo de blocos): IoU cai .01-.04 em tudo e zones do left piora (.23 -> .12), zones back/bottom sobem; é o fixture a olho (profundidades do braço no left) e não a ideia, mas não há ganho medido neste. Não vira default para ninguém: só liga onde `refs/<id>/parts.json` existe.
+
+**O que piorou / achados.** (1) `arm` como UM limb quebra `shoulder_span`/`fist_span` do preflight (0.79 vs sheet 0.46): a regra lê a caixa do membro inteiro na faixa do ombro; por isso `ARM_LIMB = False` (2 prismas) e ombro/cotovelo respeitam o `REACH` do massing por faixa. (2) Lathe de oito lados no tanque faz `budget_split` falhar (pernas 18 % < 19 %): cabeça, máscara e tanque saem em 6 lados (L5-5 refaz a superfície). (3) O `overlap` com o tanque encostando 0.02 m no torso passa; a regra de âncora é do L5-3. (4) `limb`/`lathe` aceitam 6-8 lados: o laço de lados do massing (10, 12) é cortado em 8.
+
+**Testes.** `test_massing.py::PartsBuild` (sem arquivo == `parts=False`; tanque lathe atrás do torso e arma própria; parts.json incompleto cai no massing por faixa; joelho do `limb` == junta).
