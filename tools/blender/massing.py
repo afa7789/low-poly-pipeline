@@ -46,7 +46,9 @@ if LATHE_MASSING:
     KIND_FOR.update(head="lathe", torso="lathe", pelvis="lathe", shell="lathe")
 LATHE_RINGS = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # profile samples per role (lathe_limb.PROFILE_RANGE)
 LATHE_SIDES = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # a head of 6x6 costs 68 tris, a torso of 8x8 124
-SLICES = {"head": 5, "torso": 8, "pelvis": 5, "shell": 5}   # stack height per role (frustum stacks)
+# stack height per role (frustum stacks). Halved on 2026-10-27: 8/5/5/5 read as a pile of ledges
+# (n005 v7-r1) and measured alone the IoU moved by at most 0.02 (runs leva3-massing-few).
+SLICES = {"head": 3, "torso": 4, "pelvis": 3, "shell": 3}
 SPECK = 0.08            # a detached blob under this share of the figure's area is a prop, not the body
 BACK_PROP_DEPTH = 0.75  # torso depth cap, x its width, when the props sheet lists a prop on the back (head: +0.3)
 JOINT = 0.008           # stack slices overlap by this share of the figure's height
