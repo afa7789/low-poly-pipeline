@@ -68,6 +68,7 @@ import urllib.request
 
 import building_hull
 import cut_hull
+import diagnose
 import lathe_limb
 import massing
 import mesh_lint
@@ -623,6 +624,7 @@ PATCH_SCHEMA = {
                    "why": {"type": "string"}}}
 BAD_REPLY = (ValueError, IndexError, KeyError, TypeError)   # json.JSONDecodeError is a ValueError
 STATS = collections.Counter()    # asked / resent / frozen (resends caused by a frozen-part edit)
+USAGE = collections.Counter()    # token counters of the `claude -p` replies (input_tokens, output_tokens, ...)
 RESEND = ("\n\nYOUR PREVIOUS REPLY WAS REJECTED: {err}\nReply again with the whole corrected JSON "
           "object, nothing else.\nPREVIOUS REPLY:\n{reply}")
 
@@ -677,6 +679,8 @@ def ask_session(model, brief, images, schema=None):
         raise RuntimeError(f"claude -p failed: {(out.stderr or out.stdout)[-300:]}") from None
     if r.get("is_error"):
         raise RuntimeError(f"claude -p error: {str(r.get('result'))[-300:]}")
+    for k, v in (r.get("usage") or {}).items():       # tokens spent, read by diagnose.py
+        USAGE[k] += v if isinstance(v, int) else 0
     if r.get("structured_output") is not None:
         return json.dumps(r["structured_output"])
     return r.get("result") or ""
@@ -1839,6 +1843,10 @@ def main():
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
                     help="comma-separated views to refine after the sheet pass, e.g. left,back,front")
+    ap.add_argument("--diagnose", dest="diagnose", action="store_true", default=None,
+                    help="LLM diagnosis of the finished run (diagnose.py); default on for CHECK, "
+                         "off for PASS. An output only: nothing goes back to the model")
+    ap.add_argument("--no-diagnose", dest="diagnose", action="store_false", help="no diagnosis, even for CHECK")
     ap.add_argument("--pair", type=pathlib.Path, default=None,
                     help="an earlier run dir of this unit: pairwise vision review against it "
                          "(review_pair.py); losing both axes demotes the status one level")
@@ -1883,12 +1891,27 @@ def main():
     verdict = verdict_of(shape, colour)
     args.pairwise = pairwise_of(args, shape)
     write_review(args, shape, colour, verdict)
-    stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
+    run_diagnose(args, verdict)       # after spec.json, review.md and compare.png: reads them, changes none
+    stage2 ="-" if colour is None else ("PASS" if colour[0] else "FAIL")
     print(f"{args.id}\t{args.run}\t{args.tag}\ttris {shape['tris']}/{lo}-{hi}\t"
           f"skins {shape['skins']}\tanims {shape['anims']}\tsmear {shape['smear']} %\t"
           f"preflight {'PASS' if shape['checks'].get('preflight') else 'FAIL'}\t"
           f"stage1 {'PASS' if shape['ok'] else 'FAIL'}\tstage2 {stage2}\t{verdict}")
     return 0 if verdict in OK_VERDICTS else 1
+
+
+def run_diagnose(args, verdict):
+    """diagnose.py on the finished run when --diagnose, or (unset) when the verdict is CHECK.
+    A failed call costs the diagnosis only, never the run."""
+    if not (verdict == "CHECK" if args.diagnose is None else args.diagnose):
+        return None
+    try:
+        r = diagnose.run_diagnosis(args.out, args.id, args.kind, args.model)
+    except (RuntimeError, OSError, *BAD_REPLY) as err:
+        print(f"diagnosis skipped: {err}")
+        return None
+    print(f"diagnosis: {len(r['findings'])} findings, owner {r['owner']['who']}, {r['cost']['seconds']} s")
+    return r
 
 
 OK_VERDICTS = ("PASS", "SHAPE-PASS")
