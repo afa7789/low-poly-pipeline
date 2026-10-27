@@ -842,6 +842,37 @@ def run_passes(spec, args, brief, views):
     return spec
 
 
+def fit_accepted(prev, cur, gates, problems):
+    """The fitted spec's real clay against the original's (IoU per view, preflight report of each):
+    no view that passed its gate may fall under it, the gated views must gain on the whole and no
+    preflight rule that held may break."""
+    if prev is None or cur is None:
+        return False
+    seen = [v for v in gates if v in prev and v in cur]
+    return (all(cur[v] >= gates[v] for v in seen if prev[v] >= gates[v])
+            and sum(cur[v] - prev[v] for v in seen) > 0 and rules_hold(*problems))
+
+
+def fit_stage(spec, args):
+    """--fit: fit_spec on the first spec, then build the original and the fitted clay for real
+    and keep the fitted one only if fit_accepted. The two trials land in <run>/fit/."""
+    import fit_spec
+    from silhouette import gates_for
+    fitted, report = fit_spec.fit(spec, args.sheet, args.kind)
+    print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
+    if not report["changed"]:
+        return spec
+    work = args.out / "fit"
+    work.mkdir(parents=True, exist_ok=True)
+    (prev, prev_problem, _), (cur, cur_problem, _) = (
+        trial(s, args.sheet, args.kind, work, name) for s, name in ((spec, "before"), (fitted, "after")))
+    ok = fit_accepted(prev, cur, gates_for(args.rig), (prev_problem, cur_problem))
+    (work / "fit.json").write_text(json.dumps({**report, "real": {"before": prev, "after": cur}, "accepted": ok},
+                                              indent=2))
+    print(f"fit: real clay {prev} -> {cur}: {'accepted' if ok else 'rejected, original kept'}")
+    return fitted if ok else spec
+
+
 def silhouette_vs(args, glb, layout, sheet, name):
     """(gate passed, per-view report) of the model against one sheet: shape only, the
     colour zones belong to stage 2."""
@@ -1163,6 +1194,9 @@ def main():
                     help="do not draw the RTS concept view when the sheet has none")
     ap.add_argument("--spec", type=pathlib.Path, default=None,
                     help="start from this spec JSON instead of asking the model for one")
+    ap.add_argument("--fit", action="store_true",
+                    help="before the first build, fit dims/at to the sheet's silhouettes (fit_spec.py); "
+                         "kept only when the real clay loses no view that passed (PIPELINE 19.D1)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -1199,6 +1233,8 @@ def main():
     spec["rig"] = args.rig
     for p in tmp:
         p.unlink(missing_ok=True)
+    if args.fit:
+        spec = fit_stage(spec, args)
     # the repair pass (preflight failures -> patch) runs even without --passes: it is
     # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
     if args.passes or not args.no_repair:

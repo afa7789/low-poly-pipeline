@@ -1319,3 +1319,43 @@ Papers: Le 2026 (a rampa da arte), Wiersma 2026 (cor em Oklab).
   (calibrado no espaço antigo). Variância não melhora o bastante e o gate recalibrado seria outro trabalho: **o antigo é o default**;
   `silhouette.py --space oklab` mede no novo (`ZONE_SPACE`).
 - Testes: `test_silhouette.ZoneRamp` (Oklab contra os valores de Ottosson, `luma_l1`), `test_colour_stage.Ramp`, `test_surfaces.Cel.test_ramp_slope...`.
+
+### 19.D1 `fit_spec.py`: dims/at ajustados contra a silhueta, antes do build (2026-10-27)
+- **O que mudou:** `tools/blender/fit_spec.py spec.json sheet.jpg out.json [--views front,left,back] [--kind mass]
+  [--margin 0.02]`. Proxy numpy do build (contorno convexo de cada peça, com os mesmos eixos/rotações/afunilamentos do
+  `build_unit`: prism/dome/frustum/box/cyl/wheel/ring e from/to), projetado em front/left/back, preenchido (PIL) já no
+  layout de `silhouette.normalize` (256x384, melhor de espelho). Objetivo por vista: `(1 - IoU) + chamfer` (mesma conta de
+  `silhouette.chamfer`, com o EDT do concept em cache). `scipy.optimize.minimize(Powell)` com limites: dims +-20 %, `at`
+  +-0.05 H, **só** nas peças cujas linhas cruzam a faixa de maior erro das vistas abaixo do gate + 0.02 (o resto fica
+  congelado); pares espelhados (arm.L/arm.R...) andam juntos. As regras do preflight que passavam são restrição dura
+  (`preflight.checks_of`, extraída do `main`, roda em 0.5 ms; regra nova quebrada = custo 10). Sem vista abaixo do gate,
+  ou sem ganho, devolve o spec intacto.
+- **Gancho:** `spec_pipeline.py --fit` (default desligado), logo depois do spec e antes do repair/primeiro build:
+  `fit_stage` constrói o clay real do original e do ajustado (`<run>/fit/`, `fit.json`) e fica com o ajustado só se
+  `fit_accepted`: nenhuma vista que passava cai abaixo do gate, a soma dos IoUs gateados sobe, nenhuma regra do preflight
+  quebra. Senão mantém o original.
+- **Passo 1, proxy x render (22 specs de `runs/draft`, front/left/back, os `silhouette.json` guardados; script
+  `scratchpad/papers-d1/validate.py`):** 117 pares, **correlação 0.998**, erro médio absoluto 0.006, viés -0.0002;
+  só os 27 pares dos runs clay (com `tilt`): 0.998. Pior caso: hfoo hard-v1 back, proxy .709 x render .665. Não precisou
+  melhorar o proxy (hull de prism/frustum afunilados e rotações já bastam). Por isso a margem de 0.02 no gate.
+- **Passo 2, prova sem LLM (rebuild real do spec original e do ajustado, `spec_pipeline --spec ... --shape-only`,
+  saídas em `scratchpad/papers-d1/<id>-{base,fit}/`; o base reproduz o `silhouette.json` guardado do run):**
+
+  | run | front | left | back | top | bottom | rts | gates |
+  |---|---|---|---|---|---|---|---|
+  | n005 v4-oneshot-r1 base | .694 | .700 | .746 | .670 | .724 | .816 | 5/6 |
+  | n005 ajustado (1817 avaliações, 30 s) | **.832** | **.802** | **.876** | .705 | .753 | .828 | 6/6 |
+  | n00U v4-oneshot-r1 base | .398 | .555 | .392 | .512 | .531 | .516 | 0/6 |
+  | n00U ajustado (4000 avaliações, 2 min) | **.581** | **.626** | **.577** | .510 | .536 | .570 | 0/6 |
+
+  Proxy previu n005 .838/.809/.881 (render .832/.802/.876) e n00U .576/.622/.572 (render .581/.626/.577). n005 sai de
+  CHECK para SHAPE-PASS; o chamfer de front cai de .030 para .017. n00U melhora +0.18 em front/back mas continua longe do
+  gate 0.65 do spider: a forma (pernas finas, longe do concept) precisa de peças novas, não de dims.
+- **Gancho de ponta a ponta** (`--fit --shape-only` sobre o n005, `scratchpad/papers-d1/n005-hook/`): clay real
+  .694/.700/.746/.670/.724/.816 -> .834/.803/.877/.705/.754/.828, `fit_accepted` aceitou, veredito SHAPE-PASS.
+- **O que piorou / limites:** n00U top -0.002 (já falhava). Só front/left/back entram no objetivo (top/bottom/RTS não
+  têm proxy: o tilt é varrido no render), então eles sobem por correlação, não por medida. `wheel` e `ring` entram
+  como disco cheio (o furo não conta); spec com `segments` não é ajustado. Powell bate o teto de 4000 avaliações no n00U.
+  Custo do `--fit` no pipeline: fit (30-120 s) + 2 builds clay extras (~80 s cada).
+- Papers: Sketch2Mesh 2021 (refinar parâmetros com Chamfer 2D de contorno; só onde o contorno falha), Wiersma 2026
+  (regularizadores como restrição dura), MeshGPT 2024 (congelar o que já está bom).
