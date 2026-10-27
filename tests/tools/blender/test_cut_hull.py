@@ -46,6 +46,42 @@ class StripOutline(unittest.TestCase):
         self.assertIsNone(CH.strip_outline(trapezoid_mask(), (2.0, 0.0), *box, 0))
 
 
+def disc_mask():
+    """A 200 px figure whose strip y 100-140 px is a disc of radius 20 px (a round hood seen from the side)."""
+    yy, xx = np.mgrid[0:200, 0:100]
+    m = (xx - 50) ** 2 + (yy - 120) ** 2 <= 20 ** 2
+    m[0:60, 48:52] = True
+    m[190:200, 45:55] = True
+    return m
+
+
+class Arcs(unittest.TestCase):
+    def test_round_contour_gets_arc_points_and_stays_in_budget(self):
+        box = ((-0.3, 0.6, -0.3), (0.3, 1.0, 0.3))
+        flat = CH.strip_outline(disc_mask(), (2.0, 0.0), *box, 0, CH.LIMIT, False)
+        arc = CH.strip_outline(disc_mask(), (2.0, 0.0), *box, 0, CH.LIMIT, True)
+        self.assertLessEqual(len(arc), CH.LIMIT)
+        # an outline of a disc is closer to the circle with arcs: mean distance of the vertices to the ellipse
+        def err(poly):
+            return np.mean([abs(np.hypot(x / 0.3, (y - 0.8) / 0.2) - 1) for x, y in poly])
+        self.assertLessEqual(err(arc), err(flat) + 1e-6)
+
+    def test_straight_edges_stay(self):
+        poly = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        dense = [(0, t / 10) for t in range(11)] + [(t / 10, 1) for t in range(11)] + [(1, 1 - t / 10) for t in range(11)] + [(1 - t / 10, 0) for t in range(11)]
+        self.assertEqual(CH.arcs(poly, dense, 4), poly)
+
+
+class Picks(unittest.TestCase):
+    def test_default_picks_skip_props_rotated_and_limbs(self):
+        def part(bone, kind, dims, **opts):
+            return [bone, kind, dims, [0, 1, 0], "iron", opts]
+        parts = [part("spine", "frustum", [1, 1, 1]), part("spine", "frustum", [0.2, 0.2, 0.2]),
+                 part("pelvis", "lathe", [0.4, 0.5]), part("arm.L", "prism", [1, 1, 1]),
+                 part("abdomen", "box", [1, 1, 1], prop="tank"), part("head", "lathe", [0.3, 0.8])]
+        self.assertEqual(sorted(CH.cut_picks(parts)), [0, 2, 5])
+
+
 class Wiring(unittest.TestCase):
     def test_only_cut_parts_ask(self):
         plain = ["spine", "prism", [0.4, 0.4, 0.8], [0, 1.8, 0], "iron", {}]

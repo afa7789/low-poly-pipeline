@@ -48,7 +48,7 @@ import lathe_limb
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28,
              "dome": 28, "ring": 144, "lathe": 68, "limb": 32}
-CUT_TRIS = 60   # a part cut by the sheet silhouette (cut_hull.py), upper end of the measured range
+CUT_TRIS = 56   # budget of a part cut by the sheet silhouette (cut_hull.py): build_unit.cut_part decimates (QEM) to it
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
@@ -570,7 +570,7 @@ def load_parts(doc):
 
 def part_tris(part):
     _, kind, dims, _, _, opts = part
-    if opts.get("cut") == "sheet":      # two <= 8-gon extrusions intersected: 42-61 tris measured (PIPELINE 19.B4)
+    if opts.get("cut") == "sheet":      # <= 14-gon extrusions intersected, decimated to the budget (PIPELINE 24.L6-2)
         return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
     if kind in ("prism", "cyl") or (kind == "frustum" and int(opts.get("sides", 4)) > 4):
         return 4 * int(opts.get("sides", 8 if kind != "frustum" else 4)) - 4

@@ -34,7 +34,7 @@ DEFAULT_PROFILE = (0.6, 0.9, 1.0, 1.0, 0.85, 0.5)
 PROFILE_MAX = 1.5               # a ring is at most this many times r
 KNEE = (0.5, 0.0, 0.0, 0.0)
 PLATE_AXES = ("front", "left", "top")
-PLATE_PTS = (3, 8)              # vertices of a plate outline (cut_hull.LIMIT reads at most 8)
+PLATE_PTS = (3, 8)              # vertices of a plate outline (cut_hull.PLATE_LIMIT reads at most 8)
 PLATE_BEVEL_MAX = 0.3
 DEFAULT_PLATE = ((0.5, 0.0), (1.0, 0.25), (1.0, 0.75), (0.5, 1.0), (0.0, 0.75), (0.0, 0.25))
 # upper segment word -> lower segment word in a bone name (leg1.upper/.lower, thigh/shin, arm/forearm)

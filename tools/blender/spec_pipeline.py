@@ -97,7 +97,7 @@ Kinds and dims, exactly:
 - "chain": ONE smooth body along a run of the rig's numbered bones (tail.1.., neck.1.., spine.1.. of a serpent, wyrm or naga) - THE tail, neck and serpent-body primitive, one part where you would put a prism per bone. bone = the FIRST bone of the run (tail.1); opts {{"bones": N}} = how many bones it follows (the RIG TABLE lists them), dims = [r0, .. rN] = the radius at each of the N+1 joints, head to tail (a tail tapers: [0.2, 0.17, 0.12, 0.05]); or dims = [r] with the build reading the widths from the sheet's left panel ("profile_axis": "left" | "front"). `at` is ignored (write [0, 0, 0]): the bones place it. Each joint is a ring that bends with its bone. opts "sides": 6 to 8 (default 8). Triangles: 2 * sides * N + 2 * (sides - 2). No rot, no from/to, no cut. Examples: a drake tail {{"tail.1", "chain", dims [0.22, 0.17, 0.11, 0.04], at [0, 0, 0], opts {{"bones": 3}}}}; a drake neck {{"neck.1", "chain", dims [0.2, 0.15, 0.12], at [0, 0, 0], opts {{"bones": 2, "sides": 8}}}}; a serpent body {{"spine.1", "chain", dims [0.34, 0.4, 0.42, 0.4, 0.34, 0.26, 0.17, 0.1, 0.05], at [0, 0, 0], opts {{"bones": 8}}}}.
 - ROTATION: a box, prism, frustum or dome that is not a from/to part takes opts {{"rot": [rx, ry, rz]}}, degrees, each within +-60, turning around the part centre. rx: top tips forward (+z). ry: turns around up (front toward +x). rz: top tips toward -x, so the bottom swings toward +x. Examples: a hanging arm 15 degrees out is a prism with "rot": [0, 0, 15] when it stands at +x and [0, 0, -15] at -x; a drooping pauldron slab "rot": [0, 0, 20] at +x; a hood tipped forward a frustum with "rot": [25, 0, 0]; a leg stepping out [0, 0, 12] at +x. The preflight measures the rotated part, so keep `at` at the part centre.
 - "plate": a flat polygon extruded along its normal - THE wing, shell-with-overhang, fin, rudder and armour-plate primitive (an outline a box cannot draw). dims = (w, h, t) around `at`: w and h span the polygon, t is the thickness. opts {{"axis": "front" | "left" | "top" (the sheet panel it is read from and the plane the polygon lies in: front = x/y with thickness along z, left = z/y with thickness along x, top = x/z with thickness along y; default "front"), "profile": [3 to 8 points [u, v], each 0 to 1 of w and h] (u runs along x, or z for left; v runs up, or forward for top), "bevel": 0 to 0.3 (the faces shrink by that fraction), "rot": degrees allowed}}. Without "profile" the build reads the outline from the sheet panel in the part's box; with it you draw the shape yourself. 8 to 28 triangles (up to 60 with a bevel). Examples: a harpy wing on arm.L {{"plate", dims [0.7, 0.5, 0.04], opts {{"axis": "front", "profile": [[0, 0.5], [0.3, 1], [1, 0.8], [0.7, 0.3], [0.9, 0], [0.2, 0.15]], "rot": [0, 0, -20]}}}}; a spider carapace on thorax with an overhang over the legs {{"plate", dims [0.5, 0.6, 0.12], opts {{"axis": "top", "bevel": 0.2}}}}; a tail rudder on tail {{"plate", dims [0.25, 0.3, 0.04], opts {{"axis": "left", "profile": [[0, 0], [1, 0], [0.6, 1]]}}}}.
-- CUT: a box, prism or frustum with NO rot and no from/to may take opts {{"cut": "sheet"}}: the build then cuts that part to the sheet's own silhouette (the front and left outlines of the sheet in the part's height band, each reduced to at most 8 points, extruded and intersected, then fitted to the part's box). The part keeps its `at` and dims as the box it must fill. Use it for the masses whose outline the primitive cannot draw: torso, pelvis, hood or cowl, carapace, abdomen, a bulky chest plate. Never on a limb, hand, foot, weapon, head or thin plate: the strip of a limb would also pick up whatever is drawn beside it. At most 3 cut parts per unit; each costs about 60 triangles.
+- CUT: a box, prism or frustum with NO rot and no from/to may take opts {{"cut": "sheet"}}: the build then cuts that part to the sheet's own silhouette (the front, left and top outlines of the sheet in the part's height band, each reduced to at most 14 points, extruded and intersected, then fitted to the part's box). The part keeps its `at` and dims as the box it must fill. Use it for the masses whose outline the primitive cannot draw: torso, pelvis, hood or cowl, carapace, abdomen, a bulky chest plate. Never on a limb, hand, foot, weapon, head or thin plate: the strip of a limb would also pick up whatever is drawn beside it. At most 4 cut parts per unit; each costs up to 56 triangles. (The pre-spec already carries cut on the main torso, pelvis and hood: keep it.)
 - "dome": only for a genuinely domed organic cap. Never a mechanical pauldron: use a box slab instead.
 - "box": for flat plates, slabs, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
 - "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd", "sides": 8 (default)}}.
@@ -882,9 +882,9 @@ def bad_rot(opts):
 
 
 def bad_cut(part):
-    """True when opts["cut"] is anything but "sheet" on an unrotated box/prism/frustum (a limb is never cut)."""
+    """True when opts["cut"] is anything but "sheet" on an unrotated box/prism/frustum/lathe (a limb is never cut)."""
     opts = part[5]
-    return "cut" in opts and (opts["cut"] != "sheet" or part[1] not in ("box", "prism", "frustum")
+    return "cut" in opts and (opts["cut"] != "sheet" or part[1] not in cut_hull.CUT_KINDS
                               or any(k in opts for k in ("rot", "from", "to")))
 
 
@@ -1176,11 +1176,12 @@ def run_passes(spec, args, brief, views):
     return spec
 
 
-def fit_accepted(prev, cur, gates, problems, rig=None):
+def fit_accepted(prev, cur, gates, problems, rig=None, cut=False):
     """The fitted spec's real clay against the original's (IoU per view, preflight report of each):
     no view that passed its gate may fall under it, the gated views must gain on the whole and no
     preflight rule that held may break; the family's critical views (VIEW_FLOOR) may not fall more than
-    FIT_SLIP even when they were under their gate."""
+    FIT_SLIP even when they were under their gate. The red (uncovered share) may not grow either, except
+    for the cut variant: a hull trades red for the shape the IoU and the rules judge (PIPELINE 24.L6-2)."""
     if prev is None or cur is None:
         return False
     if any(cur.get(v, 1.0) < prev.get(v, 0.0) - FIT_SLIP for v in VIEW_FLOOR.get(rig, VIEW_FLOOR[None])):
@@ -1191,7 +1192,7 @@ def fit_accepted(prev, cur, gates, problems, rig=None):
     # refused while front/back gained 0.08; the stage 1 verdict still gates every view)
     held = all(cur[v] >= gates[v] - FIT_SLIP for v in seen if prev[v] >= gates[v])
     margin = [sum(r[v] - gates[v] for v in seen) for r in (prev, cur)]
-    red_ok = cur.get("red", 0.0) <= prev.get("red", 0.0) + RED_SLIP      # the red may not grow
+    red_ok = cut or cur.get("red", 0.0) <= prev.get("red", 0.0) + RED_SLIP      # the red may not grow
     return held and red_ok and margin[1] > margin[0] and rules_hold(*problems)
 
 
@@ -1221,7 +1222,7 @@ def fit_stage(spec, args):
     for name, cand in candidates:
         cur = trial(cand, args.sheet, args.kind, work, name)
         real[name] = cur[0]
-        if fit_accepted(best[0], cur[0], gates_for(args.rig), (best[1], cur[1]), args.rig):
+        if fit_accepted(best[0], cur[0], gates_for(args.rig), (best[1], cur[1]), args.rig, name == "cut"):
             best, chosen = cur, (name, cand)
     (work / "fit.json").write_text(json.dumps({**report, "real": real, "accepted": chosen[0] != "before",
                                                "chosen": chosen[0]}, indent=2))
