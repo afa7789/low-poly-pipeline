@@ -1932,3 +1932,125 @@ Por que falham: no n005 o desenho 270 repete o 90 (a figura olha para o mesmo la
 (esp = lado espelho: o "45" do desenho é o lado -X do modelo, o "left" do sheet.) O n01X 3/4 fica em .77-.81, no nível das vistas 3+2 (.77-.83): o clay v6 não é pior em 3/4 do que nas vistas de gate. A varredura dá +.11 sobre o ângulo nominal e escolhe quase sempre perto do limite da janela (25, 155, 335...): os desenhos 3/4 do modelo de imagem não estão em 45 exatos (nem a "frente" está em 0), então o azimute medido é um deslocamento do desenho, não uma câmera confiável; o F4 deve tratar o azimute como parâmetro do desenho (como o tilt), não fixá-lo.
 
 **O que piorou / limites.** Só 1 de 3 unidades passa o teste de coerência com o prompt atual; os 3/4 só são relatório. Frente x costas espelhados só vale para figuras de simetria esquerda-direita (aranha reprova por construção; um critério por unidade, ex. IoU contra o espelho do próprio painel, seria o passo seguinte). Prompt de 1 chamada sem repetição: o n005 pode passar numa segunda tentativa (custo +$0.004). Teste: `tests/tools/blender/test_turn.py` (ordem dos painéis, subcases de altura/largura/espelho, janelas de azimute, `turn_match`; sem API nem Blender).
+
+### 21.F7 Acoplamento apertado: `uncovered` / `spill` por vista, por faixa de altura (2026-10-27) - relatório, `COUPLING_BLOCKING = False`
+
+O IoU diz quanto, não onde nem de que lado. Duas razões de área separam o erro: **`uncovered`** = área do sheet sem modelo / área do
+sheet (a mancha do overlay que só o concept cobre) e **`spill`** = área do modelo fora do sheet / área do modelo. Mesmo IoU front 0.77,
+o n01X v5-oneshot-r1 é u18 s8 (magro) e o n01X v2-hard-r1 é u12 s14 (gordo). Sem paper novo: é a união
+decomposta (Sketch2Mesh, Eq. 5-6, a mesma região que o `failing_band` do fit já usa).
+
+- **O que mudou.**
+  - `silhouette.coupling(concept, model)`: `uncovered`, `spill`, `bands` (8 faixas de altura a partir dos pés; as mesmas duas
+    áreas por faixa, como fração do sheet / do modelo, então somam o total) e `red` = pior faixa do `uncovered` (`band`, `lo`,
+    `hi`, `share`) + `blob` (bbox da maior peça vermelha, depois de uma abertura de 2 px que tira o anel fino de contorno: `x`
+    em frações de H a partir do centro, `y` em frações de H a partir dos pés, `share` do sheet). É o "a lanterna" / "a perna 3"
+    do relatório: n005 left aponta `x -0.38..-0.29 H, y 0.22..0.57 H` = o braço longe que o modelo não tem.
+  - `silhouette.json` por vista ganha os campos; o resumo do run ganha `uncovered`, `spill`, `red` por vista.
+  - `review.md`: linhas `uncovered (report, /sheet area)`, `spill (report, /model area)` e uma `worst red <vista>` por vista
+    (`band 5 (0.62-0.75 H), 9 % of sheet; largest piece x ..., y ... H`).
+  - `make_compare.py` / `compare_runs.py`: rodapé `bare x% spill y%` com as cores do overlay do compare. Atenção: no compare
+    o concept é **verde** e o modelo **vermelho** (`OVERLAY`); nos `overlay-<vista>.png` do `silhouette.py` é o contrário (concept
+    em R). `uncovered` = a mancha que só o concept cobre em ambos.
+  - Gate: `COUPLING_BLOCKING = False`; `UNCOVERED_MAX` / `SPILL_MAX` por vista existem e `coupling_ok` os aplica só se ligar.
+  - `fit_spec.edge_term(outlines, hard)` + `hard_canvas_edges`, gancho de 2 linhas em `Proxy.loss` (`+ EDGE_W * ...` só quando o
+    proxy tem `hard`); `--fit-edges` no `spec_pipeline` (e `--hard <sheet-hard>` no `fit_spec.py`). Função separada: o objetivo
+    do F4 não muda de forma.
+- **Calibração** (`runs/draft/*/*` com `silhouette.json`, 65 runs; recalculado com `silhouette.py --shape` no `clay.glb`/GLB do
+  run, mesma `sheet.jpg`, tilts do próprio `silhouette.json`; o IoU refeito bate o guardado em 63/65, os 2 com `*` são hard-v1
+  antigos sem tilt guardado, varredura refeita). Células `uncovered/spill` em %:
+
+| run | front u/s | left u/s | back u/s | top u/s | bottom u/s | rts u/s | IoU gates |
+|---|---|---|---|---|---|---|---|
+| h09B leva2-l13-base | 0/25 | 4/4 | 1/19 | - | - | - | FAIL |
+| h09B leva2-l13-r1 | 1/17 | 2/21 | 3/12 | - | - | - | PASS |
+| hfoo abH1 | 26/39 | 33/20 | 28/40 | 19/11 | 21/16 | 35/28 | FAIL |
+| hfoo abH2 | 18/28 | 35/20 | 16/25 | 10/15 | 11/20 | 21/26 | FAIL |
+| hfoo abR1 | 19/26 | 31/26 | 20/26 | 5/18 | 5/21 | 15/29 | FAIL |
+| hfoo abS1 | 18/34 | 30/31 | 18/33 | 28/7 | 28/11 | 24/44 | FAIL |
+| hfoo abS2 | 22/30 | 36/21 | 22/29 | 23/7 | 20/15 | 18/21 | FAIL |
+| hfoo hard-v1 | 7/12 | 35/22 | 18/22 | 15/6 | 16/11 | 19/27 | FAIL |
+| hfoo hardfirst | 21/37 | 35/24 | 23/37 | 18/8 | 13/19 | 21/38 | FAIL |
+| hfoo v2 | 15/31 | 32/23 | 14/30 | 9/13 | 16/16 | 27/28 | FAIL |
+| hfoo v2-hard-r1 | 14/16 | 38/26 | 22/23 | 21/7 | 8/16 | 14/29 | FAIL |
+| hfoo v2-hard-r2 | 35/20 | 47/23 | 41/27 | 19/6 | 15/7 | 16/29 | FAIL |
+| n005 hard-v1 | 11/15 | 14/10 | 9/10 | 22/10 | 20/5 | 11/8 | PASS |
+| n005 leva2-s1-r1 | 12/14 | 18/7 | 10/9 | 15/16 | 13/9 | 8/11 | PASS |
+| n005 leva2-s1-r2 | 13/17 | 18/6 | 11/12 | 15/16 | 14/8 | 9/12 | FAIL |
+| n005 leva2-s1-r3 | 11/17 | 16/6 | 9/13 | 14/18 | 15/7 | 7/13 | PASS |
+| n005 v2-hard-r1 | 14/17 | 17/12 | 10/10 | 22/13 | 16/11 | 7/16 | FAIL |
+| n005 v2-hard-r2 | 15/19 | 19/31 | 17/18 | 23/14 | 22/10 | 15/20 | FAIL |
+| n005 v3-stages-r1 | 16/17 | 31/38 | 15/14 | 29/8 | 31/5 | 28/11 | FAIL |
+| n005 v3-stages-r2 | 17/18 | 17/13 | 15/13 | 19/15 | 16/9 | 9/13 | FAIL |
+| n005 v4-oneshot-r1 | 15/21 | 14/21 | 13/16 | 27/11 | 23/7 | 7/13 | FAIL |
+| n005 v5-fit-r1 | 19/15 | 14/3 | 19/12 | 23/12 | 23/6 | 9/10 | FAIL |
+| n005 v5-fit-r2 | 7/10 | 14/4 | 6/5 | 15/14 | 14/11 | 5/10 | PASS |
+| n005 v5-fit-r3 | 7/9 | 15/4 | 6/5 | 15/15 | 14/12 | 4/10 | PASS |
+| n005 v5-oneshot-r1 | 15/17 | 17/4 | 14/13 | 16/18 | 18/7 | 8/13 | FAIL |
+| n005 v5-variants-r1 | 11/25 | 17/7 | 7/19 | 15/9 | 21/7 | 5/16 | FAIL |
+| n005 v6-r1 | 7/13 | 13/8 | 6/8 | 14/18 | 17/8 | 11/8 | PASS |
+| n005 v6-r3 | 8/13 | 13/8 | 6/8 | 14/18 | 17/8 | 10/8 | PASS |
+| n005 v6-r4 | 7/12 | 13/8 | 6/8 | 14/18 | 17/8 | 10/8 | PASS |
+| n00U hard-v1* | 40/16 | 27/17 | 41/17 | 28/22 | 34/14 | 29/24 | FAIL |
+| n00U leva2-l14-r1 | 32/12 | 30/19 | 31/11 | 12/22 | 14/25 | 24/22 | FAIL |
+| n00U v2-hard-r1 | 26/12 | 19/23 | 26/12 | 25/20 | 23/24 | 29/22 | FAIL |
+| n00U v2-hard-r2 | 30/17 | 26/16 | 30/16 | 28/14 | 35/13 | 30/22 | FAIL |
+| n00U v3-stages-r1 | 25/18 | 22/18 | 25/18 | 32/15 | 36/19 | 25/26 | FAIL |
+| n00U v3-stages-r2 | 44/10 | 27/16 | 44/10 | 35/15 | 37/11 | 35/19 | FAIL |
+| n00U v4-oneshot-r1 | 58/10 | 37/17 | 59/11 | 44/14 | 43/11 | 40/22 | FAIL |
+| n00U v5-fit-r1 | 61/15 | 56/19 | 61/15 | 26/24 | 30/15 | 33/19 | FAIL |
+| n00U v5-fit-r2 | 34/9 | 38/13 | 35/9 | 27/17 | 33/16 | 24/25 | FAIL |
+| n00U v5-oneshot-r1 | 73/16 | 62/10 | 73/15 | 52/26 | 51/29 | 42/24 | FAIL |
+| n00U v6-r1 | 18/16 | 17/20 | 18/16 | 5/32 | 4/36 | 16/28 | FAIL |
+| n00U v6-r2 | 18/16 | 17/20 | 18/16 | 5/32 | 4/36 | 16/28 | FAIL |
+| n00U v6-r3 | 12/13 | 19/19 | 11/12 | 6/33 | 4/36 | 12/30 | FAIL |
+| n01I hard-v1 | 9/13 | 17/17 | 5/17 | 23/19 | 5/49 | 20/17 | FAIL |
+| n01I v2-hard-r1 | 12/14 | 29/25 | 10/20 | 13/21 | 17/36 | 23/14 | FAIL |
+| n01I v2-hard-r2 | 14/17 | 31/36 | 10/21 | 21/15 | 26/23 | 24/15 | FAIL |
+| n01N hard-v1* | 54/38 | 28/47 | 52/39 | 21/62 | 25/64 | 31/45 | FAIL |
+| n01N v2-hard-r1 | 54/42 | 39/52 | 52/43 | 38/54 | 32/49 | 31/47 | FAIL |
+| n01N v2-hard-r2 | 37/28 | 31/43 | 35/29 | 33/56 | 24/43 | 30/40 | FAIL |
+| n01X hard-v1 | 6/8 | 7/18 | 6/8 | 14/8 | 9/16 | 6/17 | PASS |
+| n01X v12 | 11/7 | 13/6 | 11/8 | 18/6 | 9/14 | 13/12 | PASS |
+| n01X v13 | 9/6 | 12/6 | 9/7 | 17/6 | 8/14 | 12/12 | PASS |
+| n01X v2-hard-r1 | 12/14 | 10/18 | 13/14 | 5/10 | 3/20 | 8/18 | PASS |
+| n01X v2-hard-r2 | 14/13 | 9/16 | 14/13 | 6/11 | 3/17 | 9/18 | PASS |
+| n01X v3-stages-r1 | 12/12 | 11/14 | 11/12 | 5/7 | 3/15 | 8/17 | PASS |
+| n01X v3-stages-r2 | 14/10 | 12/8 | 13/10 | 8/9 | 2/16 | 11/16 | PASS |
+| n01X v4-oneshot-r1 | 18/6 | 11/13 | 18/6 | 10/5 | 8/13 | 12/13 | PASS |
+| n01X v5-fit-r1 | 11/7 | 13/9 | 11/8 | 10/8 | 3/17 | 5/17 | PASS |
+| n01X v5-oneshot-r1 | 18/8 | 17/8 | 18/8 | 11/7 | 6/17 | 6/16 | PASS |
+| n01X v6-r1 | 18/4 | 12/8 | 18/4 | 19/5 | 10/8 | 10/13 | PASS |
+| n01X v6-r3 | 19/4 | 11/7 | 19/4 | 18/5 | 10/8 | 10/13 | PASS |
+| n01X v6-r4 | 20/5 | 12/7 | 20/5 | 19/5 | 11/8 | 11/12 | PASS |
+| n01X v6-r5 | 18/4 | 11/8 | 18/4 | 19/5 | 10/8 | 10/13 | PASS |
+| n02X hard-v1 | 11/23 | 18/26 | 10/19 | 25/12 | 18/13 | 6/17 | FAIL |
+| n02X v2-hard-r1 | 10/23 | 34/26 | 9/19 | 15/15 | 12/18 | 14/20 | FAIL |
+| n02X v2-hard-r2 | 14/8 | 34/22 | 17/8 | 22/15 | 18/18 | 15/6 | FAIL |
+
+- **O que os melhores runs atingem** (n01X v5-fit-r1, v13; n005 v5-fit-r2, v6-r4): `uncovered` e `spill` entre 3 e 18 %; por vista o
+  máximo desses quatro: front u11 s12, left u14 s9, back u11 s8, top u17 s18, bottom u17 s17, rts u12 s17. Média das 6 vistas
+  u 0.087-0.113, s 0.085-0.109. A pior faixa deles tem 5-6 % do sheet.
+- **Caps propostos** (máximo dos melhores + 0.03, arredondado para cima a 0.05), `uncovered` / `spill`: front .15/.20 (o n01X
+  v6 tem 18-20 % de uncovered e passa do cap), left .20/.15, back .15/.15, top .25/.25, bottom .25/.20, rts .20/.25. Hoje isso marca
+  **50/65** runs (quase todos já falham no IoU) e **10/23 dos runs que passam o IoU** (43 %, acima de 1/3): n01X hard-v1, v2-hard-r1/r2
+  (left spill), n01X v4/v5-oneshot, v6-r1/r3/r4/r5 (front/back uncovered: magro nas costas e na frente), h09B l13-r1 (left
+  spill). Regra: só vira gate com < 1/3, então **fica relatório**. O que ele pega e o IoU não: modelo magro (u alto, s baixo) com
+  IoU ainda acima do limiar. É o n01X v6, cuja IoU front .77-.79 passa e cujo `uncovered` 18-20 % passa a ser dito.
+- **PASS "bom" x PASS "feio": nenhum gate de acoplamento separa.** n005 v5-fit-r3 (PASS e feio) e v5-fit-r2: u/s por vista
+  7/9, 15/4, 6/5, 15/15, 14/12, 4/10 contra 7/12, 13/8, 6/8, 14/18, 17/8, 10/8 do v6-r4 (o "bom"): o r3 é *melhor* nas seis. A pior
+  faixa e a maior peça vermelha são as mesmas nos dois (left: o braço do outro lado, `x -0.38..-0.29 H`; top: a mochila/braço
+  direito). O feio do r3 é interno (caixas grandes, inchadas contra a malha que o r4 tem em capuz e casaco), que a silhueta não vê:
+  o acoplamento mede a mesma coisa que o IoU, com sinal. O que sobra para separar é `zones_clay` / `cover` (§20.N3), o review
+  pareado (§20.S4) e `edge_chamfer`; resultado negativo, registrado.
+- **`--fit-edges` (n005 v6-r4, `--margin 0.2`, front/left/back; só o spec do n005, sem LLM).** `edge_term` hard->part outline
+  (canvas heights): guardado .0108/.0140/.0095; fit sem o termo .0115/.0153/.0094 (IoU .881/.863/.904, 2876 avaliações, 53 s);
+  fit com o termo .0108/.0138/.0087 (IoU .875/.867/.904, 4000 avaliações = orçamento todo, 151 s). Ganho de arestas ~0.001 H, IoU
+  -0.006 no front, 3x mais lento: **opt-in, default desligado**. O contorno das peças já cobre quase toda aresta desenhada
+  (convexas), então o termo quase não tem gradiente.
+- **O que piorou / limites.** (1) O `red` só tem sentido na vista do tilt escolhido; top/bottom contam "altura" como o eixo vertical
+  da imagem. (2) A abertura de 2 px descarta fatias finas (um braço de 3 px de largura não aparece em `blob`, só na faixa).
+  (3) `uncovered` e `spill` são funções do IoU e das áreas: sozinhos não acrescentam gate útil com os limiares atuais.
+  (4) Runs antigos não guardam `sil/approved/`, então o compare só mostra `bare/spill` nos runs refeitos depois deste commit.
+- **Testes.** `test_silhouette.Coupling` (bandas, blob, texto, chave do gate), `test_make_compare.test_footer_coupling`,
+  `test_spec_pipeline.test_coupling_rows`, `test_fit_spec.EdgeTerm`.

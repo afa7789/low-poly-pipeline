@@ -42,6 +42,7 @@ LOOSE_W = 0.3           # objective cost of each part not connected to its paren
 NO_GROW = ("spine", "pelvis", "body", "abdomen")
 HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,)}
 CHAMFER_W = 1.0         # objective = (1 - IoU) + CHAMFER_W * chamfer, per view
+EDGE_W = 0.1            # weight of the optional --fit-edges term (edge_term), per view mean
 PENALTY = 10.0          # a preflight rule that held and breaks costs this much, plus 1 per rule
 BAND_SHARE = 0.6        # failing band: rows whose error is this share of the worst row's
 BAND_SMOOTH = 16        # rows of the moving average that smooths the error profile
@@ -195,11 +196,38 @@ def edge_of(mask):
     return mask & ~binary_erosion(mask)
 
 
+def edge_term(outlines, hard):
+    """Optional fit term (--fit-edges, PIPELINE 21.F7): mean distance, in canvas heights, from each
+    inner edge of the hard sheet (`hard`: bool canvas, silhouette.fit_canvas of silhouette.edges)
+    to the nearest part outline of one view (`outlines`: model units, +v up) - did the model
+    facet where the drawing does. Better of the two mirrors, like silhouette.variants. 0 without
+    drawn edges. Same layout as raster() (kept apart so the fit objective can change freely)."""
+    if not hard.any():
+        return 0.0
+    allp = np.concatenate(outlines)
+    lo, hi = allp.min(axis=0), allp.max(axis=0)
+    s = min(silhouette.CANVAS_H / max(hi[1] - lo[1], 1e-6), silhouette.CANVAS_W / max(hi[0] - lo[0], 1e-6))
+    x0 = (silhouette.CANVAS_W - (hi[0] - lo[0]) * s) / 2
+    y0 = (silhouette.CANVAS_H - (hi[1] - lo[1]) * s) / 2
+    img = Image.new("L", (silhouette.CANVAS_W, silhouette.CANVAS_H), 0)
+    draw = ImageDraw.Draw(img)
+    for o in outlines:
+        draw.polygon([((x - lo[0]) * s + x0, (hi[1] - y) * s + y0) for x, y in o], outline=255)
+    lines = np.asarray(img) > 0
+    return min(float(distance_transform_edt(~m)[hard].mean()) for m in (lines, np.fliplr(lines))) / silhouette.CANVAS_H
+
+
+def hard_canvas_edges(hard, views):
+    """{view: inner edges of the hard sheet's panel on the canvas} for edge_term."""
+    panels = silhouette.concept_panels(hard)
+    return {v: silhouette.fit_canvas(silhouette.edges(hard, panels[v]), panels[v]) for v in views}
+
+
 class Proxy:
     """Scores a parts list against the concept masks of the views being fitted."""
 
-    def __init__(self, concept, views):
-        self.concept, self.views = concept, views
+    def __init__(self, concept, views, hard=None):
+        self.concept, self.views, self.hard = concept, views, hard
         # the concept's contour and its distance map never change: silhouette.chamfer, halved
         self.edge = {v: edge_of(m) for v, m in concept.items()}
         self.dist = {v: distance_transform_edt(~e) for v, e in self.edge.items()}
@@ -227,7 +255,9 @@ class Proxy:
 
     def loss(self, parts, cache=None):
         scores = [self.view_score(v, m) for v, (m, _) in self.masks(parts, cache).items()]
-        return sum((1 - i) + CHAMFER_W * c for i, c in scores) / len(scores)
+        edge = self.outlines(parts, cache) if self.hard else {}      # --fit-edges (PIPELINE 21.F7)
+        return sum((1 - i) + CHAMFER_W * c for i, c in scores) / len(scores) \
+            + EDGE_W * sum(edge_term(o, self.hard[v]) for v, o in edge.items()) / max(len(edge), 1)
 
 
 # ---------------------------------------------------------------- the fit
@@ -363,13 +393,14 @@ def broken_rules(parts, doc, kind, targets, props):
     return {n for n, ok, _ in preflight.checks_of(parts, doc, kind, targets, props) if not ok}
 
 
-def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_EVALS):
+def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_EVALS, hard=None):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule."""
     parts = doc["parts"] if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))
     panels = silhouette.concept_panels(sheet)
-    proxy = Proxy({v: silhouette.normalize(panels[v]) for v in views}, views)
+    proxy = Proxy({v: silhouette.normalize(panels[v]) for v in views}, views,
+                  hard_canvas_edges(hard, views) if hard else None)
     before = proxy.ious(parts) if parts else {}
     failing = [v for v in views if before.get(v, 1.0) < gates[v] + margin]
     report = {"views": list(views), "before": before, "after": before, "failing": failing,
@@ -428,9 +459,11 @@ def main():
     ap.add_argument("--kind", default="mass", choices=preflight.BUDGETS.keys())
     ap.add_argument("--margin", type=float, default=MARGIN,
                     help="fit views under gate + margin (the proxy is a little off the real render)")
+    ap.add_argument("--hard", type=pathlib.Path, default=None,
+                    help="the hard sheet: adds the edge term (hard-sheet inner edges vs part outlines)")
     args = ap.parse_args()
     doc = json.loads(args.spec.read_text())
-    out, report = fit(doc, args.sheet, args.kind, tuple(args.views.split(",")), args.margin)
+    out, report = fit(doc, args.sheet, args.kind, tuple(args.views.split(",")), args.margin, hard=args.hard)
     args.out.write_text(json.dumps(out, indent=2))
     print(json.dumps(report))
     return 0

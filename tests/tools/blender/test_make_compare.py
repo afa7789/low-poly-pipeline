@@ -93,6 +93,12 @@ class Contract(unittest.TestCase):
         self.assertIn("PASS", text)
         self.assertIn("no measurement", "".join(p[0] for p in CR.cell_footer(self.run, "left")))
 
+    def test_footer_coupling(self):
+        r = {"iou": 0.8, "uncovered": 0.094, "spill": 0.031}
+        for fn in (lambda: MC.coupling_parts(r), lambda: CR.cell_footer({"report": {"front": r}}, "front")):
+            self.assertIn("bare 9% spill 3%", "".join(p[0] for p in fn()))
+        self.assertEqual(MC.coupling_parts({"iou": 0.8}), [])
+
 
 class WireColumn(unittest.TestCase):
     def test_wire_and_uv_columns_status_and_view_discovery(self):

@@ -256,6 +256,13 @@ class HardFirst(unittest.TestCase):
     def test_approved_ref_says_it_is_the_contract(self):
         self.assertIn("contract", SP.with_refs("B", [("approved", None)]))
 
+    def test_coupling_rows(self):
+        red = {"band": 5, "lo": 0.625, "hi": 0.75, "share": 0.09, "blob": None}
+        rows = SP.iou_rows({"approved": {"front": 0.8}, "uncovered": {"front": 0.12}, "spill": {"front": 0.05},
+                            "red": {"front": red}})
+        self.assertIn("| uncovered (report, /sheet area) | 0.120 / - / - / - / - / - |", rows)
+        self.assertIn("| worst red front | band 5 (0.62-0.75 H), 9 % of sheet |", rows)
+
     def test_iou_rows_list_each_sheet(self):
         rows = SP.iou_rows({"approved": {"front": 0.8, "left": 0.7, "back": 0.6},
                             "hard": {"front": 0.9}, "drift": {}})
