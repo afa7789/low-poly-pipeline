@@ -479,7 +479,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         return obj
     if kind == "frustum":
         obj = frustum(dims, at, top=opts.get("top", (1.0, 1.0)),
-                      shift=opts.get("shift", (0.0, 0.0)), rot=(rx, ry, rz))
+                      shift=opts.get("shift", (0.0, 0.0)), rot=rots)
         if opts.get("spin"):
             obj.rotation_euler.z += D(float(opts["spin"]))
         if opts.get("scale"):
@@ -492,7 +492,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     if kind == "box":
         size = bd(dims)
         if chamfer and not has_span:
-            obj = chamfer_cube(size, at, (rx, ry, rz), 0.02)
+            obj = chamfer_cube(size, at, rots, 0.02)
             obj.name = f"{bone}_{idx}"
             obj.data.materials.append(material(mat_name))
             return obj

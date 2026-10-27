@@ -177,6 +177,36 @@ SPAN_RADIUS = {"prism": lambda d: max(d[0], d[1]), "cyl": lambda d: d[0],
                "dome": lambda d: d[0], "wheel": lambda d: d[0], "ring": lambda d: d[0]}
 
 
+ROT_KINDS = ("box", "prism", "dome", "frustum")    # kinds build_unit rotates by opts["rot"]
+
+
+def rot_euler(opts):
+    """opts["rot"] as (right, up, forward) degrees; a bare number turns around forward."""
+    rot = opts.get("rot", 0.0)
+    return (0.0, 0.0, float(rot)) if isinstance(rot, (int, float)) else tuple(float(v) for v in rot)
+
+
+def rot_matrix(rx, ry, rz):
+    """The build's rotation in spec (right, up, forward) axes: right first, then forward,
+    then up (Blender XYZ euler after the axis swap). Right-handed, degrees."""
+    (sx, cx), (sy, cy), (sz, cz) = ((math.sin(math.radians(v)), math.cos(math.radians(v)))
+                                    for v in (rx, ry, rz))
+    about_right = ((1, 0, 0), (0, cx, -sx), (0, sx, cx))
+    about_fwd = ((cz, -sz, 0), (sz, cz, 0), (0, 0, 1))
+    about_up = ((cy, 0, sy), (0, 1, 0), (-sy, 0, cy))
+    return _matmul(about_up, _matmul(about_fwd, about_right))
+
+
+def _matmul(a, b):
+    return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
+
+
+def rotated_half(half, euler):
+    """Half extents of the box `half` after the rotation, as an axis-aligned box."""
+    m = rot_matrix(*euler)
+    return tuple(sum(abs(m[i][j]) * half[j] for j in range(3)) for i in range(3))
+
+
 def bbox(part):
     _, kind, dims, _, _, opts = part
     if "from" in opts and "to" in opts:
@@ -185,7 +215,10 @@ def bbox(part):
         return (tuple(min(a[i], b[i]) - r for i in range(3)),
                 tuple(max(a[i], b[i]) + r for i in range(3)))
     x, y, z = centre(part)
-    hx, hy, hz = HALF.get(kind, lambda d, o: (d[0] / 2, d[1] / 2, d[2] / 2))(dims, opts)
+    half = HALF.get(kind, lambda d, o: (d[0] / 2, d[1] / 2, d[2] / 2))(dims, opts)
+    if kind in ROT_KINDS and any(rot_euler(opts)):
+        half = rotated_half(half, rot_euler(opts))
+    hx, hy, hz = half
     return (x - hx, y - hy, z - hz), (x + hx, y + hy, z + hz)
 
 

@@ -1058,3 +1058,18 @@ renders `<out>/views/<tag>/model-<view>.png`.
 - Sheet vs cel vs painted (n01X hard-v1, zones mean/cover front, top): cel .42/.83, .33/.67; painted
   .32/.62, .27/.59; sheet .40/.91, .22/.61. `sheet` carries the drawn plates and outlines but smears
   where the model's limbs do not sit on the drawn ones and is weakest from above; `cel` is cleaner.
+
+### 18.I Per-part rotation in the DSL (2026-10-26)
+
+- `opts {"rot": [rx, ry, rz]}` (degrees: right, up, forward; one number = forward) is now in the
+  spec brief with examples (arm out, drooping pauldron, tipped hood, stepped leg). Works on box,
+  prism, frustum, dome that are not from/to parts (those are aimed by the endpoints).
+- `preflight.bbox` rotates the part's box (`rot_matrix`, same order as the build: right, forward,
+  up) and takes the envelope, so `band_span`, `ground_fix` and `overlaps` see the tilted part.
+- `validate` rejects |angle| > 60 and a malformed `rot`; `normalise` used to drop any non-number
+  `rot`, now it keeps a list.
+- Root-cause fix in `build_unit.build_part`: frustum and chamfered boxes got radians and converted
+  them again, so their rotation was ~0. Only old `opus55` specs with `rot` on chamfered boxes or
+  frustums change on rebuild (hard-v1 and v13 of n01X have none; hard-v1 rebuilt: .878/.769/.875).
+- Proof (n01X hard-v1, shoulder frustums, upper-arm prisms and hand boxes at +-15 deg around forward,
+  `at` in place of from/to): preflight 15/15, build ok, 6/6 gates, front .870 left .763 back .868.

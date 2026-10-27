@@ -1,5 +1,6 @@
 """python3 -m unittest discover -s tests/tools/blender"""
 import json
+import math
 import pathlib
 import subprocess
 import sys
@@ -173,3 +174,34 @@ class Shape(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RotatedBox(unittest.TestCase):
+    def part(self, kind="box", **opts):
+        return ["arm.L", kind, [0.2, 1.0, 0.2], [0.6, 1.5, 0.0], "iron", opts]
+
+    def test_roll_widens_x_and_keeps_z(self):
+        lo, hi = PF.bbox(self.part(rot=[0, 0, 30]))
+        c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
+        self.assertAlmostEqual(hi[0] - 0.6, 0.1 * c + 0.5 * s)
+        self.assertAlmostEqual(hi[1] - 1.5, 0.5 * c + 0.1 * s)
+        self.assertAlmostEqual(hi[2], 0.1)
+
+    def test_tip_forward_widens_z(self):
+        _, hi = PF.bbox(self.part(rot=[90, 0, 0]))
+        self.assertAlmostEqual(hi[2], 0.5)
+        self.assertAlmostEqual(hi[1] - 1.5, 0.1)
+
+    def test_scalar_rot_turns_around_forward(self):
+        self.assertEqual(PF.bbox(self.part(rot=30)), PF.bbox(self.part(rot=[0, 0, 30])))
+
+    def test_no_rot_and_span_parts_unchanged(self):
+        self.assertEqual(PF.bbox(self.part()), PF.bbox(self.part(rot=[0, 0, 0])))
+        span = self.part(rot=[0, 0, 40], **{"from": [0, 1, 0], "to": [0, 2, 0]})
+        self.assertEqual(PF.bbox(span), PF.bbox(self.part(**{"from": [0, 1, 0], "to": [0, 2, 0]})))
+
+    def test_ground_fix_lifts_by_the_rotated_dip(self):
+        part = ["foot.L", "box", [0.2, 0.2, 1.0], [0, 0.1, 0], "iron", {"rot": [90, 0, 0]}]
+        PF.ground_fix([part])
+        self.assertAlmostEqual(PF.bbox(part)[0][1], 0.0)
+        self.assertAlmostEqual(part[3][1], 0.5)
