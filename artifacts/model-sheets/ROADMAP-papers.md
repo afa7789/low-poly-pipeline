@@ -216,3 +216,9 @@ sheet (front/left/back + top/bottom + turntable 8 vistas)
 ## Onda final
 - Bateria v7 nas 3 unidades (massing + autor edita + fit largo + variants 3), compares `history/2026-10-27-v7/`,
   §21 no PIPELINE, ficha 03.
+
+---
+
+# Leva 4 (candidata, 2026-10-27) — de `analysis/2026-10-27-input-externo-analise.md`
+
+Cinco geradores geométricos cobrem as 28 famílias de rig: `lathe` (existe), `limb` (existe), **`chain`** (novo: 14 famílias com `_chain`), **`plate`** (novo: asas em 8 famílias, placas, lagartas, carapaça), `wheel/ring` (existe). Ordem: L4-1 `chain` → L4-2 `plate` → L4-3 fit hierárquico + piso por vista/família (independente) → L4-4 sheets + massing de quadruped/serpent/drake → L4-5 baseline cruzado 6-10 unidades → L4-6 `joint_place` (landmarks de junta) → L4-7 experimento 3 caminhos (baseline / procedural / IA como registro, TripoSR+TRELLIS.2 só n00U e n01X) → DFS: diagnóstico LLM só em CHECK. Briefs dos 3 primeiros no arquivo de análise.
