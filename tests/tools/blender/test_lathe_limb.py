@@ -74,7 +74,7 @@ class Schema(unittest.TestCase):
                 ("lathe", lathe(profile=[0.5, 0.8, 1, 1, 0.8, 0.5], squash=1.1), True),
                 ("limb", limb(), True),
                 ("lathe with rot", lathe(rot=[0, 0, 10]), False),
-                ("lathe cut", lathe(cut="sheet"), False),
+                ("lathe cut", lathe(cut="sheet"), True),
                 ("short profile", lathe(profile=[1, 1, 1]), False),
                 ("12 sides", lathe(sides=12), False),
                 ("limb without span", ["thigh.L", "limb", [0.2, 0.1, 0.1], [0, 1, 0], "iron", {}], False),

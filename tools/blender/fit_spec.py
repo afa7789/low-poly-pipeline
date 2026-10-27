@@ -57,8 +57,6 @@ PART_POOR = 0.85         # a part with less than this share inside its part mask
 DEPTH_W = 0.3           # cost of each depth pair (A in front of B) that does not hold, as LOOSE_W
 MAX_SECONDS = 150.0     # wall-clock budget of one fit (the unit's budget is 3 min with the clay trials)
 FAST_EVALS = 1500       # --fit-fast: the classic 3 views, no rot, no zones
-CUT_BONES = ("spine", "pelvis", "body", "abdomen")
-CUT_MAX = 3             # the DSL allows 3 cut parts per unit
 DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
 LEG_GROW = False        # spider legs may grow to the sheet's leg_w: off, n00U v6-r3 lost .002-.008 on 5 views (PIPELINE 21.F3)
 AT_RANGE = 0.03         # `at` may move by this fraction of the height
@@ -630,14 +628,6 @@ def apply(parts, groups, x, height, extra=None):
     return carry_props(parts, out)
 
 
-def hood_index(parts):
-    """Index of the widest part on the head bone (the hood or helmet shell), or None."""
-    def width(i):
-        lo, hi = preflight.bbox(parts[i])
-        return hi[0] - lo[0]
-    return max((i for i, p in enumerate(parts) if p[0] == "head"), key=width, default=None)
-
-
 def leg_grow(part, leg_w, height):
     """Upper unit bound of a spider leg's horizontal dims: wide enough to reach the sheet's leg radius
     (leg_w, fraction of H) when the leg is thinner than that, the usual +DIMS_RANGE otherwise."""
@@ -744,27 +734,14 @@ class Objective:
 
 def toggle_cut(doc):
     """The doc with `cut: sheet` flipped: removed from every part when some part has it, else put on the
-    largest plain box/prism/frustum of the torso, pelvis and abdomen bones and on the hood (at most CUT_MAX).
+    parts cut_hull.cut_picks chooses (the largest torso, pelvis and abdomen part and the hood).
     None when no part can take it. spec_pipeline builds both and keeps the better clay (PIPELINE 21.F4)."""
     parts = copy.deepcopy(doc["parts"])
     if any(isinstance(p[5], dict) and p[5].get("cut") for p in parts):
         for p in parts:
             p[5].pop("cut", None)
         return {**doc, "parts": parts}
-
-    def plain(p):
-        return p[1] in ("box", "prism", "frustum") and isinstance(p[5], dict) and not (
-            {"rot", "from", "to"} & p[5].keys())
-
-    def volume(i):
-        lo, hi = preflight.bbox(parts[i])
-        return float(np.prod(np.subtract(hi, lo)))
-
-    best = {b: max((i for i, p in enumerate(parts) if p[0] == b and plain(p)), key=volume, default=None)
-            for b in CUT_BONES}
-    hood = hood_index(parts)
-    pick = [i for i in [*best.values(), hood] if i is not None and plain(parts[i])]
-    pick = sorted(dict.fromkeys(pick), key=volume, reverse=True)[:CUT_MAX]
+    pick = cut_hull.cut_picks(parts)
     for i in pick:
         parts[i][5]["cut"] = "sheet"
     return {**doc, "parts": parts} if pick else None
@@ -902,7 +879,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     if not free:
         return doc, report
     groups = groups_of(parts, free)
-    hood = hood_index(parts)
+    hood = cut_hull.hood_index(parts)
     # the anchor: a part that was connected to its parent stays connected (hard); each one that
     # was not costs LOOSE_W, so the fit can reconnect it
     parent_of = RF.parents(doc.get("rig", "biped"), doc.get("bones"))

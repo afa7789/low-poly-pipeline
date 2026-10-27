@@ -32,6 +32,7 @@ import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import cut_hull  # noqa: E402
 import lathe_limb  # noqa: E402
 import rig_families as RF  # noqa: E402
 import preflight  # noqa: E402
@@ -594,6 +595,7 @@ def biped(sheet, H, labels_for, sides=SIDES):
 
 # ---- parts.json (PIPELINE 23.L5-2): one piece per semantic part, from the part's 3D box
 
+CUT_DEFAULT = False       # True: the main torso, pelvis, abdomen and hood part is cut by the sheet hull. Off: n02X left -0.06 (PIPELINE 24.L6-2); fit_stage still tries it
 PARTS_FILE = "parts.json"
 PARTS_MASSING = True       # read refs/<id>/parts.json by default (see build); PIPELINE 23.L5-2b
 PROP_LATHE = ("tank", "cylinder", "bottle", "canister", "barrel")   # a prop named so is a lathe, any other a box
@@ -1509,6 +1511,8 @@ def build(sheet, rig, race="", palette_sheet=None, parts=None):
         if not parts:
             parts = (biped(sheet, H, labels_for, sides) if rig == "biped" else scaled(sheet, rig, measure, labels_for, sides)
                      if measure else spider(sheet, rig, labels_for, sides))
+        for i in cut_hull.cut_picks(parts) if CUT_DEFAULT else ():
+            parts[i][5]["cut"] = "sheet"
         if sum(preflight.part_tris(p) for p in parts) >= MIN_TRIS:
             break
     parts += placeholder_props(parts, rig, pathlib.Path(sheet).parent.name, names[-1])

@@ -471,13 +471,13 @@ def fit_length(kind, dims, a, b, margin=1.08):
     return dims
 
 
-def extrude(poly, lo, hi, swap):
-    """The outline `poly` of (a, y) points as a prism from `lo` to `hi` along the third spec axis;
-    swap=False: a is x, the prism runs along z; swap=True: a is z, it runs along x."""
+def extrude(poly, lo, hi, axis):
+    """The outline `poly` of (a, b) points as a prism from `lo` to `hi` along the third spec axis;
+    axis "z": (x, y) points, the prism runs along z; "x": (z, y) points, along x; "y": (x, z) points, along y."""
+    place = {"z": lambda a, b, d: (a, b, d), "x": lambda a, b, d: (d, b, a), "y": lambda a, b, d: (a, d, b)}[axis]
     me = bpy.data.meshes.new("cut")
     bm = bmesh.new()
-    rings = [[bm.verts.new(bp((a, y, d) if not swap else (d, y, a))) for a, y in poly]
-             for d in (lo, hi)]
+    rings = [[bm.verts.new(bp(place(a, b, d))) for a, b in poly] for d in (lo, hi)]
     for ring_ in rings:
         bm.faces.new(ring_)
     n = len(poly)
@@ -491,30 +491,53 @@ def extrude(poly, lo, hi, swap):
     return obj
 
 
-def cut_part(bone, mat_name, idx):
+def apply_modifier(obj, mod):
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+def cut_part(bone, mat_name, idx, base=None):
     """A part cut by the sheet's silhouette (opts "cut"): the front outline extruded along z
-    intersected with the left outline extruded along x (cut_hull.py made the outlines, fitted to
-    the part's box). Sano 2026, visual hull."""
+    intersected with the left outline extruded along x and the top outline along y (cut_hull.py made
+    the outlines, fitted to the part's box). Sano 2026, visual hull. `base` is a part already built
+    (a lathe): the prisms trim it; without one the front prism is the part. The result is decimated
+    (QEM) to the part's triangle budget."""
     cut = CUTS[str(idx)]
     lo, hi = cut["box"]
     m = [0.1 * (hi[a] - lo[a]) + 0.01 for a in range(3)]
-    obj = extrude(cut["front"], lo[2] - m[2], hi[2] + m[2], False)
-    other = extrude(cut["left"], lo[0] - m[0], hi[0] + m[0], True)
-    bpy.context.view_layer.objects.active = obj
-    mod = obj.modifiers.new("Hull", "BOOLEAN")
-    mod.operation = "INTERSECT"
-    mod.solver = "EXACT"
-    mod.object = other
-    bpy.ops.object.modifier_apply(modifier=mod.name)
-    bpy.data.objects.remove(other, do_unlink=True)
+    prisms = [("left", "x", lo[0] - m[0], hi[0] + m[0]), ("top", "y", lo[1] - m[1], hi[1] + m[1])]
+    obj = base or extrude(cut["front"], lo[2] - m[2], hi[2] + m[2], "z")
+    if base:
+        prisms.insert(0, ("front", "z", lo[2] - m[2], hi[2] + m[2]))
+    for key, axis, d0, d1 in prisms:
+        if key not in cut:
+            continue
+        other = extrude(cut[key], d0, d1, axis)
+        mod = obj.modifiers.new("Hull", "BOOLEAN")
+        mod.operation, mod.solver, mod.object = "INTERSECT", "EXACT", other
+        apply_modifier(obj, mod)
+        bpy.data.objects.remove(other, do_unlink=True)
     if cut.get("dissolve"):             # a building's base volume: merge the coplanar triangles
         dis = obj.modifiers.new("Dissolve", "DECIMATE")
         dis.decimate_type, dis.angle_limit = "DISSOLVE", D(1.0)
-        bpy.ops.object.modifier_apply(modifier=dis.name)
+        apply_modifier(obj, dis)
+    else:
+        decimate_to(obj, sibling("preflight").CUT_TRIS)
     obj.name = f"{bone}_{idx}"
     obj.data.materials.clear()          # the boolean leaves an empty slot behind
     obj.data.materials.append(material(mat_name))
     return obj
+
+
+def decimate_to(obj, budget):
+    """QEM collapse of `obj` to at most `budget` triangles (nothing when it is under)."""
+    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+    if tris <= budget:
+        return
+    mod = obj.modifiers.new("Budget", "DECIMATE")
+    mod.decimate_type, mod.ratio = "COLLAPSE", budget / tris
+    mod.use_collapse_triangulate = True
+    apply_modifier(obj, mod)
 
 
 def swept_part(kind, dims, at, opts, name, idx, bone=None):
@@ -1529,11 +1552,13 @@ def build_spec_parts(spec, chamfers):
         if PROPID and (opts or {}).get("prop") and not CLAY:
             mat_name = f"propid{names.index(str(opts['prop']))}"
             MATERIALS[mat_name], SURFACE[mat_name] = (*PF.PROP_IDS[int(mat_name[6:]) % len(PF.PROP_IDS)], 1.0), "metal"
-        if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
+        cut = (opts or {}).get("cut") == "sheet" and "front" in CUTS.get(str(idx), {})
+        if cut and kind != "lathe":
             obj = cut_part(bone, mat_name, idx)
         elif kind in ("lathe", "limb", "chain", "plate"):
             obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx, bone)
             obj.data.materials.append(material(mat_name))
+            obj = cut_part(bone, mat_name, idx, obj) if cut else obj
         else:
             obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
                              idx in chamfers)

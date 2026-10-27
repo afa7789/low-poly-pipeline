@@ -1,9 +1,10 @@
 """Parts cut by the sheet's silhouette (opts {"cut": "sheet"}; Sano 2026, visual hull: the
-extrusion of the front outline intersected with the extrusion of the left outline).
+extrusions of the front, left and top outlines intersected).
 
 Runs in the system Python (numpy, scipy), before the Blender build: for every part that asks
-for the cut it returns the two simplified outlines (<= 8 vertices) of the strip of the
-approved sheet's front and left masks that the part covers, fitted to the part's own box.
+for the cut it returns the simplified outlines (<= LIMIT vertices: Douglas-Peucker, edges snapped
+to the axes, arcs fitted where a circle explains the contour better) of the strip of the approved
+sheet's front, left and top masks that the part covers, fitted to the part's own box.
 build_unit.py only extrudes and intersects them (`cuts=<json>` argument). A `lathe` part without
 a profile of its own gets one read from the same masks (lathe_profile); it travels in the same json.
 """
@@ -18,7 +19,14 @@ import preflight
 import silhouette as SIL
 from views import layout_of
 
-LIMIT = 8       # vertices per outline
+LIMIT = 14      # vertices per outline of a cut part (Sano: 12-16)
+PLATE_LIMIT = 8     # ... of a plate's profile (lathe_limb.PLATE_PTS)
+ARC_GAIN = 0.5      # an arc replaces a vertex when the circle's residual is under this share of the polyline's
+ARC_MIN = 0.01      # ... and the polyline's residual is over this share of the strip height
+CUT_BONES = ("spine", "pelvis", "body", "abdomen")   # bones whose largest plain part is cut by default
+CUT_KINDS = ("box", "prism", "frustum", "lathe")     # a lathe is built, then trimmed by the prisms
+TOP_PRISM = False  # the third prism (top outline): off, it opened the n02X belly and cost n005 left .03 (PIPELINE 24.L6-2)
+CUT_MAX = 4     # cut parts per unit by default (each is decimated to its budget in build_unit.cut_part)
 PAD = 0.1       # the strip is read this much wider than the part, then fitted back to it
 MIN_ROWS = 6    # a strip thinner than this (px) is not worth tracing
 PROFILE_WIN = 1.25   # a lathe reads the sheet this many r either side of its centre; a profile value is at most this
@@ -30,7 +38,104 @@ def wants_cut(opts):
     return isinstance(opts, dict) and opts.get("cut") == "sheet"
 
 
-def strip_outline(mask, frame, lo, hi, axis):
+def hood_index(parts):
+    """Index of the widest part on the head bone (the hood or helmet shell), or None."""
+    def width(i):
+        lo, hi = preflight.bbox(parts[i])
+        return hi[0] - lo[0]
+    return max((i for i, p in enumerate(parts) if p[0] == "head"), key=width, default=None)
+
+
+def cuttable(part):
+    """A body part the cut may take: an unrotated box, prism, frustum or lathe that is not a prop."""
+    return part[1] in CUT_KINDS and isinstance(part[5], dict) and not (
+        {"rot", "from", "to", "prop"} & part[5].keys())
+
+
+def cut_picks(parts):
+    """Indices of the parts that get `cut: sheet` by default: the largest cuttable part of each torso,
+    pelvis and abdomen bone and the hood, the biggest CUT_MAX of them."""
+    def volume(i):
+        lo, hi = preflight.bbox(parts[i])
+        return float(np.prod(np.subtract(hi, lo)))
+
+    best = [max((i for i, p in enumerate(parts) if p[0] == b and cuttable(p)), key=volume, default=None)
+            for b in CUT_BONES]
+    pick = [i for i in [*best, hood_index(parts)] if i is not None and cuttable(parts[i])]
+    return sorted(dict.fromkeys(pick), key=volume, reverse=True)[:CUT_MAX]
+
+
+def arcs(poly, dense, room):
+    """`poly` (closed, [(x, y)]) with a vertex replaced by points on the circle through its neighbours
+    where the contour `dense` between them lies on a circle (Kasa fit) far closer than on the two
+    edges: the arcs of Sano 3.4. Two points per arc while the polygon has `room` vertices to spare, else
+    one (the arc's middle). The polygon is returned as it was when no arc wins."""
+    n, out, spare = len(poly), [], room
+    dense = np.asarray(dense, float)
+    for i, b in enumerate(poly):
+        a, c = np.array(poly[i - 1], float), np.array(poly[(i + 1) % n], float)
+        pts = _bulge(dense, a, np.array(b, float), c)
+        arc = _arc_points(pts, a, np.array(b, float), c, 2 if spare > 0 else 1) if len(pts) >= 4 else None
+        if arc is None:
+            out.append(b)
+            continue
+        spare -= len(arc) - 1
+        out.extend(arc)
+    return out
+
+
+def _bulge(dense, a, b, c):
+    """The points of `dense` that run from a to c on b's side of the chord."""
+    d = c - a
+    rel = dense - a
+    t = rel @ d / ((d @ d) or 1)
+    side = d[0] * rel[:, 1] - d[1] * rel[:, 0]
+    return dense[(t >= 0) & (t <= 1) & (side * (d[0] * (b - a)[1] - d[1] * (b - a)[0]) > 0)]
+
+
+def _arc_points(pts, a, b, c, count):
+    """`count` points on the circle fitted to `pts` between a and c when it beats the polyline a-b-c, else None."""
+    x, y = pts[:, 0], pts[:, 1]
+    sol, *_ = np.linalg.lstsq(np.c_[2 * x, 2 * y, np.ones(len(pts))], x * x + y * y, rcond=None)
+    centre = sol[:2]
+    radius2 = sol[2] + centre @ centre
+    if radius2 <= 0:
+        return None
+    radius = math.sqrt(radius2)
+    on_circle = float(np.sqrt(np.mean((np.hypot(*(pts - centre).T) - radius) ** 2)))
+    on_lines = float(np.sqrt(np.mean(np.minimum(_seg_dist(pts, a, b), _seg_dist(pts, b, c)) ** 2)))
+    if on_lines < ARC_MIN * _span(pts) or on_circle > ARC_GAIN * on_lines:
+        return None
+    ang = [math.atan2(*(p - centre)[::-1]) for p in (a, b, c)]
+    sweep, to_b = ((ang[k] - ang[0] + math.pi) % (2 * math.pi) - math.pi for k in (2, 1))   # a to c, a to b: the short way
+    if to_b * sweep <= 0 or abs(to_b) >= abs(sweep):         # b is not on the arc between a and c
+        return None
+    return [tuple(float(v) for v in centre + radius * np.array([math.cos(ang[0] + sweep * k), math.sin(ang[0] + sweep * k)]))
+            for k in ((1 / 3, 2 / 3) if count == 2 else (0.5,))]
+
+
+def _span(pts):
+    return float(np.ptp(pts, axis=0).max()) or 1.0
+
+
+def _seg_dist(pts, a, b):
+    d = b - a
+    t = np.clip((pts - a) @ d / ((d @ d) or 1), 0, 1)
+    return np.hypot(*(pts - (a + t[:, None] * d)).T)
+
+
+def regular_outline(strip, limit, arc=False):
+    """The strip's simplified outline (silhouette.outline: Douglas-Peucker, edges snapped to the axes)
+    with arcs fitted when `arc`; None when it needs more than `limit` vertices."""
+    poly = SIL.outline(strip, eps=0.02, limit=limit)
+    if len(poly) > limit:
+        return None
+    if arc and len(poly) > 3:
+        poly = arcs(poly, SIL.outline(strip, eps=0.004, limit=400), limit - len(poly))
+    return poly if len(poly) <= limit else None
+
+
+def strip_outline(mask, frame, lo, hi, axis, limit=PLATE_LIMIT, arc=False):
     """Outline of the rows/columns of `mask` the box (lo, hi) covers, as [(a, y)] fitted to the box.
     frame = (H, centre): figure height and the figure's centre along `axis` (0 = x, 2 = z).
     None when the strip is empty or thinner than MIN_ROWS."""
@@ -45,8 +150,8 @@ def strip_outline(mask, frame, lo, hi, axis):
     strip = mask[max(r0, 0):r1, max(k0, 0):k1]
     if strip.shape[0] < MIN_ROWS or not strip.any():
         return None
-    poly = SIL.outline(strip, eps=0.02, limit=LIMIT)
-    if len(poly) > LIMIT:
+    poly = regular_outline(strip, limit, arc)
+    if poly is None:
         return None
     us, vs = zip(*poly)
     sa, sy = ((hi[axis] - lo[axis]) / ((max(us) - min(us)) or 1),
@@ -61,9 +166,21 @@ def hull_cut(hull, box):
     return {"box": [list(box[0]), list(box[1])], **hull, "dissolve": True}
 
 
+def top_view(panels, boxes, extent):
+    """The top panel, turned head down when top_flipped says it is drawn head up."""
+    return panels["top"][::-1] if top_flipped(panels["top"], boxes, extent) else panels["top"]
+
+
+def top_poly(mask, extent, lo, hi):
+    """[[x, z]] metres of the top panel's outline inside the box (lo, hi), or None."""
+    poly = top_outline(mask, extent, lo, hi, LIMIT, True)
+    return poly and [[round(lo[0] + u * (hi[0] - lo[0]), 4), round(lo[2] + v * (hi[2] - lo[2]), 4)] for u, v in poly]
+
+
 def cut_polys(parts, sheet, layout="unit"):
-    """{part index: {"box": [lo, hi], "front": [[x, y]..], "left": [[z, y]..]}} for the parts that
-    ask for the cut and whose strip could be read; the others build as their plain primitive."""
+    """{part index: {"box": [lo, hi], "front": [[x, y]..], "left": [[z, y]..], "top": [[x, z]..]}} for the
+    parts that ask for the cut and whose strip could be read (front and left; the top is left out when
+    its panel gives none); the others build as their plain primitive."""
     wanted = [i for i, p in enumerate(parts) if wants_cut(p[5])]
     if not wanted:
         return {}
@@ -74,13 +191,16 @@ def cut_polys(parts, sheet, layout="unit"):
         return out
     top = max(b[1][1] for b in boxes)
     centre = {a: (min(b[0][a] for b in boxes) + max(b[1][a] for b in boxes)) / 2 for a in (0, 2)}
+    ext = (tuple(min(b[0][a] for b in boxes) for a in range(3)), tuple(max(b[1][a] for b in boxes) for a in range(3)))
     panels = SIL.concept_panels(sheet, layout=layout)
+    flat = top_view(panels, boxes, ext)
     for i in wanted:
         lo, hi = boxes[i]
-        front = strip_outline(panels["front"], (top, centre[0]), lo, hi, 0)
-        left = strip_outline(panels["left"], (top, centre[2]), lo, hi, 2)
+        front = strip_outline(panels["front"], (top, centre[0]), lo, hi, 0, LIMIT, True)
+        left = strip_outline(panels["left"], (top, centre[2]), lo, hi, 2, LIMIT, True)
         if front and left:
-            out[i] = {"box": [list(lo), list(hi)], "front": front, "left": left}
+            out[i] = {"box": [list(lo), list(hi)], "front": front, "left": left,
+                      **({"top": t} if TOP_PRISM and (t := top_poly(flat, ext, lo, hi)) else {})}
     return out
 
 
@@ -194,7 +314,7 @@ def chain_profiles(parts, sheet, layout="unit"):
     return out
 
 
-def top_outline(mask, extent, lo, hi):
+def top_outline(mask, extent, lo, hi, limit=PLATE_LIMIT, arc=False):
     """Outline of the top panel inside the box (lo, hi) as [[u, v]] in 0-1 of the box (u along x, v
     toward +z, the front, which the sheet draws at the bottom). `extent` = (lo, hi) of the whole
     figure: the panel's figure is stretched onto it, so the tilt of the panel costs a little depth.
@@ -209,8 +329,8 @@ def top_outline(mask, extent, lo, hi):
         return None
     from scipy import ndimage
     body = ndimage.binary_opening(strip, iterations=max(1, int(TOP_OPEN * min(strip.shape))))   # legs are thinner than the shell
-    poly = SIL.outline(body if body.any() else strip, eps=0.02, limit=LIMIT)
-    if len(poly) > LIMIT:
+    poly = regular_outline(body if body.any() else strip, limit, arc)
+    if poly is None:
         return None
     us, vs = zip(*poly)
     return [[round((u - min(us)) / ((max(us) - min(us)) or 1), 3), round(1 - (v - min(vs)) / ((max(vs) - min(vs)) or 1), 3)]
@@ -251,8 +371,7 @@ def plate_profiles(parts, sheet, layout="unit"):
         lo, hi = boxes[i]
         axis = parts[i][5].get("axis", "front")
         if axis == "top":
-            mask = panels["top"][::-1] if top_flipped(panels["top"], boxes, ext) else panels["top"]
-            prof = top_outline(mask, ext, lo, hi)
+            prof = top_outline(top_view(panels, boxes, ext), ext, lo, hi)
         else:
             a = 2 if axis == "left" else 0
             poly = strip_outline(panels[axis], (top, (ext[0][a] + ext[1][a]) / 2), lo, hi, a)
@@ -266,10 +385,11 @@ def plate_profiles(parts, sheet, layout="unit"):
 def args(spec, sheet, kind, work):
     """["cuts=<json>"] for build_unit.py: the outlines of the spec's cut parts and the sheet
     profiles of its lathes written to work/cuts.json; [] when there is neither."""
-    cuts = cut_polys(spec["parts"], sheet, layout_of(kind))
-    cuts.update(lathe_profiles(spec["parts"], sheet, layout_of(kind)))
-    cuts.update(chain_profiles(spec["parts"], sheet, layout_of(kind)))
-    cuts.update(plate_profiles(spec["parts"], sheet, layout_of(kind)))
+    layout = layout_of(kind)
+    cuts = {}
+    for read in (cut_polys, lathe_profiles, chain_profiles, plate_profiles):   # a cut lathe has both its outlines and its profile
+        for i, entry in read(spec["parts"], sheet, layout).items():
+            cuts.setdefault(i, {}).update(entry)
     if not cuts:
         return []
     path = pathlib.Path(work) / "cuts.json"

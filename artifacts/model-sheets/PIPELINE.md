@@ -2851,3 +2851,33 @@ português está em `sheet_text`.
   remesh planar. Piso de faces 0.6 do brief foi para 0.9: com 0.6 o n01X perdia 0.08 de IoU (QEM encolhe as caixas).
 - **Textura/UV/decal/animação:** `texture cel` rebuild de n01X/n005/hfoo: 1 imagem, `uv_out_of_range` 4 -> 1 (n005) e
   2 -> 1 (hfoo), decals (olhos) intactos; `render_anim walk` n005/n01X antes/depois sem rasgo (`scratchpad/leva6-union/anim/walk.png`).
+
+### 20.L6-2 Hull visual de Sano: 14 vértices, arcos, terceiro prisma, QEM; `cut` por default NEGATIVO em n02X (2026-10-27)
+
+**O que mudou** (`cut_hull.py`, `build_unit.py`, `massing.py`, `fit_spec.py`, `spec_pipeline.py`, `preflight.py`):
+- `cut_hull.LIMIT` 8 -> 14; contorno por faixa da peça = Douglas-Peucker + `snap_axes` (já existiam) + **arcos** (`arcs`: em três vértices
+  consecutivos, ajuste de círculo Kasa nos pontos densos do contorno entre eles; troca o vértice por 2 pontos do arco quando o resíduo do
+  círculo é < 0,5 do resíduo das duas arestas e há vértice sobrando, senão 1). Placas continuam em 8 (`PLATE_LIMIT`).
+- Terceiro prisma (top, `top_poly`, eixo y) em `build_unit.cut_part`; `cut_part` decimata (QEM, `DECIMATE COLLAPSE`) ao orçamento `preflight.CUT_TRIS` = 56 por parte.
+- `cut: sheet` vale também em `lathe` (build o lathe e os prismas o cortam: pós-build, funciona sobre o lathe de L6-1); `cuttable`/`cut_picks`/`hood_index` em `cut_hull` (a maior peça do torso/pelve/abdômen e o capuz, `CUT_MAX` = 4; props nunca); `fit_spec.toggle_cut` usa `cut_picks`.
+- `fit_accepted(cut=True)` não veta mais pelo vermelho (compara IoU + regras).
+- `massing.CUT_DEFAULT` marca os `cut_picks` no pre-spec: **False** (ver abaixo). `cut_hull.TOP_PRISM` = False.
+- `refs/<id>/parts.json`: a faixa é a caixa da própria peça, que o massing já tira da `box3d`; não leio o json no `cut_hull` (ponytail: add quando uma peça cortada for maior que a caixa da parte).
+
+**Prova** (massing do sheet-hard, `--no-fit --no-repair`, IoU do aprovado; antes -> depois com `CUT_DEFAULT`; tris do GLB; `scratchpad/leva6-hull/out/<id>-nf-m{before,after}/`):
+
+| unidade | front | left | back | top | bottom | rts | tris |
+|---|---|---|---|---|---|---|---|
+| n005 (capuz lathe, pelve, tronco lathe) | .777->.765 | .856->.858 | .785->.788 | .719->.725 | .729->.774 | .819->.806 | 616->586 |
+| n00U (corpo, cabeça) | = | = | = | .336->.337 | .364->.361 | .478->.477 | 608->696 |
+| n02X (cabeça, tronco, pelve) | .732->.667 | .775->.717 | .733->.665 | .635->.636 | .681->.682 | .709->.680 | 768->772 |
+| hfoo (cabeça, pelve, tronco) | .706->.701 | .666->.678 | .702->.698 | .492->.528 | .524->.561 | .489->.454 | 564->584 |
+
+Sem o terceiro prisma (o default atual): n005 .768/.884/.788/.722/.766/.806, n02X .737/.717/.736/.636/.682/.699, hfoo ~igual ao com. Uncovered top/bottom
+(com top): n005 .229/.233 -> .201/.195, hfoo .494/.464 -> .459/.427.
+Spec v9-r1 já fitado (n005): left .860 -> .882, bottom .715 -> .757, rts .879 -> .850, mas 716 -> 840 tris (estoura 700 com CUT_TRIS 80).
+
+**O que piorou.** (1) O terceiro prisma abriu um buraco na barriga do n02X (front .667) e custou .03 no left do n005: desligado. (2) n02X left -.058 mesmo
+sem top: a faixa do tronco no painel left traz o cacete colado e o contorno encolhido para a caixa estreita o corpo (a limitação do DSL: "a faixa de um membro pega o que está ao lado"). (3) rts cai .01-.035. (4) n00U: nada muda (spider; corpo
+de 0,26 m), +88 tris. Pela regra da leva (IoU não pode cair > .02) `massing.CUT_DEFAULT` fica **False**; o `fit_stage` continua testando o `cut` e agora sem veto de vermelho. Ganho real: top/bottom em n005 e hfoo (+.04), contorno do capuz arredondado (arcos) em vez de caixa.
+Próximo: separar o cacete/braço da faixa (componente conexa da faixa ao redor do eixo da peça) antes de ligar o default.
