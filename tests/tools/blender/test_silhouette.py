@@ -413,11 +413,11 @@ WOLF = ROOT / "artifacts/model-sheets/refs/n017/sheet.jpg"
 @unittest.skipUnless(WOLF.exists(), "n017 sheet not checked out")
 class BlobPanels(unittest.TestCase):
     def test_wide_profile_keeps_its_whole_body(self):
-        with tempfile.TemporaryDirectory() as tmp:           # n017 is in BLOB_SHEETS: another folder name gets the thirds split
+        with tempfile.TemporaryDirectory() as tmp:           # the column cut (layout "unit" splits by blob by default now)
             shutil.copy(WOLF, pathlib.Path(tmp) / "sheet.jpg")
-            thirds = S.concept_panels(pathlib.Path(tmp) / "sheet.jpg")
+            thirds = S.concept_panels(pathlib.Path(tmp) / "sheet.jpg", blob=False, columns=True)
         blobs = S.concept_panels(WOLF, blob=True)
-        self.assertEqual(S.concept_panels(WOLF)["left"].sum(), blobs["left"].sum())      # the named sheets default to blob
+        self.assertEqual(S.concept_panels(WOLF)["left"].sum(), blobs["left"].sum())      # units default to blob
         self.assertEqual(list(blobs), list(thirds))
         width = lambda m: int(m.any(axis=0).sum())  # noqa: E731
         self.assertGreater(width(blobs["left"]), 768 // 3)      # the thirds split clips it at 256

@@ -2662,3 +2662,17 @@ Feedback do n005: máscara plana nas laterais, pés blocados, olhos viram fenda 
   - `LIMB_KNEE = True` (`limb` com joelho/cotovelo medido de `joint_measures`: n01X 2 coxas, n005 2 braços; emissor `_limb_bent` testado): média -.003 (n01X) e -.008 (n005), front/back caem. Fica opt-in, à espera das juntas de L5-1 (`parts.json`).
 - **Piorou / pendente.** (1) n01X massing sozinho: PASS -> FAIL no estágio 1, por spill de bottom .217 > .20. É a câmera: a varredura de tilt escolhe só por IoU e cai em 20 graus (.145 com tilt 10; IoU .733 contra .735, empate); mesma geometria, outra câmera. Quebrar o empate do tilt por spill é de `silhouette.py` (não toquei). (2) Juiz pareado contra o run anterior: não rodei (sem LLM nesta prova); o compare textured/clay lado a lado está em `scratchpad/leva5-surface/cmp-{n01X,n005,n02X,hfoo}-mass.png` e `cmp-n005-v8.png` (sheet | antes clay | antes tex | depois clay | depois tex, front/left/top/bottom). (3) A cabeça do n02X (careca, topo largo) sai afunilada em ponta: o perfil lido inclui o pescoço; é ajuste de `cut_hull.lathe_profile`, não de superfície. (4) Os pés só ganham o 8 lados de `bottom`/`top`; o `shift` do topo (bico) não está no octógono, a ponta da bota é a mesma das duas versões.
 - **Testes.** `test_lathe_limb` (tris dos defaults 8 lados e do `sides` 6), `test_preflight.RoundKinds` (tris do `cyl`/`frustum`/`prism`, a caixa do frustum redondo não muda), `test_fit_spec.Proxy.test_outlines` (frustum 8 e cyl 12 lados), `test_massing.Surface` (emissor de `limb` com joelho projetado no eixo e `sides` limitado a 8, defaults do pré-spec do n005: cabeça `lathe` + `decal sheet`, botas de 8 lados, sem `limb`, 400-700 tris).
+
+### 23.Y Corte dos painéis por blob para toda unidade (2026-10-28)
+- **O que:** `concept_panels` (layout `unit`) monta cada painel pelos componentes conexos: as 3 maiores manchas da
+  fileira de cima e as 2 de baixo são as figuras (ordem por x), e cada mancha menor vai com a figura de centro mais
+  próximo. Sem linha de corte, um prop ligado à mão (cano da arma do n005, clava do n02X, ponta da lança do hfoo)
+  fica inteiro no painel certo. Fallback para o corte em colunas quando o blob acha menos figuras que painéis
+  (sheet-hard com figuras coladas); `columns=True` força o corte antigo (testes, diffs).
+- **Medida (clays v9-r1, régua nova × guardada; o vazamento era da régua):** n005 left .803→.861 (vermelho 11→4 %),
+  front .795→.808; n02X left .732→.786, front .777→.719 e back .755→.730 (a clava deixa de ser contada no left e
+  o modelo foi ajustado contra a clava vazada); hfoo left .637→.508 (vermelho 22→33 %: a lança diagonal inteira
+  entra no left) e back .666→.769; n00U left .738→.704 (um pedaço de perna do front saía no left); n01X igual.
+- **Leitura:** a régua anterior premiava modelo que enchia o vazamento. Toda comparação com runs anteriores a
+  2026-10-28 na vista left/back dos três bípedes com prop usa régua diferente; os números do v9 na tabela de §23
+  são os da régua antiga. A bateria seguinte mede tudo na nova.

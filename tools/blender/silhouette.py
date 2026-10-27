@@ -122,11 +122,17 @@ def _blob_panels(fg, split, layout, grow=6):
         keep = sorted(np.argsort(areas)[::-1][:count] + 1,
                       key=lambda k: ndimage.center_of_mass(labels == k)[1])
         if len(keep) < count:
-            raise SystemExit(f"fewer than {count} figures in rows {lo}-{hi} of the sheet")
+            return None          # figures merged into one blob (a hard sheet): the caller cuts by columns
+        # every smaller blob (a lantern drawn loose, a thrown prop) goes with the nearest figure by x,
+        # so nothing is dropped and nothing leaks into the neighbour's cell (2026-10-28)
+        centres = {k: ndimage.center_of_mass(labels == k)[1] for k in keep}
+        owner = {j: min(keep, key=lambda k: abs(centres[k] - ndimage.center_of_mass(labels == j)[1]))
+                 for j in range(1, n + 1) if j not in keep and areas[j - 1] > 0}
         for k in keep:
             name = next(names)
+            mine = (labels == k) | np.isin(labels, [j for j, o in owner.items() if o == k])
             full = np.zeros_like(fg)
-            full[lo:hi] = fg[lo:hi] & (labels == k)
+            full[lo:hi] = fg[lo:hi] & mine
             panels[name] = full
     return panels
 
@@ -136,14 +142,16 @@ def _blob_panels(fg, split, layout, grow=6):
 BLOB_SHEETS = ("n017", "n00H", "n010")
 
 
-def concept_panels(path, size=768, layout="unit", blob=False):
+def concept_panels(path, size=768, layout="unit", blob=False, columns=False):
     """Key the flat background, split the 3+2 template on its empty bands, and
     return one boolean mask per panel in reading order, named by the sheet layout
     (views.LAYOUTS: a unit's bottom row is top/bottom, a building's right/roof).
     `blob` splits by connected blob instead (quadruped, drake: a profile wider than a third of the page)."""
     from views import LAYOUTS
     fg = foreground(path, size)
-    blob = blob or (layout == "unit" and pathlib.Path(path).parent.name in BLOB_SHEETS)
+    # Units are split by blob since 2026-10-28: the column cut sliced the n005 gun barrel into the
+    # left panel (the overlay showed the barrel as a stray bar); a blob is a whole figure with its props.
+    blob = (blob or layout == "unit") and not columns      # columns=True: the old cut, for tests and diffs
 
     runs = gaps(fg, 1, 0, size)
     interior = [r for r in runs if r[0] > 0.2 * size and r[1] < 0.8 * size]
@@ -154,7 +162,9 @@ def concept_panels(path, size=768, layout="unit", blob=False):
     top_x = sorted(top_x, key=lambda r: r[1] - r[0], reverse=True)[:2]
     inner = sorted([(a, b) for a, b in top_x if a > 0.1 * size and b < 0.9 * size])
     if blob:
-        return _blob_panels(fg, split, layout)
+        panels = _blob_panels(fg, split, layout)
+        if panels is not None:
+            return panels
     cuts = [(a + b) // 2 for a, b in inner] if len(inner) == 2 else [size // 3, 2 * size // 3]
     bot_x = gaps(fg, 0, split, size)
     bot_x = sorted([r for r in bot_x if r[0] > 0.1 * size and r[1] < 0.9 * size],
