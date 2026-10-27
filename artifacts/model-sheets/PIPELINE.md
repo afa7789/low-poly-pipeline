@@ -2679,6 +2679,25 @@ Feedback do n005: máscara plana nas laterais, pés blocados, olhos viram fenda 
 
 ## 24. Leva 6 (2026-10-28)
 
+Doze frentes: os papers de forma (Sano, Chen, Sketch2Mesh, Wiersma) aplicados como MÉTODO depois da auditoria
+`analysis/2026-10-28-auditoria-papers-vs-codigo.md`. Bateria `v10-r1` em 8 unidades, pareada contra v9 nos 4
+eixos; imagens em `history/2026-10-28-v10/`.
+
+| unidade | v9 f/l/b | v10 f/l/b | vermelho f/l/b | veredito | juiz v10 × v9 |
+|---|---|---|---|---|---|
+| n01X | .793/.804/.794 | .773/.841/.776 | 12/11/12 % | PASS | misto; form v10 4-0 |
+| n005 | .795/.803/.814 | **.909/.926/.909** | **3/4/3 %** | PASS | v10 4-0 nos 4 eixos |
+| n00U | .805/.738/.811 | .833/.739/.832 | 9/10/9 % | CHECK (rts .617) | v10 3-1 artist/wc3 |
+| n02X | .777/.732/.755 | .863/.813/.889 | 5/9/4 % | PASS | v10 4-0 artist/wc3 |
+| hfoo | .766/.637/.666 | .858/.450/.858 | 7/38/6 % | CHECK (left: lança diagonal) | v10 4-0 nos 4 |
+| n017 | .829/.721/.776 | .872/.719/.807 | 1/19/3 % | CHECK (rts .692) | v9 4-0 artist/wc3 |
+| n00H | .813/.633/.807 | .882/.681/.877 | 7/24/7 % | CHECK (rts .232) | v10 4-0 nos 4 |
+| n010 | .685/.877/.589 | .874/.876/.613 | 2/4/24 % | CHECK (sheet girado) | v10 4-0 em 3 |
+
+PASS 3/8 (v9: 0/8 com os mesmos gates); IoU médio front/back .760 → .851; vermelho médio front/back 10.6 → 6.3 %;
+o juiz prefere o v10 em 22 de 28 eixos decididos. Falta: rts (aranha, lobo, wyrm), placas soltas que seguram
+`components_body`, slivers da união (19-37 %), e sheets que divergem por construção (lança do hfoo, drake girado).
+
 ### 24.L6-6 Gates de FORMA: `normal_diff`, `fairness`, `components_body`, slivers (2026-10-27)
 - **O que mudou:** `mesh_lint.lint` ganha `normal_diff` (Chen 2023: ângulo entre as normais das duas faces de cada aresta;
   média, p90 e histograma em 6 faixas 0-5/5-15/15-30/30-60/60-100/100+), `fairness` (Wiersma 2026: desvio médio dos
