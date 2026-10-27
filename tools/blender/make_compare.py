@@ -21,6 +21,8 @@ Input contract - everything is read from files of the run directory, nothing is 
   sil/<against>/silhouette.json   per view: iou, iou_32, width_l1, tilt, gate, zones{mean,cover,lost}
   sil/<against>/mask-concept-<view>.png, mask-model-<view>.png    the matched masks (alpha)
   views/<tag>/<stem>-<view>.png   textured renders (view "rts" is the "wc3" file)
+  views/<tag>/wire-<view>.png     clay with triangle edges (render_wire.py); absent -> empty cell + warning
+  model.glb              the textured model; its atlas with the UV triangles is the `uv` column (first row)
   views/<tag>/clay-<view>.png     clay renders (S1 writes them; rts: clay-wc3.png or clay-rts.png); absent -> empty cell + warning
   concept panels: split_sheet.split of the sheet named in review.md (fallback refs/<unit>/)
 """
@@ -35,6 +37,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import mesh_lint  # noqa: E402
 import silhouette as S  # noqa: E402
 
 ROOT = S.ROOT
@@ -42,7 +45,7 @@ CELL = (384, 288)
 BG = (200, 200, 200)
 EMPTY = (226, 226, 226)
 HEAD_H, TITLE_H, FOOT_H, GAP = 96, 30, 30, 6
-COLUMNS = ("concept", "clay", "overlay", "textured")
+COLUMNS = ("concept", "clay", "wire", "overlay", "textured", "uv")
 OVERLAY = {"concept": (70, 190, 70), "model": (220, 50, 50), "hit": (120, 120, 120)}
 PASS, FAIL, DIM, INK = (30, 140, 50), (200, 40, 40), (110, 110, 110), (20, 20, 20)
 FONTS = ("/System/Library/Fonts/Helvetica.ttc", "/System/Library/Fonts/Supplemental/Arial.ttf")
@@ -75,6 +78,9 @@ def parse_review(path):
                            ("judge", "judge (approved sheet)"), ("built", "built from (image 1)")):
             if line.startswith(f"- {label}:"):
                 meta[key] = line.split(":", 1)[1].strip()
+        status = re.match(r"status:\s*\*\*([\w-]+)\*\*", line)
+        if status:
+            meta["status"] = status[1]
         verdict = re.match(r"verdict:\s*\*\*([\w-]+)\*\*", line)      # PASS, CHECK, SHAPE-PASS
         if verdict:
             meta["verdict"] = verdict[1]
@@ -88,7 +94,7 @@ def find_views(run_dir):
     """(views dir, stem): the views/<tag> directory holding the render set, and its file stem."""
     for d in sorted((run_dir / "views").glob("*")):
         for f in sorted(d.glob("*-front.png")):
-            if not f.name.startswith("clay-"):
+            if not f.name.startswith(("clay-", "wire-")):
                 return d, f.name[:-len("-front.png")]
         if (d / "clay-front.png").exists():
             return d, None
@@ -212,6 +218,27 @@ def render_cell(run, view, clay):
     return fit(Image.open(path))
 
 
+def wire_cell(run, view):
+    """Clay with its triangle edges, shot by render_wire.py."""
+    if not run["views"]:
+        return empty_cell("no views/ in this run")
+    path = run["views"] / f"wire-{view}.png"
+    if not path.exists():
+        warn(f"{run['dir'].name}: {path.name} absent")
+        return empty_cell(f"{path.name} absent")
+    return fit(Image.open(path))
+
+
+def uv_cell(run, view):
+    """The atlas with its UV triangles (mesh_lint.uv_image), on the first row only: it is one
+    image per model, not per view. Clay runs and models without UVs get a note."""
+    if view != view_names(run)[0]:
+        return Image.new("RGB", CELL, EMPTY)
+    glb = run["dir"] / "model.glb"
+    img = glb.exists() and mesh_lint.uv_image(glb)
+    return fit(img, (0, 0, *img.size), 0.0) if img else empty_cell("no UV atlas (clay run)")
+
+
 def read_alpha(path):
     return np.asarray(Image.open(path).convert("RGBA"))[..., 3] > 0
 
@@ -273,7 +300,8 @@ def stage_label(run):
     stages = m.get("stages", {})
     return [("stage 1 shape ", INK), (stages.get("1", "n/a"), tone(stages.get("1"))),
             ("   stage 2 colour ", INK), (stages.get("2", "n/a"), tone(stages.get("2"))),
-            ("   verdict ", INK), (m.get("verdict", "n/a"), tone(m.get("verdict")))]
+            ("   verdict ", INK), (m.get("verdict", "n/a"), tone(m.get("verdict"))),
+            ("   status ", INK), (m.get("status", "n/a"), INK)]
 
 
 def header(run, width, title=None):
@@ -329,7 +357,8 @@ def build_grid(run):
     rows = [header(run, width), titles(COLUMNS, width)]
     for view in view_names(run):
         cells = [concepts.get(view) or empty_cell("concept absent"), render_cell(run, view, True),
-                 overlay_cell(run, view), render_cell(run, view, False)]
+                 wire_cell(run, view), overlay_cell(run, view), render_cell(run, view, False),
+                 uv_cell(run, view)]
         rows += [join(cells), footer(footer_parts(run, view), width)]
     return stack(rows)
 

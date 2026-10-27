@@ -92,21 +92,26 @@ def topology(pos, tri):
     return int((count == 1).sum()), int((count > 2).sum()), int(len(np.unique(comps)))
 
 
-def raster_uv(uv, tri, size, cols, rows):
-    """(overlap % of the covered pixels, atlas used %, texel inputs): UV triangles at
-    size x size, decal cells excluded from the overlap count (they are painted twice)."""
-    cover = np.zeros((size, size), np.int16)
+def cover_map(uv, tri, wh, cols, rows):
+    """Triangles covering each pixel of a wh = (w, h) raster of the atlas, decal cells
+    excluded (they are painted twice)."""
+    cover = np.zeros((wh[1], wh[0]), np.int16)
     for t in uv[tri]:
         c = t.mean(0)
         # glTF v runs top-down, the atlas cells are numbered bottom-up
         cell = int((1 - c[1]) * rows * 4) % 4 * 4 + int(c[0] * cols * 4) % 4
         if cell in DECAL_CELLS:
             continue
-        q = t * size
-        lo, hi = np.maximum(np.floor(q.min(0)).astype(int), 0), np.minimum(np.ceil(q.max(0)).astype(int), size)
+        q = t * wh
+        lo, hi = np.maximum(np.floor(q.min(0)).astype(int), 0), np.minimum(np.ceil(q.max(0)).astype(int), wh)
         gx, gy = np.meshgrid(np.arange(lo[0], hi[0]) + 0.5, np.arange(lo[1], hi[1]) + 0.5)
-        inside = inside_tri(q, gx, gy)
-        cover[lo[1]:hi[1], lo[0]:hi[0]] += inside
+        cover[lo[1]:hi[1], lo[0]:hi[0]] += inside_tri(q, gx, gy)
+    return cover
+
+
+def raster_uv(uv, tri, size, cols, rows):
+    """(overlap % of the covered pixels, atlas used %): UV triangles at size x size."""
+    cover = cover_map(uv, tri, (size, size), cols, rows)
     covered = cover > 0
     return (round(100.0 * (cover > 1).sum() / max(covered.sum(), 1), 1),
             round(100.0 * covered.sum() / cover.size, 1))
@@ -135,6 +140,31 @@ def image_info(doc, blob):
         return (w, h), int(len(np.unique(px, axis=0)))
     except ImportError:
         return (w, h), None
+
+
+def uv_image(glb, scale=2):
+    """PIL image of the atlas with every UV triangle outlined and the pixels covered by 2+
+    triangles tinted red (Begemann & Hutson 2026 UV screenshot); None without UVs or atlas.
+    `scale` multiplies the atlas size so the outlines stay thin."""
+    import io
+
+    from PIL import Image, ImageDraw
+    doc, blob = read_glb(glb)
+    uv, tri = geometry(doc, blob)[2:]
+    if uv is None or not doc.get("images"):
+        return None
+    view = doc["bufferViews"][doc["images"][0]["bufferView"]]
+    atlas = Image.open(io.BytesIO(blob[view.get("byteOffset", 0):view.get("byteOffset", 0) + view["byteLength"]])).convert("RGB")
+    wh = (atlas.width * scale, atlas.height * scale)
+    img = atlas.resize(wh, Image.NEAREST)
+    cover = cover_map(uv, tri, wh, max(atlas.width // BLOCK_PX, 1), max(atlas.height // BLOCK_PX, 1))
+    px = np.asarray(img).astype(np.float64)
+    px[cover > 1] = px[cover > 1] * 0.4 + np.array([255, 0, 0]) * 0.6
+    img = Image.fromarray(px.astype(np.uint8))
+    draw = ImageDraw.Draw(img)
+    for t in uv[tri] * wh:
+        draw.polygon([tuple(v) for v in t], outline=(20, 20, 20))
+    return img
 
 
 def root_scale(doc):

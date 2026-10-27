@@ -1218,6 +1218,32 @@ n01X hard-v1 calibration; the four statuses).
   errada, contorno perto), o IoU pune a área. Útil como complemento (diz o quão longe, em %H, o contorno está: o n00U
   v4 tem 7% de H de erro em front/left/back), não como substituto. Fica como sinal, sem gate.
 
+### 19.A3 Compare com colunas `wire` e `uv`, status no cabeçalho, eixos de avaliação (2026-10-27)
+Papers: MeshGPT 2024 (forma x triangulação avaliadas à parte), EdgeRunner 2024 (Input Consistency / Triangle
+Aesthetic / Overall, 1-5), Begemann & Hutson 2026 (UV screenshot no relatório de prontidão).
+- **`tools/blender/render_wire.py`** (Blender, Workbench): importa o GLB clay, troca o material por um cinza,
+  e põe sobre cada malha uma cópia triangulada com modifier Wireframe (espessura 0.4 % da maior dimensão,
+  material escuro). Escolhido em vez de Freestyle: Freestyle só traça arestas de borda/vinco, não a triangulação
+  real do GLB, que é o objetivo da coluna; a cópia sólida por baixo esconde o lado de trás. Grava
+  `views/<id>/wire-<view>.png` nas 7 vistas do `views.VIEWS` + `rts`, com os mesmos tilts de `render_unit`
+  (~1 s por GLB). `spec_pipeline.shape_review` chama logo após `render_unit`.
+- **`mesh_lint.uv_image(glb)`**: atlas do GLB com cada triângulo UV desenhado em PIL e os pixels cobertos por 2+
+  triângulos em vermelho (`cover_map`, extraído de `raster_uv`, que agora o reutiliza; mesmas células de decal
+  excluídas). `None` sem UV/atlas (clay).
+- **`make_compare.py`**: colunas `concept | clay | wire | overlay | textured | uv` (a `uv` só na 1ª linha: é uma
+  imagem por modelo); cabeçalho com `verdict` e `status` (lido de `status: **x**` do review.md). `compare_runs.py`
+  ganha `--show wire|uv` e `status` na cabeça de cada run. `find_views` ignora `wire-*.png` como stem textured.
+- **`review.md`**: `## Avaliação` logo após o cabeçalho, 3 eixos (consistência com o sheet, estética da triangulação,
+  qualidade geral) com nota 1-5 vazia, para o reviewer de visão; nada o preenche ainda.
+- **Prova (rebuild sem LLM, sem repair):** `scratchpad/papers-a3/{n01X-hard-v1,n005-v4,n00U-v4}/compare.png`
+  (n01X hard-v1: 6/6 gates, final-use; n005 v4: 5/6, placeholder; n00U v4: 0/6, rejected). Números de silhouette
+  de n01X hard-v1 iguais ao de referência (.875/.771/.874).
+- **O que o `uv` mostra (e nada melhora por isso):** nas células de cel o atlas do texturizer cobre as mesmas
+  células com dezenas de triângulos sobrepostos (vermelho): é o `uv_overlap_pct` de 60-85 % do §19.A1 visto
+  a olho. Útil para o reviewer, não gate. Compare de runs só clay mostra "no UV atlas (clay run)".
+- **Fora:** nenhum reviewer de visão preenche a Avaliação ainda; wire de vistas `right`/`roof` de prédios existe
+  mas só as linhas do layout do run são mostradas.
+
 ### 19.B3 Limpeza da malha no join padrão (2026-10-27) - NEGATIVO, flag desligada
 - **O que:** `build_unit.clean_mesh(body)`: `remove_doubles` 1 mm + DECIMATE DISSOLVE 6° com `delimit={MATERIAL}`,
   logo depois do `join` final e antes de morph/texturize/atlas (UVs nascem depois, então não há UV para fundir).

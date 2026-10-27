@@ -93,3 +93,15 @@ class Status(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UvImage(unittest.TestCase):
+    def test_no_uv_no_image_and_committed_atlas_has_overlap_tint(self):
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        self.assertIsNone(L.uv_image(glb(tmp / "a.glb")))
+        run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
+        if not run.exists():
+            self.skipTest("committed run absent")
+        img = np.asarray(L.uv_image(run, scale=1))
+        self.assertEqual(img.shape[2], 3)
+        self.assertTrue(((img[..., 0] > 150) & (img[..., 1] < 80)).any())   # red = 2+ triangles
