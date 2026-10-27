@@ -751,6 +751,9 @@ def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=(), editable=N
 
 
 MAX_ROT = 60.0      # degrees per axis of opts "rot"
+# validate only refuses a part buried this deep (metres); a boot or shin a few cm under y=0 is
+# what ground_fix lifts (2026-10-27: a -0.02 check threw away 9 of 9 author specs of n005)
+GROUND_REJECT = -0.30
 
 
 def bad_rot(opts):
@@ -784,7 +787,7 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i}: {lathe_limb.bad_opts(p[1], p[2], p[5])}")
         if isinstance(p[5], dict) and bad_rot(p[5]):
             raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
-        if bbox(p)[0][1] < -0.02:          # the box, not `at`: a span part's `at` is an offset
+        if bbox(p)[0][1] < GROUND_REJECT:  # the box, not `at`: a span part's `at` is an offset
             raise ValueError(f"part {i} below the ground plane")
     bad = misplaced_decals(parts)
     if bad:
