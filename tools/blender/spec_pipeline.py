@@ -948,6 +948,11 @@ def main():
     ap.add_argument("--style", choices=("cel", "painted"), default="cel",
                     help="texture style: cel = flat tone per face like the hard sheet (default); "
                          "painted = the older painted gloss and pattern")
+    ap.add_argument("--texture", choices=("cel", "painted", "sheet"), default="cel",
+                    help="stage 2 texture (colour_stage.py): cel / painted procedural, or sheet = "
+                         "the construction sheet's panels projected onto the model")
+    ap.add_argument("--colour-pass", type=int, default=0,
+                    help="stage 2 colour-pass tries when the zone gate fails (palette/decals only)")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")

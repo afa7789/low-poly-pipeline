@@ -1,0 +1,96 @@
+"""python3 -m unittest discover -s tests/tools/blender"""
+import copy
+import json
+import pathlib
+import sys
+import tempfile
+import types
+import unittest
+from unittest import mock
+
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "tools/blender"))
+
+import colour_stage as CS  # noqa: E402
+
+SPEC = {"rig": "biped",
+        "palette": {"iron": {"surface": "metal", "color": "#76716E"},
+                    "lamp": {"surface": "glow", "color": "#F2B632"}},
+        "parts": [["head", "box", [1, 1, 1], [0, 1, 0], "iron", {"decal": "eyes2"}],
+                  ["spine", "box", [1, 1, 1], [0, 0, 0], "iron", {}]]}
+
+
+def edit(fn):
+    spec = copy.deepcopy(SPEC)
+    fn(spec)
+    return spec
+
+
+class ColourContract(unittest.TestCase):
+    def test_palette_and_decal_may_change(self):
+        new = CS.apply_colour(SPEC, {"palette": {"iron": {"color": "#445566", "surface": "stone"}},
+                                     "decals": {"0": {"decal": "face", "decal_color": "#FFAA00"}}})
+        self.assertEqual(new["palette"]["iron"]["surface"], "stone")
+        self.assertEqual(new["parts"][0][5], {"decal": "face", "decal_color": "#FFAA00"})
+        self.assertEqual(SPEC["parts"][0][5], {"decal": "eyes2"})      # the input is not touched
+
+    def test_a_part_change_is_rejected(self):
+        for change in (lambda s: s["parts"][1].__setitem__(2, [2, 2, 2]),
+                       lambda s: s["parts"][1].__setitem__(4, "lamp"),
+                       lambda s: s["parts"].pop(),
+                       lambda s: s["parts"][1][5].update(sides=6),
+                       lambda s: s.update(rig="spider")):
+            with self.assertRaises(ValueError):
+                CS.validate_colour(SPEC, edit(change))
+
+    def test_a_reply_cannot_carry_parts_or_new_slots(self):
+        with self.assertRaises(ValueError):
+            CS.apply_colour(SPEC, {"parts": SPEC["parts"]})
+        with self.assertRaises(ValueError):
+            CS.apply_colour(SPEC, {"palette": {"gold": {"color": "#AA8850", "surface": "metal"}}})
+
+    def test_bad_colours_and_decals_are_rejected(self):
+        for patch in ({"palette": {"iron": {"color": "grey"}}},
+                      {"palette": {"iron": {"surface": "velvet"}}},
+                      {"decals": {"0": {"decal": "smile"}}},
+                      {"decals": {"1": {"decal": "eyes2"}}}):      # spine is no face bone
+            with self.assertRaises(ValueError):
+                CS.apply_colour(SPEC, patch)
+
+
+class Gate(unittest.TestCase):
+    def test_tilts_text_round_trips_through_parse_tilts(self):
+        from views import parse_tilts
+        tilts = {"top": 10, "bottom": -20, "rts": (35, 30)}
+        self.assertEqual(parse_tilts(CS.tilts_text(tilts)), tilts)
+
+    def test_every_measured_view_must_hold_and_none_measured_fails(self):
+        ok = {"mean": 0.3, "cover": 0.6, "fails": [], "lost": []}
+        self.assertEqual(CS.gate({"front": ok, "top": ok}), (True, []))
+        self.assertEqual(CS.gate({"front": ok, "top": {**ok, "fails": ["cover"]}}), (False, ["top"]))
+        self.assertEqual(CS.gate({}), (False, []))
+
+
+class Stage(unittest.TestCase):
+    def test_report_section_and_files(self):
+        zone = {"mean": 0.3, "cover": 0.6, "fails": [], "lost": [], "zones": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            built = tmp / "built"
+            (built / "views").mkdir(parents=True)
+            (built / "model.glb").write_bytes(b"glb")
+            (built / "views" / "model-front.png").write_bytes(b"png")
+            (tmp / "work").mkdir()
+            args = types.SimpleNamespace(id="n01X", tag="n01X", out=tmp, texture="cel", colour_pass=0)
+            with mock.patch.object(CS, "attempt",
+                                   return_value=(built / "model.glb", {"front": zone, "top": zone}, built)):
+                ok, md = CS.stage_colour(SPEC, tmp / "clay.glb", args, {"top": 10}, tmp / "work")
+            self.assertTrue(ok)
+            self.assertIn("## Stage 2 — colour", md)
+            self.assertIn("top:10", md)
+            self.assertTrue((tmp / "model.glb").exists() and (tmp / "views/n01X/model-front.png").exists())
+            self.assertEqual(json.loads((tmp / "spec-colour.json").read_text()), SPEC)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -84,11 +84,21 @@ class ZoneReport(unittest.TestCase):
         self.assertEqual(len(z["pieces"]), 5 - 1)       # the speck is noise, not a part
 
     def test_gate_fails_a_wholesale_colour_miss_only(self):
-        report = {"front": {}, "back": {}}
+        report = {"front": {}, "top": {}, "rts": {}}
         wrong = {k: 0 for k in ("mean", "cover")} | {"lost": ["#AA8850"]}
         good = {"mean": 0.3, "cover": 0.6, "lost": []}
-        self.assertEqual(S.zone_gate(report, {"front": wrong, "back": wrong}), 1)   # back is not gated
+        self.assertEqual(S.zone_gate(report, {"front": wrong, "top": wrong, "rts": wrong}), 2)   # all 5 views gate
         self.assertEqual(S.zone_gate({"front": {}}, {"front": good}), 0)
+
+
+class Cameras(unittest.TestCase):
+    def test_pin_keeps_only_the_chosen_camera(self):
+        model = {"front": {0: "f"}, "top": {10: "a", 20: "b"}, "rts": {(35, 30): "x", (45, 45): "y"}}
+        pinned = S.pin_tilts(model, {"top": 20, "rts": (35, 30)})
+        self.assertEqual(pinned, {"front": {0: "f"}, "top": {20: "b"}, "rts": {(35, 30): "x"}})
+
+    def test_report_tilts_skips_square_on_views(self):
+        self.assertEqual(S.report_tilts({"front": {"tilt": 0}, "top": {"tilt": 10}}), {"top": 10})
 
 
 class ZoneParts(unittest.TestCase):

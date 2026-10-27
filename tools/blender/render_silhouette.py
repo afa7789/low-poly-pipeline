@@ -22,7 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from views import RTS, TILTED, TILTS, VIEWS, camera, rest_pose, rts_offset  # noqa: E402
 
 D = math.radians
-ZONE_VIEWS = ("front", "left", "back")
+ZONE_VIEWS = ("front", "left", "back", "top", "bottom")
 
 
 def bounds():
@@ -37,17 +37,21 @@ def bounds():
 
 
 def zones(scene, cam, centre, out, stem):
-    """<stem>-zone-<view>.png: front/left/back in flat material colours, no light and no
-    anti-aliasing (every pixel is one slot's colour), for silhouette.py's colour zones.
+    """<stem>-zone-<view>.png: front/left/back/top/bottom in flat material colours, no light
+    and no anti-aliasing (every pixel is one slot's colour), for silhouette.py's colour zones.
+    Top and bottom also come as <stem>-zone-<view>@<tilt>.png at every views.TILTS, like their
+    silhouettes, so the colour zones use the camera the silhouette matched.
     Run after the silhouette shots: it changes the shading and leaves it changed."""
     scene.display.render_aa = "OFF"
     scene.view_settings.view_transform = "Standard"   # the default tone map darkens every colour
     scene.display.shading.color_type = "TEXTURE"
-    for name in ZONE_VIEWS:
-        offset, rot = camera(name)
+    shots = [(name, 0, f"{stem}-zone-{name}.png") for name in ZONE_VIEWS]
+    shots += [(name, t, f"{stem}-zone-{name}@{t}.png") for name in TILTED for t in TILTS if t]
+    for name, tilt, filename in shots:
+        offset, rot = camera(name, tilt)
         cam.location = centre + mathutils.Vector(offset)
         cam.rotation_euler = (D(rot[0]), D(rot[1]), D(rot[2]))
-        scene.render.filepath = str(out / f"{stem}-zone-{name}.png")
+        scene.render.filepath = str(out / filename)
         bpy.ops.render.render(write_still=True)
     scene.display.render_aa = "8"
     scene.display.shading.color_type = "SINGLE"

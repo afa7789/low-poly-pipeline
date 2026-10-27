@@ -988,3 +988,34 @@ with the Read tool), same reply parsing; any other `--model` value stays on the 
 `review.md` records the model as given. The call runs in an empty temp dir with no setting
 sources, so no project CLAUDE.md, hooks or MCP servers reach the spec author. Image generation
 (`generate.py`, nano-banana) stays on the API.
+
+### 18.F Stage 2 - colour on a frozen shape (2026-10-26)
+
+`tools/blender/colour_stage.py`: `stage_colour(spec, glb_clay, args, tilts, work) -> (ok, markdown)`;
+the markdown is review.md's "Stage 2 - colour" section, the final GLB is `<out>/model.glb`, the review
+renders `<out>/views/<tag>/model-<view>.png`.
+- **`--texture cel|painted|sheet`** (`--colour-pass N` = colour-pass tries). `sheet` is
+  `project_concept.py` run on the clay GLB: each face is painted from the sheet-hard panel it faces,
+  inside that panel's figure box. Fixed on the way: the left panel and the bottom panel were mirrored
+  against the review cameras (`face_panel` now follows `views.VIEWS`), and the sheet's background
+  between limbs showed as white slivers, so each panel's background is filled with the nearest plate
+  colour on its row (`bleed`).
+- **Zones on 5 views.** `render_silhouette.py` also shoots `-zone-top@<t>`/`-zone-bottom@<t>`;
+  `silhouette.py --tilts top:10,bottom:20,rts:35/30` pins the cameras stage 1 chose (`pin_tilts`), and
+  `ZONE_GATED` (all 5 views, mean 0.08 / cover 0.30) gates the colour. Measured on the 7 v2-hard-r2 cel
+  builds the lowest top/bottom is mean 0.098 (n01N top) / cover 0.355 (n01X bottom), so the floors hold.
+- **Colour pass** (optional, needs `--model`): the reply may carry only `palette` (colour, surface) and
+  `decals` (decal, decal_color). `validate_colour` rejects any other change: a part, its material, a
+  slot added or dropped, the alpha, a decal off the head. Accepted only if the zone mean rises and no
+  view that held fails.
+- **Why the cel looked washed (two causes).** (1) `views.make_unlit` moved the texture to Emission but
+  left it linked to Base Color, so the sun and world lit it again: every review render was ~2x too
+  bright in linear light (brass #A98451 shown as #F6C27A; hfoo's helmet and fists white). Now the link
+  is removed and the render is the palette colour exactly. (2) `CEL_TONES` x1.20 on top faces
+  overshot: measured as render luma / sheet luma per view over the 7 runs (before -> after, tones
+  1.20/1.0/0.68 -> 1.08/1.0/0.90): front .950 -> .953, left .931 -> .948, back .934 -> .940,
+  top 1.071 -> 1.010, bottom .686 -> .829 (the sheet's undersides are not dark). Zones mean
+  (luma-matched, so moves little): hfoo top .189 -> .217, n02X front .311 -> .338, rest within .003.
+- Sheet vs cel vs painted (n01X hard-v1, zones mean/cover front, top): cel .42/.83, .33/.67; painted
+  .32/.62, .27/.59; sheet .40/.91, .22/.61. `sheet` carries the drawn plates and outlines but smears
+  where the model's limbs do not sit on the drawn ones and is weakest from above; `cel` is cleaner.

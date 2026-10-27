@@ -90,7 +90,9 @@ def make_unlit():
             continue
         base, emit = bsdf.inputs["Base Color"], bsdf.inputs["Emission Color"]
         if base.is_linked:
-            mat.node_tree.links.new(base.links[0].from_socket, emit)
+            link = base.links[0]
+            mat.node_tree.links.new(link.from_socket, emit)
+            mat.node_tree.links.remove(link)   # left linked, the lights shine on the texture too: x2 brighter
         else:
             emit.default_value = base.default_value
         base.default_value = (0.0, 0.0, 0.0, 1.0)
