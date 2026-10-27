@@ -62,6 +62,7 @@ import urllib.request
 
 import cut_hull
 import mesh_lint
+import review_pair
 import rig_families as RF
 from surfaces import DECALS, SURFACES
 from views import layout_of
@@ -1378,6 +1379,9 @@ def main():
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
                     help="comma-separated views to refine after the sheet pass, e.g. left,back,front")
+    ap.add_argument("--pair", type=pathlib.Path, default=None,
+                    help="an earlier run dir of this unit: pairwise vision review against it "
+                         "(review_pair.py); losing both axes demotes the status one level")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
@@ -1413,6 +1417,7 @@ def main():
         colour = run_colour(spec, shape, args)
         args.times["colour"] = time.monotonic() - t0
     verdict = verdict_of(shape, colour)
+    args.pairwise = pairwise_of(args, shape)
     write_review(args, shape, colour, verdict)
     stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
     print(f"{args.id}\t{args.run}\t{args.tag}\ttris {shape['tris']}/{lo}-{hi}\t"
@@ -1473,6 +1478,13 @@ def stage2_section(args, shape, colour):
             f"{zone_rows(args.summary)}\n{body}\n")
 
 
+def pairwise_of(args, shape):
+    """The review_pair result of this run against --pair, or None (no --pair, no GLB)."""
+    if not args.pair or shape["glb"] is None:
+        return None
+    return review_pair.compare(args.pair, args.out, args.id, args.kind)
+
+
 def lint_target(args, shape, colour):
     """(glb, textured): the stage 2 model when it was written, else the clay; (None, False)
     when the build failed."""
@@ -1505,11 +1517,18 @@ def decimate_rows(args, shape):
              f"{r['lost_per_100_tris']:.4f} (tris {r['tris'][0]} -> {r['tris'][1]}, mean IoU {r['iou'][0]:.3f} -> {r['iou'][1]:.3f})", "-")]
 
 
+def final_status(args, verdict, lint_bad):
+    """status_of, one level down when the pairwise review lost both axes."""
+    status = status_of(verdict, args.summary, lint_bad)
+    pw = getattr(args, "pairwise", None)
+    return review_pair.demote(status) if pw and review_pair.lost(pw) else status
+
+
 def readiness_section(args, shape, colour, verdict):
     """`## Readiness`: mesh_lint numbers (criterion | value | gate) and the status."""
     glb, textured = lint_target(args, shape, colour)
     if glb is None:
-        return f"## Readiness\n\nno GLB built.\n\nstatus: **{status_of(verdict, args.summary, ['build'])}**\n\n"
+        return f"## Readiness\n\nno GLB built.\n\nstatus: **{final_status(args, verdict, ['build'])}**\n\n"
     m = mesh_lint.lint(glb)
     bad = mesh_lint.failing(m, textured)
     fa, tx = m["face_area"], m["texel"]
@@ -1530,13 +1549,18 @@ def readiness_section(args, shape, colour, verdict):
     body = "".join(f"| {a} | {b} | {c} |\n" for a, b, c in rows + decimate_rows(args, shape))
     return (f"## Readiness\n\n| criterion | value | gate |\n|---|---|---|\n{body}\n"
             f"lint gates failed: {', '.join(bad) or 'none'}\n\n"
-            f"status: **{status_of(verdict, args.summary, bad)}**\n\n")
+            f"status: **{final_status(args, verdict, bad)}**\n\n")
 
 
 # 1-5 per axis, left empty for the vision reviewer (EdgeRunner 2024: Input Consistency,
 # Triangle Aesthetic, Overall; MeshGPT 2024 user study: shape x triangulation)
 EVALUATION = ("## Avaliação\n\n| eixo | nota (1-5) |\n|---|---|\n| consistência com o sheet | |\n"
               "| estética da triangulação | |\n| qualidade geral | |\n\n")
+
+
+def pairwise_line(args):
+    pw = getattr(args, "pairwise", None)
+    return f"{review_pair.line(pw)}\n\n" if pw else ""
 
 
 def write_review(args, shape, colour, verdict):
@@ -1549,7 +1573,7 @@ def write_review(args, shape, colour, verdict):
         f"{EVALUATION}{timing_section(args)}{variants_section(args)}"
         f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
-        f"verdict: **{verdict}**\n\n"
+        f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
         f"approved sheet; wire and uv columns), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
         f"model.glb, turntable.gif\n")

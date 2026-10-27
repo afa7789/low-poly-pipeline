@@ -1544,3 +1544,43 @@ orçamento deles não aparece na silhueta (n00U está longe do gate por outro mo
 colapsa arestas sem olhar o sheet, e a IoU só vê o contorno (o que some dentro dele não conta).
 
 Arquivos da prova: `scratchpad/leva2-s5/{n01X,n005,n00U}/review.md` (Readiness com as linhas novas), `*.log`.
+
+
+## 20. Leva 2 (2026-10-27)
+
+### 20.S4 `review_pair.py`: review pareado de visão (2026-10-27)
+
+**O que mudou.** `tools/blender/review_pair.py <runA> <runB> --id <unit>`: por voto, uma imagem de 2 linhas (front, rts) com 3
+células `candidato | painel do sheet aprovado | candidato`; textured (`model.glb`) se as duas runs têm, senão clay (lit). Os
+renders saem do GLB das runs (os `views/` não ficam nos runs commitados) com a câmera rts do `silhouette.json` de cada uma. O
+reviewer (`spec_pipeline.ask`, `session:opus`, lê a imagem com Read) responde JSON: `sheet` (parece o sheet) e `artist` (parece
+feito por artista), left/right + 1 frase cada. 3 votos, lados A/B embaralhados (sempre as duas ordens), maioria por eixo; resposta
+inválida é pedida de novo uma vez. Grava `<runB>/pairwise.json` (votos, frases, imagens em `pairwise/`) e uma linha no
+`review.md`: `pairwise vs <runA>: sheet A 2-1, artist B 3-0`. Gancho: `spec_pipeline.py ... --pair <run-anterior>` (default: nenhum)
+roda o review da run nova (B) contra a anterior (A), escreve a linha no `review.md` e **rebaixa o `status` um nível** (final-use ->
+prototype-safe -> placeholder -> rejected) se A vencer os 2 eixos; o veredito não muda. Teste: `test_review_pair.py` (reviewer stub).
+Por quê: S4 + N5 do roadmap (juiz de visão pareado em vez de nota absoluta; MeshGPT 2024 avalia por preferência pareada em
+forma x triangulação).
+
+**Achado: viés de posição.** Na primeira bateria, o reviewer escolheu o candidato da ESQUERDA em 3/3 votos nos dois eixos no n005,
+e na esquerda em 3/3 no eixo artista do n00U; com 3 votos e ordem 2+1, isso vira "A 2-1" que é só posição. Regra nova: eixo cujos
+votos pegaram todos o mesmo lado físico = `tie (position bias)`. Sem essa regra o n00U sheet saiu "A 2-1" numa leitura e "B 3-0" nas
+outras.
+
+**Medida** (A = v4-oneshot-r1, B = v5-fit; 2 repetições cada com o código final, renders e ordem fixos, só o reviewer varia;
+`.../scratchpad/leva2-s4/runs/<id>/<B>/final-rep{1,2}.json`, imagens em `work-<id>/vote*.png`):
+
+| unidade | B | modo | rep 1 | rep 2 |
+|---|---|---|---|---|
+| n005 | v5-fit-r3 | clay | sheet tie 2-1 (viés), artist tie 2-1 (viés) | idem |
+| n01X | v5-fit-r1 | textured | sheet B 3-0, artist B 3-0 | sheet tie 2-1 (viés), artist B 3-0 |
+| n00U | v5-fit-r2 | clay | sheet B 3-0, artist tie 2-1 (viés) | sheet B 2-1, artist tie 2-1 (viés) |
+
+Estabilidade: nenhuma repetição trocou o vencedor (A <-> B); só caiu de B para tie. As 3 repetições de um mesmo voto concordam
+(3-0) só no n01X artist e n00U sheet (1ª leitura); o resto é 2-1. Leitura: v5-fit > v4 no n01X (textured, forte) e no n00U na forma;
+n005 sem sinal (clay, o reviewer escolhe sempre a esquerda). Nenhum par perde os 2 eixos, então o gate não rebaixaria nenhuma das 3.
+
+**O que piorou / limites.** Clay-vs-clay dá sinal fraco (n005, n00U artist): o reviewer não vê cor nem detalhe. 3 votos com ordem
+2+1 não cancelam o viés de posição; a regra só o detecta, não corrige (4 votos 2+2 seria o passo seguinte, custo +1 chamada).
+Custo: 3 chamadas `claude -p` em paralelo, ~30 s por par. O gate é opt-in (`--pair`) e só rebaixa status; não bloqueia a run.
+
