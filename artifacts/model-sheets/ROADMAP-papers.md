@@ -285,3 +285,98 @@ image-to-3D, nenhum loop de volta ao modelo.
 - Renderização diferenciável (PyTorch3D/nvdiffrast/Kaolin): sem CUDA; L5-4 põe profundidade e partes no proxy
   que já roda em ms. Reavaliar só se L5-4 não resolver a fusão.
 - VLM escrevendo o modelo inteiro: continua só editando o pré-spec (massing por partes).
+
+---
+
+# Leva 6 (2026-10-28) — APLICAR OS PAPERS DE FORMA COMO MÉTODO
+
+Fonte: `analysis/2026-10-28-auditoria-papers-vs-codigo.md`. Até aqui Sano, Chen, Sketch2Mesh e Wiersma entraram como
+métrica/gate; a forma continua sendo frustums empilhados de 4 lados, 25 cascas se atravessando, props afogados. Esta
+leva muda a REPRESENTAÇÃO e o BUILD, e troca o juiz de aceite para a forma (wire, normais, componentes), não só a
+máscara 2-D. Regras: BFS, sem GPU/treino, sem gerador image-to-3D, nenhum loop de volta ao modelo. Critério de
+aceite comum: compare lado a lado (clay + wire + overlay) julgado pelo pareado de 4 votos; IoU 6 vistas não pode cair
+mais que 0.02; `mesh_lint` componentes do corpo = 1 (+ props), slivers < 5 %.
+
+## Dependências
+```
+L6-1 superfície contínua ──┐
+L6-2 hull visual (Sano) ───┼──> L6-4 união + limpeza (Chen) ──> L6-5 deformação ao contorno (Sketch2Mesh) ──> L6-7 vértices (Wiersma, opcional)
+L6-3 props ancorados ──────┘                                    L6-6 gates de forma (paralelo a tudo)
+```
+
+## Tarefas
+
+### L6-1 Tronco, pelve, carapaça e cabeça como UMA superfície contínua (anéis compartilhados)
+- **Problema:** `massing._frustum_stack`/`_slab` emitem uma peça por fatia; anéis vizinhos não compartilham largura
+  → degraus em toda junta; 4 lados. `lathe_rings` é revolução pura (raio escalar + squash global, eixo reto): não faz
+  capuz que avança em z, nem barriga.
+- **Mudança:** `lathe_limb.lathe_rings` aceita `profile` como lista de anéis `[w, d, zc, xc]` (largura, profundidade,
+  centro z e x por anel, em fração de `r`/metros), 8 lados, tampas; `massing._frustum_stack`/`_slab`/`lathe_part`
+  emitem UM `lathe` por papel (torso, pelvis, cabeça, carapaça, abdômen) com os anéis nos breakpoints que já calcula
+  (`breakpoints`), lendo w/d/zc do sheet. `preflight.part_tris`/`bbox`, `fit_spec.PARAMS["lathe"]` (raios por anel
+  ±15 %), `cut_hull.lathe_profiles` atualizados. Flag `STACK_LATHE = True` (volta às fatias com `False`).
+- **Prova sem LLM:** massing sozinho em n005, n02X, hfoo, n00U, n017: wire sem degraus (compare), IoU 6 vistas
+  ±0.02, tris dentro do orçamento (ajustar anéis: 4-6 por tronco), `mesh_lint` slivers; julgar no wire e no pareado,
+  não no spill de bottom. PIPELINE §24.L6-1.
+
+### L6-2 Hull visual de Sano por default (3 vistas, por parte, regularizado)
+- **Problema:** `cut: sheet` é opt-in, 2 vistas, 8 vértices, decidido pelo fit e vetado pelo vermelho médio.
+- **Mudança:** `cut_hull`: contorno por parte (faixa da `box3d` de `parts.json`) em front, left E top (`top_outline`
+  existe), DP 12-16 vértices + `snap_axes` + arcos (ajuste de círculo em 3 vértices consecutivos quando o resíduo
+  cai), interseção dos 3 prismas (`BOOLEAN INTERSECT` EXACT já existe em `cut_part`), QEM até o orçamento da parte;
+  `massing` marca `cut: sheet` por default em capuz/torso/pelve/saia/carapaça; `CUT_MAX` por parte; `fit_accepted`
+  deixa de vetar `cut` pelo vermelho médio (compara só IoU + slivers). Mantém L6-1 como base (o hull corta o lathe).
+- **Prova sem LLM:** n005 (capuz, torso, saia), n00U (carapaça), n02X (barriga): top/bottom IoU e uncovered
+  antes/depois; o contorno do capuz no left deixa de ser retângulo (overlay); tris por parte. PIPELINE §24.L6-2.
+
+### L6-3 Props ancorados com folga, por default
+- **Problema:** `prop_clearance` 83 % OUT só relatório; `block_part` força o pique inclinado para frente; tanque e
+  vaporizador afundam no corpo; props viram caixa.
+- **Mudança:** `massing`: prop vira `lathe`/`plate`/`chain` conforme o nome (tanque → lathe, arma → plate do
+  recorte do `sheet-props`, pique → chain de 2 anéis com o ângulo lido do sheet front/left, lanterna → lathe), posto
+  no ponto de ancoragem com folga ≥ 0.02 H para fora do corpo (`gap_move` ao contrário: afasta); `prop_clearance`
+  vira gate (≤ 20 %) e `overlap` pela âncora é o único contato; `fit_spec` nunca move prop para dentro.
+- **Prova sem LLM:** n005 (tanque, vaporizador, lanterna), hfoo (pique, mochila), n02X (clava): `prop_clearance`
+  ≤ 20 % em todos, prop lê como objeto no compare, IoU ±0.02. PIPELINE §24.L6-3.
+
+### L6-4 Chen por default: união do corpo + limpeza + decimate com tolerância + features
+- **Problema:** build em `join`: 25 cascas se atravessando; `union`/`clean_mesh`/`toldec` existem e ficam opt-in.
+- **Mudança:** `build_unit.main`: corpo (peças não-prop) → `union_parts` (BOOLEAN EXACT) → `clean_mesh` (merge
+  1 mm + dissolve planar 6°) → `union_decimate` com Hausdorff ≤ H/32 e piso de faces (não cair abaixo de 60 % do
+  orçamento) → sharp por ângulo (`soften` marca arestas > 35° como sharp; chanfro só nelas) → skin por proximidade
+  do osso (já existe no `fuse`); props continuam componentes próprios (L6-3). Flag `UNION_BODY = True`.
+  `mesh_lint`: componentes do corpo = 1 vira GATE.
+- **Prova sem LLM:** rebuild dos 8 `v9-r1/spec.json`: componentes 25 → 1 + props, slivers < 5 %, IoU ±0.01,
+  animação (`walkleft`, 5-7 clips) sem rasgar (render dos clips); compare clay/wire. PIPELINE §24.L6-4.
+
+### L6-5 Sketch2Mesh por default: deformação da malha unida ao contorno (sem LLM)
+- **Problema:** o fit move dims de caixas com proxy de casco convexo; não cria forma.
+- **Mudança:** novo `tools/blender/deform_to_sheet.py`: na malha unida (L6-4), vértices do contorno externo de cada
+  vista (ray-cast das bordas, como Sketch2Mesh Fig. 2c) recebem deslocamento ao ponto mais próximo do contorno do
+  sheet (front, left, back; top/bottom opcionais), o interior segue por suavização Laplaciana (scipy sparse,
+  `cotangent` ou uniforme), 3-5 iterações; só na banda que falha (Eq. 6: pesos caem a zero longe do vermelho/verde);
+  limite de deslocamento 0.05 H por iteração; rejeita se slivers > 5 % ou inversão de normal. Entra DEPOIS do fit e
+  antes da textura; `fit_accepted` igual.
+- **Prova sem LLM:** 8 clays v9: uncovered/spill por vista antes/depois (meta: vermelho e verde < 8 % em front/left/
+  back), IoU, slivers; overlay quase cinza. PIPELINE §24.L6-5.
+
+### L6-6 Gates de FORMA (paralelo a tudo)
+- **Problema:** IoU/uncovered/spill/zonas medem máscara 2-D; nada mede continuidade de normal, curvatura, componentes;
+  decisões de visual foram vetadas por décimos de IoU.
+- **Mudança:** `mesh_lint`: `normal_diff` (Chen: ângulo médio entre normais de faces vizinhas; degrau = pico),
+  `fairness` (Wiersma), `components_body`, `slivers`; `review.md` ganha bloco "Forma" e o status passa a exigir
+  componentes = 1 + props e slivers < 5 % para final-use; `compare_runs --show wire` default no histórico; o
+  pareado ganha o eixo "forma contínua" (sem degraus/caixas atravessadas). `fit_accepted`/`best_of_n` somam um termo
+  de forma (−slivers, −normal_diff) ao lado do vermelho.
+- **Prova:** calibrar nos 65 runs guardados; mostrar que v6-r4 (feio, PASS) e v9 (juiz prefere) se separam por estas
+  medidas onde o IoU empata. PIPELINE §24.L6-6.
+
+### L6-7 Wiersma (opcional, depois de L6-5): otimização de vértices de topologia fixa
+- Malha unida e decimada (~600 tris) como vetor de vértices; objetivo = silhuetas 6 vistas + chamfer + fairness +
+  penalidade de inversão (line search que rejeita); Powell/L-BFGS em blocos de vértices por banda; sem SDS. Custo L;
+  só se L6-5 deixar vermelho/verde > 8 %. PIPELINE §24.L6-7.
+
+### L6-8 Bateria v10 e fechamento
+- 8 unidades, compares `clay+wire+overlay+textured`, pareado contra v9 nos 4 eixos, ficha 05, §24 com a tabela.
+  Critério de sucesso da leva: pareado ≥ 4-0 "forma contínua" em 6 de 8; vermelho+verde < 8 % em front/left/back em
+  6 de 8; componentes do corpo = 1 em 8 de 8.
