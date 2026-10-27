@@ -451,6 +451,44 @@ def edge_report(hard, wire_dir):
         wire, wmask = wire_edges(path)
         out[view] = edge_chamfer(edges(hard, mask), mask, wire, wmask)
     return {v: r for v, r in out.items() if r}
+def _crop(mask):
+    ys, xs = np.where(mask)
+    return mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+
+def _fill_end(col):
+    """Row after the first filled run of a boolean column (len when it never ends)."""
+    first = int(np.argmax(col))
+    gap = np.where(~col[first:])[0]
+    return first + int(gap[0]) if len(gap) else len(col)
+
+
+def measure_spider(sheet, size=768):
+    """Spider proportions of the approved sheet, fractions of the front view's height H
+    (L14, PIPELINE section 20): the numbers rig_families.scale_spider builds the rig from.
+    body_r / body_len: half width and length of the body seen from the top (the legs are
+    opened away); body_under: height of the belly above the ground (back view, where the
+    fangs do not hang in the way); knee_h / knee_r: the front view's widest row between the
+    shell and the feet, and half the width there; foot_r: half the width at the feet."""
+    from scipy import ndimage
+    panels = concept_panels(sheet, size)
+    front, back, top = (_crop(panels[v]) for v in ("front", "back", "top"))
+    h = front.shape[0]
+    _, spans = row_spans(front, 100)
+    half = [s / 2 for s in spans]
+    # the leg ring's width is the same seen from the front and from the top: that calibrates the top panel
+    k = (front.shape[1] / h) / top.shape[1]
+    dist = ndimage.distance_transform_edt(top)
+    r = dist.max()
+    disc = np.hypot(*np.ogrid[-int(0.6 * r):int(0.6 * r) + 1, -int(0.6 * r):int(0.6 * r) + 1]) <= 0.6 * r
+    body = _crop(ndimage.binary_opening(top, structure=disc))
+    cx = back.shape[1] // 2
+    under = _fill_end(ndimage.binary_closing(back, iterations=2)[:, cx - 2:cx + 3].any(axis=1))
+    knee = max(range(len(half) // 5, len(half) * 85 // 100), key=lambda i: half[i])   # not the shell, not the feet
+    return {"body_r": round(float(r * k), 3), "body_len": round(body.shape[0] * k, 3),
+            "body_under": round(1 - under / back.shape[0], 3),
+            "knee_h": round(1 - knee / (len(half) - 1), 3), "knee_r": round(float(half[knee]), 3),
+            "foot_r": round(float(max(half[-4:])), 3)}
 
 
 def read_mask(path):

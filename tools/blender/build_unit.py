@@ -95,10 +95,13 @@ def families():
     return sibling("rig_families")
 
 
-def load_family(name, extras=None):
+def load_family(name, extras=None, measure=None):
     """Swap the rig family before building: a spec can ask for spider, quadruped...,
-    plus its own prop bones (rig_families.with_extras)."""
+    plus its own prop bones (rig_families.with_extras). A spider spec's "rig_measure" (the
+    sheet's numbers, silhouette.measure_spider) scales the skeleton."""
     fam = families()
+    if measure and name in fam.SPIDERS:
+        fam.scale_spider(name, measure)
     global BONES, BONE_MAP, FAMILY
     FAMILY = name if name in fam.FAMILIES else "biped"
     BONES = fam.with_extras(FAMILY, extras)
@@ -1234,7 +1237,7 @@ def load_spec(target):
         pose = doc.get("rest_pose")
         ANIM = doc.get("anim") or registry_picks(doc, p)
         if doc.get("rig") or doc.get("bones"):
-            print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones")))
+            print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones"), doc.get("rig_measure")))
         register_palette(doc.get("palette"))
         if "segments" in doc:          # skeleton-first spec: placement comes from the rig
             return p.stem, doc, pose
@@ -1330,7 +1333,7 @@ def main():
     wipe()                                  # before any branch: the factory cube is not ours
     unit, spec, rest_pose = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):
-        print("rig family:", load_family(spec["rig"]))
+        print("rig family:", load_family(spec["rig"], None, spec.get("rig_measure")))
     if isinstance(spec, dict) and spec.get("mode") == "boxmod":
         import boxmod as BM
         body = BM.build(spec)

@@ -20,6 +20,7 @@ quadruped + rider). A spec may add its own prop bones with "bones" (with_extras)
 mast, a second head or a counterweight never needs a family of its own.
 """
 import math
+import sys
 
 # name, parent, head, tail  (x right, y up, z forward)
 BIPED = [
@@ -70,6 +71,53 @@ SPIDER = ([("root", None, (0, 0, 0), (0, 0.25, 0)),
 # same bones as SPIDER, legs arched like the n01N sheet: the knee stands 0.55 above the
 # back line of the body and the shin comes down to the floor
 SPIDER_HIGH = SPIDER[:4] + _legs(8, "body", 0.60, 0.34, 0.78, phase=math.pi / 8, arch=0.55)
+
+SPIDERS = ("spider", "spider_high")
+SPIDER_H = 0.74   # the fixed spiders' height in metres: the H a sheet measurement is a fraction of
+
+
+def _legs_measured(by, hip_r, knee_r, knee_y, foot_r, phase=math.pi / 8):
+    """The ring of 8 legs from measures: hip at (hip_r, by), knee at (knee_r, knee_y), foot at foot_r."""
+    bones = []
+    for i in range(8):
+        a = phase + 2 * math.pi * i / 8
+        c, s = math.cos(a), math.sin(a)
+        hip, knee, foot = (c * hip_r, by, s * hip_r), (c * knee_r, knee_y, s * knee_r), (c * foot_r, 0.04, s * foot_r)
+        bones += [(f"leg{i + 1}.upper", "body", hip, knee), (f"leg{i + 1}.lower", f"leg{i + 1}.upper", knee, foot)]
+    return bones
+
+
+def scale_spider(family, m):
+    """Replace FAMILIES[family] (spider or spider_high) by a skeleton built from the sheet's
+    measures (silhouette.measure_spider, fractions of H) and return it. Same bones and names as
+    the fixed table, so clips and retargets keep working; the top stays SPIDER_H."""
+    H = SPIDER_H
+    by = H * (m["body_under"] + 1) / 2                         # the body bone: middle of the shell
+    zs = min(max(m["body_len"] * H / 1.57, 0.3), 1.5)          # the fixed thorax+head+abdomen run 1.57 long
+    knee_y = H * max(m["knee_h"], m["body_under"] / 2)         # a lower leg never shorter than half the belly height
+    table = [("root", None, (0, 0, 0), (0, 0.25, 0)),
+             ("body", "root", (0, by, -0.15 * zs), (0, by + 0.02, 0.35 * zs)),
+             ("head", "body", (0, by - 0.02, 0.35 * zs), (0, by - 0.08, 0.72 * zs)),
+             ("abdomen", "body", (0, by + 0.06, -0.15 * zs), (0, H, -0.85 * zs))]
+    table += _legs_measured(by, 0.9 * m["body_r"] * H, m["knee_r"] * H, knee_y, m["foot_r"] * H)
+    FAMILIES[family] = table
+    _drop_caches()
+    return table
+
+
+def spider_leg_len(m):
+    """hip -> knee -> foot length of a scaled spider's leg, fractions of H."""
+    hip, by = 0.9 * m["body_r"], (1 + m["body_under"]) / 2
+    kh = max(m["knee_h"], m["body_under"] / 2)
+    return math.hypot(m["knee_r"] - hip, by - kh) + math.hypot(m["foot_r"] - m["knee_r"], kh)
+
+
+def _drop_caches():
+    """rig_poses caches its rest matrices per family name: a replaced table must not reuse them."""
+    mod = sys.modules.get("rig_poses")
+    if mod is not None:
+        mod._rest.cache_clear()
+
 
 QUADRUPED = [("root", None, (0, 0, 0), (0, 0.3, 0)),
              ("spine.1", "root", (0, 1.00, -0.55), (0, 1.10, 0.00)),

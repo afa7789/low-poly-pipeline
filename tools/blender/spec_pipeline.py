@@ -70,6 +70,7 @@ from views import layout_of
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILLS = pathlib.Path.home() / ".config" / "opencode" / "skills"
+RIG_MEASURE = None            # the sheet's spider numbers when the rig was scaled by them
 RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
@@ -230,6 +231,10 @@ RIG_TEXT = {
            "tail.1-tail.4",
     "building": "a building: every part binds to body; it never moves",
 }
+SPIDER_MEASURED_TEXT = ("an eight-legged arthropod: abdomen and thorax mass on body, head and fangs on "
+                        "head, legs leg1..leg8 (upper, lower) radiating around the body exactly as the rig "
+                        "table lists them: the skeleton is scaled to this sheet, so put each leg part on its "
+                        "bone (from the bone's head to its tail) and do not re-guess lengths or heights")
 EXTRA_BONES = ("If the card names a prop that moves on its own - a mast, a second head, a "
                "counterweight, a launcher arm - you may add up to 3 extra bones at the top "
                "level: \"bones\": [[name, parent, head, tail]], parent an existing bone, head "
@@ -241,9 +246,10 @@ def rig_text(family):
     if family == "biped":
         limb, rig = RIG_TEXT["biped"]
         return limb, f"{rig} {EXTRA_BONES}"
+    note = SPIDER_MEASURED_TEXT if RIG_MEASURE and family in RF.SPIDERS else RIG_TEXT[family]
     return ("Use this for every leg segment, neck, tail and any angled part.",
             f"Parts are rigid-bound: each part follows the bone you name. This unit is "
-            f"{RIG_TEXT[family]}. Rules that mention arms, hands, elbows, knees or feet apply "
+            f"{note}. Rules that mention arms, hands, elbows, knees or feet apply "
             f"only to the limbs this body has. {EXTRA_BONES}")
 
 
@@ -256,6 +262,15 @@ def facet_text(m):
             for b, v in bands.items()]
     return ("\nFACETS drawn on the hard sheet's front view (edge lines a horizontal cut crosses, plus "
             "one; a facet is a flat face, so a band with more of them needs more sides): " + "; ".join(rows) + ".")
+def spider_text(s):
+    """The spider numbers of the sheet (silhouette.measure_spider) the rig table was scaled by."""
+    h = RF.SPIDER_H
+    return (f"\nSPIDER BODY (the rig table is already scaled to these, H = {h} m): body radius {s['body_r']} H "
+            f"({s['body_r'] * h:.2f} m) seen from the top, body length {s['body_len']} H, belly "
+            f"{s['body_under']} H above the ground, knee {s['knee_h']} H high and {s['knee_r']} H from "
+            f"the axis, feet {s['foot_r']} H from the axis. Size the shell and abdomen to that radius and "
+            "length, and the legs to those bones: a body smaller or legs longer than the table is the "
+            "usual failure.")
 
 
 def measured_text(family, m):
@@ -266,7 +281,7 @@ def measured_text(family, m):
         return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey "
                 "these, do not re-guess them):\nFront silhouette width profile, top to bottom, "
                 f"in 5% steps: {profile}.\nSide silhouette width profile, top to bottom, in 5% "
-                f"steps: {side}.")
+                f"steps: {side}." + (spider_text(m["spider"]) if "spider" in m else ""))
     return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey these, "
             "do not\nre-guess them): "
             f"shoulder span {m['shoulder_span']} H, fist-to-fist span {m['fist_span']} H,\n"
@@ -319,8 +334,13 @@ def props_text(props):
             "props_present fails a prop with no part of its own:\n" + "\n".join(lines))
 
 
-def set_rig(family):
-    global RIG, BONES
+def set_rig(family, measure=None):
+    """Pick the rig family; a spider with the sheet's measures (silhouette.measure_spider)
+    gets its skeleton scaled by them (L14), every other call keeps the fixed table."""
+    global RIG, BONES, RIG_MEASURE
+    RIG_MEASURE = measure if family in RF.SPIDERS else None
+    if RIG_MEASURE:
+        RF.scale_spider(family, RIG_MEASURE)
     RIG, BONES = family, set(RF.bones(family))
 
 
@@ -597,6 +617,8 @@ def parse_spec(txt):
         spec["palette"] = palette
     if extras:
         spec["bones"] = extras
+    if RIG_MEASURE:
+        spec["rig_measure"] = RIG_MEASURE
     return spec
 
 
@@ -1141,6 +1163,12 @@ def hull_for(args, layout):
     part = building_hull.hull_part(concept_panels(args.sheet, layout=layout), args.height or RF.top(args.rig))
     part[5]["hull"]["tris"] = building_hull.export(part, args.out, args.kind)
     return part
+def spider_measure(args):
+    """The sheet's spider numbers for set_rig, None for another family or with --fixed-rig."""
+    if args.rig not in RF.SPIDERS or args.fixed_rig:
+        return None
+    from silhouette import measure_spider
+    return measure_spider(args.sheet)
 
 
 def make_brief(args, lo, hi):
@@ -1153,6 +1181,8 @@ def make_brief(args, lo, hi):
         from silhouette import edge_bands
         sheet_m["edges"] = edge_bands(args.build, sheet_m["shoulder_frac"])
         sheet_m.update({f"edge_{g}": sheet_m["edges"][b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
+    if RIG_MEASURE:
+        sheet_m["spider"] = RIG_MEASURE
     dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
                      surfaces=", ".join(SURFACES),
                      colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
@@ -1416,6 +1446,8 @@ def main():
     ap.add_argument("--rig", default=None, choices=sorted(RF.FAMILIES),
                     help="skeleton family (rig_families.py); default biped, or building "
                          "for --kind building/large")
+    ap.add_argument("--fixed-rig", action="store_true",
+                    help="spider families: keep the fixed skeleton instead of scaling it by the sheet's measures")
     ap.add_argument("--height", type=float, default=None,
                     help="unit height in metres (default: the rig's own height)")
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
@@ -1487,6 +1519,7 @@ def main():
     args.refs = refs
     set_rig(args.rig)
     args.hull_part = hull_for(args, layout)
+    set_rig(args.rig, spider_measure(args))
     brief = with_refs(make_brief(args, lo, hi), refs, hard_first=args.build != args.sheet,
                       props=load_props(args.id))
     spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs], tmp, layout)

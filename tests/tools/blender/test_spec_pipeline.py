@@ -205,6 +205,31 @@ class Rig(unittest.TestCase):
         self.assertIn("ARCHES", SP.rig_text("spider_high")[1])
 
 
+class ScaledSpiderBrief(unittest.TestCase):
+    M = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
+
+    def tearDown(self):
+        SP.RF.FAMILIES["spider"] = SP.RF.SPIDER
+        SP.set_rig("biped")
+
+    def test_measures_scale_the_rig_reach_the_spec_and_the_brief(self):
+        SP.set_rig("spider", self.M)
+        self.assertEqual(SP.RIG_MEASURE, self.M)
+        part = ["leg1.upper", "prism", [0.1, 0.1, 0.5], [0.2, 0.3, 0.1], "iron", {"sides": 6}]
+        self.assertEqual(SP.parse_spec(json.dumps({"parts": [part]}))["rig_measure"], self.M)
+        m = {"front_width_profile": [0.5] * 21, "left_width_profile": [0.3] * 21, "spider": self.M}
+        self.assertIn("SPIDER BODY", SP.measured_text("spider", m))
+        self.assertIn("exactly as the rig table", SP.rig_text("spider")[1])
+
+    def test_no_measures_keeps_the_fixed_rig(self):
+        SP.set_rig("spider")
+        self.assertIsNone(SP.RIG_MEASURE)
+        self.assertNotIn("rig_measure", SP.parse_spec(json.dumps({"parts": [
+            ["leg1.upper", "prism", [0.1, 0.1, 0.5], [0.2, 0.3, 0.1], "iron", {"sides": 6}]]})))
+        self.assertIsNone(SP.set_rig("quadruped", self.M))   # measures are for spiders only
+        self.assertIsNone(SP.RIG_MEASURE)
+
+
 class HardFirst(unittest.TestCase):
     def test_hard_first_note_leads_the_references(self):
         text = SP.with_refs("BRIEF", [("props", None)], hard_first=True)
