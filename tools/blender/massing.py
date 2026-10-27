@@ -529,11 +529,22 @@ def leg_parts(front, side, lm, H, labels_for, sides):
     return parts
 
 
+def clean_side(front):
+    """The front view turned so the +x half is its lighter one when the drawing is asymmetric (Sano r_sym < SYM_MIN):
+    arms and legs are read from +x and mirrored, so they must come from the side without the prop. The halves are
+    split at the feet's centre, as `recentre` does: a prop pulls the bounding box off the body."""
+    m = SIL.crop(front)
+    feet = np.nonzero(m[-max(1, m.shape[0] // 12):].any(axis=0))[0]
+    axis = int((feet.min() + feet.max() + 1) // 2)
+    heavy_right = m[:, axis:].sum() > m[:, :axis].sum()
+    return np.fliplr(front) if SIL.r_sym(front) < SIL.SYM_MIN and heavy_right else front
+
+
 def biped(sheet, H, labels_for, sides=SIDES):
     """Parts of the biped pre-spec: head, torso and pelvis stacks, arms, legs, hands and boots."""
     from silhouette import concept_panels, measure
     panels = concept_panels(sheet)
-    front, side = View(panels["front"], H), side_of(panels["left"], H)
+    front, side = View(clean_side(panels["front"]), H), side_of(panels["left"], H)
     front.recentre(0.0, 0.08 * H)
     m_sheet = measure(sheet)
     lm = landmarks(front, H, m_sheet)

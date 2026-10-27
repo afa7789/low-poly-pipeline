@@ -289,3 +289,16 @@ class Families(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CleanSideTest(unittest.TestCase):
+    def test_an_asymmetric_front_is_read_from_the_side_without_the_prop(self):
+        m = np.zeros((40, 50), bool)
+        m[:, 15:25] = True                      # body, feet centred on column 20
+        m[10:20, 25:45] = True                  # a club on the +x (image right) side
+        flipped = M.clean_side(m)
+        self.assertTrue(flipped[10:20, 5:25].all())
+        self.assertIs(M.clean_side(flipped), flipped)          # the heavy side is -x now: kept
+        sym = np.zeros((40, 50), bool)
+        sym[:, 15:35] = True
+        self.assertIs(M.clean_side(sym), sym)

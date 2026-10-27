@@ -187,6 +187,100 @@ def concept_panels(path, size=768, layout="unit", blob=False, columns=False):
     return panels
 
 
+# Sano 2026 r_sym and the sheet's own coherence (PIPELINE 24.L6-9): the sheet is five drawings of one figure by a
+# generator, and some disagree. A view whose panel contradicts front x left is reported, not gated.
+SYM_MIN = 0.85         # a front under this r_sym is drawn asymmetric (a prop or pose on one side): do not mirror it
+COHERENCE_MIN = 0.6    # a panel under this IoU with the hull of front x left is not a view of that figure
+HULL_N = 64            # voxels along the figure's height
+
+
+def r_sym(mask):
+    """IoU of the figure's bounding box crop with its left-right mirror (Sano r_sym): 1.0 = symmetric."""
+    m = crop(mask)
+    return iou(m, np.fliplr(m))
+
+
+def to_height(mask, n):
+    """The cropped figure resampled (nearest) to n rows, columns in proportion."""
+    m = crop(mask)
+    w = max(1, round(m.shape[1] * n / m.shape[0]))
+    return m[(np.arange(n) * m.shape[0] / n).astype(int)[:, None], (np.arange(w) * m.shape[1] / w).astype(int)[None, :]]
+
+
+def hull_voxels(front, left, n=HULL_N):
+    """bool [y, x, z]: the visual hull of front[y, x] and left[y, z] on an n-high grid."""
+    return to_height(front, n)[:, :, None] & to_height(left, n)[:, None, :]
+
+
+def stretched(mask, n=HULL_N):
+    """The cropped figure stretched to an n x n box: the extents agree by construction, so only the shape counts
+    (a top or bottom view is drawn tilted, at its own scale)."""
+    m = crop(mask)
+    return m[(np.arange(n) * m.shape[0] / n).astype(int)[:, None], (np.arange(n) * m.shape[1] / n).astype(int)[None, :]]
+
+
+def best_flip(panel, proj):
+    """Best stretched IoU of a panel with a hull footprint [rows, cols] in any of its 4 flips: the sheet's top and
+    bottom are drawn head-up or head-down and the side panel faces either way."""
+    a = stretched(panel)
+    return max(iou(a, stretched(f)) for f in (proj, np.fliplr(proj), np.flipud(proj), np.flipud(np.fliplr(proj))))
+
+
+def sheet_report(sheet, layout="unit"):
+    """{"r_sym": {view: r}, "coherence": {back, top, bottom: IoU with the hull of front x left}, "incoherent": [views
+    under COHERENCE_MIN]}; {} for a building sheet or one whose panels cannot be read."""
+    if layout != "unit":
+        return {}
+    try:
+        panels = concept_panels(sheet, layout=layout)
+    except SystemExit:
+        return {}
+    hull = hull_voxels(panels["front"], panels["left"])
+    foot = hull.any(axis=0).T            # [z, x]
+    coh = {"back": iou(normalize(panels["back"]), normalize(np.fliplr(hull.any(axis=2)))),
+           "top": best_flip(panels["top"], foot), "bottom": best_flip(panels["bottom"], foot)}
+    return {"r_sym": {v: round(r_sym(m), 4) for v, m in panels.items()},
+            "coherence": {v: round(c, 4) for v, c in coh.items()},
+            "incoherent": [v for v, c in coh.items() if c < COHERENCE_MIN]}
+
+
+def write_sheet_report(args):
+    """Write outdir/sheet.json; the set of views the sheet is incoherent on."""
+    rep = sheet_report(args.sheet, args.layout)
+    (args.outdir / "sheet.json").write_text(json.dumps(rep, indent=2))
+    return set(rep.get("incoherent", ()))
+
+
+def verdict_of(gate, ok, waived):
+    """(counts as ok, printed verdict) of a view: a waived view is reported, never failed."""
+    verdict = "n/a" if gate is None else ("PASS" if ok else "FAIL")
+    return (True, f"{verdict} (sheet incoherent: report)") if waived else (ok, verdict)
+
+
+def sheet_line(rep):
+    """One line for review.md: 'front r_sym .93, back-vs-hull .81, top-vs-hull .52 (incoherent)'."""
+    if not rep:
+        return ""
+    bad = set(rep["incoherent"])
+    parts = [f"front r_sym {rep['r_sym']['front']:.2f}"] + [
+        f"{v}-vs-hull {c:.2f}" + (" (incoherent)" if v in bad else "") for v, c in rep["coherence"].items()]
+    return ", ".join(parts)
+
+
+def sheet_text(rep):
+    """The brief's sentences for what sheet_report found (empty when the sheet is symmetric and coherent)."""
+    if not rep:
+        return ""
+    out = ""
+    if rep["r_sym"]["front"] < SYM_MIN:
+        out += (f"\nThe figure is asymmetric in the front view (r_sym {rep['r_sym']['front']:.2f}): a prop or a pose "
+                "on one side only; keep it on that side, do not mirror it.")
+    for v in rep["incoherent"]:
+        out += (f"\nThe sheet's {v} panel disagrees with its front x left views ({rep['coherence'][v]:.2f} IoU with "
+                "their hull): do not trust it.")
+    return out
+
+
 # F6 turntable (PIPELINE 21.F6): refs/<id>/sheet-turn.jpg is a 4 x 2 grid read left to right, top row first,
 # one drawing per 45 deg of azimuth from the front (0 = front, 90 = the unit's left, 180 = back, 270 = right).
 TURN_ANGLES = (0, 45, 90, 135, 180, 225, 270, 315)
@@ -1502,7 +1596,7 @@ def main():
     ap.add_argument("glb", type=pathlib.Path)
     ap.add_argument("outdir", type=pathlib.Path)
     ap.add_argument("--no-render", action="store_true")
-    ap.add_argument("--measure", action="store_true", help="print sheet proportions and exit")
+    ap.add_argument("--measure", action="store_true", help="print sheet proportions, r_sym and coherence and exit")
     ap.add_argument("--rig", default=None, help="rig family: picks its gates (GATES + RIG_GATES)")
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--shape", action="store_true",
@@ -1525,7 +1619,7 @@ def main():
     ZONE_SPACE = args.space
     gates = gates_for(args.rig)
     if args.measure:
-        print(json.dumps(measure(args.sheet), indent=2))
+        print(json.dumps({**measure(args.sheet), "sheet": sheet_report(args.sheet, args.layout)}, indent=2))
         return 0
 
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -1548,6 +1642,7 @@ def main():
     concept = oriented(panels, rotate)
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
+    waived = write_sheet_report(args)    # views where the sheet contradicts itself: measured, not gated
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
@@ -1560,9 +1655,10 @@ def main():
                         "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask),
                         **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
+        report[name]["incoherent"] = name in waived
+        ok, verdict = verdict_of(gate, ok, name in waived)
         bad += 0 if ok else 1
-        print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  "
-              f"{'n/a' if gate is None else ('PASS' if ok else 'FAIL')}")
+        print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  {verdict}")
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))
         write_mask(best_mask, args.outdir / f"mask-model-{name}.png", (80, 255, 80))
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")
