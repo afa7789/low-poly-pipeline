@@ -953,12 +953,12 @@ def zone_report(concept, model, names):
             "zones": zones, "pieces": pieces}
 
 
-def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None):
+def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None, rotate=()):
     """view -> zone_report for front/left/back/top/bottom: the sheet and the model's flat-colour
     render, both in the sheet's own zones and normalized like the silhouettes.
     `silhouettes` maps view -> the model mask best_match chose (picks the mirror);
     `tilts` maps top/bottom -> the tilt that mask was shot at, so the colour is shot from
-    the same camera."""
+    the same camera. `rotate` = the views whose sheet panel is drawn upside down (detect_rotated)."""
     names, centres, _ = zone_palette(sheet)
     rgb = read_rgba(sheet, 768)[..., :3] / 255.0
     panels = concept_panels(sheet, layout=layout)
@@ -970,9 +970,10 @@ def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None):
             continue
         shot = read_rgba(path, 512)
         lit, mask = shot[..., :3] / 255.0, shot[..., 3] > 16
-        lab = zone_labels(match_luma(lit, mask, rgb[panels[view]]), mask, centres)
+        sheet_rgb, sheet_mask = (np.rot90(rgb, 2), np.rot90(panels[view], 2)) if view in rotate else (rgb, panels[view])
+        lab = zone_labels(match_luma(lit, mask, sheet_rgb[sheet_mask]), mask, centres)
         model = max(variants(mode_filter(normalize(lab)), view), key=lambda v: iou(v > 0, silhouettes[view]))
-        sheet_lab = zone_labels(rgb, panels[view], centres, ink=True)
+        sheet_lab = zone_labels(sheet_rgb, sheet_mask, centres, ink=True)
         concept = mode_filter(normalize(sheet_lab))
         out[view] = zone_report(concept, model, names)
         out[view]["luma_l1"] = luma_l1(lit, lab, rgb, sheet_lab, len(names))
@@ -994,7 +995,7 @@ def zone_gate(report, zones):
     return bad
 
 
-def ids_zones(sheet, glb, outdir, layout, tilts):
+def ids_zones(sheet, glb, outdir, layout, tilts, rotate=()):
     """view -> zone_report of the "ID" render of `glb`, the stage 1 shape rebuilt in the spec's
     palette (one flat colour per material): is the part of material X where the sheet has colour
     X? Only the flat-colour shots are rendered (render_silhouette.py ids); the mask that picks the
@@ -1003,16 +1004,46 @@ def ids_zones(sheet, glb, outdir, layout, tilts):
     renders = outdir / "ids"
     subprocess.run(["blender", "-b", "-P", str(HERE / "render_silhouette.py"),
                     "--", str(glb), str(renders), "ids"], check=True, capture_output=True, text=True)
-    concept = {k: normalize(v) for k, v in concept_panels(sheet, layout=layout).items()}
+    concept = oriented(concept_panels(sheet, layout=layout), rotate)
     pinned, masks = parse_tilts(tilts), {}
     for view in ZONE_VIEWS:
         path = renders / f"{glb.stem}-zone-{view}{f'@{pinned[view]}' if pinned.get(view) else ''}.png"
         if view in concept and path.exists():
             masks[view] = best_match(concept[view], {0: read_mask(path)}, view)[1]
-    zones = zone_views(sheet, renders, glb.stem, masks, layout, pinned)
+    zones = zone_views(sheet, renders, glb.stem, masks, layout, pinned, rotate)
     zone_gate({v: {} for v in zones}, zones)
     (outdir / "zones_clay.json").write_text(json.dumps(zones, indent=2))
     return zones
+
+
+# Top and bottom panels the image model draws turned 180 degrees from views.py (front at the bottom of
+# top, at the top of bottom): the n00U shell has its head up in the top panel. The orientation is read
+# once, before the IoU, from the model's own top/bottom: the panel is rotated only when it matches the
+# model clearly better that way (humanoids, whose head is the centre, give ~0 and stay as drawn).
+FLIP_MARGIN = 0.10
+HEAD = {"top": ("head-down", "head-up"), "bottom": ("head-up", "head-down")}   # (as views.py, rotated)
+
+
+def oriented(panels, rotate=()):
+    """Normalized concept panels, those in `rotate` turned 180 degrees first (before the crop)."""
+    return {k: normalize(np.rot90(v, 2) if k in rotate else v) for k, v in panels.items()}
+
+
+def head_of(view, rotate):
+    """{"head": where the sheet draws the head} for top/bottom (silhouette.json), {} for the others."""
+    return {"head": HEAD[view][view in rotate]} if view in HEAD else {}
+
+
+def detect_rotated(panels, model, forced=""):
+    """The set of top/bottom views whose sheet panel is drawn turned 180 degrees: the best IoU over
+    the tilt sweep (and the mirror) with the panel turned beats the one as drawn by FLIP_MARGIN.
+    `forced` (--rotate, "top,bottom" or "none") skips the detection."""
+    if forced:
+        return set(forced.split(","))
+    def score(view, turned):
+        mask = np.rot90(panels[view], 2) if turned else panels[view]
+        return best_match(normalize(mask), model[view], view)[0]
+    return {v for v in HEAD if v in panels and model.get(v) and score(v, True) - score(v, False) > FLIP_MARGIN}
 
 
 def best_match(concept, tilted, name):
@@ -1200,6 +1231,9 @@ def main():
                     help="refs/<id>/sheet-turn.jpg: also measure its four 3/4 panels (azimuth sweep), report only")
     ap.add_argument("--space", choices=("legacy", "oklab"), default="legacy",
                     help="colour space of the zone feature (oklab: see PIPELINE 19.C2 for why legacy is the default)")
+    ap.add_argument("--rotate", default="",
+                    help="top/bottom views whose sheet panel is drawn turned 180 degrees, e.g. top,bottom "
+                         "(the colour stage reuses what the shape stage detected; unset = detect)")
     ap.add_argument("--tilts", default="",
                     help="pin the top/bottom/rts cameras, e.g. top:10,bottom:20,rts:35/30 "
                          "(the colour stage reuses the shape stage's cameras)")
@@ -1213,21 +1247,24 @@ def main():
 
     args.outdir.mkdir(parents=True, exist_ok=True)
     if args.ids:
-        return 0 if ids_zones(args.sheet, args.glb, args.outdir, args.layout, args.tilts) else 1
+        rotate = set(args.rotate.split(","))
+        return 0 if ids_zones(args.sheet, args.glb, args.outdir, args.layout, args.tilts, rotate) else 1
     renders = args.outdir / "sil"
     if not args.no_render:
         subprocess.run(["blender", "-b", "-P", str(HERE / "render_silhouette.py"),
                         "--", str(args.glb), str(renders)], check=True,
                        capture_output=True, text=True)
 
-    concept = {k: normalize(v) for k, v in concept_panels(args.sheet, layout=args.layout).items()}
-    if rts_path(args.sheet).exists():
-        concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
+    panels = concept_panels(args.sheet, layout=args.layout)
     model = model_panels(renders, args.glb.stem)
     if args.tilts:
         from views import parse_tilts
         model = pin_tilts(model, parse_tilts(args.tilts))
 
+    rotate = detect_rotated(panels, model, args.rotate)
+    concept = oriented(panels, rotate)
+    if rts_path(args.sheet).exists():
+        concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
@@ -1237,7 +1274,8 @@ def main():
         gate = gates.get(name)
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
-                        "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask)}
+                        "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask),
+                        **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
         bad += 0 if ok else 1
         print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  "
@@ -1249,7 +1287,8 @@ def main():
 
     if not args.shape:
         bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout,
-                                             report_tilts(report)))
+                                             report_tilts(report),
+                                             rotate))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
     if args.turn:
         print("turn views (3/4 IoU @ azimuth):",

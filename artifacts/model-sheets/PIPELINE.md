@@ -2354,3 +2354,23 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Resultado: negativo na meta.** Nenhuma variante dá top/bottom +0.02 sem perder front: a pilha de frustums do v7-r2 já cobre o top (unc .079), e o plate oval lido do sheet cobre menos que o aro retangular (unc sobe) ou, somado, só aumenta o spill. O que melhora: tris (A: 656 vs 700) e rts +0.01 (A/B). Plate de carapaça sozinho perde o front (-0.09) porque a pirâmide de frustums some. O kind fica opt-in (nenhum default muda); o ganho esperado é em asas/placas/leme, onde a alternativa é um box.
 - **Pendente.** Prova com LLM de asa (harpy/drake) em L4-4; `rot` não entra no fit (`rot_allowed` é por osso); a leitura do top assume que as caixas das peças desenham a mesma massa que o painel.
 - **Testes.** `test_lathe_limb.py::Plate` (tris, eixos, bevel, rot, validate, `top_outline`, `top_flipped`, pontos e params do fit).
+
+### 22.L4-9 Orientação do painel top/bottom lida uma vez, antes do IoU (2026-10-27)
+
+- **O que mudou.** `silhouette.detect_rotated(panels, model)`: para top e bottom, o melhor IoU (varredura de tilt + espelho) com o painel do CONCEITO girado 180° (`np.rot90(.., 2)`, antes do crop) contra o painel como desenhado; gira só se ganhar por mais de `FLIP_MARGIN = 0.10`. O render nunca é girado e `variants` continua só com o espelho (sem busca em duas orientações: a decisão é uma, antes). `oriented()` aplica a rotação a IoU/uncovered/spill/red (main) e às zonas (`zone_views(rotate=)`, `ids_zones`). `silhouette.json` grava `head` por vista (`top`: `head-down` é o padrão de `views.py`, `bottom`: `head-up`); `spec_pipeline` copia para `top_orientation`, uma linha no review ("sheet top / bottom drawn") e repassa `--rotate` ao estágio de cor (`zones_clay`) para a cor usar a mesma decisão. Flags: `--rotate top,bottom|none` força, sem flag detecta. Escolhi o modelo (não o perfil do sheet) como árbitro: um perfil largura(top) x altura(left) não decide porque o sentido da cabeça no painel left também varia (os quadrúpedes desenham o left olhando para a esquerda, o `views.py` põe a frente à direita); correlação testada nos 9 sheets: 0.4-0.9, sem separação.
+- **Prova sem LLM** (`silhouette.py --shape` sobre os GLBs guardados, sheet-hard; `scratchpad/leva4-topflip/{base,new}`). Diferença rotado - como desenhado (melhor IoU, todos os tilts):
+
+| unidade (run) | top | bottom | decisão | IoU top / bottom antes -> depois |
+|---|---|---|---|---|
+| n00U (v7-r2 clay) | -0.021 | -0.007 | não gira | .707 / .678 -> idem |
+| n01N (v2-hard-r2 model) | +0.122 | -0.138 | top gira (head-up), bottom não (head-up) | top .363 -> .496 (uncovered/cover da zona top: cover .346 -> .415, luma L1 .087 -> .273 pior); bottom .500 idem |
+| n01X (v7-r2) | +.017 | +.061 | não gira | .816 / .778 idem |
+| n005 (v7-r2) | +.036 | -.027 | não gira | .686 / .792 idem |
+| n02X (v7-r1) | -.024 | +.017 | não gira | .722 / .700 idem |
+| hfoo (v7-r1) | -.037 | -.098 | não gira | .693 / .760 idem |
+
+  Os 4 bípedes e o n00U: todos os campos de `silhouette.json` idênticos aos de antes (comparado chave a chave), só `head` é novo.
+- **n00U: negativo.** O sheet desenha o top com a cabeça em cima, mas girar dá .686 contra .707 como está (o clay v7-r2 é um domo de frustums quase simétrico no top): sem confiança, não gira. O ganho do item aparece onde o modelo tem cabeça/cauda assimétrica no top (n01N, quadrúpede: +.13).
+- **Sheets novos (sem modelo, o detector não roda): leitura visual.** n017 (lobo): top head-up, bottom head-up (como o n01N). n00H (wyrm): top head-up, bottom head-up. n010 (drake): top e bottom com a cabeça à ESQUERDA (girados 90°, não 180°): não resolvido, o detector só testa 180° e a rotação de 90° fica para quando houver modelo. Quando houver modelo dessas unidades o detector decide sozinho; esperado n017/n00H top girar, bottom não.
+- **Pendente.** Luma L1 da zona top do n01N piorou ao girar (o shading do modelo não gira com o painel); `make_compare` e `fit_spec` ainda leem o painel top sem rotação; `cut_hull.top_flipped` (leitura de perfil do plate) não foi unificado, usa as caixas das peças e continua independente.
+- **Testes.** `test_silhouette.py::PanelOrientation` (gira só o painel claramente invertido; painel simétrico fica; `oriented` gira antes do crop).

@@ -1228,6 +1228,7 @@ def shape_review(args, glb, layout):
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
+        summary["top_orientation"] = {v: report[v]["head"] for v in ("top", "bottom") if v in report}
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
         for key in ("uncovered", "spill", "red"):     # coupling (PIPELINE 21.F7)
             summary[key] = {k: r[key] for k, r in report.items() if key in r}
@@ -1256,11 +1257,12 @@ def shape_review(args, glb, layout):
 ZONES_CLAY_BLOCKING = False   # report only until calibrated on the runs (PIPELINE 20.N3)
 
 
-def zones_clay(spec_path, args, layout, tilts):
+def zones_clay(spec_path, args, layout, tilts, heads=None):
     """{view: {mean, cover, lost}}: the clay shape rebuilt with the spec's palette (one flat
     colour per material, no texture) and compared with the sheet's colour zones, from the
     cameras stage 1 chose. Is the part of material X where the sheet has colour X? {} when the
     build or the measure fails: it is a report, never a stop."""
+    from silhouette import HEAD
     work = args.out / "sil" / "ids"
     work.mkdir(parents=True, exist_ok=True)
     glb, hi = work / "ids.glb", str(BUDGETS[args.kind][1])
@@ -1270,7 +1272,8 @@ def zones_clay(spec_path, args, layout, tilts):
     if not glb.exists():
         return {}
     done = tool("silhouette.py", args.sheet, glb, work, "--layout", layout, "--ids",
-                "--tilts", ",".join(f"{v}:{t}" for v, t in tilts.items() if v != "rts"))
+                "--tilts", ",".join(f"{v}:{t}" for v, t in tilts.items() if v != "rts"),
+                "--rotate", ",".join(v for v, h in (heads or {}).items() if h == HEAD[v][1]) or "none")
     print(done.stdout.strip())
     try:
         zones = json.loads((work / "zones_clay.json").read_text())
@@ -1307,7 +1310,8 @@ def stage_shape(spec_path, args, layout):
     tris, _, skins, anims = glb_stats(glb)
     sil_ok, report = shape_review(args, glb, layout)
     if args.summary.get("approved"):
-        args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report))
+        args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report),
+                                                args.summary.get("top_orientation", {}))
         (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
     # the preflight counts estimated tris; the GLB may land a few over the round ceiling
     # (n005 v5-fit-r2: preflight PASS, GLB 704 vs 700). TRI_SLACK keeps that from failing stage 1.
@@ -1591,6 +1595,8 @@ def iou_rows(summary):
         out += row("IoU vs approved", summary["approved"], shape)
         if summary.get("gates"):
             out += row("gates", summary["gates"], shape)
+        if summary.get("top_orientation"):
+            out += "| sheet top / bottom drawn | " + " / ".join(summary["top_orientation"].values()) + " |\n"
         if summary.get("tilt"):
             out += "| camera (tilt, rts elev/azim) | " + ", ".join(
                 f"{v} {'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}"

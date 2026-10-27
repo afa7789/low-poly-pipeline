@@ -380,3 +380,24 @@ class BlobPanels(unittest.TestCase):
         self.assertGreater(width(blobs["left"]), 768 // 3)      # the thirds split clips it at 256
         self.assertLessEqual(width(thirds["left"]), 768 // 3)
         self.assertLess(width(blobs["front"]), width(thirds["front"]))   # no snout in the front panel
+
+
+class PanelOrientation(unittest.TestCase):
+    def teardrop(self):
+        m = S.np.zeros((200, 200), bool)
+        m[20:60, 60:140] = True      # wide head at the top
+        m[60:180, 90:110] = True     # narrow tail
+        return m
+
+    def test_rotates_only_a_panel_clearly_drawn_upside_down(self):
+        m = self.teardrop()
+        model = {"top": {0: m}, "bottom": {0: m}}
+        self.assertEqual(S.detect_rotated({"top": m, "bottom": m}, model), set())
+        self.assertEqual(S.detect_rotated({"top": m[::-1], "bottom": m}, model), {"top"})
+
+    def test_a_symmetric_panel_is_left_as_drawn_and_oriented_rotates_before_the_crop(self):
+        box = S.np.zeros((200, 200), bool)
+        box[40:160, 60:140] = True
+        self.assertEqual(S.detect_rotated({"top": box}, {"top": {0: box}}), set())
+        m = self.teardrop()
+        self.assertTrue(S.np.array_equal(S.oriented({"top": m}, {"top"})["top"], S.normalize(S.np.rot90(m, 2))))
