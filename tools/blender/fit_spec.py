@@ -6,7 +6,7 @@
 
 PIPELINE §19.D1. A numpy proxy of the build (every part's convex outline, projected on the
 front/left/back cameras and normalised like silhouette.normalize) scores a spec in a few
-milliseconds, so scipy can move dims (+-20 %) and `at` (+-0.05 H) of the parts that sit on the
+milliseconds, so scipy can move dims (+-10 %) and `at` (+-0.03 H) of the parts that sit on the
 failing height band, the way Sketch2Mesh refines parameters with a 2D contour Chamfer (Eq. 5),
 touching only where the contour is wrong (Eq. 6). The preflight rules that held are a hard
 constraint (Wiersma 2026: regularisers as constraints, not weights) and a part off the failing
@@ -30,11 +30,16 @@ from scipy.spatial import ConvexHull, QhullError
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import preflight  # noqa: E402
+import rig_families as RF  # noqa: E402
 import silhouette  # noqa: E402
 
 FIT_VIEWS = ("front", "left", "back")
-DIMS_RANGE = 0.20       # a dim may move by this fraction
-AT_RANGE = 0.05         # `at` may move by this fraction of the height
+DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
+AT_RANGE = 0.03         # `at` may move by this fraction of the height
+LOOSE_W = 0.3           # objective cost of each part not connected to its parent (80 % boxes)
+# bones whose parts keep their width and depth: the torso, and the hood (the widest part on the head)
+NO_GROW = ("spine", "pelvis", "body", "abdomen")
+HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,)}
 CHAMFER_W = 1.0         # objective = (1 - IoU) + CHAMFER_W * chamfer, per view
 PENALTY = 10.0          # a preflight rule that held and breaks costs this much, plus 1 per rule
 BAND_SHARE = 0.6        # failing band: rows whose error is this share of the worst row's
@@ -314,6 +319,26 @@ def apply(parts, groups, x, height):
     return out
 
 
+def hood_index(parts):
+    """Index of the widest part on the head bone (the hood or helmet shell), or None."""
+    def width(i):
+        lo, hi = preflight.bbox(parts[i])
+        return hi[0] - lo[0]
+    return max((i for i, p in enumerate(parts) if p[0] == "head"), key=width, default=None)
+
+
+def bounds_of(part, no_grow):
+    """scipy bounds of one group's unit parameters: a no-grow part may only shrink its horizontal dims."""
+    horizontal = HORIZONTAL.get(part[1], ()) if no_grow else ()
+    n = len(part[2])
+    return [(-1, 0 if k in horizontal else 1) for k in range(n)] + [(-1, 1)] * 3
+
+
+def loose_of(parts, parent_of):
+    """Parts not connected to their parent when every box is shrunk to OVERLAP_SHRINK."""
+    return set(preflight.floating_parts(parts, parent_of, preflight.OVERLAP_SHRINK))
+
+
 def broken_rules(parts, doc, kind, targets, props):
     return {n for n, ok, _ in preflight.checks_of(parts, doc, kind, targets, props) if not ok}
 
@@ -339,20 +364,33 @@ def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_E
     held = broken_rules(parts, doc, kind, targets, props)
     cache = {i: part_points(p) for i, p in enumerate(parts) if i not in free}
     sizes = [len(parts[i][2]) + 3 for i, _ in groups]
-    counts = {"n": 0}
+    hood = hood_index(parts)
+    bounds = [b for i, j in groups for b in bounds_of(parts[i], parts[i][0] in NO_GROW or hood in (i, j) and hood is not None)]
+    # the anchor: a part that was connected to its parent stays connected (hard); each one that
+    # was not costs LOOSE_W, so the fit can reconnect it
+    parent_of = RF.parents(doc.get("rig", "biped"), doc.get("bones"))
+    loose0 = loose_of(parts, parent_of)
+    counts, best = {"n": 0}, {"f": math.inf, "x": np.zeros(sum(sizes))}
 
     def objective(x):
         counts["n"] += 1
         cand = apply(parts, groups, x, height)
         worse = broken_rules(cand, doc, kind, targets, props) - held
-        return PENALTY + len(worse) if worse else proxy.loss(cand, cache | {j: part_points(cand[j]) for j in free if j not in cache})
+        loose = loose_of(cand, parent_of)
+        if worse or loose - loose0:
+            return PENALTY + len(worse) + len(loose - loose0)
+        f = (proxy.loss(cand, cache | {j: part_points(cand[j]) for j in free if j not in cache})
+             + LOOSE_W * len(loose))
+        if f < best["f"]:             # Powell can end on a worse point across the penalty cliffs
+            best.update(f=f, x=np.array(x, float))
+        return f
 
-    start = proxy.loss(parts)
-    res = minimize(objective, np.zeros(sum(sizes)), method="Powell", bounds=[(-1, 1)] * sum(sizes),
-                   options={"maxfev": max_evals, "xtol": 1e-2, "ftol": 1e-4})
-    fitted = apply(parts, groups, res.x, height)
-    report.update(free=len(free), groups=len(groups), evals=counts["n"], loss=[round(start, 4), round(float(res.fun), 4)])
-    if res.fun >= start - 1e-4:
+    start = proxy.loss(parts) + LOOSE_W * len(loose0)
+    minimize(objective, np.zeros(sum(sizes)), method="Powell", bounds=bounds,
+             options={"maxfev": max_evals, "xtol": 1e-2, "ftol": 1e-4})
+    fitted = apply(parts, groups, best["x"], height)
+    report.update(free=len(free), groups=len(groups), evals=counts["n"], loss=[round(start, 4), round(best["f"], 4)])
+    if best["f"] >= start - 1e-4:
         return doc, report
     out = {**doc, "parts": fitted}
     report.update(after=proxy.ious(fitted), changed=True)
