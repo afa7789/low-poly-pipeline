@@ -31,6 +31,7 @@ import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import lathe_limb  # noqa: E402
 import rig_families as RF  # noqa: E402
 import preflight  # noqa: E402
 import silhouette as SIL  # noqa: E402
@@ -44,7 +45,7 @@ LATHE_MASSING = False
 # of midway: n01X +0.002 mean IoU, n005 -0.004 (2026-10-28, PIPELINE 22.L4-6), so it stays off.
 MEASURED_JOINTS = False
 KIND_FOR = {"head": "frustum", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
-            "arm": "prism", "leg": "prism", "shell": "frustum"}
+            "arm": "prism", "leg": "prism", "shell": "frustum", "tail": "chain", "neck": "chain"}
 if LATHE_MASSING:
     KIND_FOR.update(head="lathe", torso="lathe", pelvis="lathe", shell="lathe")
 LATHE_RINGS = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # profile samples per role (lathe_limb.PROFILE_RANGE)
@@ -244,7 +245,19 @@ def _lathe_body(role, bone, slot, g):
              slot, {"profile": profile, "squash": squash, "sides": LATHE_SIDES.get(role, 8)}]]
 
 
-EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body}
+CHAIN_SIDES = 6          # a chain's ring is a hexagon (lathe_limb.chain_rings phases it to read round from the side and above)
+
+
+def _chain_run(role, bone, slot, g):
+    """One chain along the rig bones from `bone` (g["bones"] of them): the radius at each joint is
+    g["half"](joint), the sheet's half width there (metres). PIPELINE 22.L4-1. No family in FAMILIES
+    has a tail or a neck to massing yet (L4-4): the emitter waits for its caller, opt-in by role."""
+    radii = [r3(max(g["half"](j), 0.02)) for j in lathe_limb.chain_joints(bone, g["bones"])]
+    return [[bone, "chain", radii, [0, 0, 0], slot,
+             {"bones": g["bones"], "sides": CHAIN_SIDES, "profile_axis": "left"}]]
+
+
+EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run}
 
 
 def emit(role, bone, slot, geometry):

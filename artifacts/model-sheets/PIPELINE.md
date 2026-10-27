@@ -2271,3 +2271,21 @@ O que uma `measure_quadruped` precisaria (a `measure_spider` é o modelo: lê o 
 - **`fit_spec`**: `joint_term` (`JOINT_W` = 0,5, `--fit-joints`, `fit(..., joints=True)`): distância média em H entre a junta do spec e a do sheet; gancho de 2 linhas no `Objective`. Só testado em unidade (sem run de fit com o termo ligado); `spec_pipeline` não tem a flag ainda.
 - **Piorou / pendente.** (1) 2 de 8 juntas lidas: vestuário comum não mostra a junta no contorno; o próximo passo é a vista left (o joelho dobrado de lado) ou o sheet-hard (arestas internas, `edges`). (2) Cotovelo = degrau da corrida mais externa do braço, que em braços colados ao tronco falha. (3) Quadrúpede/serpente/spider: sem `joint_place` (o spider tem `spider_leg`). (4) `--fit-joints` não chega em `spec_pipeline`.
 - **Testes.** `test_silhouette.JointMeasures` (degrau, sem degrau, quebra de contorno), `test_preflight.JointPlace` (dentro/fora, silêncio sem medida, `limb`), `test_massing.Joints` (`joint_between`, flag), `test_fit_spec.JointTerm`, `test_spec_pipeline.JointText`.
+
+### 22.L4-1 Kind `chain`: um sweep ao longo dos ossos `prefix.k..` do rig (2026-10-27)
+
+- **O que mudou.** Parte `[bone0, "chain", [r0..rN], [0,0,0], mat, {"bones": N, "sides": 6-8, "profile_axis": "left"|"front"}]`. `bone0` = `prefix.k`; a cadeia passa pelos ossos `prefix.k..prefix.k+N-1`, um anel por junta (cabeça de cada osso + cauda do último), raio r_i, plano do anel bissetor dos dois ossos, tampas n-gon. `at` é ignorado (os ossos posicionam). Peso: anel i no osso i, último anel no último osso (conferido no GLB: um grupo por osso). Um número em `dims` = raio máximo; os outros vêm do sheet (`cut_hull.chain_widths`, corrida de máscara perpendicular ao osso, janela 1,25 r) ou, sem sheet, de um afunilamento até 0,35.
+- **Onde.** `lathe_limb.py` (`chain_joints/rings/radii/bones`, `bad_chain`, `set_rig`, `tris`, `half_extent`), `build_unit.swept_part/skin_part/plan_chamfers/load_family`, `preflight` (`part_tris`, `bbox`, `bones` cobre os ossos da cadeia, `load` faz `set_rig`), `spec_pipeline` (KINDS, validate, DSL com cauda/pescoço/serpente), `fit_spec` (`part_points`; `dims` já são os raios, então o fit os move ±10 % sem `PARAMS["chain"]`), `cut_hull.chain_profiles`, `massing._chain_run` (emissor opt-in por papel `tail`/`neck`; nenhuma família de `FAMILIES` o chama antes do L4-4). Estado do rig: `lathe_limb.set_rig(family, extras)`, chamado por quem lê um spec (build_unit, preflight.load, fit, spec_pipeline), porque `bbox(part)` não recebe o doc.
+- **Fase do anel.** Hexágono com vértice na horizontal media 0,866 r na vertical (left IoU -0,12 contra o corpo liso); com fase π/(2n) (n não múltiplo de 4) os dois eixos medem 0,966 r.
+- **Medida (sem LLM, sem sheet dessas famílias).** Referência = corpo liso sintético (tubos de 16 lados, 8 subtrechos por osso, tampas planas); 6 vistas front/left/back/top/bottom/rts 45_45; chain vs um prisma por osso (`from/to`), mesmos raios. Arquivos em `scratchpad/leva4-chain/`.
+
+| caso | sides | IoU média chain / prisms | pior delta por vista | tris chain / prisms |
+|---|---|---|---|---|
+| serpent 8 ossos | 6 | .9345 / .9243 | -0,025 (left) | 104 / 160 (-35 %) |
+| drake tail 3 + neck 2 | 6 | .9349 / .9133 | -0,050 (rts) | 76 / 100 (-24 %) |
+| serpent | 8 | .9801 / .9799 | -0,004 | 140 / 224 (-37 %) |
+| drake | 8 | .9804 / .9706 | -0,001 | 104 / 140 (-26 %) |
+
+  `attach.json` loose=0 nos quatro (cabeça/corpo sobrepostos à cadeia); tris = 2·sides·N + 2·(sides−2) confere.
+- **Piorou / pendente.** Com 6 lados o pior delta por vista passa de -0,01 (média sobe); com 8 lados passa. Cadeias curtas (N ≤ 3) não chegam a -30 % em tris (tampas pesam). A serpent do rig desce abaixo do chão no fim (y < 0): o raio final tem de ser pequeno. Sem sheet de serpent/drake: a leitura de largura do sheet só foi provada com máscara sintética. `PARAMS["chain"]=("radii",)` não criado: dims já cumprem o papel. Sem papers novos em `docs/references.md`.
+- **Testes.** `test_lathe_limb.py::Chain` (tris, anéis nas juntas, raios, validate, cobertura de ossos, fit, emissor do massing, larguras do sheet). Suíte 345 OK; ruff sem achado novo (10 antigos iguais ao base).

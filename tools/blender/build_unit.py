@@ -106,6 +106,7 @@ def load_family(name, extras=None, measure=None):
     FAMILY = name if name in fam.FAMILIES else "biped"
     BONES = fam.with_extras(FAMILY, extras)
     BONE_MAP = {bone: (head, tail) for bone, _, head, tail in BONES}
+    sibling("lathe_limb").set_rig(FAMILY, extras)
     return FAMILY
 
 # ---------------------------------------------------------------- specs
@@ -322,7 +323,8 @@ def plan_chamfers(spec, budget):
     """Spend the spare triangles on the biggest masses first. WC3 SD models put the
     roundness in a few large chamfered volumes and the rest in painted texture; a
     chamfer on every box would triple the budget for nothing at 32 px."""
-    room = budget - sum(BASE_TRIS[k] for _, k, *_ in spec)
+    LL = sibling("lathe_limb")
+    room = budget - sum(LL.tris(k, o) if k == "chain" else BASE_TRIS[k] for _, k, _, _, _, o in spec)
     chosen = set()
     for dim, idx in sorted(((max(d), i) for i, (_, kind, d, *_ ) in enumerate(spec) if kind == "box"),
                            reverse=True):
@@ -510,12 +512,15 @@ def cut_part(bone, mat_name, idx):
     return obj
 
 
-def swept_part(kind, dims, at, opts, name, idx):
-    """A lathe or a limb (lathe_limb.py makes the rings): quads between consecutive rings, n-gon
-    ends. A limb keeps its vertex order (from ring, knee ring, to ring) for the skin weights."""
+def swept_part(kind, dims, at, opts, name, idx, bone=None):
+    """A lathe, limb or chain (lathe_limb.py makes the rings): quads between consecutive rings, n-gon
+    ends. A limb keeps its vertex order (from ring, knee ring, to ring) and a chain its (ring per
+    joint) for the skin weights."""
     LL = sibling("lathe_limb")
-    rings = (LL.lathe_rings(dims, at, opts, (CUTS.get(str(idx)) or {}).get("profile"))
-             if kind == "lathe" else LL.limb_rings(dims, opts))
+    sheet = (CUTS.get(str(idx)) or {}).get("profile")
+    rings = {"lathe": lambda: LL.lathe_rings(dims, at, opts, sheet),
+             "chain": lambda: LL.chain_rings(bone, dims, opts, (CUTS.get(str(idx)) or {}).get("radii"))
+             }.get(kind, lambda: LL.limb_rings(dims, opts))()
     me = bpy.data.meshes.new(kind)
     bm = bmesh.new()
     grid = [[bm.verts.new(bp(p)) for p in ring_] for ring_ in rings]
@@ -532,13 +537,23 @@ def swept_part(kind, dims, at, opts, name, idx):
     bpy.context.collection.objects.link(obj)
     if kind == "limb":
         obj["limb_sides"] = n
+    if kind == "chain":
+        obj["chain_bones"] = LL.chain_bones(bone, opts["bones"])
+        obj["chain_sides"] = n
     return obj
 
 
 def skin_part(obj, bone):
     """Rigid skin: weight 1 on the part's bone. A limb whose rig has an upper/lower pair
     (leg1.upper/.lower, thigh/shin, arm/forearm) weights its upper tube on the upper bone, its lower
-    tube on the lower bone and the knee ring half and half, so the knee bends."""
+    tube on the lower bone and the knee ring half and half, so the knee bends. A chain weights
+    ring i (n vertices) on bone i, the last ring on the last bone."""
+    if obj.get("chain_bones"):
+        n, names = obj["chain_sides"], list(obj["chain_bones"])
+        for i, b in enumerate(names):
+            end = len(obj.data.vertices) if i == len(names) - 1 else (i + 1) * n
+            obj.vertex_groups.new(name=b).add(range(i * n, end), 1.0, "REPLACE")
+        return
     n = obj.get("limb_sides")
     pair = sibling("lathe_limb").limb_bones(bone, {b[0] for b in BONES}) if n else None
     if not pair:
@@ -1302,8 +1317,8 @@ def build_spec_parts(spec, chamfers):
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
         if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
             obj = cut_part(bone, mat_name, idx)
-        elif kind in ("lathe", "limb"):
-            obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx)
+        elif kind in ("lathe", "limb", "chain"):
+            obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx, bone)
             obj.data.materials.append(material(mat_name))
         else:
             obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,

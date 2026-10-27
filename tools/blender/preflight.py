@@ -391,6 +391,7 @@ def normalise(parts, family="biped", extra=()):
 def load(path):
     """(parts, spec document) of a spec file."""
     doc = json.loads(pathlib.Path(path).read_text())
+    lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     return load_parts(doc), doc
 
 
@@ -415,7 +416,7 @@ def part_tris(part):
         return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
     if kind == "prism":
         return 4 * int(opts.get("sides", 8)) - 4
-    if kind in ("lathe", "limb"):
+    if kind in ("lathe", "limb", "chain"):
         return lathe_limb.tris(kind, opts)
     if kind != "ring":
         return BASE_TRIS.get(kind, 12)
@@ -499,8 +500,8 @@ def rotated_half(half, euler):
 
 def bbox(part):
     _, kind, dims, at, _, opts = part
-    if kind in ("lathe", "limb"):
-        return lathe_limb.half_extent(kind, dims, at, opts)
+    if kind in ("lathe", "limb", "chain"):
+        return lathe_limb.half_extent(kind, dims, at, opts, part[0])
     if "from" in opts and "to" in opts:
         a, b = opts["from"], opts["to"]
         r = SPAN_RADIUS.get(kind, lambda d: max(d[0], d[2]) / 2)(dims)
@@ -657,8 +658,9 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
                    f"{sorted(mats)} ({len(mats)} slots)"))
 
     need = RF.required(family)
-    covered = {p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], need) or ()}
-    missing = need - covered       # a limb covers its upper and lower bone
+    covered = ({p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], need) or ()}
+               | {b for p in parts if p[1] == "chain" for b in lathe_limb.chain_bones(p[0], p[5]["bones"]) or ()})
+    missing = need - covered       # a limb covers its upper and lower bone, a chain its bones
     checks.append(("bones", not missing, f"{family}: missing {sorted(missing) or 'none'}"))
 
     boxes = {id(p): bbox(p) for p in parts}
