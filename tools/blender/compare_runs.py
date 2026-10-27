@@ -2,7 +2,7 @@
 """Sheet across runs of one unit: a row per view, the concept first, then one column per run.
 
     python3 tools/blender/compare_runs.py <out.png> <run_dir> [<run_dir> ...]
-        [--against approved|hard] [--show textured|clay|wire|overlay|uv]
+        [--against approved|hard] [--show textured|clay|wire|overlay|uv|clay+overlay+textured]
     python3 tools/blender/compare_runs.py --stability <run_a> <run_b>     # noise between two equal runs
 
     e.g. compare_runs.py cmp.png runs/draft/n01X/hard-v1 runs/draft/n01X/v2-hard-r1 ...
@@ -137,23 +137,28 @@ def concept_head(unit, show, width):
 
 
 def build_sheet(runs, show):
-    w = MC.CELL[0]
-    cols = [concept_head(runs[0]["unit"], show, w)] +[run_head(r, w) for r in runs]
+    """One block of columns per run: `show` is one of SHOWS or several joined by "+"
+    ("clay+overlay+textured" puts the silhouette difference next to the render, 23.v9)."""
+    shows = [x for x in show.split("+") if x]
+    w, n = MC.CELL[0], len(shows)
+    cols = [concept_head(runs[0]["unit"], show, w)] + [run_head(r, w * n) for r in runs]
     with tempfile.TemporaryDirectory() as tmp:
         concepts = MC.concept_cells(runs[0], pathlib.Path(tmp))
-    width = w * (len(runs) + 1)
+    width = w * (len(runs) * n + 1)
     head = Image.new("RGB", (width, MC.HEAD_H))
-    for i, c in enumerate(cols):
-        head.paste(c, (i * w, 0))
+    x = 0
+    for c in cols:
+        head.paste(c, (x, 0))
+        x += c.width
     rows = [head]
     for view in MC.view_names(runs[0]):
         cells = [concepts.get(view) or MC.empty_cell("concept absent")]
-        cells += [column_cell(r, view, show) for r in runs]
+        cells += [column_cell(r, view, sh) for r in runs for sh in shows]
         foot = Image.new("RGB", (width, MC.FOOT_H), (245, 245, 245))
         d = ImageDraw.Draw(foot)
         d.text((10, 6), view.upper(), fill=MC.INK, font=MC.font(15))
-        for i, r in enumerate(runs, 1):
-            MC.draw_parts(d, (i * w + 10, 6), cell_footer(r, view), MC.font(15))
+        for i, r in enumerate(runs):
+            MC.draw_parts(d, ((1 + i * n) * w + 10, 6), cell_footer(r, view), MC.font(15))
         rows += [MC.join(cells), foot]
     return MC.stack(rows)
 
@@ -202,7 +207,8 @@ def main():
     ap.add_argument("paths", nargs="+", type=pathlib.Path, help="out.png then runs; with --stability: the two runs")
     ap.add_argument("--stability", action="store_true")
     ap.add_argument("--against", choices=("approved", "hard"), default="approved")
-    ap.add_argument("--show", choices=SHOWS, default="textured")
+    ap.add_argument("--show", default="textured",
+                    help="column(s) per run: " + "|".join(SHOWS) + ', or several joined by "+" (clay+overlay+textured)')
     args = ap.parse_args()
     if args.stability:
         if len(args.paths) != 2:
