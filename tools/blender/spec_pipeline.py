@@ -763,14 +763,14 @@ def validate(parts, palette=None, extra=()):
                 or p[4] not in MATS | set(palette or {})
                 or not isinstance(p[3], list)):
             raise ValueError(f"part {i} outside the schema: {p}")
-        if p[3][1] < -0.01:
-            raise ValueError(f"part {i} below the ground plane")
         if isinstance(p[5], dict) and p[5].get("decal", "eyes2") not in DECALS:
             raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
         if isinstance(p[5], dict) and bad_cut(p):
             raise ValueError(f"part {i}: opts cut is \"sheet\" on a box, prism or frustum with no rot, from or to")
         if isinstance(p[5], dict) and bad_rot(p[5]):
             raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
+        if bbox(p)[0][1] < -0.02:          # the box, not `at`: a span part's `at` is an offset
+            raise ValueError(f"part {i} below the ground plane")
     bad = misplaced_decals(parts)
     if bad:
         raise ValueError(f"decal on a non-head bone {bad}: eyes and faces go on a head/jaw part")
@@ -1047,13 +1047,12 @@ def fit_accepted(prev, cur, gates, problems):
     if prev is None or cur is None:
         return False
     seen = [v for v in gates if v in prev and v in cur]
-    passing = [sum(r[v] >= gates[v] for v in seen) for r in (prev, cur)]
-    # a view that passed may slip at most FIT_SLIP under its gate when more views pass overall
-    # (n00U v6-r1: top 0.653 -> 0.640 was refused while front/back gained 0.08 and crossed 0.65)
-    held = all(cur[v] >= gates[v] - (FIT_SLIP if passing[1] > passing[0] else 0.0)
-               for v in seen if prev[v] >= gates[v])
-    return (held and passing[1] >= passing[0]
-            and sum(cur[v] - prev[v] for v in seen) > 0 and rules_hold(*problems))
+    # the sum of margins over the gates must grow (what best_of_n ranks by) and a view that
+    # passed may slip at most FIT_SLIP under its gate (n00U v6-r1: top 0.653 -> 0.640 was
+    # refused while front/back gained 0.08; the stage 1 verdict still gates every view)
+    held = all(cur[v] >= gates[v] - FIT_SLIP for v in seen if prev[v] >= gates[v])
+    margin = [sum(r[v] - gates[v] for v in seen) for r in (prev, cur)]
+    return held and margin[1] > margin[0] and rules_hold(*problems)
 
 
 def fit_stage(spec, args):
