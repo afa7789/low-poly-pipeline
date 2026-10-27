@@ -102,6 +102,30 @@ class Gate(unittest.TestCase):
         self.assertEqual(CS.gate({}), (False, []))
 
 
+class SharedAtlas(unittest.TestCase):
+    """--atlas shared reaches build_unit as shared=<atlas dir>/<race>.json, on a cel build only."""
+
+    def built_with(self, **over):
+        args = types.SimpleNamespace(id="n005", kind="mass", sheet="s.jpg", texture="cel", race="Human",
+                                     atlas_dir="/a", props=None, **over)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(CS, "run") as run:
+            CS.build_textured(SPEC, pathlib.Path("clay.glb"), args, pathlib.Path(tmp) / "m.glb", pathlib.Path(tmp))
+        return run.call_args.args
+
+    def test_shared_and_cull_flags_are_passed_to_the_build(self):
+        call = self.built_with(atlas="shared", cull=True)
+        self.assertIn("shared=/a/human.json", call)
+        self.assertIn("cull=remove", call)
+
+    def test_default_build_has_neither(self):
+        call = self.built_with(atlas="own")
+        self.assertFalse([a for a in call if str(a).startswith(("shared=", "cull"))])
+
+    def test_a_painted_build_ignores_shared(self):
+        args = types.SimpleNamespace(atlas="shared", texture="painted", race="Human", atlas_dir="/a")
+        self.assertEqual(CS.shared_args(args), [])
+
+
 class Stage(unittest.TestCase):
     def test_report_section_and_files(self):
         zone = {"mean": 0.3, "cover": 0.6, "fails": [], "lost": [], "zones": {}}

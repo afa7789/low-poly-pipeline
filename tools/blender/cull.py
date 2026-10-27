@@ -3,7 +3,8 @@
 M8 - which faces does any camera ever see? An ID render in 12 orthographic views: one ray per
 pixel, the face it hits is "seen" (the same answer as a flat colour-per-face render, minus the
 render engine). Faces never seen are interior or buried under another plate; they cost tris and
-atlas texels for nothing. `cull` reports visible/total always; removal is opt-in (`cull=remove`).
+atlas texels for nothing. `cull` reports visible/total always; removal is opt-in (`cull=remove`). On the unioned
+shell only 2-7 % of the tris are unseen and removing them tears the death/spell clips (PIPELINE 24.L6-11).
 
 M12 - the `union` branch decimates blindly to budget//2 faces. `decimate_union(blind=False)` (build_unit
 argument `toldec`) collapses as far as the surface stays within d of the pre-decimate mesh (BVH nearest

@@ -189,7 +189,7 @@ def tone_index(nz):
 INK = 0.55   # tone of the ink line at the border of every cel slot (a face spans its whole slot)
 RAMP_SLOTS = 8     # a cel cell is RAMP_SLOTS horizontal slots, a dark-to-light ramp bottom to top
 RAMP_SLOPE = 0.0   # tone change across the whole ramp, share of the cell's tone. 0 = flat cells: measured, a ramp lowers
-                   # the colour-zone mean on n01X front (.41 -> .30) and n005 bottom (.49 -> .37) (PIPELINE 19.C1); build_unit ramp=0.5 turns it on
+                   # the colour-zone mean on n01X front (.41 -> .30) and n005 bottom (.49 -> .37) (PIPELINE 19.C1); build_unit ramp=0.5 turns it on; re-measured on the unioned shell: still negative (PIPELINE 24.L6-11)
 TONE_V = (1.0, 0.5, 0.0)   # ramp v of a box's top / side / bottom face (height 1 / .5 / 0): its tone stays exact
 SLOT_PAD = 0.1   # a face spans 80 % of its slot: the ink row (1 texel of 8) covers ~3 % of it, as before
 
@@ -239,6 +239,16 @@ def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE):
         on_v = (pos % slot_px < edge_v) | (pos % slot_px >= slot_px - edge_v)
         k = k * np.where(on_u[None, :] | on_v[:, None], INK, 1.0)
     return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
+
+
+def ramp_column(surface, rgb, size):
+    """(size, 3) tone ramp of one slot for the shared atlas (shared_atlas.py): row v is the colour times the
+    surface's tone at v, interpolated between its dark / mid / light multipliers at TONE_V 0 / .5 / 1, so a
+    face at TONE_V[tone_index] samples exactly the flat cel tone. A glow slot is flat."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES)
+    v = np.arange(size) / (size - 1.0)          # row r is v = r / (size - 1): uv = (v * (size - 1) + .5) / size
+    k = np.interp(v, (0.0, 0.5, 1.0), (tones[2], tones[1], tones[0]))
+    return np.clip(np.asarray(rgb[:3], dtype=float)[None, :] * k[:, None], 0.0, 1.0)
 
 
 # Painted features: eyes and similar marks are texture, not geometry. Each is a list of

@@ -1930,6 +1930,11 @@ def main():
                          "panels projected on the model")
     ap.add_argument("--ramp", action="store_true",
                     help="stage 2 cel: each palette slot ramps from dark to light as far as its sheet zone does")
+    ap.add_argument("--atlas", choices=("own", "shared"), default="own",
+                    help="stage 2 cel: own = one atlas per unit (default); shared = the race's 64 px gradient atlas, "
+                         "no decals, no ink line (shared_atlas.py, PIPELINE 24.L6-11)")
+    ap.add_argument("--atlas-dir", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/atlas",
+                    help="--atlas shared: where the per-race column tables <race>.json live (append only)")
     ap.add_argument("--shape-only", action="store_true",
                     help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
     ap.add_argument("--colour-pass", type=int, default=0,
