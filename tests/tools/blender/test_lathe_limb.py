@@ -43,6 +43,20 @@ class Geometry(unittest.TestCase):
         self.assertAlmostEqual(hi[2] - lo[2], 0.4, 3)       # z radius r / squash
         self.assertAlmostEqual(hi[1] - lo[1], 0.6, 3)
 
+    def test_lathe_along_z(self):
+        """PIPELINE 25.L7-4: rings [w, hh, yc, xc, t] along z, same tris and box as the rings say."""
+        prof = [[0.5, 0.4, 0.0, 0.0, 0.0], [1.0, 0.8, 0.25, 0.0, 0.5], [0.5, 0.4, 0.0, 0.0, 1.0]]
+        part = lathe(dims=(1.0, 2.0), at=(0, 1, 3), axis="z", profile=prof, sides=8)
+        self.assertIsNone(LL.bad_opts("lathe", [1.0, 2.0], part[5]))
+        (lo, hi) = PF.bbox(part)
+        self.assertEqual((round(lo[2], 6), round(hi[2], 6)), (2.0, 4.0))                  # length along z
+        self.assertAlmostEqual(hi[0] - lo[0], 2.0, 6)                                     # x radius r*w at the middle ring
+        self.assertAlmostEqual(hi[1], 1 + 0.25 + 0.8, 6)
+        self.assertEqual(PF.part_tris(part), 2 * 8 * 2 + 2 * 6)
+        for name, opts in (("radii profile", {"axis": "z", "profile": [1] * 6}), ("no profile", {"axis": "z"})):
+            with self.subTest(name):
+                self.assertIn("axis z", LL.bad_opts("lathe", [1.0, 2.0], opts))
+
     def test_limb_knee_and_box(self):
         rings = LL.limb_rings((0.2, 0.15, 0.1), LEG)
         self.assertEqual([len(r) for r in rings], [8, 8, 8])

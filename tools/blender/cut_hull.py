@@ -49,7 +49,7 @@ def hood_index(parts):
 def cuttable(part):
     """A body part the cut may take: an unrotated box, prism, frustum or lathe that is not a prop."""
     return part[1] in CUT_KINDS and isinstance(part[5], dict) and not (
-        {"rot", "from", "to", "prop"} & part[5].keys())
+        {"rot", "from", "to", "prop"} & part[5].keys()) and part[5].get("axis") != "z"
 
 
 def cut_picks(parts):
