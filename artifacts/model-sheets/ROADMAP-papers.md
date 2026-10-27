@@ -223,6 +223,8 @@ sheet (front/left/back + top/bottom + turntable 8 vistas)
 
 # Leva 4 (candidata, 2026-10-27) — de `analysis/2026-10-27-input-externo-analise.md`
 
+**Estado (2026-10-28):** onda 1 integrada (PIPELINE §22): L4-1 `chain` (8 lados), L4-2 `plate` (opt-in; neutro na aranha), L4-3 fit hierárquico (negativo, opt-in) + `VIEW_FLOOR` ligado, L4-6 `joint_place` (relatório; massing/fit com junta opt-in), L4-4a sheets n017/n00H/n010, L4-8 diagnóstico LLM como saída (`--diagnose`, default nos CHECK), L4-9 orientação do top/bottom detectada pelo modelo. Gate de acoplamento ligado. Bateria v8-r1 em `history/2026-10-28-v8/`: 1/5 PASS com o gate novo (n005 e n02X caem por 1-2 pontos de uncovered/spill no left). Em curso: L4-4b massing/medidas de quadruped/wyrm/drake. Depois: L4-5 baseline cruzado (8 unidades), L4-7 baseline × procedural, ficha 04.
+
 Cinco geradores geométricos cobrem as 28 famílias de rig: `lathe` (existe), `limb` (existe), **`chain`** (novo: 14 famílias com `_chain`), **`plate`** (novo: asas em 8 famílias, placas, lagartas, carapaça), `wheel/ring` (existe). Ordem: L4-1 `chain` → L4-2 `plate` → L4-3 fit hierárquico + piso por vista/família (independente) → L4-4 sheets + massing de quadruped/serpent/drake → L4-5 baseline cruzado 6-10 unidades → L4-6 `joint_place` (landmarks de junta) → L4-7 experimento 2 caminhos (baseline × procedural, mesma sheet/câmeras/gates) → DFS: diagnóstico LLM só em CHECK.
 
 **Decisão do usuário (2026-10-27):** nenhum gerador image-to-3D (TRELLIS, Hunyuan3D, TripoSR), nem como experimento de registro. O pipeline é nosso e evolui por representação própria + fit + gates. Briefs dos 3 primeiros no arquivo de análise.
