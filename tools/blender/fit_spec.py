@@ -373,9 +373,10 @@ def leg_spill(proxy, parts, outs, flipped, view="rts"):
 class Proxy:
     """Scores a parts list against the concept masks of the views being fitted."""
 
-    def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None):
+    def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None, rig=None):
         self.concept, self.views, self.cams, self.zones, self.hard = concept, views, cams or {}, zones, hard
         self.split = {}             # {view: (body mask, prop mask, body edge, its distance map)}: set_split
+        self.weight = {v: V.weight_of(rig, v) for v in views}     # PIPELINE 25.L7-1
         self.partfit = partfit      # parts_fit.PartTerms: part masks and depth pairs (L5-4)
         # the concept's contour and its distance map never change: silhouette.chamfer, halved
         self.edge = {v: edge_of(m) for v, m in concept.items()}
@@ -464,7 +465,8 @@ class Proxy:
         outs = {v: [h[v] for h in hulls] for v in self.views}
         flags = [preflight.is_prop(p) for p in parts]
         scores = {v: self.score_view(v, o, flags) for v, o in outs.items()}
-        total = sum((1 - i) + CHAMFER_W * c for i, c, _ in scores.values()) / len(scores)
+        total = sum(self.weight[v] * ((1 - i) + CHAMFER_W * c) for v, (i, c, _) in scores.items()) \
+            / sum(self.weight[v] for v in scores)
         total += LEG_SPILL_W * leg_spill(self, parts, outs, scores["rts"][2]) if "rts" in scores else 0.0
         if self.zones and free:
             total += ZONE_W * self.zones.term(parts, free, outs, {v: f for v, (_, _, f) in scores.items()})
@@ -917,7 +919,8 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     parts = baked(doc["parts"], sheet) if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))
     concept = concept_masks(sheet, views or (WIDE_VIEWS if wide else FIT_VIEWS), wide)
-    proxy = Proxy(concept, tuple(concept), hard=hard_canvas_edges(hard, tuple(concept)) if hard else None)
+    proxy = Proxy(concept, tuple(concept), hard=hard_canvas_edges(hard, tuple(concept)) if hard else None,
+                  rig=doc.get("rig"))
     if parts:
         proxy.cams = proxy.pick_cams(parts, tilts)
         if split:

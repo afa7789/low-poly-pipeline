@@ -2,7 +2,7 @@
 """Deform a GLB's vertices onto the approved sheet's outlines (Sketch2Mesh, PIPELINE 24.L6-5).
 
     python3.14 tools/blender/deform_to_sheet.py <in.glb> <sheet.jpg> <out.glb>
-        [--views front,left,back] [--iters 4] [--band 0.4-0.7]
+        [--views front,left,back,top,bottom,rts] [--iters 4] [--band 0.4-0.7] [--rig spider]
 
 Per view (Sketch2Mesh §3.3, Fig. 2c): the model's external contour = the vertices that project onto the
 outer boundary of its rendered mask; each goes toward the nearest point of the sheet panel's outline, at
@@ -10,8 +10,11 @@ most STEP * H per step, in the view plane. The rest of the mesh follows through 
 smoothing solved with scipy.sparse. Eq. 6 (partial regularisation): the pull weight falls to zero away
 from the height bands that carry red (sheet bare) or green (model outside the sheet), `--band lo-hi`
 (fractions of H) forces those bands instead. A step is refused when it adds slivers or flips faces, and
-dropped when the mean IoU of the views does not grow. Only POSITION and NORMAL bytes of the GLB change:
-skin weights, UVs, materials and clips stay as they are. Top/bottom (tilted cameras) are not deformed.
+dropped when the weighted mean IoU of the views does not grow (views.VIEW_WEIGHTS[rig]: the legs of a spider
+or quadruped only read from above and from the gameplay camera). Only POSITION and NORMAL bytes of the GLB
+change: skin weights, UVs, materials and clips stay as they are. PIPELINE 25.L7-1: top, bottom and rts (the
+gameplay camera, projected like fit_spec.project) pull too; the camera of each is the run's (silhouette.json)
+or, without one, the best of the sweep.
 
 No Blender: the masks are rasterised here (PIL) with the same bbox normalisation silhouette.py uses.
 """
@@ -30,7 +33,7 @@ from scipy.sparse.linalg import spsolve
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import mesh_lint as ML  # noqa: E402
 import silhouette as S  # noqa: E402
-from views import TILTS, layout_of  # noqa: E402
+from views import RTS, TILTS, layout_of, rts_offset, weight_of  # noqa: E402
 
 STEP = 0.05           # largest move of a vertex per step, fractions of the model height
 CONTOUR_PX = 1.5      # a vertex this close (canvas px) to the mask's outer boundary is on the contour
@@ -41,6 +44,7 @@ ANCHOR = 5.0          # weight of "stay where you are" where the band weight is 
 BAD_ON, BAD_FULL = 0.003, 0.015   # band share of the sheet/model that is red+green: weight 0 below, 1 above
 SLIVER_MAX = 0.05     # share of triangles under mesh_lint.SLIVER_DEG a step may leave, or the share before + SLIVER_GROW
 SLIVER_GROW = 0.05   # the union bodies of L6-4 start at 19-28 % slivers: an absolute 5 % cap would refuse every step
+EXTRA_SLIVER = 0.02   # what the top/bottom/rts phase (25.L7-1) may add on top of the ortographic phase
 UNTANGLE = 8          # rounds of pulling the vertices of turned faces back toward where they were
 SLIVER_AREA = 0.30    # unflip: a turned face under this share of the median area has its winding swapped
 TINY = 0.02           # a face under this share of the median area is a sliver whose orientation does not count
@@ -49,6 +53,7 @@ PROP_OWN = 0.3        # a component is a prop's when this share of its vertices 
 PROPS_OWN_MASK = False  # NEGATIVE (25.L7-5): a prop pulled only toward its own mask cost n005 left -0.02..-0.03 IoU; props keep the whole outline
 SS = 2                # supersampling of the PIL raster
 GUARD = 0.01          # no view may end more than this under its IoU at the start
+PULL_MIN = 0.4        # a top/bottom/rts that starts under this IoU does not agree with the 3 panels (n00H rts .23): watched only
 
 
 def read(path):
@@ -236,7 +241,7 @@ def step_view(pos, tri, lap, view, band, height, ground, owner=None, body=0):
     """The welded positions after one deformation step in `view`."""
     xy, mask, s = view_state(pos, tri, view)
     wb = band_weights(view.concept, mask, band)
-    if view.name in S_TILTED:         # no height axis: the whole outline is pulled
+    if view.name in S_TILTED + ("rts",):         # no height axis: the whole outline is pulled
         wb = np.ones_like(wb)
     mid = (np.arange(S.BANDS) + 0.5) / S.BANDS
     w = np.interp((pos[:, 2] - pos[:, 2].min()) / height, mid, wb)
@@ -297,11 +302,14 @@ def measure(pos, tri, views):
     return out
 
 
-def mean_iou(report, views, active=True):
-    return float(np.mean([report[v.name]["iou"] for v in views if v.active == active] or [0.0]))
+def mean_iou(report, views, weight=None, active=True):
+    """Weighted mean IoU of the pulling (or only watched) views; `weight` {view: w}, 1 where absent."""
+    chosen = [v.name for v in views if v.active == active]
+    w = np.array([(weight or {}).get(n, 1.0) for n in chosen] or [1.0])
+    return float(np.dot(w, [report[n]["iou"] for n in chosen] or [0.0]) / w.sum())
 
 
-def accept(old, new, tri, views, ref, floor, limit):
+def accept(old, new, tri, views, ref, floor, limit, weight=None):
     """True when the step keeps slivers and normals sane, the pulling views' mean IoU does not drop and no
     view (pulling or only watched, a top/bottom) ends more than GUARD under `floor` (its IoU at the start)."""
     if turned(ref, new, tri).any() or sliver_share(new, tri) > limit:
@@ -309,11 +317,12 @@ def accept(old, new, tri, views, ref, floor, limit):
     a, b = measure(old, tri, views), measure(new, tri, views)
     if any(b[v.name]["iou"] < floor[v.name] - GUARD for v in views):
         return False
-    return mean_iou(b, views) >= mean_iou(a, views) - 1e-4
+    return mean_iou(b, views, weight) >= mean_iou(a, views, weight) - 1e-4
 
 
 FRONT_AXES = {"front": ((1, 0, 0), (0, 0, 1)), "left": ((0, -1, 0), (0, 0, 1)), "back": ((-1, 0, 0), (0, 0, 1))}
 S_TILTED = ("top", "bottom")
+SIX = ("front", "left", "back", "top", "bottom", "rts")
 
 
 def tilted_axes(name, tilt):
@@ -322,57 +331,95 @@ def tilted_axes(name, tilt):
     return np.array([1.0, 0, 0]), np.array([0.0, math.cos(theta), math.sin(theta)])
 
 
-def candidates(name, panel):
-    """(ru, rv, concept) of every way the sheet's top/bottom could be drawn: tilt sweep x panel turned or not."""
+def rts_axes(cam):
+    """Image axes of the gameplay camera at cam = (elevation, azimuth), as fit_spec.project: it looks at the centre."""
+    d = -np.asarray(rts_offset(*cam))
+    d /= np.linalg.norm(d)
+    right = np.cross(d, [0.0, 0.0, 1.0])
+    right /= np.linalg.norm(right)
+    return right, np.cross(right, d)
+
+
+def candidates(name, panel, cam=None):
+    """(ru, rv, concept) of every way the sheet's top/bottom could be drawn: tilt sweep x panel turned or not;
+    the rts: the (elevation, azimuth) sweep, never mirrored or turned. `cam` pins the sweep to one camera."""
+    if name == "rts":
+        for c in [tuple(cam)] if cam else RTS:
+            yield (*rts_axes(c), S.normalize(panel))
+        return
     for turned in (False, True):
         concept = S.normalize(np.rot90(panel, 2) if turned else panel)
-        for tilt in TILTS:
+        for tilt in [cam] if cam is not None else TILTS:
             yield (*tilted_axes(name, tilt), concept)
 
 
-def make_views(pos, tri, panels, pulling, props=None):
+def make_views(pos, tri, panels, pulling, props=None, cams=None):
     """Views of the sheet: the pulling ones (`pulling` names) and the guards (the other top/bottom). The mirror
-    of each (and tilt / turn of top/bottom) is the one whose raster matches the panel best, like silhouette.py."""
+    of each (and tilt / turn of top/bottom, camera of the rts) is the one whose raster matches the panel best, like
+    silhouette.py; `cams` {view: tilt or (elevation, azimuth)} pins the camera the run's silhouette.json chose."""
     views = []
     for name, panel in panels.items():
         options = [(*np.array(FRONT_AXES[name], float), S.normalize(panel))] if name in FRONT_AXES \
-            else list(candidates(name, panel))
+            else list(candidates(name, panel, (cams or {}).get(name)))
         score = lambda o, m: S.iou(o[2], view_state(pos, tri, View(name, o[0], o[1], m, o[2], True))[1])  # noqa: E731
-        best = max(((o, m) for o in options for m in (1, -1)), key=lambda om: score(*om))
+        best = max(((o, m) for o in options for m in ((1,) if name == "rts" else (1, -1))), key=lambda om: score(*om))
         (ru, rv, concept), mirror = best
         views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name)))
     return views
 
 
-def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None):
+def owner_body(tri, n):
+    """(component id of every welded vertex, the id of the largest one: the body)."""
+    edges = np.r_[tri[:, :2], tri[:, 1:]]
+    owner = connected_components(sparse.coo_matrix((np.ones(len(edges)), (edges[:, 0], edges[:, 1])), shape=(n, n)),
+                                 directed=False)[1]
+    return owner, int(np.argmax(np.bincount(owner)))
+
+
+def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, cams=None, rig=None):
     """(new welded Z-up positions, report). Rounds of one step per pulling view, each refused when it makes things
-    worse. `nor`: the welded Z-up vertex normals, the facing of the zero-area faces (None: their own).
-    `props`: {view: {prop name: mask}} (silhouette.prop_masks): the body (the largest welded component) is pulled only
-    toward the outline outside them, each other component toward its own prop's (PIPELINE 25.L7-5)."""
-    views = make_views(pos, tri, panels, pulling, props)
-    owner = connected_components(sparse.coo_matrix((np.ones(len(tri) * 2), (np.r_[tri[:, 0], tri[:, 1]], np.r_[tri[:, 1], tri[:, 2]])),
-                                                   shape=(len(pos), len(pos))), directed=False)[1]
-    body = int(np.argmax(np.bincount(owner)))
+    worse. Two phases (25.L7-1): the front/left/back alone, exactly as 24.L6-5 did (+SLIVER_GROW slivers, the top and
+    bottom only watched); then every pulling view, weighted, nothing may end more than GUARD under what phase 1
+    left it and the slivers may grow EXTRA_SLIVER more. A top/bottom/rts drawn so unlike the 3 panels that it starts
+    under PULL_MIN IoU is only watched. `nor`: the welded Z-up vertex normals, the facing of the zero-area faces
+    (None: their own). `props`: {view: {prop name: mask}} (silhouette.prop_masks): the body (the largest welded
+    component) is pulled only toward the outline outside them, each other component toward its own prop's
+    (25.L7-5). `cams`: the pinned top/bottom/rts cameras; `rig`: whose VIEW_WEIGHTS count in the acceptance."""
+    views = make_views(pos, tri, panels, pulling, props, cams)
+    owner, body = owner_body(tri, len(pos))
+    weight = {v.name: weight_of(rig, v.name) for v in views}
     ref = reference(pos, tri, np.zeros_like(pos) if nor is None else nor)
     height = float(np.ptp(pos[:, 2]))
     ground = pos[:, 2] < pos[:, 2].min() + SOLE * height
     lap = laplacian(tri, len(pos))
     slivers = sliver_share(pos, tri)
-    limit = max(SLIVER_MAX, slivers + SLIVER_GROW)
     before = measure(pos, tri, views)
-    floor = {k: r["iou"] for k, r in before.items()}
     report = {"before": before, "slivers_before": round(slivers, 4), "steps": 0, "refused": 0}
-    cur = pos
-    for _ in range(iters):
-        for view in [v for v in views if v.active]:
-            full = untangle(ref, cur, step_view(cur, tri, lap, view, band, height, ground, owner, body), tri)
-            tries = [cur + k * (full - cur) for k in DAMP]
-            best = next((t for t in tries if accept(cur, t, tri, views, ref, floor, limit)), None)
-            report["refused"] += best is None
-            if best is not None:
-                cur, report["steps"] = best, report["steps"] + 1
+    extra = [v for v in views if v.active and v.name not in FRONT_AXES and before[v.name]["iou"] >= PULL_MIN]
+    for v in views:
+        v.active = v.active and v.name in FRONT_AXES
+
+    def rounds(cur, seen, floor, limit):
+        for _ in range(iters):
+            for view in [v for v in seen if v.active]:
+                full = untangle(ref, cur, step_view(cur, tri, lap, view, band, height, ground, owner, body), tri)
+                tries = [cur + k * (full - cur) for k in DAMP]
+                best = next((t for t in tries if accept(cur, t, tri, seen, ref, floor, limit, weight)), None)
+                report["refused"] += best is None
+                if best is not None:
+                    cur, report["steps"] = best, report["steps"] + 1
+        return cur
+
+    first = {k: r["iou"] for k, r in before.items()}
+    cur = rounds(pos, [v for v in views if v.name != "rts"], first, max(SLIVER_MAX, slivers + SLIVER_GROW))
+    if extra:
+        for v in extra:
+            v.active = True
+        floor = {k: r["iou"] for k, r in measure(cur, tri, views).items()}
+        cur = rounds(cur, views, floor, sliver_share(cur, tri) + EXTRA_SLIVER)
     report.update(after=measure(cur, tri, views), slivers_after=round(sliver_share(cur, tri), 4),
-                  turned=int(turned(ref, cur, tri).sum()), mirrors={v.name: v.mirror for v in views})
+                  turned=int(turned(ref, cur, tri).sum()), mirrors={v.name: v.mirror for v in views},
+                  weights=weight, pulled=[v.name for v in views if v.active])
     return cur, report
 
 
@@ -440,9 +487,14 @@ def parse_band(arg):
 
 
 def sheet_panels(sheet, views, layout="unit"):
-    """Raw panels of the sheet: the pulling `views` and, as guards, the top/bottom that are not among them."""
+    """Raw panels of the sheet: the pulling `views` and, as guards, the top/bottom that are not among them; the
+    gameplay camera's drawing (sheet-rts.jpg, when it exists) only when `rts` is among the views."""
     panels = S.concept_panels(pathlib.Path(sheet), layout=layout)
-    return {v: p for v, p in panels.items() if v in views or v in S_TILTED}
+    out = {v: p for v, p in panels.items() if v in views or v in S_TILTED}
+    rts = S.rts_path(pathlib.Path(sheet))
+    if "rts" in views and layout == "unit" and rts.exists():
+        out["rts"] = S.foreground(rts, 768)
+    return out
 
 
 def transform(glb, out, fn, suffix=".deform.json"):
@@ -472,13 +524,23 @@ def rewrite(glb, out, change, suffix=".deform.json"):
     return report
 
 
-def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit", split=True):
-    """Deform `glb` onto the sheet and write `out`; returns the report (before / after per view, slivers)."""
+def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit", split=True, cams=None, rig=None):
+    """Deform `glb` onto the sheet and write `out`; returns the report (before / after per view, slivers).
+    Default 3 views; `views=SIX` enables the top/bottom/rts of 25.L7-1 (opt-in)."""
     panels = sheet_panels(sheet, views, layout)
-    props = {v: S.prop_masks(sheet, v, layout, panels) for v in views if v in panels} if split else {}
-    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor, props))
+    views = tuple(v for v in views if v in panels)       # no drawing of a view, no pull
+    props = {v: S.prop_masks(sheet, v, layout, panels) for v in views} if split else {}
+    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor, props, cams, rig))
     pathlib.Path(out).with_suffix(".deform.json").write_text(json.dumps(report, indent=2))
     return report
+
+
+def run_cams(args):
+    """The top/bottom/rts cameras the run's silhouette.json chose ("tilt": {"top": -30, "rts": [65, 60]}), else None:
+    before the shape stage has measured one the deformation sweeps."""
+    path = args.out / "silhouette.json"
+    tilt = json.loads(path.read_text()).get("tilt") if path.exists() else None
+    return {v: tuple(c) if isinstance(c, list) else c for v, c in tilt.items()} if tilt else None
 
 
 def apply(glb, args):
@@ -489,7 +551,7 @@ def apply(glb, args):
     glb = pathlib.Path(glb)
     raw = glb.with_name(f"{glb.stem}-raw.glb")
     raw.write_bytes(glb.read_bytes())
-    return run(raw, args.sheet, glb, layout=layout_of(args.kind))
+    return run(raw, args.sheet, glb, layout=layout_of(args.kind), cams=run_cams(args), rig=getattr(args, "rig", None))
 
 
 def main():
@@ -497,12 +559,14 @@ def main():
     ap.add_argument("glb")
     ap.add_argument("sheet")
     ap.add_argument("out")
-    ap.add_argument("--views", default="front,left,back")
+    ap.add_argument("--views", default="front,left,back",
+                    help="front,left,back,top,bottom,rts enables the six weighted views (25.L7-1, opt-in)")
     ap.add_argument("--no-split", action="store_true", help="the whole outline for every vertex, body and props (before 25.L7-5)")
+    ap.add_argument("--rig", default=None, help="the rig family, for views.VIEW_WEIGHTS")
     ap.add_argument("--iters", type=int, default=4)
     ap.add_argument("--band", type=parse_band, default=None, help="deform only this height range, e.g. 0.4-0.7")
     a = ap.parse_args()
-    r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.band, split=not a.no_split)
+    r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.band, split=not a.no_split, rig=a.rig)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
         print(f"{v:6} IoU {b['iou']:.3f} -> {f['iou']:.3f}  red {b['uncovered']:.3f} -> {f['uncovered']:.3f}  "

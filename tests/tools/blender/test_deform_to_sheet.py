@@ -127,6 +127,41 @@ class TestDeform(unittest.TestCase):
             self.assertTrue(np.allclose(pb[:len(POS)], pb[len(POS):]))               # the duplicates moved together
             self.assertTrue(np.allclose(jb["accessors"][0]["max"], pb.max(0), atol=1e-6))
 
+    def test_rts_axes_are_fit_spec_project(self):
+        """the gameplay camera projects like fit_spec.project (the proxy the fit ranks with) and a pinned cam is one candidate"""
+        import fit_spec as F
+        pts = np.random.default_rng(1).normal(size=(20, 3))
+        for cam in ((35, -60), (65, 45)):
+            ru, rv = D.rts_axes(cam)
+            u, v = F.project("rts", pts, cam)
+            self.assertTrue(np.allclose(pts @ ru, u) and np.allclose(pts @ rv, v))
+        self.assertEqual(len(list(D.candidates("rts", panel(1.0)))), len(D.RTS))
+        self.assertEqual(len(list(D.candidates("rts", panel(1.0), [35, -60]))), 1)
+        self.assertEqual(len(list(D.candidates("top", panel(1.0), -30))), 2)
+
+    def test_weights_and_rts_pull(self):
+        """a view's weight scales its share of the mean IoU; an rts panel is pulled, never mirrored; no weight: plain mean"""
+        views = [D.View("front", None, None, 1, None, True), D.View("rts", None, None, 1, None, True)]
+        rep = {"front": {"iou": 0.5}, "rts": {"iou": 0.8}}
+        self.assertAlmostEqual(D.mean_iou(rep, views), 0.65)
+        self.assertAlmostEqual(D.mean_iou(rep, views, {"rts": 2.0}), 0.7)
+        panels = {"front": panel(1.15), "rts": panel(1.15)}
+        new, rep = D.deform(POS, TRI, panels, ("front", "rts"), cams={"rts": (45, 45)}, rig="spider")
+        self.assertEqual((rep["mirrors"]["rts"], rep["weights"]["rts"]), (1, 2.0))
+        self.assertGreaterEqual(rep["after"]["rts"]["iou"], rep["before"]["rts"]["iou"] - D.GUARD - 1e-9)
+
+    def test_unlike_rts_is_only_watched(self):
+        """an rts drawing that starts under PULL_MIN IoU (a sliver of a panel) does not pull; the ortographics still do"""
+        _, rep = D.deform(POS, TRI, {"front": panel(1.15), "rts": panel(4.0, 0.3)}, ("front", "rts"), cams={"rts": (45, 45)})
+        self.assertEqual(rep["pulled"], ["front"])
+
+    def test_run_cams(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = SimpleNamespace(out=pathlib.Path(tmp))
+            self.assertIsNone(D.run_cams(args))
+            pathlib.Path(tmp, "silhouette.json").write_text(json.dumps({"tilt": {"top": -30, "rts": [65, 60]}}))
+            self.assertEqual(D.run_cams(args), {"top": -30, "rts": (65, 60)})
+
     def test_apply_needs_both_switches(self):
         self.assertIsNone(D.apply("x.glb", SimpleNamespace(deform=True, union_body=False)))
         self.assertIsNone(D.apply("x.glb", SimpleNamespace(deform=False, union_body=True)))
