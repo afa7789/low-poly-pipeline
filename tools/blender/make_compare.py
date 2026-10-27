@@ -350,6 +350,24 @@ def join(cells):
     return out
 
 
+def turn_rows(run, width):
+    """The extra row of the F6 turntable: overlays of the 4 three-quarter views (concept green, clay red,
+    hit grey) from sil/<against>/turn/, footer with IoU @ model azimuth. Empty when the run has none."""
+    turn = run["sil"] / "turn" / "turn.json"
+    if not turn.exists():
+        return []
+    report, cells, parts = json.loads(turn.read_text()), [], [("TURN 3/4  ", INK)]
+    for angle, r in report.items():
+        mc, mm = (run["sil"] / "turn" / f"mask-{k}-{angle}.png" for k in ("concept", "model"))
+        c, m = read_alpha(mc), read_alpha(mm)
+        out = np.full((*c.shape, 3), EMPTY, np.uint8)
+        out[c], out[m], out[c & m] = OVERLAY["concept"], OVERLAY["model"], OVERLAY["hit"]
+        cells.append(stamp(fit(Image.fromarray(out), (0, 0, *c.shape[::-1]), 0.0), f"{angle} deg"))
+        parts.append((f"{angle}: {r['iou']:.3f} @ {r['azim']}   ", INK))
+    cells += [Image.new("RGB", CELL, EMPTY)] * (len(COLUMNS) - len(cells))
+    return [join(cells), footer(parts, width)]
+
+
 def build_grid(run):
     width = CELL[0] * len(COLUMNS)
     with tempfile.TemporaryDirectory() as tmp:
@@ -360,6 +378,7 @@ def build_grid(run):
                  wire_cell(run, view), overlay_cell(run, view), render_cell(run, view, False),
                  uv_cell(run, view)]
         rows += [join(cells), footer(footer_parts(run, view), width)]
+    rows += turn_rows(run, width)
     return stack(rows)
 
 

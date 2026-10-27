@@ -1,0 +1,8 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nature Black Spider (id n00U). Draw a new turntable sheet of exactly the same unit: eight drawings of the same figure rotating on the spot around its vertical axis, one drawing every 45 degrees, in a grid of 4 columns by 2 rows, read left to right, top row first.
+
+Top row: 0 degrees (the front view, facing the viewer), 45 degrees (front three-quarter, the unit's own left side turned toward the viewer), 90 degrees (the unit's left profile), 135 degrees (back three-quarter).
+Bottom row: 180 degrees (the back view), 225 degrees (back three-quarter from the other side), 270 degrees (the unit's right profile), 315 degrees (front three-quarter from the other side).
+
+The camera is level with the unit's middle, horizontal, orthographic: no perspective, no looking down, no looking up, no tilt. Only the unit turns. The eight figures are the same figure: same design, same pose, same props in the same places, same colours, same heavy outline and flat style as the attached sheet, the same scale (the same pixel height, the same size on the page), standing on the same ground line, each centred in its cell. The 0, 90 and 180 degree drawings match the attached front, left and back panels.
+
+The eight drawings are the only content on the page, on one plain solid light-grey background (#CCCCCC); every cell is otherwise empty, with wide empty margins between the figures, no text, no numbers, no labels, no frame lines, no ground plane and no shadow.

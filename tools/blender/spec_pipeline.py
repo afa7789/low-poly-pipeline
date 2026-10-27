@@ -1085,6 +1085,17 @@ def silhouette_vs(args, glb, layout, sheet, name):
     return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
 
 
+def turn_views(args, glb):
+    """{angle: {iou, azim, side, iou_nominal}} of the 3/4 panels of the unit's sheet-turn.jpg (PIPELINE 21.F6),
+    report only; {} when the turntable is absent or failed its coherence test (sheet-turn.json "ok")."""
+    sheet = args.sheet.with_name("sheet-turn.jpg")
+    check = sheet.with_suffix(".json")
+    if not (sheet.exists() and check.exists() and json.loads(check.read_text())["ok"]):
+        return {}
+    from silhouette import turn_report
+    return {int(a): r for a, r in turn_report(sheet, glb, args.out / "sil" / "approved").items()}
+
+
 def shape_review(args, glb, layout):
     """Stage 1 measurement. The verdict is the approved sheet's silhouette gate on every
     view (silhouette.GATES) - the design contract, what the human reviewer compares against
@@ -1104,6 +1115,7 @@ def shape_review(args, glb, layout):
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
         summary["prop"] = prop_report(args)
+        summary["turn"] = turn_views(args, glb)
         (args.out / "silhouette.json").write_text(json.dumps(summary, indent=2))
     args.summary = summary
     view_dir = args.out / "views" / args.id
@@ -1429,6 +1441,9 @@ def signal_rows(summary, row, shape):
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
     if summary.get("edges"):
         out += row("edge chamfer hard->wire (/H)", {v: r["drawn"] for v, r in summary["edges"].items()}, shape)
+    if summary.get("turn"):
+        out += "| turn views 3/4 (report): IoU @ azimuth, side | " + ", ".join(
+            f"{a} {r['iou']:.3f} @ {r['azim']} {r['side']}" for a, r in summary["turn"].items()) + " |\n"
     for key in ("mean", "cover"):
         if summary.get("zones_clay"):
             out += row(f"zones_clay {key} (report)", {v: z[key] for v, z in summary["zones_clay"].items()}, shape)
