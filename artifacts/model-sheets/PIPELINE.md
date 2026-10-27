@@ -1387,6 +1387,10 @@ Paper: Sano 2026 (visual hull como volume válido). Fecha o "closed-loop part-bo
 - **O que pega.** `forearm` (braço/arma fora do corpo do sheet, too wide) em hfoo, n005, n02X (~35 specs); torso `spine/pelvis` fundo ou largo demais; spiders n00U/n01N: `head`, `leg*.lower/upper` too deep/wide (modelo 2x mais comprido que o sheet para a mesma altura, pernas longe do corpo).
 - **Piorou / pendente.** 42/53 falhando: a regra é rígida para biped fora do n01X; só o repair a usa como alvo (REPAIR já lê qualquer linha FAIL). Componente solto no painel (n005 left tem fragmentos) infla o crop; manter só o maior componente fica para depois. Prova: `scratchpad/b5-run5.txt`.
 
+- **Integração (2026-10-27, merge):** `HULL_BLOCKING = False` em `preflight.py`: a regra imprime as peças fora
+  do hull mas não reprova (42 de 53 specs falhavam). Liga quando o teto de 25 % estiver calibrado por família.
+  `checks_of(..., sheet=None)` recebe o sheet do `main`; `fit_spec` chama sem sheet e por isso não vê a regra.
+
 ### 19.D2 Melhor-de-N no estágio 1: `--variants N` (2026-10-27)
 Papers: EdgeRunner 2024 (Fig. 15: a variância por seed é grande), Zhao 2026 (K variantes + curadoria), Begemann & Hutson 2026 (curadoria automática).
 - **O que mudou.** `spec_pipeline.py --variants N` (default 1 = fluxo de antes). `author_specs` pede N specs ao autor em paralelo (threads; é a parte lenta); resposta que não vira spec é descartada e logada. `best_of_n` roda o estágio 1 (`stage_shape`: preflight + clay + silhueta) em cada um, em série (Blender), cada um em `variants/<k>/` com spec, clay, `sil/`, `views/`, `silhouette.json`. Vence a variante com maior `(estágio 1 ok, soma das margens)`; a margem é `sum(IoU_v - gate_v)` sobre as vistas de `silhouette.gates_for(rig)` (`margin_of`). O vencedor é copiado para a raiz do run, nenhuma variante é apagada. Repair/`--passes`, se ligados, rodam depois, só no vencedor, e o estágio 1 é medido de novo. `review.md` ganha `## Variants` (gates, IoU por vista, margem de cada uma, a escolhida marcada). A função `stage_one` saiu de `main` (complexidade).
