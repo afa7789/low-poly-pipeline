@@ -88,13 +88,23 @@ class Cel(unittest.TestCase):
         rgb = (0.4, 0.4, 0.4)
         img = SF.paint_cel("metal", rgb, 64)
         cell = 16
-        tones = [img[c // 4 * cell:(c // 4 + 1) * cell, c % 4 * cell:(c % 4 + 1) * cell] for c in range(3)]
+        tones = [img[c // 4 * cell + 2:(c // 4 + 1) * cell - 2, c % 4 * cell + 2:(c % 4 + 1) * cell - 2]
+                 for c in range(3)]                                 # inside the ink border
         for t in tones:
             self.assertAlmostEqual(float(t.std()), 0.0)             # no pattern, no gloss inside a cell
         lit, mid, dark = (float(t[0, 0, 0]) for t in tones)
         self.assertGreater(lit, mid)
         self.assertGreater(mid, dark)
         self.assertAlmostEqual(mid, 0.4)                      # the sheet colour is the side tone
+
+    def test_cell_border_is_ink_but_glow_has_none(self):
+        img = SF.paint_cel("metal", (0.4,) * 3, 256)             # 64-px cells: 2-px border
+        mid = img[64 + 8, 64 + 8]                                 # cell 5, inside
+        for y, x in ((64, 64 + 8), (64 + 63, 64 + 8), (64 + 8, 64 + 1), (64 + 8, 64 + 62)):
+            self.assertAlmostEqual(float(img[y, x][0] / mid[0]), SF.INK)
+        self.assertGreater(float(img[64 + 2, 64 + 2][0]), SF.INK * float(mid[0]))     # past the border
+        glow = SF.paint_cel("glow", (0.5,) * 3, 256)
+        self.assertEqual(float(glow[0, 0, 0]), float(glow[8, 8, 0]))
 
     def test_glow_stays_one_tone_and_wet_tops_are_lighter(self):
         glow = SF.paint_cel("glow", (0.5, 0.5, 0.5), 64)
@@ -106,6 +116,8 @@ class Cel(unittest.TestCase):
 class Decal(unittest.TestCase):
     def test_dots_are_opaque_and_background_clear(self):
         for kind, dots in SF.DECALS.items():
+            if not dots:                      # "sheet": painted from the sheet's head, no dots
+                continue
             rgb, alpha = SF.decal(kind, None, 64)
             self.assertEqual(alpha[0, 0], 0.0)
             cu, cv = dots[0][:2]

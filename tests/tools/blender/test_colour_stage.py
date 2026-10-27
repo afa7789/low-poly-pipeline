@@ -58,6 +58,19 @@ class ColourContract(unittest.TestCase):
                 CS.apply_colour(SPEC, patch)
 
 
+class Face(unittest.TestCase):
+    def test_face_png_only_for_a_sheet_decal(self):
+        args = types.SimpleNamespace(sheet="sheet.jpg")
+        self.assertEqual(CS.face_args(SPEC, args, pathlib.Path("w")), [])
+        spec = edit(lambda s: s["parts"][0][5].update(decal="sheet"))
+        with mock.patch("split_sheet.head_face", return_value=pathlib.Path("w/face.png")) as cut:
+            self.assertEqual(CS.face_args(spec, args, pathlib.Path("w")), ["face=w/face.png"])
+        cut.assert_called_once_with(pathlib.Path("sheet.jpg"), pathlib.Path("w/face.png"))
+
+    def test_sheet_is_a_decal_kind_a_colour_pass_may_set(self):
+        CS.validate_colour(SPEC, edit(lambda s: s["parts"][0][5].update(decal="sheet")))
+
+
 class Gate(unittest.TestCase):
     def test_tilts_text_round_trips_through_parse_tilts(self):
         from views import parse_tilts

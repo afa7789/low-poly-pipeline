@@ -48,5 +48,18 @@ class Split(unittest.TestCase):
         self.assertGreater(tw, th)        # plan view is wide, not tall
 
 
+@unittest.skipUnless(SHEET.exists(), "n01X sheet not checked out")
+class HeadFace(unittest.TestCase):
+    def test_head_cell_has_keyed_background(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            out = SS.head_face(SHEET, pathlib.Path(tmp) / "face.png", cell=32)
+            face = Image.open(out)
+            self.assertEqual((face.size, face.mode), ((32, 32), "RGBA"))
+            alpha = set(face.getchannel("A").tobytes())
+        self.assertIn(0, alpha)             # the sheet's flat background is transparent
+        self.assertIn(255, alpha)           # the head itself is opaque
+
+
 if __name__ == "__main__":
     unittest.main()

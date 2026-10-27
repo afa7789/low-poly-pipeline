@@ -16,7 +16,7 @@ import sys
 
 import numpy as np
 
-from silhouette import concept_panels, rts_path
+from silhouette import concept_panels, measure, rts_path
 
 SIZE = 768
 MARGIN = 0.06
@@ -55,6 +55,30 @@ def split(sheet, outdir, stem, layout="unit"):
         written["rts"] = outdir / f"{stem}-rts.png"
         subprocess.run(["magick", str(rts_path(sheet)), str(written["rts"])], check=True)
     return written
+
+
+def head_face(sheet, out, cell=64):
+    """Cut the head of the approved sheet's front figure (from its top to the shoulder line,
+    `measure()["head_clear"]`) into a cell x cell RGBA png at `out`, the flat background
+    keyed to alpha 0 as `silhouette.foreground` keys it. build_unit.py projects it as the
+    "sheet" decal. Returns `out`."""
+    from PIL import Image
+    x0, y0, x1, y1 = panel_boxes(sheet)["front"]
+    bottom = max(y0 + round(measure(sheet)["head_clear"] * (y1 - y0)), y0 + 1)
+    xs = np.where(concept_panels(sheet)["front"][y0:bottom].any(axis=0))[0]
+    img = Image.open(sheet).convert("RGB")
+    sx, sy = img.width / SIZE, img.height / SIZE
+    box = (round(xs.min() * sx), round(y0 * sy), round((xs.max() + 1) * sx), round(bottom * sy))
+    rgb = np.asarray(img, dtype=np.int16)
+    border = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
+    keyed = (np.abs(rgb - np.median(border, axis=0)).sum(axis=2) > 30)[box[1]:box[3], box[0]:box[2]]
+    crop = rgb[box[1]:box[3], box[0]:box[2]].astype(np.uint8)
+    # premultiplied resize: the keyed background colour must not bleed into the rim
+    pre = Image.fromarray(crop * keyed[..., None].astype(np.uint8)).resize((cell, cell), Image.LANCZOS)
+    alpha = np.asarray(Image.fromarray(keyed.astype(np.uint8) * 255).resize((cell, cell), Image.LANCZOS), dtype=float)
+    colour = np.asarray(pre, dtype=float) * 255.0 / np.maximum(alpha[..., None], 1.0)
+    Image.fromarray(np.dstack([np.clip(colour, 0, 255), alpha]).astype(np.uint8), "RGBA").save(out)
+    return out
 
 
 def main():

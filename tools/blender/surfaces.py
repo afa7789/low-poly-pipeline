@@ -186,13 +186,24 @@ def tone_index(nz):
     return 0 if nz > 0.55 else (2 if nz < -0.35 else 1)
 
 
+INK = 0.55   # tone of the ink line at the border of every cel cell (a face spans its whole cell)
+
+
 def paint_cel(surface, rgb, size=256):
     """One slot image in cel style: cells 0..2 hold the flat light/mid/dark tone, the
-    others the mid tone (the decal cells are painted over by the caller)."""
+    others the mid tone (the decal cells are painted over by the caller). The border of
+    each cell (1-2 px) is darker: faces span their cell, so it reads as WC3's ink line.
+    A glow surface has no line."""
     tones = CEL_SURFACE.get(surface, CEL_TONES)
     u, v, tx, ty = _cells(size)
     cell = (ty * GRID + tx).astype(int)
     k = np.array(tones + (tones[1],) * (GRID * GRID - 3))[cell]
+    if surface != "glow":
+        px = size // GRID
+        edge = max(1, px // 32)
+        pos = np.arange(size) % px
+        on_edge = (pos < edge) | (pos >= px - edge)
+        k = k * np.where(on_edge[None, :] | on_edge[:, None], INK, 1.0)
     return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
 
 
@@ -211,6 +222,8 @@ DECALS = {
              (0.36, 0.30, 0.05, "dark"), (0.50, 0.27, 0.05, "dark"), (0.64, 0.30, 0.05, "dark")],
     # hood shadow: a dark mask with two glowing eyes (hooded figures)
     "mask": [(0.50, 0.50, 0.46, "dark"), (0.33, 0.56, 0.085, "lit"), (0.67, 0.56, 0.085, "lit")],
+    # the approved sheet's own head, cut out and projected (build_unit.py face=<png>); no dots here
+    "sheet": [],
 }
 DARK = (0.05, 0.04, 0.04)
 PALE = (0.95, 0.85, 0.45)
