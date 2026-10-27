@@ -1461,7 +1461,6 @@ Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda s�
 
 ## 20. Leva 2 (2026-10-27)
 
-<<<<<<< HEAD
 ### 20.E15 Arestas internas do hard sheet, facetas no brief, Chamfer no review (2026-10-27) - budget_split por saliência NEGATIVO, desligado
 
 **O que mudou.** `silhouette.edges(path, mask)`: Sobel do luma suavizado (sigma 1), limiar relativo (30 % do percentil 99 do painel, então sombra mole fica de fora), menos um anel de 7 px na borda da máscara (o contorno não é aresta interna), fechamento de 1 px (a linha de tinta dá duas cristas). `edge_bands(hard, shoulder_frac)`: por faixa (cabeça acima do ombro, torso até o quadril, pernas, os mesmos cortes de `band_areas`) devolve `salience` (parcela dos pixels de aresta), `facets` (mediana de linhas de aresta cruzadas por uma linha de varredura, mais 1) e `direction` (vertical/horizontal/mixed, por abertura 9x1 vs 1x9 com razão 1.5). `measure` ganhou `shoulder_frac`. `spec_pipeline.facet_text` põe a linha `FACETS drawn on the hard sheet's front view ...` no `measured_text` (só biped); `make_brief` calcula as bordas do `args.build`. `silhouette.edge_chamfer/edge_report`: Chamfer entre `edges(hard)` e o `wire-<view>.png` do clay (ambos recortados na caixa da figura e ajustados ao mesmo canvas; melhor dos dois espelhos). Linha nova no review: `edge chamfer hard->wire (/H)` (= `drawn`: distância média de uma aresta desenhada à aresta de wire mais próxima), e `silhouette.json` guarda também `extra` (wire -> desenho; grande por construção, o wire traz a triangulação).
@@ -1637,7 +1636,7 @@ Teste: `test_redo_topbottom.py` (corte na faixa vazia entre as fileiras, sem API
 
   n=1: a variância do autor é maior que a diferença. O ganho é front/back e menos tris; o left piorou (o autor sem hull desenhou o braço do guindaste e a plataforma sobre a lateral).
 - **Piorou / pendente.** Um volume de duas vistas ignora pisos mais baixos e alas (a "ponta fina" também leva uma ala baixa: o autor tem de recolocá-la). O estimador do preflight conta caixa chanfrada abaixo do GLB (468 vs 628): vale para as duas runs. Pulado: QEM (`-> skipped: QEM, add when hull > 1/4 do orçamento`; dissolve basta com 12-28 tris), `hull` como kind no DSL (a peça é box + `cut`, nada muda no schema). Falta rodar nos 53 specs; os dois sheets de edifício são o que existe, mais sheets de edifício antes de decidir `--hull` como default.
-=======
+
 ### 20.M8 Faces nunca vistas: `cull` (2026-10-27) - relatório sempre, remoção opt-in
 
 `tools/blender/cull.py` (novo, chamado por `build_unit.py` com `sibling("cull")`). Argumento `cull` no `build_unit.py`: depois do
@@ -1698,4 +1697,3 @@ a média das 6 vistas cai em todos os casos. H/32 (~3 % da altura) é folgado de
 Fica `blind` como default; `toldec` só serve para medir quantos tris a unidade "precisa" (a coluna dev do blind já responde:
 o orçamento está folgado em geometria, apertado em leitura). Se voltar a tentar: tolerância H/128 e piso de faces por orçamento.
 Papers: Garland, Heckbert 1997 (o COLLAPSE do Blender é quadric error metrics; aqui só se mede o erro do resultado).
->>>>>>> leva2/m8
