@@ -988,3 +988,16 @@ with the Read tool), same reply parsing; any other `--model` value stays on the 
 `review.md` records the model as given. The call runs in an empty temp dir with no setting
 sources, so no project CLAUDE.md, hooks or MCP servers reach the spec author. Image generation
 (`generate.py`, nano-banana) stays on the API.
+
+### 18.F Professional compare (2026-10-26)
+
+`make_compare.py` now draws one grid per run: a row per view (front, left, back, top, bottom,
+rts), columns concept | clay | overlay | textured, a footer per row with the view's numbers
+(IoU, gate, 32 px, L1, tilt, zones) and a header with unit, run, spec author and the verdict per
+stage. Overlay: concept green, model red, hit grey, drawn from `sil/<against>/mask-*`.
+`compare_runs.py <out> <run>...` lays the runs side by side on the same grid (concept first, then
+one column per run; `--show textured|clay|overlay`). Both read only run-directory files (contract
+in the `make_compare.py` docstring); the spec_pipeline call is unchanged. The clay column needs
+`views/<tag>/clay-<view>.png` (rts: `clay-wc3.png`); until S1 writes it the cell is empty with a
+warning. Stage verdicts are read from `review.md` lines naming "stage 1"/"stage 2" with PASS/FAIL
+(older runs show n/a). Text is drawn with Pillow, which `python3.14` must have installed.
