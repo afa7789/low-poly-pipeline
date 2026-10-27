@@ -1058,3 +1058,17 @@ renders `<out>/views/<tag>/model-<view>.png`.
 - Sheet vs cel vs painted (n01X hard-v1, zones mean/cover front, top): cel .42/.83, .33/.67; painted
   .32/.62, .27/.59; sheet .40/.91, .22/.61. `sheet` carries the drawn plates and outlines but smears
   where the model's limbs do not sit on the drawn ones and is weakest from above; `cel` is cleaner.
+
+### 18.L Gates per rig family; clay in the compare when stage 2 does not run (2026-10-26)
+
+- `silhouette.RIG_GATES` overrides `GATES` per rig family; `gates_for(rig)` merges them and
+  `silhouette.py --rig <family>` gates with it. `spider` and `spider_high`: front and back 0.65
+  (default 0.75/0.70), the rest unchanged. The pipeline passes `args.rig` (`trial` uses
+  `spec["rig"]`) in the stage 1 trial/measure and in stage 2's `measure`; `silhouette.json`
+  `gates` and the review row show the family's values.
+- Calibration (n00U, f/l/b): v2-hard-r1 0.667/0.658/0.675 passes; v2-hard-r2 0.611 front,
+  v3-stages-r1 0.640 front, v3-stages-r2 0.530/0.639/0.530 fail. n01N (best 0.506/0.452/0.508) fails.
+- `make_compare.render_cell`: a run with no stage 2 shows the clay render in the textured column,
+  with a strip "stage 2 not run (clay)"; `compare_runs.py` inherits it (same cell function).
+- Proof: e2e `--spec` of n00U v3-stages-r2 with `--rig spider` reproduces 0.531/0.639/0.530/0.586/
+  0.586/0.564 (reference 0.530/0.639/0.530), gates 0.65/0.65/0.65/0.65/0.65/0.70 in review.md.

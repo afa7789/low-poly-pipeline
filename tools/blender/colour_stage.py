@@ -156,7 +156,7 @@ def measure(glb, args, tilts, work):
     """silhouette.json of the textured model against the approved sheet, from stage 1's cameras."""
     out = work / "sil"
     run("silhouette.py", args.sheet, glb, out, "--layout", layout_of(args.kind),
-        "--tilts", tilts_text(tilts))
+        "--rig", args.rig, "--tilts", tilts_text(tilts))
     try:
         return json.loads((out / "silhouette.json").read_text())
     except (OSError, ValueError):

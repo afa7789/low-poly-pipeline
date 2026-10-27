@@ -29,6 +29,17 @@ VIEWS = ["front", "left", "back", "top"]
 # tilt the sweep picks, rts at the (elevation, azimuth) it picks. Calibrated on clay rebuilds.
 GATES = {"front": 0.75, "left": 0.65, "back": 0.70, "top": 0.65, "bottom": 0.65, "rts": 0.70}
 ZONE_GATED = ("front", "left")   # views whose colour-zone numbers can fail the gate
+# A spider is long and low: its front/back read as a thin ring of legs, so those two views get
+# a lower bar (PIPELINE §18.L). Calibrated on the n00U runs: best 0.667/0.658/0.675 f/l/b passes,
+# the 0.611 and 0.530 fronts do not.
+RIG_GATES = {"spider": {"front": 0.65, "back": 0.65}, "spider_high": {"front": 0.65, "back": 0.65}}
+
+
+def gates_for(rig=None):
+    """GATES of one rig family: the defaults with that family's overrides."""
+    return {**GATES, **RIG_GATES.get(rig, {})}
+
+
 # Colour zones (PIPELINE §18): what the silhouette cannot see inside the contour.
 ZONE_VIEWS = ("front", "left", "back", "top", "bottom")
 ZONE_GATED = ZONE_VIEWS   # all five views gate the colour (PIPELINE §18.F)
@@ -493,6 +504,7 @@ def main():
     ap.add_argument("outdir", type=pathlib.Path)
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--measure", action="store_true", help="print sheet proportions and exit")
+    ap.add_argument("--rig", default=None, help="rig family: picks its gates (GATES + RIG_GATES)")
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--shape", action="store_true",
                     help="stage 1 (clay): silhouette gates only, no colour zones")
@@ -500,6 +512,7 @@ def main():
                     help="pin the top/bottom/rts cameras, e.g. top:10,bottom:20,rts:35/30 "
                          "(the colour stage reuses the shape stage's cameras)")
     args = ap.parse_args()
+    gates = gates_for(args.rig)
     if args.measure:
         print(json.dumps(measure(args.sheet), indent=2))
         return 0
@@ -525,7 +538,7 @@ def main():
         best, best_mask, tilt = best_match(concept[name], model[name], name)
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
         px = iou(downsample(concept[name]), downsample(best_mask))
-        gate = GATES.get(name)
+        gate = gates.get(name)
         ok = gate is None or best >= gate
         bad += 0 if ok else 1
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
@@ -541,7 +554,7 @@ def main():
         bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout,
                                              report_tilts(report)))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
-    gated = [g for g in GATES if g in concept]    # a view with no concept image (no RTS draw) is not gated
+    gated = [g for g in gates if g in concept]    # a view with no concept image (no RTS draw) is not gated
     missing = [g for g in gated if g not in report]
     if missing:
         # no render (missing GLB, failed Blender) must not read as a pass

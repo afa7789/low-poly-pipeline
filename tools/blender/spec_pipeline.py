@@ -592,7 +592,8 @@ def trial(spec, sheet, kind, work, name):
     build = tool("build_unit.py", path, glb, *clay_args(kind), blender=True)
     if not glb.exists():
         return None, (problem or "") + build.stderr[-400:], None
-    tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind), "--shape")
+    tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind), "--shape",
+         "--rig", spec.get("rig") or "")
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
     tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), "lit", blender=True)
     return ({view: r["iou"] for view, r in report.items()}, problem,
@@ -759,7 +760,7 @@ def silhouette_vs(args, glb, layout, sheet, name):
     """(gate passed, per-view report) of the model against one sheet: shape only, the
     colour zones belong to stage 2."""
     sil_dir = args.out / "sil" / name
-    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape")
+    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape", "--rig", args.rig)
     print(f"vs {name}:\n{sil.stdout.strip()}")
     return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
 
@@ -773,11 +774,11 @@ def shape_review(args, glb, layout):
     compare. Returns (gate passed, approved report)."""
     sil_ok, report, summary = True, {}, {"drift": args.drift}
     if not args.no_silhouette:
-        from silhouette import GATES
+        from silhouette import gates_for
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
-        summary["gates"] = GATES
+        summary["gates"] = gates_for(args.rig)
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
