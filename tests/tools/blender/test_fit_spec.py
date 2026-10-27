@@ -160,6 +160,14 @@ class FitProps(unittest.TestCase):
         self.assertGreater(out[1][3][0], 0.1)
         self.assertEqual(out[1][2], [0.1, 0.6, 0.1])
 
+    def test_the_fit_never_grows_the_body_into_a_prop(self):
+        """24.L6-3: the torso grows 20 % toward a tank standing PROP_GAP off its back: the tank is pushed out again"""
+        torso = box("spine", (1.0, 0.8, 0.6), (0, 1.9, 0))
+        tank = box("spine", (0.4, 0.8, 0.4), (0, 1.9, -0.5), prop="tank", anchor="back")
+        out = F.apply([torso, tank], [(0, None)], np.array([1, 1, 1, 0, 0, 0.0]), 2.0)
+        gap = F.preflight.bbox(out[0])[0][2] - F.preflight.bbox(out[1])[1][2]
+        self.assertGreaterEqual(gap, F.preflight.PROP_GAP * 2.0 - 1e-6)
+
 
 class Wide(unittest.TestCase):
     """PIPELINE 21.F4: swept cameras, rot, wide dims, zones, the cut toggle, the budget"""

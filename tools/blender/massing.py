@@ -742,16 +742,142 @@ def limb_part(part, slot, doc, sides, names, radii=None):
               "sides": min(sides, lathe_limb.SIDES_RANGE[1])}]]
 
 
-def block_part(part, slot):
-    """A prop that is no lathe: one box in the part's box."""
+POLE_WORDS = ("pike", "spear", "lance", "club", "staff", "pole", "halberd", "bat")
+PLATE_WORDS = ("shield", "sword", "blade", "axe", "pistol", "gun", "rifle", "vaporis", "plate", "cleaver")
+LEAN_END = 0.2           # pole_lean: the outer share of the pole's box (in z) at each end
+
+
+def pole_lean(part, side):
+    """+1 when the pole in the part's box rises toward the front (+z), -1 toward the back, read from the left view:
+    +1 when the sheet's ink at the front end of the box stands higher than at the back end (the body sits between
+    the two ends, so only the pole reaches them), also when the sheet shows neither."""
+    (lo, hi), v = part["box3d"], side.v
+    zs = sorted(side.zero + side.sign * z / v.s for z in (lo[2], hi[2]))
+    ends = ((zs[0], zs[0] + LEAN_END * (zs[1] - zs[0])), (zs[1] - LEAN_END * (zs[1] - zs[0]), zs[1]))
+    sl = v.rows(lo[1], hi[1])
+    ink = []
+    for c0, c1 in ends:
+        rows = np.nonzero(v.mask[sl, max(int(c0), 0):max(int(c1), 0) + 1].any(axis=1))[0]
+        ink.append(rows.mean() if len(rows) else None)
+    if None in ink:
+        return 1
+    back, front = (0, 1) if side.sign > 0 else (1, 0)       # the pixel end of the front: z grows with the columns when sign > 0
+    return 1 if ink[front] < ink[back] else -1              # rows count down: the smaller mean row is the higher ink
+
+
+def unmark_worn(parts):
+    """A part of parts.json flagged "prop" whose centre sits inside the body's boxes, or whose anchor is a shoulder,
+    is worn (a belt, goggles, a pauldron), not carried: it stays a plain body part, no prop mark, no push. In place;
+    returns parts."""
+    bodies = [preflight.bbox(p) for p in parts if not preflight.is_prop(p) and p[0] in preflight.PROP_BODY]
+    for p in (q for q in parts if preflight.is_prop(q)):
+        c = preflight.centre(p)
+        if p[5]["anchor"].startswith("shoulder") or any(all(lo[i] <= c[i] <= hi[i] for i in range(3)) for lo, hi in bodies):
+            p[5].pop("prop"), p[5].pop("anchor")
+    return parts
+
+
+def merge_props(parts):
+    """Props of one anchor whose boxes touch are one prop (a brass disc on a club): they take the name of the
+    biggest of them, so the preflight holds the disc by the club. In place; returns parts."""
+    props = sorted((p for p in parts if preflight.is_prop(p)), key=lambda p: -math.prod(
+        b - a for a, b in zip(*preflight.bbox(p))))
+    for i, p in enumerate(props):
+        for q in props[:i]:
+            if q[5]["anchor"] == p[5]["anchor"] and preflight.boxes_meet(preflight.bbox(p), preflight.bbox(q)):
+                p[5]["prop"] = q[5]["prop"]
+                break
+    return parts
+
+
+def mark_prop(parts, part):
+    """The emitted rows carry the opts that make them a prop (preflight.is_prop): the part's name and anchor."""
+    for row in parts:
+        row[5].update({"asym": True, "prop": part["name"], "anchor": part.get("anchor") or "hand.R"})
+    return parts
+
+
+def pole_part(part, slot, side):
+    """A pole (a pike, a club): a 2-ring hexagonal prism along the box's diagonal, rising toward the front or the back as
+    the sheet's left view has it (the ends on the box's corners: an inset by the radius cost 0.04-0.06 of left IoU)."""
     size, ctr = box_dims(part)
-    bone = part["bone"].replace("hand.", "forearm.")     # a prop held in the hand rides the forearm bone
     lo, hi = part["box3d"]
-    if size[0] < 0.1 * size[1] and size[2] > 0.4 * size[1]:    # a leaning pole (hfoo's pike): its box is the diagonal's, draw the diagonal
-        a, b = [ctr[0], lo[1], lo[2]], [ctr[0], hi[1], hi[2]]   # ponytail: always leaning forward as it rises; flip by depth when a sheet leans back
-        return [[bone, "prism", [r3(size[0] / 2), r3(size[0] / 2), r3(math.dist(a, b))], [0, 0, 0], slot,
-                 {"sides": 6, "from": [r3(v) for v in a], "to": [r3(v) for v in b], "asym": True}]]
-    return [[bone, "box", [r3(v) for v in size], [r3(c) for c in ctr], slot, {"asym": True}]]
+    r = max(size[0] / 2, 0.02)
+    z0, z1 = (lo[2], hi[2]) if pole_lean(part, side) > 0 else (hi[2], lo[2])
+    a, b = [ctr[0], lo[1], z0], [ctr[0], hi[1], z1]
+    return [[part["bone"].replace("hand.", "forearm."), "prism", [r3(r), r3(r), r3(math.dist(a, b))], [0, 0, 0], slot,
+             {"sides": 6, "from": [r3(v) for v in a], "to": [r3(v) for v in b]}]]
+
+
+def is_pole(part):
+    size, _ = box_dims(part)
+    leaning = size[0] < 0.1 * size[1] and size[2] > 0.4 * size[1]
+    named = any(w in part["name"].lower() for w in POLE_WORDS) and size[1] > 2 * min(size[0], size[2])
+    return leaning or named
+
+
+def hull_profile(mask, keep=6):
+    """<= `keep` points [u, v] (0-1 of the mask's box, v up) of the convex hull of a boolean mask."""
+    from scipy.spatial import ConvexHull
+    ys, xs = np.nonzero(mask)
+    pts = np.stack([xs, ys.max() - ys], 1).astype(float)
+    pts = pts[ConvexHull(pts).vertices]
+    while len(pts) > keep:     # drop the vertex whose triangle with its neighbours is the smallest
+        tri = [abs(np.linalg.det([pts[i - 1] - pts[i], pts[(i + 1) % len(pts)] - pts[i]])) for i in range(len(pts))]
+        pts = np.delete(pts, int(np.argmin(tri)), axis=0)
+    span = np.maximum(pts.max(axis=0) - pts.min(axis=0), 1e-6)
+    return [[r3(float(u)), r3(float(v))] for u, v in (pts - pts.min(axis=0)) / span]
+
+
+def prop_outline(refs, name):
+    """The outline (hull_profile) of the drawing of the prop `name` on the props sheet in the refs dir, or None."""
+    import prop_measure
+    path = refs / "sheet-props.jpg"
+    props = preflight.load_props(refs.name)
+    n = prop_measure.match_prop(name, props)
+    if n is None or not path.exists():
+        return None
+    fg = SIL.foreground(path, 384)
+    pieces = sorted((c for c in SIL.components(fg) if c.sum() >= prop_measure.PROP_AREA * fg.size),
+                    key=lambda c: np.nonzero(c)[1].min())
+    return (hull_profile(SIL.crop(pieces[n])) if n < len(pieces) else None)
+
+
+def plate_part(part, slot, refs=None):
+    """A flat prop (a weapon, a shield): a plate in the part's box, thin along the thinner of x and z, its profile the
+    hull of the prop's drawing on the props sheet (the default plate without one)."""
+    size, ctr = box_dims(part)
+    axis = "front" if size[2] <= size[0] else "left"
+    w, t = (size[0], size[2]) if axis == "front" else (size[2], size[0])
+    opts = {"axis": axis, "bevel": 0.1}
+    prof = refs and prop_outline(refs, part["name"])
+    if prof:
+        u, v = np.array(prof).T
+        if (u.max() - u.min() >= v.max() - v.min()) != (w >= size[1]):    # the drawing lies down, the box stands (or back)
+            prof = [[b, a] for a, b in prof]
+        opts["profile"] = prof
+    return [[part["bone"].replace("hand.", "forearm."), "plate", [r3(w), r3(size[1]), r3(max(t, 0.03))], [r3(c) for c in ctr], slot, opts]]
+
+
+def block_part(part, slot):
+    """A prop that is no lathe, plate or pole: one box in the part's box."""
+    size, ctr = box_dims(part)
+    return [[part["bone"].replace("hand.", "forearm."), "box", [r3(v) for v in size], [r3(c) for c in ctr], slot, {}]]
+
+
+def prop_rows(part, slot, front, side, sides, refs=None):
+    """The rows of a prop by what its name and box say it is, marked as a prop on its anchor: a tank, bottle or lantern is a lathe, a
+    weapon blade or shield a plate, a pike or club a pole, the rest a box."""
+    name = part["name"].lower()
+    if is_pole(part):
+        rows = pole_part(part, slot, side)
+    elif any(w in name for w in PLATE_WORDS):
+        rows = plate_part(part, slot, refs)
+    elif is_lathe(part):
+        rows = lathe_part(part, slot, front, side, sides)
+    else:
+        rows = block_part(part, slot)
+    return mark_prop(rows, part)
 
 
 def part_slot(part, palette, labels_for):
@@ -839,7 +965,7 @@ def leg_side(S, tag, slot_of, fit, sides):
     return out
 
 
-def biped_groups(S, front, side, palette, labels_for, sides, fit):
+def biped_groups(S, front, side, palette, labels_for, sides, fit, refs=None):
     """{head, trunk, arms, legs, props}: the pre-spec parts of parts.json by body group; a group is [] when parts.json
     gives it too little (the caller then uses the band massing's)."""
     slot_of = lambda p: part_slot(p, palette, labels_for)   # noqa: E731
@@ -847,30 +973,17 @@ def biped_groups(S, front, side, palette, labels_for, sides, fit):
     props = []
     for part in S["parts"]:
         if is_prop(part):
-            props += lathe_prop(part, slot_of(part), front, side, sides) if is_lathe(part) else block_part(part, slot_of(part))
+            props += prop_rows(part, slot_of(part), front, side, sides, refs)
     return {"head": head_lathe(head, slot_of, front, side, sides), "trunk": trunk_group(S, front, side, slot_of, fit),
             "arms": sum((arm_side(S, t, slot_of, fit, sides) for t in "LR"), []),
             "legs": sum((leg_side(S, t, slot_of, fit, sides) for t in "LR"), []), "props": props}
-
-
-def lathe_prop(part, slot, front, side, sides):
-    """A prop that is a lathe (a tank): lathe_part, marked asym like every prop."""
-    out = lathe_part(part, slot, front, side, sides)
-    out[0][5]["asym"] = True
-    return out
 
 
 def head_lathe(head, slot_of, front, side, sides):
     return lathe_part(head, slot_of(head), front, side, sides) if head else []
 
 
-def move(part, d):
-    """Part moved by the vector d (spec metres), in place: its centre and the ends of a from/to part."""
-    if part[3] is not None:
-        part[3] = [part[3][i] + d[i] for i in range(3)]
-    for end in ("from", "to"):
-        if end in part[5]:
-            part[5][end] = [part[5][end][i] + d[i] for i in range(3)]
+move = preflight.shift_part
 
 
 def clamp_widths(parts, targets):
@@ -899,10 +1012,10 @@ def touch(parts, props):
     """Every body part whose 80 % box misses its parent's and its bone's other parts moves to the nearest of them
     (a prop never moves: it sits where the sheet has it, and the body comes to it)."""
     parent_of = RF.parents("biped")
-    for bone in preflight.floating_parts(parts, parent_of, preflight.OVERLAP_SHRINK):
+    for bone in preflight.floating_parts([p for p in parts if not preflight.is_prop(p)], parent_of, preflight.OVERLAP_SHRINK):   # a loose prop never moves the body
         group = {bone, parent_of[bone]}
         for p in (q for q in parts if q[0] == bone and id(q) not in props):
-            near = [q for q in parts if q[0] in group and q is not p]
+            near = [q for q in parts if q[0] in group and q is not p and not preflight.is_prop(q)]
             c = np.array(preflight.centre(p))
             q = min(near, key=lambda q: np.linalg.norm(np.array(preflight.centre(q)) - c))
             move(p, gap_move(p, q, preflight.OVERLAP_SHRINK))
@@ -934,7 +1047,8 @@ def flat(groups):
 def tidy(groups, targets):
     parts = flat(groups)
     clamp_widths(parts, targets)
-    touch(parts, {id(p) for p in groups["props"]})
+    for _ in range(2):      # a part that moved to its parent can leave its own child behind (the head over a lowered torso)
+        touch(parts, {id(p) for p in groups["props"]})
 
 
 def settle(groups, band, targets):
@@ -1003,13 +1117,14 @@ def parts_prespec(sheet, doc, H, palette, labels_for, sides):
     front.recentre(0.0, 0.08 * H)
     m, S = measure(sheet), symmetric_doc(doc)
     fit = sheet_fit(front, side, H, m, S)
-    groups = biped_groups(S, front, side, palette, labels_for, sides, fit)
+    groups = biped_groups(S, front, side, palette, labels_for, sides, fit, pathlib.Path(sheet).parent)
     if not any(groups[g] for g in ORDER):
         return None
     targets = preflight.targets_from(sheet)
+    preflight.clear_props(merge_props(unmark_worn(flat(groups))), H)    # the rules below judge props already standing off the body
     settle(groups, functools.cache(lambda: band_groups(biped(sheet, H, labels_for, sides))), targets)
     balance(groups, targets)
-    return one_face(flat(groups))
+    return one_face(preflight.clear_props(flat(groups), H))
 
 
 def sheet_fit(front, side, H, m, S):
@@ -1176,6 +1291,9 @@ def ensure_slots(parts, names, need=3, groups=SLOT_GROUPS):
                 p[4] = name
 
 
+PLACEHOLDER_ANCHOR = {"spine": "back", "pelvis": "belt", "head": "head", "forearm.R": "hand.R", "forearm.L": "hand.L"}
+
+
 def placeholder_props(parts, rig, unit, slot):
     """One box per prop of prompts/<unit>/props.json that no part stands for yet, at the middle of the
     prop's bone and as long as the middle of its extent bracket: the preflight's props_present holds,
@@ -1193,7 +1311,8 @@ def placeholder_props(parts, rig, unit, slot):
         head, tail = table[prop["bones"][0]]
         size = sum(prop["extent"]) / 2 * height
         out.append([prop["bones"][0], "box", [r3(size), r3(0.6 * size), r3(0.6 * size)],
-                    [r3((head[i] + tail[i]) / 2) for i in range(3)], slot, {"asym": True}])
+                    [r3((head[i] + tail[i]) / 2) for i in range(3)], slot,
+                    {"asym": True, "prop": name, "anchor": PLACEHOLDER_ANCHOR.get(prop["bones"][0], "belt")}])
     return out
 
 
@@ -1413,6 +1532,8 @@ def build(sheet, rig, race="", palette_sheet=None, parts=None):
         if sum(preflight.part_tris(p) for p in parts) >= MIN_TRIS:
             break
     parts += placeholder_props(parts, rig, pathlib.Path(sheet).parent.name, names[-1])
+    if rig == "biped":
+        preflight.clear_props(parts, H)
     ensure_slots(parts, names, groups=SLOT_GROUPS_FOR.get(rig, SLOT_GROUPS))
     return {"palette": palette, "parts": parts, "rig": rig, **({"rig_measure": measure} if rig in RF.SCALABLE else {})}
 

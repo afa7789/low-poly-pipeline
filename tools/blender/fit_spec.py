@@ -622,7 +622,7 @@ def apply(parts, groups, x, height, extra=None):
             out[j] = moved(parts[j], x[k:k + n], height, mirror=True, extra=names)
             out[j][2] = list(out[i][2])      # twins share dims exactly: the grid snap rounds each
         k += n                               # side on its own and preflight `symmetry` allows 5 %
-    return carry_props(parts, out)
+    return preflight.clear_props(carry_props(parts, out), height)    # the fit never sinks a prop into the body (24.L6-3)
 
 
 def hood_index(parts):
