@@ -40,6 +40,7 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import make_compare as MC  # noqa: E402
 import mesh_lint  # noqa: E402
+import review_pair  # noqa: E402
 
 SHOWS = ("textured", "clay", "wire", "overlay", "uv")
 T_MAX = 1200.0       # seconds; f(t) reaches 0 here
@@ -97,12 +98,24 @@ def cell_footer(run, view):
     return parts
 
 
+def pair_text(run):
+    """'pair vs v7-r2 S A3-1 R B4-0 W tie2-2' from the run's pairwise.json (S sheet, R artist,
+    W wc3; the winner, then the votes it got - A is the earlier run), or ''."""
+    f = pathlib.Path(run["dir"]) / "pairwise.json"
+    if not f.exists():
+        return ""
+    pw = json.loads(f.read_text())
+    cells = [f"{a[0].upper() if a != 'artist' else 'R'} {pw[a]['winner']}{max(pw[a]['A'], pw[a]['B'])}-"
+             f"{min(pw[a]['A'], pw[a]['B'])}" for a in review_pair.AXES if a in pw]
+    return f"  pair vs {pw['A']} " + " ".join(cells)
+
+
 def run_head(run, width):
     img = Image.new("RGB", (width, MC.HEAD_H), (245, 245, 245))
     d = ImageDraw.Draw(img)
     m = run["meta"]
     d.text((10, 8), run["run"], fill=MC.INK, font=MC.font(22))
-    d.text((10, 40), f"author {m.get('author', '?')}", fill=MC.DIM, font=MC.font(14))
+    d.text((10, 40), f"author {m.get('author', '?')}{pair_text(run)}", fill=MC.DIM, font=MC.font(14))
     st = m.get("stages", {})
     MC.draw_parts(d, (10, 64), [("S1 ", MC.INK), (st.get("1", "n/a"), MC.tone(st.get("1"))),
                                 ("  S2 ", MC.INK), (st.get("2", "n/a"), MC.tone(st.get("2"))),
