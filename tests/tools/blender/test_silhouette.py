@@ -187,3 +187,18 @@ class SheetMeasures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Chamfer(unittest.TestCase):
+    def test_distance_in_canvas_heights(self):
+        a = np.zeros((100, 100), bool)
+        a[20:60, 20:60] = True
+        b = np.roll(a, 10, axis=1)
+        for name, x, y, want in (("same", a, a, 0.0), ("empty", a, np.zeros_like(a), 1.0)):
+            with self.subTest(name):
+                self.assertEqual(S.chamfer(x, y), want)
+        with self.subTest("shifted"):
+            # vertical edges sit 10 px apart, horizontal ones overlap: mean well under 10/100
+            self.assertTrue(0.02 < S.chamfer(a, b) < 0.10)
+        with self.subTest("symmetric"):
+            self.assertAlmostEqual(S.chamfer(a, b), S.chamfer(b, a))

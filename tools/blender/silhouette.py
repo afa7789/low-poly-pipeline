@@ -523,6 +523,18 @@ def iou(a, b):
     return float(np.logical_and(a, b).sum() / union) if union else 1.0
 
 
+def chamfer(a, b):
+    """Symmetric 2D chamfer between the outer contours of two masks, in units of canvas
+    height (Sketch2Mesh Eq. 5: mean nearest-contour distance, both directions; 0 = same
+    outline). A signal, not a gate. Unlike IoU it grows with how far an outline is off."""
+    from scipy.ndimage import binary_erosion, distance_transform_edt
+    if not a.any() or not b.any():
+        return 1.0
+    edge = [m & ~binary_erosion(m) for m in (a.astype(bool), b.astype(bool))]
+    dist = [distance_transform_edt(~e) for e in edge]
+    return float((dist[1][edge[0]].mean() + dist[0][edge[1]].mean()) / 2 / a.shape[0])
+
+
 def profile(mask, bands=32):
     rows = np.where(mask.any(axis=1))[0]
     h = rows.max() - rows.min() + 1 if len(rows) else 1
@@ -602,7 +614,8 @@ def main():
         ok = gate is None or best >= gate
         bad += 0 if ok else 1
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
-                        "iou_32": round(px, 4), "tilt": tilt, "gate": gate}
+                        "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
+                        "tilt": tilt, "gate": gate}
         print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  "
               f"{'n/a' if gate is None else ('PASS' if ok else 'FAIL')}")
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))

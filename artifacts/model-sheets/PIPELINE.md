@@ -1134,6 +1134,26 @@ Both are stage 2 (colour); the shape is untouched.
 
 ## 19. Papers (2026-10-27)
 
+### 19.A2 Chamfer 2D de contorno por vista (2026-10-27)
+- **O que mudou:** `silhouette.chamfer(a, b)`: média bidirecional da distância (EDT) entre pixels de borda das duas
+  máscaras, dividida por H (256 px do canvas). Coluna `chamfer` por vista em `silhouette.json`; linha "contour chamfer"
+  + "SD mean" (média das vistas) no `review.md`; `SD` no rodapé de cada linha e `SD mean` no cabeçalho do compare.
+  Não é gate. Papers: Sketch2Mesh 2021 (Eq. 5), Chen 2023 (SD multi-vista).
+- **Prova (sem LLM; `silhouette.py --shape` sobre os `clay.glb`, sheet aprovado; saídas em
+  `scratchpad/papers-a2/<id>-<run>/`; as máscaras de runs antigos não estavam guardadas, foram recalculadas):**
+
+  | run | IoU médio | SD mean | gates |
+  |---|---|---|---|
+  | n01X v3-r1 / v3-r2 / v4 | .807 / .802 / .795 | .0199 / .0221 / .0200 | 6 / 6 / 6 |
+  | n005 v3-r1 / v3-r2 / v4 | .656 / .744 / .726 | .0477 / .0348 / .0390 | 3 / 5 / 5 |
+  | n00U v3-r1 / v3-r2 / v4 | .616 / .572 / .484 | .0406 / .0471 / .0585 | 1 / 0 / 0 |
+
+- **Resultado (negativo):** Spearman contra nº de gates passados, 9 runs: IoU .97, SD .91. Só n005 x n00U (6 runs):
+  IoU .97, SD .77. O SD **não** separa n00U de n005 melhor que o IoU: n005 v3-r1 (3/6 gates) tem SD .0477, pior que
+  n00U v3-r1 (1/6) com .0406. Motivo: o chamfer pesa só o contorno; o n00U tem perna fina e longe do concept (área
+  errada, contorno perto), o IoU pune a área. Útil como complemento (diz o quão longe, em %H, o contorno está: o n00U
+  v4 tem 7% de H de erro em front/left/back), não como substituto. Fica como sinal, sem gate.
+
 ### 19.B3 Limpeza da malha no join padrão (2026-10-27) - NEGATIVO, flag desligada
 - **O que:** `build_unit.clean_mesh(body)`: `remove_doubles` 1 mm + DECIMATE DISSOLVE 6° com `delimit={MATERIAL}`,
   logo depois do `join` final e antes de morph/texturize/atlas (UVs nascem depois, então não há UV para fundir).

@@ -221,6 +221,10 @@ class HardFirst(unittest.TestCase):
         self.assertIn("IoU vs hard", rows)
         self.assertNotIn("drift", rows)
 
+    def test_iou_rows_show_sd_mean(self):
+        rows = SP.iou_rows({"approved": {"front": 0.8}, "chamfer": {"front": 0.02, "left": 0.04}})
+        self.assertIn("| SD mean | 0.0300 |", rows)
+
     def test_iou_rows_show_gates_and_cameras(self):
         rows = SP.iou_rows({"approved": {"front": 0.8, "rts": 0.7}, "gates": {"front": 0.75},
                             "tilt": {"top": 10, "rts": [35, 30]}})
