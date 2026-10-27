@@ -40,6 +40,9 @@ FAMILIES = ("biped", "spider", "spider_high")
 # measured alone it lost 0.03-0.06 on left/top/bottom (n01X) with no gain on the spider (2026-10-27).
 # LATHE_MASSING flips head/torso/pelvis/shell to the lathe emitters for a one-surface look.
 LATHE_MASSING = False
+# MEASURED_JOINTS puts the knee and the elbow where the sheet's width step is (silhouette.joint_measures) instead
+# of midway: n01X +0.002 mean IoU, n005 -0.004 (2026-10-28, PIPELINE 22.L4-6), so it stays off.
+MEASURED_JOINTS = False
 KIND_FOR = {"head": "frustum", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
             "arm": "prism", "leg": "prism", "shell": "frustum"}
 if LATHE_MASSING:
@@ -280,7 +283,15 @@ def crotch_y(front, H):
     return 0.45 * H
 
 
-def arm_geometry(front, H, y_sh, y_fist, reach):
+def joint_between(y, lo, hi, share=0.15):
+    """The measured joint height `y` kept `share` of the span lo..hi inside it (a joint on a bone's end
+    leaves a zero-length bone); the midpoint when the sheet does not show it."""
+    if y is None:
+        return (lo + hi) / 2
+    return min(max(y, lo + share * (hi - lo)), hi - share * (hi - lo))
+
+
+def arm_geometry(front, H, y_sh, y_fist, reach, y_elbow=None):
     """(shoulder, elbow, wrist, r_upper, r_lower) of the +x arm. Where the arm hangs free of the torso
     (three runs in a row) its centre line is the middle of the outer run and its radius half that run;
     where it touches the torso, the outer edge of the front view inset by the radius. The elbow stays
@@ -289,7 +300,7 @@ def arm_geometry(front, H, y_sh, y_fist, reach):
     past the sheet's shoulders."""
     top = y_sh - 0.05 * H
     wrist = y_fist + 2.1 * ARM_HAND * H          # y_fist is the bottom of the fist: the hand fills the last two radii
-    mid = (top + wrist) / 2
+    mid = joint_between(y_elbow, wrist, top)
 
     def radius(y0, y1):
         free = [front.runs(y)[-1] for y in np.linspace(y0, y1, 4) if len(front.runs(y)) >= 3]
@@ -318,12 +329,12 @@ def nearest_run(front, y, x):
     return (a + b) / 2, b - a
 
 
-def leg_geometry(front, left, H, y_top, bh):
+def leg_geometry(front, left, H, y_top, bh, y_knee=None):
     """(hip, knee, ankle, r_thigh, r_shin) of the +x leg: the run nearest the ankle's own x in the
     front view (the arms hang outside, the pelvis inside), z-centred on the side view's row centre.
     A run wider than a fifth of H is torso or arm, not leg: the ankle's x and width stand in."""
     base = nearest_run(front, 1.3 * bh, 0.2 * H) or (0.2 * H, 0.1 * H)
-    knee_y = (y_top + bh) / 2
+    knee_y = joint_between(y_knee, bh, y_top)
 
     def leg(y):
         run = nearest_run(front, y, base[0])
@@ -396,7 +407,8 @@ def landmarks(front, H, m):
     y_neck = min(H - (rows.sum(axis=1)[lo:].argmin() + lo) * front.s, y_sh + 0.3 * (H - y_sh))
     return {"shoulder": y_sh, "hip": y_hip, "neck": y_neck,
             "fist": y_sh - m["arm_length"] * math.cos(math.radians(m["arm_angle"])) * H,
-            "pelvis": y_hip + 0.22 * (y_neck - y_hip), "boot": max(m["boot_height"] * H, 0.05 * H)}
+            "pelvis": y_hip + 0.22 * (y_neck - y_hip), "boot": max(m["boot_height"] * H, 0.05 * H),
+            **{joint: m[key] * H if MEASURED_JOINTS and key in m else None for joint, key in (("knee", "knee_h"), ("elbow", "elbow_h"))}}
 
 
 def trunk_parts(front, side, lm, H, labels_for, cap=None):
@@ -411,7 +423,7 @@ def trunk_parts(front, side, lm, H, labels_for, cap=None):
 
 def arm_parts(front, side, lm, H, labels_for, sides, reach):
     """Both arms: upper arm, forearm and hand."""
-    sh, el, wr, r_up, r_lo = arm_geometry(front, H, lm["shoulder"], lm["fist"], reach)
+    sh, el, wr, r_up, r_lo = arm_geometry(front, H, lm["shoulder"], lm["fist"], reach, lm["elbow"])
     z = zcentre(side, lm["shoulder"])
     parts = []
     for sgn, tag in ((1, "L"), (-1, "R")):
@@ -426,7 +438,7 @@ def arm_parts(front, side, lm, H, labels_for, sides, reach):
 
 def leg_parts(front, side, lm, H, labels_for, sides):
     """Both legs: thigh, shin and the boot, centred on the front view's run at the boot's own rows."""
-    hip, knee, ankle, r_th, r_sh, base = leg_geometry(front, side, H, lm["hip"] + 0.06 * H, lm["boot"])
+    hip, knee, ankle, r_th, r_sh, base = leg_geometry(front, side, H, lm["hip"] + 0.06 * H, lm["boot"], lm["knee"])
     bh = lm["boot"]
     foot = nearest_run(front, 0.45 * bh, base[0]) or base
     foot_w = float(np.clip(foot[1], 2 * r_sh, 0.25 * H))

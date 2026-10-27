@@ -65,6 +65,7 @@ NO_GROW = ("spine", "pelvis", "body", "abdomen")
 HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,), "lathe": (0,)}
 CHAMFER_W = 1.0         # objective = (1 - IoU) + CHAMFER_W * chamfer, per view
 EDGE_W = 0.1            # weight of the optional --fit-edges term (edge_term), per view mean
+JOINT_W = 0.5           # weight of the optional --fit-joints term (joint_term): the mean gap in H of the readable joints
 PENALTY = 10.0          # a preflight rule that held and breaks costs this much, plus 1 per rule
 BAND_SHARE = 0.6        # failing band: rows whose error is this share of the worst row's
 BAND_SMOOTH = 16        # rows of the moving average that smooths the error profile
@@ -616,6 +617,15 @@ def concept_masks(sheet, views, wide):
     return out | (turn_masks(sheet) if wide else {})
 
 
+def joint_term(parts, targets, height):
+    """Optional fit term (--fit-joints, PIPELINE 22.L4-6): mean distance, in H, from the unit's knee and
+    elbow to the sheet's (preflight.joint_height vs the joint targets); 0 when the sheet shows none."""
+    boxes = {id(p): preflight.bbox(p) for p in parts}
+    gaps = [abs(got - targets[k]) for k in preflight.JOINT_KEYS if k in targets
+            for got in [preflight.joint_height(parts, boxes, height, k)] if got is not None]
+    return sum(gaps) / len(gaps) if gaps else 0.0
+
+
 class Stop(Exception):
     """Raised by the objective when the wall-clock budget is gone: the best point so far stands."""
 
@@ -641,6 +651,7 @@ class Objective:
             return PENALTY + len(worse) + len(loose - c["loose0"])
         moving = {j: self.proxy.hulls(part_points(cand[j])) for j in self.free}
         f = self.proxy.loss(cand, self.cache | moving, self.free) + LOOSE_W * len(loose)
+        f += c["joint_w"] * joint_term(cand, c["targets"], c["height"]) if c["joint_w"] else 0.0
         if f < self.best["f"]:           # Powell can end on a worse point across the penalty cliffs
             self.best.update(f=f, x=np.array(x, float))
         return f
@@ -698,7 +709,7 @@ def baked(parts, sheet):
 
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
-        seconds=MAX_SECONDS, hard=None):
+        seconds=MAX_SECONDS, hard=None, joints=False):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
@@ -730,7 +741,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     targets, props = preflight.targets_from(sheet), preflight.load_props(pathlib.Path(sheet).parent.name)
     ctx = {"kind": kind, "targets": targets, "props": props, "parent_of": parent_of, "loose0": loose0,
            "held": broken_rules(parts, doc, kind, targets, props), "extra": extra,
-           "height": height,
+           "height": height, "joint_w": JOINT_W if joints else 0.0,
            "max_evals": max_evals or (MAX_EVALS if wide else FAST_EVALS), "deadline": time.monotonic() + seconds}
     objective = Objective(proxy, doc, parts, groups, free, ctx)
     start = proxy.loss(parts, free=free) + LOOSE_W * len(loose0)
@@ -763,11 +774,13 @@ def main():
     ap.add_argument("--seconds", type=float, default=MAX_SECONDS, help="wall-clock budget of the search")
     ap.add_argument("--hard", type=pathlib.Path, default=None,
                     help="the hard sheet: adds the edge term (hard-sheet inner edges vs part outlines)")
+    ap.add_argument("--fit-joints", action="store_true",
+                    help="adds the joint term (knee and elbow height vs the sheet's width step)")
     args = ap.parse_args()
     doc = json.loads(args.spec.read_text())
     views = tuple(args.views.split(",")) if args.views else None
     out, report = fit(doc, args.sheet, args.kind, views, args.margin, wide=not args.fast,
-                      tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard)
+                      tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard, joints=args.fit_joints)
     args.out.write_text(json.dumps(out, indent=2))
     print(json.dumps(report))
     return 0

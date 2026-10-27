@@ -293,6 +293,12 @@ def leg_text(s):
             "this are the usual failure.")
 
 
+def joint_text(m):
+    """The sheet's readable joints (silhouette.joint_measures), as heights above the feet; empty when none."""
+    found = [f"{name} at {m[key]} H" for name, key in (("knee", "knee_h"), ("elbow", "elbow_h")) if key in m]
+    return f"\nJOINTS (height above the feet): {', '.join(found)}; thigh meets shin and arm meets forearm there." if found else ""
+
+
 def measured_text(family, m):
     """Code-derived proportions of the sheet, as the brief states them."""
     profile = ", ".join(f"{v:.2f}" for v in m["front_width_profile"])
@@ -310,7 +316,7 @@ def measured_text(family, m):
             f"{m['head_width']} H, neck width {m['neck_width']} H,\n"
             f"arms hang {m['arm_angle']} degrees out from vertical (A-pose when positive), "
             f"shoulder tip to fist {m['arm_length']} H.\n"
-            f"Front silhouette width profile, top to bottom, in 5% steps: {profile}." + facet_text(m))
+            f"Front silhouette width profile, top to bottom, in 5% steps: {profile}." + joint_text(m) + facet_text(m))
 
 
 OUTLINE_NOTE = {"front": "x right of the centre line", "left": "z forward (the way the feet point)",

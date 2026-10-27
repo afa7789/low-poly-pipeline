@@ -412,6 +412,74 @@ def outlines(panels):
     return out
 
 
+JOINT_STEP = 0.25     # a knee or elbow is a step of the leg's width at least this share of the median width
+
+
+def _runs(row, gap=3):
+    """[(start, end)] of the filled runs of a boolean row; runs `gap` px apart or less are one (the
+    outline's own breaks)."""
+    d = np.diff(np.concatenate([[0], row.astype(int), [0]]))
+    out = []
+    for a, b in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
+        out[-1:] = [(out[-1][0], b)] if out and a - out[-1][1] <= gap else [*out[-1:], (a, b)]
+    return out
+
+
+def limb_widths(front, start, top, pick):
+    """[(row, width px)] from row `start` up to row `top` of the +x limb in a cropped front mask: the run
+    `pick` chooses among those right of the centre at `start`, followed up while it stays one run narrower
+    than 0.2 H (it ends where the limb merges into the pelvis, a coat or the shoulder)."""
+    n = front.shape[0]
+    cx = front.shape[1] / 2
+    runs = [r for r in _runs(front[start]) if r[1] > cx and r[1] - r[0] <= 0.2 * n]
+    if not runs:
+        return []
+    prev = pick(runs, cx, n)
+    out = []
+    for i in range(start, top, -1):
+        hit = [r for r in _runs(front[i]) if r[0] < prev[1] and r[1] > prev[0] and r[1] > cx]
+        if len(hit) != 1 or hit[0][1] - hit[0][0] > 0.2 * n:
+            break
+        prev = hit[0]
+        out.append((i, prev[1] - prev[0]))
+    return out
+
+
+def leg_run(runs, cx, n):
+    return min(runs, key=lambda r: abs((r[0] + r[1]) / 2 - cx - 0.2 * n))
+
+
+def arm_run(runs, cx, n):
+    return max(runs, key=lambda r: r[1])
+
+
+def knee_row(series):
+    """Row of the biggest width step in the middle of leg_widths' series (the narrowing or the widening
+    where thigh meets shin, upper arm meets forearm), None when no step reaches JOINT_STEP of the median width."""
+    if len(series) < 12:
+        return None
+    rows, w = np.array([r for r, _ in series]), np.array([v for _, v in series], float)
+    k = max(len(w) // 10, 2)
+    w = np.convolve(np.pad(w, (2, 2), mode="edge"), np.ones(5) / 5, mode="valid")
+    lo, hi = len(w) // 5, len(w) - len(w) // 5
+    step = np.array([abs(w[min(i + k, len(w) - 1)] - w[max(i - k, 0)]) for i in range(lo, hi)])
+    if step.max() < JOINT_STEP * np.median(w):
+        return None
+    return int(rows[lo + int(np.median(np.where(step >= 0.98 * step.max())[0]))])   # the middle of the plateau
+
+
+def joint_measures(panel, boot, shoulder_frac, arm_len, arm_angle):
+    """{knee_h, elbow_h} of a biped sheet's front panel: height above the feet in H of the leg's
+    width step and of the arm's; a joint the drawing does not show is left out."""
+    front = _crop(panel)
+    n = front.shape[0]
+    fist = shoulder_frac + arm_len * math.cos(math.radians(arm_angle))
+    wrist = int((min(fist, 0.9) - 0.1) * n)      # fist is the bottom of the hand (0.1 H tall): read the arm above it
+    rows = {"knee_h": knee_row(limb_widths(front, int((1 - boot) * n), int(0.3 * n), leg_run)),
+            "elbow_h": knee_row(limb_widths(front, wrist, int(shoulder_frac * n), arm_run))}
+    return {k: round(1 - r / (n - 1), 3) for k, r in rows.items() if r is not None}
+
+
 def measure(sheet, size=768):
     """Code-derived proportions from the five panels, in fractions of front-view H.
     The spec author gets numbers, not adjectives; this is the measurement stage the
@@ -448,6 +516,7 @@ def measure(sheet, size=768):
         "foot_length": round(max(ls[18:]) * k, 3),
         # the widest top row is the shoulder line: how far below the top it sits
         "shoulder_frac": shoulder_row / 199,
+        **joint_measures(panels["front"], boot_height(panels["left"], k), shoulder_row / 199, arm_len, angle),
         "head_clear": round(0.05 * max(range(2, 7), key=lambda i: fs[i]), 3),
         "outline": outlines(panels),
         "front_width_profile": [round(v, 3) for v in fs],
