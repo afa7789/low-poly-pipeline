@@ -449,3 +449,26 @@ lido só do left. Prova de cada item: rerodar n00U, n017, n00H, hfoo (e n005 com
   (painel do sheet menos as máscaras dos props de `parts.json`/`props.json`, dilatadas 2 px) como alvo do corpo; cada
   prop (componente próprio) casa só com a própria máscara; vértice sem alvo na máscara certa não se move. Meta: hfoo
   left/rts sem o arrasto dos pés; n005 igual ou melhor; `uncovered` do corpo e do prop reportados separados.
+
+# Leva 8 (2026-10-29) — renderização diferenciável como otimizador
+
+Fonte: 12 papers de `~/Desktop/Differentiable_Rendering_DOIs_20261021/`; análise em `analysis/2026-10-29-papers-diffrender.md`.
+Aprovada pelo usuário em 2026-10-29. Diagnóstico: o pipeline já otimiza por silhueta (fit Powell, deformação, vértices) mas com
+raster duro e gradiente numérico (`optimize_verts.iou_gradient` 1–2 s por gradiente, 120 s/unidade, por isso desligado). Um
+soft rasterizer (SoftRas/DIB-R/GenDR) dá o mesmo objetivo com gradiente analítico 10–50× mais barato e sinal para vértices
+longe do contorno. Regras: gates continuam no raster duro (Blender); o suave é só para o gradiente; opt-in até ganho medido;
+torch 2.14.1 instalado no `python3.14` (MPS disponível; CPU basta). Unidades de prova: n005, n00U, hfoo, n017, n02X.
+
+| # | Item | Papers | Aceite |
+|---|---|---|---|
+| L8-1 | `soft_sil.py`: raster suave de silhueta em torch (projeção = `deform_to_sheet.View`; `F(d/τ)` uniforme/logística; agregação probabilística; IoU suave; autograd) | 01, 03, 12 | nos 5 clays v11-r1, 6 vistas: \|IoU suave(τ=0.5 px) − IoU duro\| ≤ 0.01; forward+backward ≤ 50 ms CPU para 800 tris |
+| L8-2 | `optimize_verts` com gradiente analítico (`iou_gradient` → backward; line search, recusa flip/sliver, settled intactos; aceite com raster duro) | 01, 11 | IoU f/l/b ≥ tabela L6-7 em ≤ 30 s; flipped 0; slivers não sobem |
+| L8-3 | anelamento de τ (4 px → 0.5 px) + ablação uniforme × logística × Gamma-inv, probabilística × Yager(2) | 12, 01 | f/l/b com vermelho+verde < 8 % em ≥ 12 de 15; n017 left ≥ .75 |
+| L8-4 | regularizador de diedro `λ Σ(cos θ + 1)²` em arestas < 35° (vivas preservadas) | 02, 11 | `normal_diff` depois ≤ antes nas 5; IoU dentro de −0.005 |
+| L8-5 | perda assimétrica vermelho/verde com pesos por vista de `UNCOVERED_MAX`/`SPILL_MAX` | 04, 11 | n005 e n02X passam acoplamento no left; n005 f/l/b não cai |
+| L8-6 | `--fit-verts` default se ≤ 30 s; bateria v12 nas 5 unidades contra v11 | 01 | ≥ 3 de 5 PASS; juiz ≥ 3-1 em forma para n005 e n017; nenhuma vista cai > 0.01 |
+| L8-7 | `fit_spec` por gradiente: proxy paramétrico diferenciável em torch, união pela agregação, Adam com τ anelado; Powell fallback `--fit-powell` | 01, 12 | mesmo `fit_accepted` e IoU ±0.01 em ≤ 1/3 do tempo, ou IoU maior no mesmo tempo |
+| L8-8 | luma por shading diferido: G-buffer (ID + normais) → tons por material + luz por `least_squares` contra a luma do sheet | 10 | `luma_l1` f/l/b < .029/.031/.024 e zone mean não cai em n005/n01X |
+
+Ordem: L8-1 → L8-2 → (L8-3, L8-4, L8-5 em paralelo) → L8-6 → L8-7; L8-8 independente. Não aplicar: PyTorch3D como
+dependência, câmera por gradiente, textura por raster suave, redes implícitas, difusão/SDS (05–09 fora de domínio ou vetados).
