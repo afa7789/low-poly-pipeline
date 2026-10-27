@@ -90,6 +90,7 @@ def cell_footer(run, view):
     gate = r.get("gate")
     ok = "n/a" if gate is None else ("PASS" if r["iou"] >= gate else "FAIL")
     parts = [(f"IoU {r['iou']:.3f} ", MC.INK), (ok, MC.tone(ok))]
+    parts += MC.coupling_parts(r)
     z = r.get("zones")
     if z:
         parts.append((f"  zones {z['mean']:.2f}/{z['cover']:.2f}", MC.INK))

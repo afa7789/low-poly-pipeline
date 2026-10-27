@@ -1060,7 +1060,7 @@ def fit_stage(spec, args):
     and keep the fitted one only if fit_accepted. The two trials land in <run>/fit/."""
     import fit_spec
     from silhouette import gates_for
-    fitted, report = fit_spec.fit(spec, args.sheet, args.kind)
+    fitted, report = fit_spec.fit(spec, args.sheet, args.kind, hard=args.build if args.fit_edges else None)
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if not report["changed"]:
         return spec
@@ -1099,6 +1099,8 @@ def shape_review(args, glb, layout):
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
+        for key in ("uncovered", "spill", "red"):     # coupling (PIPELINE 21.F7)
+            summary[key] = {k: r[key] for k, r in report.items() if key in r}
         summary["gates"] = gates_for(args.rig)
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
@@ -1427,6 +1429,12 @@ def signal_rows(summary, row, shape):
     if summary.get("chamfer"):
         out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
+    for key in ("uncovered", "spill"):
+        if summary.get(key):
+            out += row(f"{key} (report, /{'sheet' if key == 'uncovered' else 'model'} area)", summary[key], shape)
+    if summary.get("red"):
+        from silhouette import red_text
+        out += "".join(f"| worst red {v} | {red_text(r)} |\n" for v, r in summary["red"].items())
     if summary.get("edges"):
         out += row("edge chamfer hard->wire (/H)", {v: r["drawn"] for v, r in summary["edges"].items()}, shape)
     for key in ("mean", "cover"):
@@ -1633,6 +1641,9 @@ def main():
     ap.add_argument("--fit", dest="fit", action="store_true", default=True,
                     help="(default) after repair/passes and before the final build, fit dims/at to the "
                          "sheet's silhouettes (fit_spec.py, PIPELINE 19.D1, 20.N12)")
+    ap.add_argument("--fit-edges", action="store_true",
+                    help="the fit also pulls part outlines onto the hard sheet's inner edges (fit_spec.edge_term, "
+                         "PIPELINE 21.F7)")
     ap.add_argument("--no-fit", dest="fit", action="store_false", help="skip the numeric fit")
     ap.add_argument("--variants", type=int, default=1,
                     help="best of N: ask the author for N specs, run stage 1 on each (in "

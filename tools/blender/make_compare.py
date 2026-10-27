@@ -271,6 +271,15 @@ def draw_parts(d, xy, parts, f):
         x += d.textlength(text, font=f)
 
 
+def coupling_parts(r):
+    """Footer part: the share of the sheet the model leaves bare (the overlay colour of the
+    concept) and of the model outside the sheet (the model's colour), PIPELINE 21.F7."""
+    if "uncovered" not in r:
+        return []
+    return [(f"   bare {100 * r['uncovered']:.0f}%", OVERLAY["concept"]),
+            (f" spill {100 * r['spill']:.0f}%", OVERLAY["model"])]
+
+
 def footer_parts(run, view):
     """Row footer: the numbers the report holds for `view`."""
     r = run["report"].get(view)
@@ -282,6 +291,7 @@ def footer_parts(run, view):
     parts += [(f"IoU {r['iou']:.3f}", INK),
               (f" gate {'-' if gate is None else gate} {ok}", tone(ok)),
               (f"   32px {r.get('iou_32', 0):.3f}  L1 {r.get('width_l1', 0):.3f}  SD {r.get('chamfer', 0):.4f}  tilt {r.get('tilt')}", INK)]
+    parts += coupling_parts(r)
     z = r.get("zones")
     if z:
         parts.append((f"   zones mean {z['mean']:.3f} cover {z['cover']:.3f} lost {len(z['lost'])}",

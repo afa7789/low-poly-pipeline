@@ -861,6 +861,65 @@ def chamfer(a, b):
     return float((dist[1][edge[0]].mean() + dist[0][edge[1]].mean()) / 2 / a.shape[0])
 
 
+BANDS = 8              # height bands of the coupling report (0 = feet)
+BLOB_OPEN = 2          # px an opening removes from the red before its largest piece is boxed (contour slivers)
+# Coupling gates (PIPELINE 21.F7): share of the sheet the model leaves bare / of the model
+# outside the sheet. Report only until calibrated on the stored runs.
+COUPLING_BLOCKING = False
+# Proposed caps (best runs n01X v5-fit-r1 / v13, n005 v5-fit-r2 / v6-r4, rounded up +0.03; PIPELINE 21.F7).
+# 10 of the 23 IoU-passing runs would be flagged (> 1/3), so they stay a report.
+UNCOVERED_MAX = {"front": 0.15, "left": 0.20, "back": 0.15, "top": 0.25, "bottom": 0.25, "rts": 0.20}
+SPILL_MAX = {"front": 0.20, "left": 0.15, "back": 0.15, "top": 0.25, "bottom": 0.20, "rts": 0.25}
+
+
+def coupling_ok(view, r):
+    """False when the view's uncovered or spill share is over its cap and COUPLING_BLOCKING is on."""
+    return not COUPLING_BLOCKING or (r["uncovered"] <= UNCOVERED_MAX.get(view, 1)
+                                     and r["spill"] <= SPILL_MAX.get(view, 1))
+
+
+def coupling(concept, model):
+    """How the model sits on the sheet, as shares of area. `uncovered` = sheet not covered by
+    the model / sheet (the sheet-only pixels of the overlay), `spill` = model outside the
+    sheet / model. Per height band (BANDS, from the feet) the same two areas, as shares of
+    the SHEET and the MODEL, so the bands sum to the totals and say where the miss is.
+    `red` = the worst band of the uncovered area and the bbox of its largest piece after a
+    BLOB_OPEN opening, in fractions of the figure height (y from the feet): 'the lantern'."""
+    from scipy.ndimage import binary_opening, label
+    c, m = concept.astype(bool), model.astype(bool)
+    bare, spill = c & ~m, m & ~c
+    rows = np.where(c.any(axis=1))[0]
+    top, h = (rows.min(), rows.max() - rows.min() + 1) if len(rows) else (0, 1)
+    edges = [round(top + h - h * i / BANDS) for i in range(BANDS + 1)]     # band i: rows edges[i+1]..edges[i]
+
+    def per_band(x, total):
+        return [round(float(x[edges[i + 1]:edges[i]].sum() / max(total, 1)), 4) for i in range(BANDS)]
+    bands = {"uncovered": per_band(bare, c.sum()), "spill": per_band(spill, m.sum())}
+    worst = int(np.argmax(bands["uncovered"]))
+    red = {"band": worst, "lo": round(worst / BANDS, 3), "hi": round((worst + 1) / BANDS, 3),
+           "share": bands["uncovered"][worst], "blob": None}
+    pieces, count = label(binary_opening(bare, iterations=BLOB_OPEN))
+    if count:
+        sizes = np.bincount(pieces.ravel())[1:]
+        ys, xs = np.where(pieces == 1 + int(np.argmax(sizes)))
+        mid = c.shape[1] / 2
+        red["blob"] = {"x": [round(float((xs.min() - mid) / h), 3), round(float((xs.max() + 1 - mid) / h), 3)],
+                       "y": [round(float((top + h - ys.max() - 1) / h), 3), round(float((top + h - ys.min()) / h), 3)],
+                       "share": round(float(sizes.max() / max(c.sum(), 1)), 4)}
+    return {"uncovered": round(float(bare.sum() / max(c.sum(), 1)), 4),
+            "spill": round(float(spill.sum() / max(m.sum(), 1)), 4), "bands": bands, "red": red}
+
+
+def red_text(red):
+    """'band 5 (0.62-0.75 H), 9 % of sheet; largest piece x -0.10..+0.10 H, y 0.60..0.70 H (4 % of sheet)'."""
+    text = f"band {red['band']} ({red['lo']:.2f}-{red['hi']:.2f} H), {100 * red['share']:.0f} % of sheet"
+    blob = red.get("blob")
+    if blob:
+        text += (f"; largest piece x {blob['x'][0]:+.2f}..{blob['x'][1]:+.2f} H, "
+                 f"y {blob['y'][0]:.2f}..{blob['y'][1]:.2f} H ({100 * blob['share']:.0f} % of sheet)")
+    return text
+
+
 def profile(mask, bands=32):
     rows = np.where(mask.any(axis=1))[0]
     h = rows.max() - rows.min() + 1 if len(rows) else 1
@@ -946,11 +1005,11 @@ def main():
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
         px = iou(downsample(concept[name]), downsample(best_mask))
         gate = gates.get(name)
-        ok = gate is None or best >= gate
-        bad += 0 if ok else 1
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
-                        "tilt": tilt, "gate": gate}
+                        "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask)}
+        ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
+        bad += 0 if ok else 1
         print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  "
               f"{'n/a' if gate is None else ('PASS' if ok else 'FAIL')}")
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))

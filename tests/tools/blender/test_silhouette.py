@@ -2,6 +2,7 @@
 import pathlib
 import sys
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
@@ -223,6 +224,38 @@ class Chamfer(unittest.TestCase):
             self.assertTrue(0.02 < S.chamfer(a, b) < 0.10)
         with self.subTest("symmetric"):
             self.assertAlmostEqual(S.chamfer(a, b), S.chamfer(b, a))
+
+
+class Coupling(unittest.TestCase):
+    def setUp(self):
+        self.sheet = np.zeros((256, 384), bool)
+        self.sheet[0:256, 150:230] = True          # a full-height column
+
+    def test_shares_and_bands(self):
+        model = self.sheet.copy()
+        model[64:96, :] = False                    # a bare strip: rows 64-95 = 0.625-0.75 H from the feet
+        model[:, 230:250] = self.sheet[:, 150:170][:, :20] | True   # spill on the right, 20 columns wide
+        got = S.coupling(self.sheet, model)
+        for name, key, want in (("uncovered", "uncovered", 32 / 256), ("spill", "spill", 20 * 256 / (80 * 224 + 20 * 256))):
+            with self.subTest(name):
+                self.assertAlmostEqual(got[key], want, places=3)
+        with self.subTest("worst band"):
+            self.assertEqual(got["red"]["band"], 5)
+            self.assertEqual((got["red"]["lo"], got["red"]["hi"]), (0.625, 0.75))
+            self.assertAlmostEqual(got["red"]["share"], 32 / 256, places=3)
+            self.assertAlmostEqual(sum(got["bands"]["uncovered"]), got["uncovered"], places=2)
+        with self.subTest("blob + text"):
+            self.assertEqual(got["red"]["blob"]["y"], [0.625, 0.75])
+            self.assertIn("band 5 (0.62-0.75 H), 12 % of sheet", S.red_text(got["red"]))
+
+    def test_perfect_and_gate_switch(self):
+        got = S.coupling(self.sheet, self.sheet)
+        self.assertEqual((got["uncovered"], got["spill"], got["red"]["blob"]), (0.0, 0.0, None))
+        bad = {"uncovered": 0.9, "spill": 0.0}
+        self.assertTrue(S.coupling_ok("front", bad))                 # report only by default
+        with unittest.mock.patch.object(S, "COUPLING_BLOCKING", True):
+            self.assertFalse(S.coupling_ok("front", bad))
+            self.assertTrue(S.coupling_ok("front", got))
 
 
 class Outline(unittest.TestCase):

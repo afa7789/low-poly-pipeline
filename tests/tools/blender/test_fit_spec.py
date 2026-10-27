@@ -19,6 +19,24 @@ def box(bone, dims, at, **opts):
     return [bone, "box", list(dims), list(at), "iron", opts]
 
 
+class EdgeTerm(unittest.TestCase):
+    def test_edge_term(self):
+        """a part outline on the drawn edge costs ~0, one far from it more; no drawn edge costs 0;
+        the loss only carries the term when the proxy holds hard edges"""
+        parts = [box("a", (1, 2, 1), (0, 1, 0)), box("b", (1, 1, 1), (0, 2.5, 0))]
+        outs = F.Proxy({}, VIEWS).outlines(parts)["front"]
+        mask = F.raster(outs)[0]
+        on, off = F.edge_of(mask), np.zeros_like(mask)
+        off[:, 5] = True
+        self.assertLess(F.edge_term(outs, on), 0.02)
+        self.assertGreater(F.edge_term(outs, off), 0.1)
+        self.assertEqual(F.edge_term(outs, np.zeros_like(mask)), 0.0)
+        concept = {"front": mask}
+        plain = F.Proxy(concept, ("front",)).loss(parts)
+        self.assertAlmostEqual(F.Proxy(concept, ("front",), {"front": off}).loss(parts) - plain,
+                               F.EDGE_W * F.edge_term(outs, off), places=6)
+
+
 class Proxy(unittest.TestCase):
     def test_outlines(self):
         """a box fills its rectangle; a rotated one stays inside the hull of its corners; a cyl
