@@ -325,12 +325,11 @@ def floating_parts(parts, parent_of):
     return sorted(set(floating))
 
 
-def main():
+def checks_of(parts, doc, kind, targets, props):
+    """[(rule, passed, detail)] of one spec. `targets` = targets_from(sheet), `props` =
+    load_props(unit): both read once by the caller, so fit_spec can re-run the rules cheaply."""
     import rig_families as RF
-    path = sys.argv[1]
-    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
     lo, hi = BUDGETS[kind]
-    parts, doc = load(path)
     family = doc.get("rig", "biped")                       # specs without "rig" are bipeds
     palette = PALETTE | set(doc.get("palette") or {})      # n01X names + the spec's slots
     checks = []
@@ -349,10 +348,8 @@ def main():
     boxes = {id(p): bbox(p) for p in parts}
     height = max(max(b[1][1] for b in boxes.values()), 1e-6)
     if family == "biped":
-        checks += biped_checks(parts, boxes, height,
-                               targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
+        checks += biped_checks(parts, boxes, height, targets)
 
-    props = load_props(pathlib.Path(sys.argv[3]).parent.name) if len(sys.argv) > 3 else []
     if props:
         lost = props_missing(parts, boxes, height, props)
         checks.append(("props_present", not lost,
@@ -388,6 +385,17 @@ def main():
     floating = floating_parts(parts, RF.parents(family, doc.get("bones")))
     checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))
 
+    return checks
+
+
+def main():
+    sheet = sys.argv[3] if len(sys.argv) > 3 else None
+    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
+    parts, doc = load(sys.argv[1])
+    checks = checks_of(parts, doc, kind, targets_from(sheet),
+                       load_props(pathlib.Path(sheet).parent.name) if sheet else [])
+    tris = sum(part_tris(p) for p in parts)
+    share = sum(part_tris(p) for p in parts if p[0] == "head" and p[1] in ORNAMENT) / BUDGETS[kind][1]
     width = max(len(name) for name, *_ in checks)
     bad = 0
     for name, ok, detail in checks:
