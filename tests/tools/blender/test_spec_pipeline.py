@@ -523,6 +523,34 @@ class JointText(unittest.TestCase):
         self.assertEqual(SP.joint_text({}), "")
 
 
+class BudgetAblation(unittest.TestCase):
+    """--budgets (PIPELINE 24.L6-10): sides lifted to the budget, the curve and its knee."""
+
+    def test_lift_sides(self):
+        spec = {"parts": PARTS}
+        base = sum(SP.part_tris(p) for p in PARTS)
+        for budget, grows in ((base, False), (base + 12, True), (base + 200, True)):
+            with self.subTest(budget=budget):
+                out = SP.lift_sides(spec, budget)
+                tris = sum(SP.part_tris(p) for p in out["parts"])
+                self.assertEqual(tris > base, grows)
+                self.assertLessEqual(tris, max(budget, base))
+        self.assertEqual(spec["parts"][0][5], {"sides": 8})           # the input is not touched
+        self.assertEqual(SP.lift_sides(spec, 10 ** 6)["parts"][0][5]["sides"], SP.SIDES_MAX)
+        self.assertEqual(SP.lift_sides(spec, 10 ** 6)["parts"][1][5], {})   # a box keeps its shape
+
+    def test_curve_and_knee(self):
+        rows = [{"budget": b, "tris": t, "iou": i, "sliver_pct": 1.0}
+                for b, t, i in ((1000, 990, 0.795), (400, 390, 0.70), (700, 700, 0.79))]
+        curve = SP.budget_curve(rows)
+        self.assertEqual([c[0] for c in curve], [400, 700, 1000])
+        self.assertAlmostEqual(curve[0][4], 100 * 0.09 / 310)
+        self.assertIsNone(curve[-1][4])
+        self.assertEqual(SP.knee_of(rows), 700)                       # 700 -> 1000 buys 0.0017 per 100 tris
+        self.assertEqual(SP.knee_of(rows[:1]), 1000)
+        self.assertIsNone(SP.knee_of([]))
+
+
 if __name__ == "__main__":
     unittest.main()
 

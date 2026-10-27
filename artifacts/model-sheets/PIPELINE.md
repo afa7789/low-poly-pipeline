@@ -2676,3 +2676,45 @@ Feedback do n005: máscara plana nas laterais, pés blocados, olhos viram fenda 
 - **Leitura:** a régua anterior premiava modelo que enchia o vazamento. Toda comparação com runs anteriores a
   2026-10-28 na vista left/back dos três bípedes com prop usa régua diferente; os números do v9 na tabela de §23
   são os da régua antiga. A bateria seguinte mede tudo na nova.
+
+
+## 24. Leva 6 (2026-10-28)
+
+### 20.L6-10 Ablação por orçamento de triângulos: `spec_pipeline --budgets` (2026-10-27) - relatório, `BUDGETS` NÃO mudou
+
+- **O que é.** `--budgets 400,700,1000 --spec <spec.json>` (sem autor, sem repair, sem estágio 2): o mesmo spec construído em cada
+  orçamento B, em `<run>/budgets/<B>/` (formato de run: `spec.json`, `clay.glb`, `sil/approved/`, `views/<id>/clay-*.png`,
+  `budget.json`). Por B: `lift_sides` sobe `sides` de 2 em 2 (até 16) nas maiores peças redondas (prism, cyl, ring, lathe, limb,
+  chain; caixa e frustum de 4 lados ficam) enquanto a estimativa do preflight cabe em B; `build_unit` em clay com B como orçamento
+  de chanfro; se a malha passou de B, `decimate_glb.py` (collapse) leva a B. Mede: tris reais, IoU nas 6 vistas, `uncovered`
+  médio, slivers (`mesh_lint`), tempo. `<run>/review.md` ganha `## Budgets` (tabela + "IoU perdido por 100 tris" de cada trecho +
+  joelho) e `budgets.json`. `compare_runs.py <out.png> <run> --show budgets`: uma coluna clay por orçamento, cabeçalho com B/tris/slivers.
+- **Joelho (`knee_of`).** O menor B cujo passo para o próximo compra < `KNEE_SLOPE` = 0,003 de IoU por 100 tris (Wiersma Fig. 10:
+  a curva achata; Chen: parar quando o erro de tela não cai mais). Sem LLM: ~30 s por unidade em 3 orçamentos.
+- **Prova, 8 specs v9-r1 em 150/250/400/700/1000** (IoU médio das 6 vistas / slivers %; tris reais = B, +-4):
+
+| unit (rig) | 150 | 250 | 400 | 700 | 1000 | joelho |
+|---|---|---|---|---|---|---|
+| n01X (biped) | .692 / 0 | .774 / 0.4 | .782 / 3.3 | .790 / 8.6 | .787 / 15.6 | 400 |
+| n005 (biped) | .727 / 0 | .776 / 1.6 | .798 / 8.5 | .804 / 16.4 | .804 / 21.4 | 400 |
+| n02X (biped) | .721 / 4.0 | .720 / 4.0 | .727 / 5.5 | .726 / 13.7 | .726 / 16.9 | 150 (curva plana: ruído) |
+| hfoo (biped) | .676 / 0 | .695 / 2.0 | .711 / 11.2 | .713 / 11.7 | .715 / 33.7 | 400 |
+| n00U (spider) | .640 / 0 | .703 / 0 | .704 / 18.0 | .712 / 18.7 | .709 / 22.0 | 250 |
+| n017 (quadruped) | .701 / 8.7 | .774 / 6.0 | .778 / 9.0 | .782 / 26.4 | .782 / 38.9 | 250 |
+| n00H (wyrm) | .629 / 8.7 | .635 / 7.2 | .660 / 6.5 | .679 / 5.7 | .684 / 15.0 | 700 |
+| n010 (drake) | .526 / 0.7 | .553 / 4.8 | .586 / 13.8 | .604 / 9.6 | .605 / 15.4 | 700 |
+
+- **IoU perdido por 100 tris, por trecho (700→1000 / 400→700 / 250→400 / 150→250)**: bípedes ~0 (-0,001..0,0007) / 0,0005..0,0027 /
+  0,005..0,011 / ~0 a 0,08; n00H 0,0016 / 0,0066 / 0,0167 / 0,005; n010 0,0001 / 0,0061 / 0,0221 / 0,0277. Acima de 400 tris o bípede
+  não compra nada; abaixo de 250 perde 0,03-0,08 de IoU.
+- **Recomendação por classe (`BUDGETS[kind][1]` hoje 700 para `mass`)**: biped 400; spider 250-400; quadruped 250-400; wyrm 700;
+  drake 700. A mediana dos 8 é 400, mas wyrm/drake (silhuetas finas, muitos pedaços) ainda ganham até 700: um teto único de 400 os
+  prejudicaria. `BUDGETS` **não foi alterado**: só silhueta foi medida, não textura/rampa/animação, e o `lo`=400 do gate de tris
+  fica; mudar o teto por rig é decisão da bateria v10 (L6-8) com o pareado.
+- **O que piorou / limites.** Slivers sobem com o orçamento (n005 8,5 % → 21 %, hfoo 11 → 34 %): mais lados por `lift_sides` fazem
+  triângulos finos; a faixa 400 é também a de menos slivers por IoU. A estimativa do preflight subestima a malha real em ~10 %
+  (build a B=400 saiu com 652 tris), então quase todo B é fechado pelo decimate, não só por `sides`: a curva mede "spec + lados +
+  collapse", não uma reescrita do spec com menos peças. Decimate é por razão, sem tolerância em espaço de tela (a `toldec` só existe
+  no caminho `union` de `build_unit`, ainda não usado no clay); quando L6-4 ligar a união, trocar o collapse por `toldec`.
+  Silhueta insensível acima de 400 não prova que o olho não veja facetas: o juiz pareado decide.
+- Provas: `/private/tmp/claude-501/-Users-afa-Developer-arthur-castle-fight/9830c746-7a9c-4c31-80db-2e0ef88f25b7/scratchpad/leva6-budgets/<id>/` (400-1000), `low-<id>/` (150-400), `n005/cmp.png`.
