@@ -39,6 +39,8 @@ MATERIALS["lamp"] = MATERIALS["flame"]
 # so specs written before the palette existed paint exactly as they did.
 SURFACE = {}
 STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_cel); style=cel on the CLI
+CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal or glow: the shape alone
+CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -240,6 +242,9 @@ def srgb(rgb):
 
 
 def material(name):
+    if CLAY:
+        MATERIALS["clay"] = CLAY_GREY
+        name = "clay"
     if name in _MAT_CACHE:
         return _MAT_CACHE[name]
     mat = bpy.data.materials.new(name)
@@ -1128,7 +1133,7 @@ def build_spec_parts(spec, chamfers):
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
         obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
                          idx in chamfers)
-        if (opts or {}).get("decal"):
+        if (opts or {}).get("decal") and not CLAY:
             obj["decal"] = opts["decal"]
             obj["decal_color"] = opts.get("decal_color", "")
         parts.append((obj, bone))
@@ -1156,11 +1161,12 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE
+    global STYLE, CLAY
+    CLAY = "clay" in rest
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
-        if arg.startswith("atlas="):
+        if arg.startswith("atlas=") and not CLAY:
             atlas_path = arg[len("atlas="):]
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):

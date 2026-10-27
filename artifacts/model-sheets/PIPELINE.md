@@ -988,3 +988,30 @@ with the Read tool), same reply parsing; any other `--model` value stays on the 
 `review.md` records the model as given. The call runs in an empty temp dir with no setting
 sources, so no project CLAUDE.md, hooks or MCP servers reach the spec author. Image generation
 (`generate.py`, nano-banana) stays on the API.
+
+### 18.F Stage 1: shape in clay (2026-10-26)
+
+`spec_pipeline.py` runs in two stages. Stage 1 (`stage_shape`) builds the spec in clay
+(`build_unit.py clay`: one grey material, no texture, decal or glow) and gates the shape only:
+preflight, tris, rig, and `silhouette.GATES` on all five views plus the RTS view (top/bottom/rts
+at the camera the sweep picks). Repair and the per-view passes see clay renders (lit; an unlit
+grey solid is one flat blob) and the overlay, never colour. A spec that fails stage 1 stops
+there: no texture, turntable or stage 2, and `review.md` says what failed. Stage 2 is
+`colour_stage.stage_colour(spec, glb_clay, args, tilts, work)`, called only when the module
+exists; without it, or with `--shape-only`, the run ends at `SHAPE-PASS`. Clay renders land in
+`views/<id>/clay-<view>.png` (rts = `clay-rts.png`); `silhouette.json` gains `tilt` and `gates`.
+
+Gates, clay rebuilds of the 22 existing specs (7 hard-v1, 14 v2-hard-r1/r2, n01X v13; min IoU):
+
+| view | gate | n01X hard-v1 / v13 | n01X r1 / r2 | n01N (worst) |
+|---|---|---|---|---|
+| front | 0.75 | 0.873 / 0.862 | 0.769 / 0.762 | 0.344-0.506 |
+| left | 0.65 | 0.771 / 0.830 | 0.751 / 0.773 | 0.367-0.452 |
+| back | 0.70 | 0.871 / 0.858 | 0.764 / 0.756 | 0.353-0.508 |
+| top | 0.65 | 0.798 / 0.792 | 0.863 / 0.837 | 0.346-0.359 |
+| bottom | 0.65 | 0.780 / 0.799 | 0.783 / 0.805 | 0.320-0.488 |
+| rts | 0.70 | 0.785 / 0.781 | 0.765 / 0.756 | 0.429-0.473 |
+
+Front/left stay at 0.75/0.65 (no evidence to move them); the new gates sit about 0.05-0.10 under
+the weakest n01X view. All four n01X runs pass; only n005 hard-v1 passes elsewhere (every other
+unit fails at least one view, n01N all six). `--texture` replaces `--style` (kept as an alias).

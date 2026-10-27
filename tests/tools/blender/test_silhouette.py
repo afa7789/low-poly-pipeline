@@ -37,6 +37,14 @@ class GateWithoutModel(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn("no measurement", run.stdout)
 
+    def test_shape_gates_cover_the_five_views_and_the_rts(self):
+        self.assertEqual(set(S.GATES), {"front", "left", "back", "top", "bottom", "rts"})
+        # measured clay rebuilds: n01X hard-v1 / v13 clear every gate, n01N clears none
+        good = {"front": 0.873, "left": 0.771, "back": 0.858, "top": 0.792, "bottom": 0.780, "rts": 0.781}
+        worst = {"front": 0.360, "left": 0.437, "back": 0.364, "top": 0.346, "bottom": 0.320, "rts": 0.440}
+        self.assertTrue(all(good[v] >= g for v, g in S.GATES.items()))
+        self.assertFalse(any(worst[v] >= g for v, g in S.GATES.items()))
+
 
 import numpy as np  # noqa: E402
 
