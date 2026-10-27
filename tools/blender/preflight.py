@@ -20,8 +20,11 @@ Rules (each one exists because an iteration failed on it):
   boot_height    boot height 0.7-1.6 x the sheet's, head_width 0.6-1.4 x the sheet's
   props_present  one part per prop of prompts/<id>/props.json, on one of its bones, as long as
                  the prop's extent bracket (fractions of H); a presence check, not a shape one
+  prop_clearance a part marked opts {"prop", "anchor"} has at most 20 % of its box inside the
+                 body (torso, pelvis, head boxes); report only (PIPELINE 23.L5-3)
   ground         no part below y = 0
-  overlap        each distal limb segment intersects its parent (no floating pieces)
+  overlap        each distal limb segment intersects its parent (no floating pieces); a prop
+                 only has to touch its anchor (hand.R/hand.L/back/belt/head)
   overlap_80     the same with every box shrunk to 80 % (a corner touch does not connect); report only
   box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
   budget_split   tris per body group (head, body, legs) within a band around the sheet's own area
@@ -127,12 +130,12 @@ def asymmetric(parts):
     marked opts.asym, or a bone pair where either side has it, is exempt. Twins are matched
     by (kind, y, z) order inside each bone pair."""
     bad = []
-    for left in sorted({p[0] for p in parts if p[0].endswith(".L")}):
+    for left in sorted({p[0] for p in parts if p[0].endswith(".L") and not is_prop(p)}):
         right = left[:-2] + ".R"
-        side = {b: sorted((p for p in parts if p[0] == b), key=lambda p: (p[1], centre(p)[1], centre(p)[2]))
-                for b in (left, right)}
-        if any(isinstance(p[5], dict) and p[5].get("asym") for p in side[left] + side[right]):
+        if any(isinstance(p[5], dict) and p[5].get("asym") for p in parts if p[0] in (left, right)):
             continue
+        side = {b: sorted((p for p in parts if p[0] == b and not is_prop(p)), key=lambda p: (p[1], centre(p)[1], centre(p)[2]))
+                for b in (left, right)}
         if len(side[left]) != len(side[right]):
             bad.append(f"{left[:-2]}: {len(side[left])} parts left, {len(side[right])} right")
             continue
@@ -155,9 +158,10 @@ def props_missing(parts, boxes, height, props):
     """Names of the props with no part of their own: each prop claims one unclaimed part on
     one of its bones whose longest side lies in its extent bracket (a part serves one prop)."""
     used, missing = set(), []
+    order = sorted(range(len(parts)), key=lambda i: not is_prop(parts[i]))    # a marked prop part claims first
     for prop in props:
         lo, hi = prop["extent"]
-        hit = next((i for i, p in enumerate(parts) if i not in used and p[0] in prop["bones"]
+        hit = next((i for i in order if i not in used and (p := parts[i])[0] in prop["bones"]
                     and lo <= max(boxes[id(p)][1][k] - boxes[id(p)][0][k] for k in range(3)) / height <= hi),
                    None)
         if hit is None:
@@ -693,6 +697,100 @@ def overlaps(a, b, k=1.0):
     return all(al[i] <= bh[i] and bl[i] <= ah[i] for i in range(3))
 
 
+# A prop is a separate object held by an anchor point (PIPELINE 23.L5-3): a part with opts
+# {"prop": "<name>", "anchor": "hand.R" | "hand.L" | "back" | "belt" | "head"}.
+PROP_ANCHORS = {"hand.R": "forearm.R", "hand.L": "forearm.L", "back": "spine", "belt": "pelvis", "head": "head"}
+PROP_BODY = ("spine", "pelvis", "head", "body", "abdomen")   # prop_clearance: these bones' non-prop parts are the body
+HAND_SHARE = 0.4          # a hand anchor is the lower 40 % (in y) of the forearm parts
+CLEARANCE_MAX = 0.20      # share of a prop's box allowed inside the body
+CLEARANCE_BLOCKING = False  # report only until calibrated: FAIL rate over the draft specs is in PIPELINE 23.L5-3
+CLEARANCE_GRID = 12
+PROP_REACH = 0.05         # a prop's box may stand this far (spec metres) off its anchor's and still be held
+
+
+def is_prop(part):
+    return isinstance(part[5], dict) and bool(part[5].get("prop"))
+
+
+# prop_reads: the ID render paints each prop (by order of first appearance) in one of these flat colours
+PROP_IDS = ((1.0, 0.0, 1.0), (0.0, 1.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.5, 0.0))
+
+
+def prop_names(parts):
+    """The distinct opts "prop" names, in order of first appearance."""
+    return list(dict.fromkeys(str(p[5]["prop"]) for p in parts if is_prop(p)))
+
+
+def anchor_bone(prop, bones):
+    """The bone a prop's anchor names when the rig has it, else the part's own bone."""
+    bone = PROP_ANCHORS.get(prop[5].get("anchor"))
+    return bone if bone in bones else prop[0]
+
+
+def anchor_box(parts, prop, bones):
+    """Box of the body a prop hangs on: the non-prop parts on its anchor bone (a hand: their lower
+    HAND_SHARE), or None when the bone carries none."""
+    bone = anchor_bone(prop, bones)
+    boxes = [bbox(p) for p in parts if not is_prop(p)
+             and bone in {p[0], *((lathe_limb.limb_bones(p[0], bones) or ()) if p[1] == "limb" else ())}]
+    if not boxes:
+        return None
+    lo = [min(b[0][i] for b in boxes) for i in range(3)]
+    hi = [max(b[1][i] for b in boxes) for i in range(3)]
+    if str(prop[5].get("anchor", "")).startswith("hand"):
+        hi[1] = lo[1] + HAND_SHARE * (hi[1] - lo[1])
+    return lo, hi
+
+
+def boxes_meet(a, b, slack=1e-6):
+    return all(a[0][i] <= b[1][i] + slack and b[0][i] <= a[1][i] + slack for i in range(3))
+
+
+def loose_props(parts, bones, k=1.0):
+    """Bones of the props that do not reach their anchor: a prop part (box shrunk to k) counts as held when
+    its box is within PROP_REACH of the anchor's, or touches a held part of the same prop (a valve on a
+    tank). A prop whose anchor carries no part is not judged."""
+    props = [p for p in parts if is_prop(p)]
+    anchors = {id(p): anchor_box(parts, p, bones) for p in props}
+    held = {id(p) for p in props if anchors[id(p)] is None
+            or boxes_meet(shrunk(bbox(p), k), anchors[id(p)], PROP_REACH)}
+    grew = True
+    while grew:
+        more = {id(p) for p in props if id(p) not in held and any(
+            id(q) in held and q[5]["prop"] == p[5]["prop"] and boxes_meet(shrunk(bbox(p), k), bbox(q))
+            for q in props)}
+        grew = bool(more)
+        held |= more
+    return [p[0] for p in props if id(p) not in held]
+
+
+def prop_inside(prop_box, body_boxes, n=CLEARANCE_GRID):
+    """Share of the prop's box inside the union of body_boxes (n^3 sample points)."""
+    lo, hi = np.array(prop_box[0]), np.array(prop_box[1])
+    axes = [lo[i] + (np.arange(n) + 0.5) / n * (hi[i] - lo[i]) for i in range(3)]
+    pts = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    inside = np.zeros(len(pts), bool)
+    for bl, bh in body_boxes:
+        inside |= ((pts >= bl) & (pts <= bh)).all(axis=1)
+    return float(inside.mean())
+
+
+def clearance_checks(parts):
+    """prop_clearance: the share of each prop's box inside the body boxes is at most CLEARANCE_MAX (a report
+    while CLEARANCE_BLOCKING is False). [] without a marked prop."""
+    props = [p for p in parts if is_prop(p)]
+    if not props:
+        return []
+    body = [bbox(p) for p in parts if not is_prop(p) and p[0] in PROP_BODY]
+    shares = {}
+    for p in props:       # the parts of one prop count as the worst of them
+        shares[p[5]["prop"]] = max(shares.get(p[5]["prop"], 0.0), prop_inside(bbox(p), body))
+    bad = [n for n, s in shares.items() if s > CLEARANCE_MAX]
+    return [("prop_clearance", not bad or not CLEARANCE_BLOCKING,
+             ", ".join(f"{n} {s:.0%} in the body" + (" - OUT" if n in bad else "") for n, s in shares.items())
+             + f" (max {CLEARANCE_MAX:.0%})")]
+
+
 # Spider rules that fail the preflight: FAIL rate over the 15 spider specs of runs/draft/*/*/ was
 # spider_leg 3/15 (blocks), spider_body 7/15 and spider_reach 11/15 (> 1/3: report only), PIPELINE section 20.L14
 SPIDER_BLOCKING = {"spider_leg"}
@@ -789,16 +887,17 @@ def biped_checks(parts, boxes, height, targets):
 
 def floating_parts(parts, parent_of, k=1.0):
     """Bones whose parts touch neither another part on the bone nor one on its parent
-    (boxes at k of their size)."""
-    floating = []
+    (boxes at k of their size). A prop only has to touch its anchor (prop_touches)."""
+    bones = set(parent_of) | set(parent_of.values())
+    floating = loose_props(parts, bones, k)
     for p in parts:
         parent = parent_of.get(p[0])
-        if not parent:
+        if not parent or is_prop(p):
             continue
         # A distal piece may sit on its own bone: the fist overlaps the forearm
         # shell, not the upper arm. Check the bone and its parent together.
         group = {p[0], parent}
-        siblings = [q for q in parts if q[0] in group and q is not p]
+        siblings = [q for q in parts if q[0] in group and q is not p and not is_prop(q)]
         if siblings and not any(overlaps(p, q, k) for q in siblings):
             floating.append(p[0])
     return sorted(set(floating))
@@ -866,6 +965,7 @@ def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
     if st and st["total"]:
         checks.append(("identity_present", not st["missing"] or not IDENTITY_BLOCKING,
                        f"{st['ok']}/{st['total']}, missing: {st['missing'] or 'none'} (each is a part or a decal)"))
+    checks += clearance_checks(parts)
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:

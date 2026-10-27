@@ -26,6 +26,53 @@ CLUB = [part("forearm.R", "leather", (-0.55, 1.5, 0.1), (0.12, 1.2, 0.12)),
         part("forearm.R", "skin", (-0.55, 1.0, 0.1), (0.25, 0.25, 0.25))]   # the fist on the shaft
 
 
+PROPS = [{"name": "pressure tank with brass valve", "where": "on the back", "bones": ["spine"], "extent": [0.25, 0.55]},
+         {"name": "vaporiser", "where": "held in the hand", "bones": ["forearm.L"], "extent": [0.08, 0.3]},
+         {"name": "belt lantern", "where": "hanging at the belt", "bones": ["pelvis"], "extent": [0.04, 0.15]}]
+
+
+class MarkedProps(unittest.TestCase):
+    def test_a_name_finds_its_drawing(self):
+        for name, want in (("pressure tank", 0), ("Vaporiser", 1), ("lantern", 2), ("brass valve", 0), ("sword", None)):
+            with self.subTest(name=name):
+                self.assertEqual(P.match_prop(name, PROPS), want)
+
+    def test_crops_go_to_the_marked_parts_only(self):
+        parts = [part("spine", "iron", (0, 1, 0)), part("spine", "tank", (0, 1, -1), prop="pressure tank", anchor="back"),
+                 part("pelvis", "lamp", (0, 1, 1), prop="belt lantern", anchor="belt"),
+                 part("pelvis", "lamp", (0, 1, 2), prop="halberd", anchor="hand.R")]
+        self.assertEqual(P.crops_by_part(parts, PROPS, ["a.png", "b.png", "c.png"]), {"1": "a.png", "2": "c.png"})
+
+    def test_marked_hand_prop_is_the_prop_part(self):
+        parts = BODY + [part("forearm.R", "leather", (-0.55, 1.5, 0.1), (0.12, 0.2, 0.12), prop="club", anchor="hand.R"),
+                        part("spine", "tank", (0, 1.5, -0.5), prop="tank", anchor="back")]
+        self.assertEqual(P.prop_parts(parts), [6])      # short, so the size heuristic would miss it; the back tank is not held
+
+    def test_views_come_from_props_json_when_there_is_no_parts_json(self):
+        self.assertEqual(P.prop_views("u", "pressure tank", PROPS), ["left", "back"])
+        self.assertEqual(P.prop_views("u", "belt lantern", PROPS), ["front", "left"])
+
+    def test_views_come_from_parts_json(self):
+        import json
+        import tempfile
+        doc = {"parts": [{"name": "pistol", "prop": True, "box2d": {"front": [0, 0, 1, 1]}},
+                         {"name": "hood", "prop": False, "box2d": {"left": [0, 0, 1, 1]}}]}
+        with tempfile.NamedTemporaryFile("w", suffix=".json") as f:
+            json.dump(doc, f)
+            f.flush()
+            self.assertEqual(P.prop_views("u", "pistol", PROPS, f.name), ["front"])
+
+    def test_a_prop_reads_when_one_piece_of_it_shows(self):
+        rgb, alpha = np.zeros((40, 40, 3)), np.ones((40, 40), bool)
+        rgb[5:15, 5:15] = (255, 0, 255)                     # 100 px of 1600
+        share, whole = P.prop_seen(rgb, alpha, (1.0, 0.0, 1.0))
+        self.assertAlmostEqual(share, 100 / 1600)
+        self.assertEqual(whole, 1.0)
+        rgb[30:35, 30:35] = (255, 0, 255)                   # a second piece: the biggest is 100 of 125
+        self.assertAlmostEqual(P.prop_seen(rgb, alpha, (1.0, 0.0, 1.0))[1], 0.8)
+        self.assertEqual(P.prop_seen(rgb, alpha, (0.0, 1.0, 1.0)), (0.0, 0.0))
+
+
 class PropParts(unittest.TestCase):
     def test_finds_the_weapon_and_what_touches_it(self):
         parts = BODY + CLUB

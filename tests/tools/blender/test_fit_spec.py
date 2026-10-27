@@ -139,6 +139,26 @@ class Fit(unittest.TestCase):
         self.assertEqual(report["failing"], [])
 
 
+class FitProps(unittest.TestCase):
+    """PIPELINE 23.L5-3: a prop keeps its dims and follows its anchor; the fit never frees it."""
+
+    def test_prop_follows_its_anchor_and_keeps_its_size(self):
+        arm = box("forearm.R", (0.5, 1, 0.5), (0, 1, 0))
+        club = box("forearm.R", (0.1, 0.6, 0.1), (0.1, 0.8, 0), prop="club", anchor="hand.R")
+        wide = F.moved(arm, [1, 1, 1, 0.5, 0, 0], 2.0)            # dims x1.2 (DIMS_RANGE), at moved sideways
+        out = F.carry_props([arm, club], [wide, club])
+        self.assertEqual(out[1][2], [0.1, 0.6, 0.1])
+        self.assertAlmostEqual(out[1][3][0] - 0.1, wide[3][0] - arm[3][0])
+        self.assertEqual(club[3], [0.1, 0.8, 0], "the input is not edited")
+
+    def test_apply_carries_the_prop_with_a_moved_anchor(self):
+        arm = box("forearm.R", (0.5, 1, 0.5), (0, 1, 0))
+        club = box("forearm.R", (0.1, 0.6, 0.1), (0.1, 0.8, 0), prop="club", anchor="hand.R")
+        out = F.apply([arm, club], [(0, None)], np.array([0, 0, 0, 1.0, 0, 0]), 2.0)
+        self.assertGreater(out[1][3][0], 0.1)
+        self.assertEqual(out[1][2], [0.1, 0.6, 0.1])
+
+
 class Wide(unittest.TestCase):
     """PIPELINE 21.F4: swept cameras, rot, wide dims, zones, the cut toggle, the budget"""
 

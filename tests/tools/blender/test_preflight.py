@@ -204,6 +204,53 @@ class Props(unittest.TestCase):
         self.assertEqual(PF.load_props("no-such-unit"), [])
 
 
+class PropParts(unittest.TestCase):
+    """PIPELINE 23.L5-3: a part with opts prop + anchor is held at its anchor, not sunk in the body."""
+    FOREARM = ["forearm.R", "box", [0.2, 0.5, 0.2], [-0.8, 1.2, 0], "iron", {}]      # y 0.95-1.45: hand = y <= 1.15
+    TORSO = ["spine", "box", [1.0, 0.8, 0.6], [0, 1.9, 0], "iron", {}]
+    PARENTS = {"forearm.R": "arm.R", "spine": "pelvis"}
+
+    def prop(self, bone, anchor, at, dims=(0.1, 0.6, 0.1), name="club"):
+        return [bone, "box", list(dims), list(at), "brass", {"prop": name, "anchor": anchor}]
+
+    def test_prop_only_has_to_reach_its_anchor(self):
+        for at, want in (([-0.8, 1.0, 0], []), ([-0.8, 1.9, 0], ["forearm.R"]), ([-0.2, 1.0, 0], ["forearm.R"])):
+            with self.subTest(at=at):
+                parts = [self.FOREARM, self.prop("forearm.R", "hand.R", at)]
+                self.assertEqual(PF.floating_parts(parts, self.PARENTS), want)
+
+    def test_a_valve_held_by_its_tank_is_held(self):
+        tank = self.prop("spine", "back", [0, 1.9, -0.4], (0.4, 0.8, 0.4), "tank")       # z -0.6..-0.2, y 1.5-2.3
+        valve = self.prop("spine", "back", [0, 2.35, -0.4], (0.1, 0.1, 0.1), "tank")
+        other = self.prop("spine", "back", [0, 2.35, -0.4], (0.1, 0.1, 0.1), "other")
+        self.assertEqual(PF.floating_parts([self.TORSO, tank, valve], self.PARENTS), [])
+        self.assertEqual(PF.floating_parts([self.TORSO, tank, other], self.PARENTS), ["spine"])
+
+    def test_clearance_is_the_share_of_the_box_in_the_body(self):
+        torso = [PF.bbox(self.TORSO)]                       # z -0.3..0.3
+        for z, want in ((-0.4, 0.25), (-0.5, 0.0), (0.0, 1.0)):
+            tank = self.prop("spine", "back", [0, 1.9, z], (0.4, 0.8, 0.4), "tank")     # 0.4 deep
+            with self.subTest(z=z):
+                self.assertAlmostEqual(PF.prop_inside(PF.bbox(tank), torso), want, delta=0.05)
+
+    def test_clearance_is_a_report_until_calibrated(self):
+        sunk = self.prop("spine", "back", [0, 1.9, 0], (0.4, 0.8, 0.4), "tank")
+        (name, ok, detail), = PF.clearance_checks([self.TORSO, sunk])
+        self.assertEqual(name, "prop_clearance")
+        self.assertEqual(ok, not PF.CLEARANCE_BLOCKING)
+        self.assertIn("tank 100% in the body - OUT", detail)
+        self.assertEqual(PF.clearance_checks([self.TORSO]), [])
+
+    def test_a_marked_part_claims_its_prop_first_and_a_prop_has_no_twin(self):
+        props = [{"name": "club", "bones": ["forearm.R"], "extent": [0.1, 0.9]}]
+        plain = ["forearm.R", "box", [0.2, 0.6, 0.2], [-0.8, 1.2, 0], "iron", {}]
+        mark = self.prop("forearm.R", "hand.R", [-0.8, 1.0, 0])
+        parts = [plain, mark]
+        self.assertEqual(PF.props_missing(parts, {id(p): PF.bbox(p) for p in parts}, 2.0, props), [])
+        twin = ["forearm.L", "box", [0.2, 0.6, 0.2], [0.8, 1.2, 0], "iron", {}]
+        self.assertEqual(PF.asymmetric([twin, plain, mark]), [])      # the prop is not .R's twin-less extra
+
+
 class JointPlace(unittest.TestCase):
     def parts(self, knee_y):
         return [["thigh.L", "prism", [0.1, 0.1, 0.5], [0, (knee_y + 1.0) / 2, 0], "iron", {"from": [0, 1.0, 0], "to": [0, knee_y, 0]}],

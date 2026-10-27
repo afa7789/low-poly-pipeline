@@ -19,6 +19,7 @@ chose, else the best of a sweep) and the sheet-turn.jpg 3/4 views when they exis
 arms, legs and hood take a `rot` (+-20 deg); a part attached to its parent may move its dims by 20 %;
 a small term keeps each part inside the sheet's colour zone of its material. `PARAMS` says which
 extra continuous parameters each part kind has (extend it for a new kind).
+A part marked opts "prop" (a weapon, a tank: PIPELINE 23.L5-3) is never free: its dims stay and it moves with the parts on its anchor bone (carry_props).
 """
 import argparse
 import copy
@@ -554,6 +555,27 @@ def moved(part, x, height, mirror=False, extra=()):
     return out
 
 
+def carry_props(parts, out):
+    """Each prop (preflight.is_prop) follows its anchor: its `at` and from/to move by the mean shift of the
+    non-prop parts on the anchor bone that the fit moved; its dims stay (PIPELINE 23.L5-3)."""
+    bones = {p[0] for p in parts}
+    for i, prop in enumerate(parts):
+        if not preflight.is_prop(prop):
+            continue
+        bone = preflight.anchor_bone(prop, bones)
+        shifts = [np.subtract(preflight.centre(out[j]), preflight.centre(q)) for j, q in enumerate(parts)
+                  if q[0] == bone and not preflight.is_prop(q)]
+        if not shifts:
+            continue
+        out[i] = copy.deepcopy(prop)
+        delta = np.mean(shifts, axis=0)
+        out[i][3] = [a + d for a, d in zip(prop[3], delta)]
+        for end in ("from", "to"):
+            if end in out[i][5]:
+                out[i][5][end] = [a + d for a, d in zip(out[i][5][end], delta)]
+    return out
+
+
 def apply(parts, groups, x, height, extra=None):
     out, k = list(parts), 0
     for i, j in groups:
@@ -564,7 +586,7 @@ def apply(parts, groups, x, height, extra=None):
             out[j] = moved(parts[j], x[k:k + n], height, mirror=True, extra=names)
             out[j][2] = list(out[i][2])      # twins share dims exactly: the grid snap rounds each
         k += n                               # side on its own and preflight `symmetry` allows 5 %
-    return out
+    return carry_props(parts, out)
 
 
 def hood_index(parts):
@@ -653,7 +675,8 @@ class Objective:
 
     def __init__(self, proxy, doc, parts, groups, free, ctx):
         self.proxy, self.doc, self.parts, self.groups, self.free, self.ctx = proxy, doc, parts, groups, free, ctx
-        self.cache = {i: proxy.hulls(part_points(p)) for i, p in enumerate(parts) if i not in free}
+        self.cache = {i: proxy.hulls(part_points(p)) for i, p in enumerate(parts)
+                      if i not in free and not preflight.is_prop(p)}   # a prop follows its anchor: never cached
         self.best, self.n = {"f": math.inf, "x": None}, 0
 
     def __call__(self, x):
@@ -796,7 +819,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
               "failing": failing, "free": 0, "evals": 0, "changed": False}
     if not parts or not failing:
         return doc, report
-    free = touched(proxy, parts, proxy.masks(parts), failing)
+    free = [i for i in touched(proxy, parts, proxy.masks(parts), failing) if not preflight.is_prop(parts[i])]
     groups = groups_of(parts, free)
     hood = hood_index(parts)
     # the anchor: a part that was connected to its parent stays connected (hard); each one that
