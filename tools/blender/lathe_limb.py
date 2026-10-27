@@ -1,4 +1,4 @@
-"""Geometry of the `lathe` and `limb` part kinds, in spec axes (x right, y up, z forward), no bpy.
+"""Geometry of the `lathe`, `limb` and `chain` part kinds, in spec axes (x right, y up, z forward), no bpy.
 
 One definition for the four readers: build_unit.py makes the mesh from these rings, fit_spec.py
 projects their points, preflight.py counts the triangles and bounds the box, cut_hull.py reads the
@@ -12,6 +12,12 @@ lathe  dims = (r, h) at = centre. A profile of radii revolved around the vertica
 limb   dims = (r_top, r_knee, r_base), opts from/to (required), knee [frac, dx, dz, dy] (default
        [0.5, 0, 0, 0]: knee = from + frac*(to-from) + (dx, dy, dz)), sides 6-8 (default 6). Two
        tapered tubes sharing the knee ring, capped at both ends.
+chain  bone = the first bone `prefix.k` of a rig chain, dims = (r0..rN) the radius at each joint of
+       the N bones prefix.k..prefix.k+N-1 (head to tail; joint i is the head of bone i, joint N the
+       tail of the last), or one number = the widest radius, the rest read from the sheet
+       (cut_hull.chain_radii) else CHAIN_TAPER. `at` is ignored: the bones place the rings. opts
+       bones N (1-8, required), sides 6-8, profile_axis "left" | "front" (the sheet panel read).
+       One ring per joint, ring i skinned to bone i (the last ring to the last bone), n-gon caps.
 """
 import math
 
@@ -24,6 +30,16 @@ PROFILE_MAX = 1.5               # a ring is at most this many times r
 KNEE = (0.5, 0.0, 0.0, 0.0)
 # upper segment word -> lower segment word in a bone name (leg1.upper/.lower, thigh/shin, arm/forearm)
 PAIRS = (("upper", "lower"), ("thigh", "shin"), ("arm", "forearm"))
+CHAIN_BONES = (1, 8)            # bones of a chain
+CHAIN_R = (0.01, 3.0)           # a joint radius, metres
+CHAIN_TAPER = 0.35              # radius at the tail, as a fraction of the head's, when the sheet gives none
+RIG = ("biped", ())             # (family, extra bones): where a chain finds its joints (set_rig)
+
+
+def set_rig(family, extras=None):
+    """The rig the chains of this process are placed on; every reader of a spec sets it once."""
+    global RIG
+    RIG = (family, tuple(tuple(e) for e in extras or ()))
 
 
 def sides_of(opts):
@@ -38,15 +54,33 @@ def rings_of(opts):
 def tris(kind, opts):
     """Triangles of a lathe or a limb (the ends are triangulated n-gons)."""
     n = sides_of(opts)
-    rings = rings_of(opts) if kind == "lathe" else 3
+    rings = {"lathe": rings_of, "chain": lambda o: int(o["bones"]) + 1}.get(kind, lambda o: 3)(opts)
     return 2 * n * (rings - 1) + 2 * (n - 2)
 
 
-def bad_opts(kind, dims, opts):
-    """Why a lathe or limb is outside the schema, or None."""
+def bad_chain(bone, dims, opts):
+    """Why a chain part is outside the schema, or None."""
+    n = opts.get("bones")
+    if not isinstance(n, int) or not CHAIN_BONES[0] <= n <= CHAIN_BONES[1]:
+        return f"a chain needs opts bones in {CHAIN_BONES}"
+    if len(dims) not in (1, n + 1) or not all(isinstance(v, (int, float)) and CHAIN_R[0] <= v <= CHAIN_R[1] for v in dims):
+        return f"a chain takes {n + 1} joint radii (or one) in {CHAIN_R} metres"
+    if any(k in opts for k in ("from", "to", "rot")) or opts.get("profile_axis", "left") not in ("front", "left"):
+        return "a chain follows its bones: no from, to or rot; profile_axis is front or left"
+    try:
+        chain_joints(bone, n)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def bad_opts(kind, dims, opts, bone=None):
+    """Why a lathe, limb or chain is outside the schema, or None."""
     n = opts.get("sides", SIDES)
     if not isinstance(n, int) or not SIDES_RANGE[0] <= n <= SIDES_RANGE[1]:
         return f"sides outside {SIDES_RANGE}"
+    if kind == "chain":
+        return bad_chain(bone, dims, opts)
     if kind == "limb":
         knee = opts.get("knee", KNEE)
         if "from" not in opts or "to" not in opts or len(dims) != 3:
@@ -139,9 +173,51 @@ def limb_bones(bone, known):
     return None
 
 
-def half_extent(kind, dims, at, opts):
+def chain_bones(bone, n):
+    """[prefix.k, .., prefix.k+n-1] for a chain starting at the bone `prefix.k`, or None."""
+    prefix, _, k = bone.rpartition(".")
+    return [f"{prefix}.{int(k) + i}" for i in range(n)] if prefix and k.isdigit() else None
+
+
+def chain_joints(bone, n):
+    """The n+1 joints (head of each bone, tail of the last) of the chain on `bone`, spec axes, from
+    the rig set by set_rig. ValueError when the rig lacks a bone of it."""
+    import rig_families
+    names = chain_bones(bone, n)
+    table = {b[0]: b for b in rig_families.with_extras(*RIG)}
+    if not names or any(b not in table for b in names):
+        raise ValueError(f"{bone} + {n - 1} more is not a chain of the {RIG[0]} rig")
+    return [table[b][2] for b in names] + [table[names[-1]][3]]
+
+
+def chain_radii(dims, opts, sheet=None):
+    """The n+1 joint radii: the author's, else dims[0] times the sheet's profile, else a taper."""
+    count = int(opts["bones"]) + 1
+    if len(dims) == count:
+        return list(dims)
+    prof = sheet if sheet and len(sheet) == count else [1 - (1 - CHAIN_TAPER) * i / (count - 1) for i in range(count)]
+    return [dims[0] * v for v in prof]
+
+
+def chain_rings(bone, dims, opts, sheet=None):
+    """[ring per joint], head to tail: an n-gon of the joint's radius in the plane that bisects the
+    two bones meeting there (the end rings take their own bone's direction)."""
+    joints = chain_joints(bone, int(opts["bones"]))
+    segs = [unit(sub(b, a)) for a, b in zip(joints, joints[1:])]
+    dirs = [segs[0]] + [unit(tuple(a[i] + b[i] for i in range(3))) for a, b in zip(segs, segs[1:])] + [segs[-1]]
+    n = sides_of(opts)
+    phase = 0.0 if n % 4 == 0 else math.pi / (2 * n)     # a ring reads as wide from the side as from above
+    rings = []
+    for c, d, r in zip(joints, dirs, chain_radii(dims, opts, sheet)):
+        ref = (0.0, 1.0, 0.0) if abs(d[1]) < 0.95 else (1.0, 0.0, 0.0)
+        u = unit(cross(ref, d))
+        rings.append(ngon(c, u, cross(d, u), r, n, phase))
+    return rings
+
+
+def half_extent(kind, dims, at, opts, bone=None):
     """((lo), (hi)) box of the kind around its geometry, in spec axes (preflight.bbox)."""
-    pts = ([p for ring in lathe_rings(dims, at, opts) for p in ring] if kind == "lathe"
-           else [p for ring in limb_rings(dims, opts) for p in ring])
+    rings = {"lathe": lambda: lathe_rings(dims, at, opts), "chain": lambda: chain_rings(bone, dims, opts)}
+    pts = [p for ring in rings.get(kind, lambda: limb_rings(dims, opts))() for p in ring]
     return (tuple(min(p[i] for p in pts) for i in range(3)),
             tuple(max(p[i] for p in pts) for i in range(3)))

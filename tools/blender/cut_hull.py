@@ -8,6 +8,7 @@ build_unit.py only extrudes and intersects them (`cuts=<json>` argument). A `lat
 a profile of its own gets one read from the same masks (lathe_profile); it travels in the same json.
 """
 import json
+import math
 import pathlib
 
 import lathe_limb
@@ -128,11 +129,74 @@ def lathe_profiles(parts, sheet, layout="unit"):
     return out
 
 
+def chain_widths(mask, frame, part, axis):
+    """Width of each joint of a one-radius chain as a fraction of dims[0] (lathe_limb.chain_radii),
+    from `mask` (front or left panel; axis 0 or 2): the run of mask pixels across the chain's
+    direction at the joint, at most PROFILE_WIN * r each side. None when no joint is inside the
+    mask. frame = (H, centre) as in strip_outline."""
+    height, centre = frame
+    r = part[2][0]
+    if not mask.any():
+        return None
+    ys, xs = mask.nonzero()
+    bottom, scale, c0 = ys.max(), (ys.max() - ys.min() + 1) / height, (xs.min() + xs.max()) / 2
+    joints = lathe_limb.chain_joints(part[0], part[5]["bones"])
+    out = []
+    for i, c in enumerate(joints):
+        a, b = joints[max(i - 1, 0)], joints[min(i + 1, len(joints) - 1)]
+        da, dy = b[axis] - a[axis], b[1] - a[1]
+        norm = math.hypot(da, dy) or 1.0
+        row0, col0 = bottom - c[1] * scale, c0 + (c[axis] - centre) * scale
+        reach = int(PROFILE_WIN * r * scale)
+        run = [t for t in range(-reach, reach + 1)
+               if _inside(mask, round(row0 - t * da / norm), round(col0 - t * dy / norm))]
+        out.append(_run(run) / scale / 2 / r if 0 in run else None)
+    known = [v for v in out if v is not None]
+    if not known:
+        return None
+    return [round(min(max(v if v is not None else min(known), PROFILE_MIN), PROFILE_WIN), 3) for v in out]
+
+
+def _inside(mask, row, col):
+    return 0 <= row < mask.shape[0] and 0 <= col < mask.shape[1] and bool(mask[row, col])
+
+
+def _run(ts):
+    """Length of the run of consecutive integers in `ts` that holds 0."""
+    have = set(ts)
+    lo = hi = 0
+    while lo - 1 in have:
+        lo -= 1
+    while hi + 1 in have:
+        hi += 1
+    return hi - lo + 1
+
+
+def chain_profiles(parts, sheet, layout="unit"):
+    """{part index: {"radii": [...]}} for the chain parts with one radius whose sheet panel could be
+    read; the others build from their own radii or the taper."""
+    wanted = [i for i, p in enumerate(parts) if p[1] == "chain" and len(p[2]) == 1]
+    if not wanted or sheet is None:
+        return {}
+    boxes = [preflight.bbox(p) for p in parts]
+    top = max(b[1][1] for b in boxes)
+    centre = {a: (min(b[0][a] for b in boxes) + max(b[1][a] for b in boxes)) / 2 for a in (0, 2)}
+    panels = SIL.concept_panels(sheet, layout=layout)
+    out = {}
+    for i in wanted:
+        axis = 0 if parts[i][5].get("profile_axis") == "front" else 2
+        widths = chain_widths(panels["left" if axis else "front"], (top, centre[axis]), parts[i], axis)
+        if widths:
+            out[i] = {"radii": widths}
+    return out
+
+
 def args(spec, sheet, kind, work):
     """["cuts=<json>"] for build_unit.py: the outlines of the spec's cut parts and the sheet
     profiles of its lathes written to work/cuts.json; [] when there is neither."""
     cuts = cut_polys(spec["parts"], sheet, layout_of(kind))
     cuts.update(lathe_profiles(spec["parts"], sheet, layout_of(kind)))
+    cuts.update(chain_profiles(spec["parts"], sheet, layout_of(kind)))
     if not cuts:
         return []
     path = pathlib.Path(work) / "cuts.json"

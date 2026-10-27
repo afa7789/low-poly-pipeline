@@ -198,8 +198,9 @@ def part_points(part):
     """World points (Blender axes) whose convex hull is the part's outline."""
     _, kind, dims, at, _, opts = part
     opts = opts or {}
-    if kind in ("lathe", "limb"):
-        rings = lathe_limb.lathe_rings(dims, at, opts) if kind == "lathe" else lathe_limb.limb_rings(dims, opts)
+    if kind in ("lathe", "limb", "chain"):
+        rings = {"lathe": lambda: lathe_limb.lathe_rings(dims, at, opts),
+                 "chain": lambda: lathe_limb.chain_rings(part[0], dims, opts)}.get(kind, lambda: lathe_limb.limb_rings(dims, opts))()
         pts = np.array([p for ring in rings for p in ring], float)
         return np.stack([pts[:, 0], -pts[:, 2], pts[:, 1]], 1)
     span = "from" in opts and "to" in opts
@@ -704,6 +705,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
     top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec."""
     t0 = time.monotonic()
+    lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     parts = baked(doc["parts"], sheet) if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))
     concept = concept_masks(sheet, views or (WIDE_VIEWS if wide else FIT_VIEWS), wide)
