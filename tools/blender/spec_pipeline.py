@@ -1619,6 +1619,38 @@ def rts_figures(path):
     return count_figures(foreground(path, 512))
 
 
+REDO_TRIES = 2         # paid draws per --redo-rts (PIPELINE 25.L7-2)
+
+
+def redo_rts(sheet):
+    """Redraw sheet-rts.jpg tied to the sheet's three orthographic panels (front, left, back as the reference
+    image, the game camera in the prompt). The old image goes to refs/<id>/old/ and the new one replaces it only when
+    its coherence with the hull of front x left (silhouette.rts_vs_sheet) rises and it shows one figure."""
+    from silhouette import ortho_strip, rts_path, rts_vs_sheet
+    dest, old_dir = rts_path(sheet), sheet.parent / "old"
+    old_dir.mkdir(exist_ok=True)
+    before = rts_vs_sheet(sheet, dest)
+    n = len(list(old_dir.glob(f"{dest.stem}-v*.jpg"))) + 1
+    keep = old_dir / f"{dest.stem}-v{n}.jpg"
+    shutil.copy2(dest, keep)
+    strip = old_dir / f"{dest.stem}-in.jpg"
+    ortho_strip(sheet, strip)
+    best = before[0] if before else 0.0
+    for attempt in range(1, REDO_TRIES + 1):
+        stem = f"{dest.stem}-redo{n}-{attempt}"
+        gen = subprocess.run([sys.executable, str(MSHEETS / "generate.py"), str(TEMPLATES / "00-template-rts-redo.txt"),
+                              "--image", str(strip), "--out", str(old_dir), "--name", stem, "--resolution", "1K"],
+                             capture_output=True, text=True)
+        print(gen.stdout.strip() or f"rts redo not drawn: {gen.stderr.strip()[-200:]}")
+        new = old_dir / f"{stem}.jpg"
+        score = new.exists() and rts_figures(new) == 1 and rts_vs_sheet(sheet, new)
+        print(f"{new.name}: coherence {score[0] if score else 'n/a'} (was {best:.3f})")
+        if score and score[0] > best:
+            shutil.copy2(new, dest)
+            return True
+    return False
+
+
 def ensure_rts(sheet, building=False, force=False):
     """Draw the gameplay-camera concept from the approved sheet when it is missing (or
     `force`): the compare, the silhouette sweep and the rts pass all need it. The draw is
@@ -1895,6 +1927,9 @@ def main():
     if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
         for name, n in check_rts().items():
             print(f"{n} {name}")
+        return
+    if sys.argv[1:2] == ["--redo-rts"]:   # --redo-rts refs/<id>/sheet.jpg: redraw that sheet's rts view
+        print("kept the old rts" if not redo_rts(pathlib.Path(sys.argv[2]).resolve()) else "rts redone")
         return
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
