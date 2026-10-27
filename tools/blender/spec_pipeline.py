@@ -271,7 +271,17 @@ def spider_text(s):
             f"{s['body_under']} H above the ground, knee {s['knee_h']} H high and {s['knee_r']} H from "
             f"the axis, feet {s['foot_r']} H from the axis. Size the shell and abdomen to that radius and "
             "length, and the legs to those bones: a body smaller or legs longer than the table is the "
-            "usual failure.")
+            "usual failure." + leg_text(s))
+
+
+def leg_text(s):
+    """The sheet's leg thickness (leg_w median radius, leg_taper tip / base), empty for an old measure."""
+    if "leg_w" not in s:
+        return ""
+    base = 2 * s["leg_w"] / (1 + s["leg_taper"])
+    return (f" LEG RADIUS: {base:.3f} H at the body, {base * s['leg_taper']:.3f} H at the tip "
+            f"({base * RF.SPIDER_H:.3f} m, {base * s['leg_taper'] * RF.SPIDER_H:.3f} m): legs thinner than "
+            "this are the usual failure.")
 
 
 def measured_text(family, m):

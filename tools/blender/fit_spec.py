@@ -35,6 +35,7 @@ import silhouette  # noqa: E402
 
 FIT_VIEWS = ("front", "left", "back")
 DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
+LEG_GROW = False        # spider legs may grow to the sheet's leg_w: off, n00U v6-r3 lost .002-.008 on 5 views (PIPELINE 21.F3)
 AT_RANGE = 0.03         # `at` may move by this fraction of the height
 LOOSE_W = 0.3           # objective cost of each part not connected to its parent (80 % boxes)
 # bones whose parts keep their width and depth: the torso, and the hood (the widest part on the head)
@@ -330,11 +331,27 @@ def hood_index(parts):
     return max((i for i, p in enumerate(parts) if p[0] == "head"), key=width, default=None)
 
 
-def bounds_of(part, no_grow):
-    """scipy bounds of one group's unit parameters: a no-grow part may only shrink its horizontal dims."""
-    horizontal = HORIZONTAL.get(part[1], ()) if no_grow else ()
+def leg_grow(part, leg_w, height):
+    """Upper unit bound of a spider leg's horizontal dims: wide enough to reach the sheet's leg radius
+    (leg_w, fraction of H) when the leg is thinner than that, the usual +DIMS_RANGE otherwise."""
+    if not part[0].startswith("leg") or not leg_w:
+        return 1.0
+    return max(1.0, (leg_w * height / preflight.leg_radius(part) - 1) / DIMS_RANGE)
+
+
+def bounds_of(part, no_grow, grow=1.0):
+    """scipy bounds of one group's unit parameters: a no-grow part may only shrink its horizontal dims;
+    `grow` is the upper bound of those dims otherwise (leg_grow)."""
+    horizontal = HORIZONTAL.get(part[1], ())
     n = len(part[2])
-    return [(-1, 0 if k in horizontal else 1) for k in range(n)] + [(-1, 1)] * 3
+    return [(-1, 0 if no_grow else grow) if k in horizontal else (-1, 1) for k in range(n)] + [(-1, 1)] * 3
+
+
+def sheet_leg_w(doc, sheet):
+    """The sheet's leg radius for a spider doc (its rig_measure, else measured), None for another rig or LEG_GROW off."""
+    if not LEG_GROW or doc.get("rig") not in RF.SPIDERS:
+        return None
+    return (doc.get("rig_measure") or {}).get("leg_w") or silhouette.measure_spider(sheet).get("leg_w")
 
 
 def loose_of(parts, parent_of):
@@ -368,7 +385,9 @@ def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_E
     cache = {i: part_points(p) for i, p in enumerate(parts) if i not in free}
     sizes = [len(parts[i][2]) + 3 for i, _ in groups]
     hood = hood_index(parts)
-    bounds = [b for i, j in groups for b in bounds_of(parts[i], parts[i][0] in NO_GROW or hood in (i, j) and hood is not None)]
+    leg_w = sheet_leg_w(doc, sheet)
+    bounds = [b for i, j in groups for b in bounds_of(parts[i], parts[i][0] in NO_GROW or hood in (i, j) and hood is not None,
+                                                      leg_grow(parts[i], leg_w, height))]
     # the anchor: a part that was connected to its parent stays connected (hard); each one that
     # was not costs LOOSE_W, so the fit can reconnect it
     parent_of = RF.parents(doc.get("rig", "biped"), doc.get("bones"))

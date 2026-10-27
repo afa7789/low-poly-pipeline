@@ -219,6 +219,9 @@ class ScaledSpiderBrief(unittest.TestCase):
         self.assertEqual(SP.parse_spec(json.dumps({"parts": [part]}))["rig_measure"], self.M)
         m = {"front_width_profile": [0.5] * 21, "left_width_profile": [0.3] * 21, "spider": self.M}
         self.assertIn("SPIDER BODY", SP.measured_text("spider", m))
+        self.assertNotIn("LEG RADIUS", SP.measured_text("spider", m))
+        m["spider"] = {**self.M, "leg_w": 0.05, "leg_taper": 0.5}
+        self.assertIn("LEG RADIUS: 0.067 H at the body, 0.033 H at the tip", SP.measured_text("spider", m))
         self.assertIn("exactly as the rig table", SP.rig_text("spider")[1])
 
     def test_no_measures_keeps_the_fixed_rig(self):

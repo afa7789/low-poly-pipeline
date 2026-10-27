@@ -1867,3 +1867,38 @@ Papers: Sketch2Mesh 2021 (Eq. 6: refinar só perto da região que falha), MeshGP
   Peças editáveis por passe: 8-16 de 28-29 (28-57 %). Autor: 4 pedidos novos e 4 de `fbb2fc0f` (`--no-repair`, só autor), 8/8 viram spec sem reenvio, taxa de spec malformado 0/4 contra 0/4: **o schema não mede ganho com `session:opus`**, que já devolvia JSON válido; o ganho esperado é no Gemini, e lá o schema não existe (ver acima), só o reenvio.
 - **Piorou / pendente.** (1) N pequeno: 9 patches, nenhum tocou peça congelada; não provo que o `[FROZEN]` segura um modelo mais solto, só que `opus` respeita a lista, e o `apply_patch` cobre o caso nos testes. (2) A diferença de passes aceitos (3/9 contra 0/4) é ruído de LLM, não prova de ganho. (3) Nas runs de n005 as regras do repair eram globais (`shoulder_span`, `fist_span`, `budget_split`): o repair nunca congelou nada; mapear `shoulder_span`/`fist_span` aos ossos `arm`/`forearm` é o próximo passo se o repair parcial importar. (4) A banda usa a altura do modelo; um conceito com adereço alto (capuz, antena) desloca as faixas. (5) O `[FROZEN]` custa linhas no prompt, não tokens de imagem.
 - **Testes.** `test_spec_pipeline.py`: `AuthorSchema` (flag do CLI, `structured_output`, `json_object` e fallback 400, reenvio uma vez) e `FrozenParts` (bones das regras, `set`/`drop`/`add` fora da lista, faixas sobre máscaras sintéticas, marcação `[FROZEN]`).
+
+## 21. Leva 3 (2026-10-27)
+
+### 21.F3 `leg_w` da aranha (2026-10-27) - medida e brief ligados, crescimento de perna no fit NEGATIVO (desligado)
+
+Sem paper novo: fecha a pendência do §20.L14 (o rig mede comprimento, não diâmetro de perna).
+- **`silhouette.measure_spider`** ganha `leg_w` (raio mediano da perna, fração de H) e `leg_taper` (raio na ponta / na base).
+  `leg_ridge(mask)`: máscara menos a abertura por disco de 0.6 do raio máximo (o corpo), distance transform do resto, cristas
+  (máximos locais) = raio da perna naquele ponto e distância ao corpo. `leg_measures` junta front e top (top calibrado por `k`,
+  igual ao `body_r`), mediana de tudo = `leg_w`; taper = mediana do terço mais longe do corpo / do terço mais perto.
+  n00U: `leg_w` .044, taper 1.38 (front e top concordam: .044 e .045 H). n01N: `leg_w` .032, taper .86 (front .034, top .031).
+  **O taper do n00U não é confiável** (>1: a base some na dilatação do corpo e sobra ruído); `leg_w` é.
+- **Brief:** `spider_text` ganha `LEG RADIUS: X H at the body, Y H at the tip (... m): legs thinner than this are the usual
+  failure.` (X = 2 leg_w / (1+taper), Y = X taper). Medida antiga sem `leg_w`: sem a frase.
+- **Preflight `spider_leg_w` (só relatório):** raio médio das peças `leg*` (prism = média de dims[0], dims[1]) / altura contra
+  `leg_w`, banda 0.6-1.4x. Taxa de FAIL nos 16 specs spider de `runs/draft/*/*/` (os outros 63 não são spider): **3/16** (n00U
+  v5-fit-r1 .065 vs .044; n01N hard-v1 .069 e v1 .064 vs .032). Abaixo de 1/3, mas as 3 pegam perna **grossa demais**, não a falha
+  de interesse (fina); fica relatório (`SPIDER_BLOCKING` não muda).
+- **`fit_spec.leg_grow` + `LEG_GROW`:** o limite de dims horizontais (+10 %) de uma peça `leg*` sobe até o raio do `leg_w` quando a
+  perna está abaixo da medida (n00U v6-r3: pernas `lower` até +33 %). **`LEG_GROW = False` por padrão.**
+
+Prova sem LLM, refit do n00U v6-r3 (`fit/before.json`, build real, 6 vistas front/left/back/top/bottom/rts); pernas do spec já
+estão em .051 H (upper) e .033 H (lower), a mediana .051 contra .044 da medida:
+
+| fit | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| antes (before.json) | .7064 | .6897 | .7072 | .6526 | .6183 | .6409 |
+| limite +-10 % (v6-r3 original, `fit.json`) | .7796 | .6850 | .7880 | .6404 | .6177 | .6411 |
+| `LEG_GROW` ligado | .7757 | .6774 | .7860 | .6427 | .6164 | .6347 |
+
+`attach.json` do refit: 24 peças, `loose: []`. O limite novo não ajuda aqui: as pernas do spec já têm o raio do sheet, o fit
+não usou a folga (mediana de raio .051 -> .046) e o resultado ficou 0.001-0.008 abaixo em 5 de 6 vistas (ruído do Powell, mesmo
+orçamento de 4000 avaliações). Fica desligado; liga quando houver spec com perna fina (n00U v2-hard-r2 .035 H, v3-stages-r1 .040 H
+são os candidatos; não refitei: a prova pedida é o v6-r3). Saídas: `scratchpad/leva3-f3/refit/` (`fit/fit.json`, `attach.json`).
+Testes: `LegMeasures` (silhouette), `test_leg_w_reports_thin_legs_without_blocking` (preflight), `LegGrowth` (fit), brief (spec_pipeline).
