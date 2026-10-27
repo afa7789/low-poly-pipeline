@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 
+import cut_hull
 import silhouette as SIL
 from preflight import BUDGETS, misplaced_decals
 from surfaces import DECALS, SURFACES
@@ -149,7 +150,7 @@ def build_textured(spec, glb_clay, args, glb, work):
     path.write_text(json.dumps(spec, indent=2))
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
-        *face_args(spec, args, work), blender=True)
+        *face_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
     return glb.exists()
 
 

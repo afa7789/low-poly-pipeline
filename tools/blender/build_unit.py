@@ -457,6 +457,48 @@ def fit_length(kind, dims, a, b, margin=1.08):
     return dims
 
 
+def extrude(poly, lo, hi, swap):
+    """The outline `poly` of (a, y) points as a prism from `lo` to `hi` along the third spec axis;
+    swap=False: a is x, the prism runs along z; swap=True: a is z, it runs along x."""
+    me = bpy.data.meshes.new("cut")
+    bm = bmesh.new()
+    rings = [[bm.verts.new(bp((a, y, d) if not swap else (d, y, a))) for a, y in poly]
+             for d in (lo, hi)]
+    for ring_ in rings:
+        bm.faces.new(ring_)
+    n = len(poly)
+    for i in range(n):
+        bm.faces.new((rings[0][i], rings[0][(i + 1) % n], rings[1][(i + 1) % n], rings[1][i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("cut", me)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def cut_part(bone, mat_name, idx):
+    """A part cut by the sheet's silhouette (opts "cut"): the front outline extruded along z
+    intersected with the left outline extruded along x (cut_hull.py made the outlines, fitted to
+    the part's box). Sano 2026, visual hull."""
+    cut = CUTS[str(idx)]
+    lo, hi = cut["box"]
+    m = [0.1 * (hi[a] - lo[a]) + 0.01 for a in range(3)]
+    obj = extrude(cut["front"], lo[2] - m[2], hi[2] + m[2], False)
+    other = extrude(cut["left"], lo[0] - m[0], hi[0] + m[0], True)
+    bpy.context.view_layer.objects.active = obj
+    mod = obj.modifiers.new("Hull", "BOOLEAN")
+    mod.operation = "INTERSECT"
+    mod.solver = "EXACT"
+    mod.object = other
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    bpy.data.objects.remove(other, do_unlink=True)
+    obj.name = f"{bone}_{idx}"
+    obj.data.materials.clear()          # the boolean leaves an empty slot behind
+    obj.data.materials.append(material(mat_name))
+    return obj
+
+
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     rots = opts.get("rot", 0.0)
     if isinstance(rots, (int, float)):
@@ -830,6 +872,7 @@ def painted_image(name, rgb, size=64):
     return img
 
 
+CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut" (cut_hull.py)
 FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
 DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
 
@@ -1168,13 +1211,23 @@ def load_spec(target):
     return target, SPECS[target], None
 
 
+def load_cuts(argv):
+    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py)."""
+    for arg in argv:
+        if arg.startswith("cuts="):
+            CUTS.update(json.loads(pathlib.Path(arg[len("cuts="):]).read_text()))
+
+
 def build_spec_parts(spec, chamfers):
     """(object, bone) per spec row; a row with opts "decal" marks its object so
     texturize paints that decal on the part's front face."""
     parts = []
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
-        obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
-                         idx in chamfers)
+        if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
+            obj = cut_part(bone, mat_name, idx)
+        else:
+            obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
+                             idx in chamfers)
         if (opts or {}).get("decal") and not CLAY:
             obj["decal"] = "face" if opts["decal"] == "sheet" and FACE is None else opts["decal"]
             obj["decal_color"] = opts.get("decal_color", "")
@@ -1217,6 +1270,7 @@ def main():
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+    load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours
     unit, spec, rest_pose = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):

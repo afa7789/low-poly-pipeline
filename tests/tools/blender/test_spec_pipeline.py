@@ -130,6 +130,19 @@ class Palette(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "rot outside"):
                         SP.validate([part])
 
+    def test_cut_is_sheet_on_an_unrotated_mass(self):
+        for kind, opts, ok in (("prism", {"cut": "sheet"}, True), ("frustum", {"cut": "sheet"}, True),
+                               ("box", {"cut": "sheet", "rot": 10}, False), ("cyl", {"cut": "sheet"}, False),
+                               ("prism", {"cut": "sheet", "from": [0, 1, 0], "to": [0, 2, 0]}, False),
+                               ("prism", {"cut": "yes"}, False)):
+            part = ["spine", kind, [0.4, 0.4, 0.8], [0, 1.8, 0], "iron", opts]
+            with self.subTest(kind=kind, opts=opts):
+                if ok:
+                    SP.validate([part])
+                else:
+                    with self.assertRaisesRegex(ValueError, "cut"):
+                        SP.validate([part])
+
     def test_legacy_specs_need_no_palette(self):
         self.assertNotIn("palette", SP.parse_spec(json.dumps({"parts": PARTS})))
 
