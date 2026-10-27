@@ -233,6 +233,8 @@ Cinco geradores geométricos cobrem as 28 famílias de rig: `lathe` (existe), `l
 
 # Leva 5 (2026-10-28) — FORMA: partes, profundidade e props separados
 
+**Estado (2026-10-28):** L5-1..L5-7 integrados (PIPELINE §23). Default: segmentação (`refs/<id>/parts.json` nas 8 unidades), massing por partes (simetria, clamps, contato, fallback por grupo), props com `prop`/`anchor` e `overlap` pela âncora, 8 lados + chanfro + cabeça lathe com decal do sheet + botas redondas, identidade (relatório, status), juiz com 4 votos e eixo wc3. Opt-in: `--fit-parts` (máscara por parte + ordem z: baixa o vermelho do left do n005 21→14 % mas sobe o top), `--depth` (Depth Anything: correlação fraca com o left), `TRUNK_SIDES`, `LIMB_KNEE`. Não aplicado: corte dos painéis por vãos interiores (misto). Bateria v9 nas 8 unidades em `history/2026-10-28-v9/`.
+
 Fonte: feedback do usuário ("forma principalmente; props mergeados com o corpo; parece outra coisa"),
 `analysis/2026-10-28-feedback-n005.md` (arma fundida, tanque em bloco, máscara plana, top assimétrico,
 detalhes inconsistentes; sugestões: profundidade monocular, VLM como segmentador/Point QA, renderização
