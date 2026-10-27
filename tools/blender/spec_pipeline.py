@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One unit, end to end: sheet -> spec (vision model) -> GLB -> gates -> turntable GIF.
+"""One unit, end to end: sheet -> spec (vision model) -> clay GLB -> shape gates -> colour -> GIF.
 
     python3 tools/blender/spec_pipeline.py --id n01X --race Mech --name "Iron Golem"
     python3 tools/blender/spec_pipeline.py --id hfoo --race Human --name Footman \\
@@ -11,18 +11,48 @@ and sheet-props.jpg ride along when present); the run lands in runs/draft/<id>/<
 Triangle budgets, WC3 SD standard (see PIPELINE.md §6):
     mass unit 400-700 · hero 900-1600 · standard building 600-800 · town hall / large 2000-3000
 
+Two stages, in sequence (PIPELINE.md section 18.F):
+
+    stage 1, shape (this file, stage_shape): the spec is repaired/refined and built in CLAY
+        (build_unit.py `clay`: one grey material, no texture, decal or glow). Repair and
+        passes only ever see clay renders plus the silhouette overlay. Gate = preflight +
+        tris + rig + silhouette.GATES on front/left/back/top/bottom/rts (top/bottom/rts at
+        the camera the sweep picked). A spec that fails stage 1 stops here: no texture, no
+        turntable, no stage 2; review.md says where it stopped.
+    stage 2, colour (tools/blender/colour_stage.py, optional): the approved spec, frozen,
+        gets texture, decals and glow. The contract, called by main() only when the module
+        imports:
+
+            colour_stage.stage_colour(spec, glb_clay, args, tilts, work) -> (ok, report)
+
+        spec      the stage 1 spec dict (parts never change in stage 2)
+        glb_clay  Path of the stage 1 GLB (<out>/clay.glb)
+        args      the argparse namespace (out, id, kind, rig, sheet, build, texture, flat,
+                  summary = the silhouette.json dict stage 1 wrote)
+        tilts     tilts_of() of the stage 1 sweep: {"top": 10, "bottom": 20, "rts": (35, 30)}
+        work      scratch dir <out>/stage2
+        ok        stage 2 gate; report: str, or a dict that review.md prints as JSON
+        It writes <out>/model.glb (main() shoots the turntable from it when ok) and the
+        textured views as views/<id>/model-<view>.png. It may add a "zones" key to
+        args.summary and to <out>/silhouette.json (zone_rows() prints it in review.md).
+    Without colour_stage (or with --shape-only) main() ends cleanly after stage 1.
+
 Writes, under <out>:
-    specs/<tag>-<id>.json, glb/<tag>-<id>.glb      versioned: the result
-    <tag>/<id>.gif, <tag>/<id>-compare.png          local review (gitignored)
-    views/, sil/, passes/                           local intermediates (gitignored)
-and prints one gate line: id, tag, tris, budget, materials, smear. Exit code 1 if any gate
-fails; a failed gate never stops the run, every output is still written.
+    spec.json, clay.glb, model.glb (stage 2)        the result
+    review.md, silhouette.json, turntable.gif       the verdict, one section per stage
+    views/<id>/clay-<view>.png                      stage 1 renders (lit clay), view in
+                                                    front/left/back/top/bottom/rts
+    sil/, passes/                                   local intermediates (gitignored)
+and prints one gate line: id, run, tag, tris, budget, skins, anims, smear, preflight, stage 1,
+stage 2, verdict. Exit code 1 if a stage fails; a failed gate never stops the run before its
+own stage ends, every output is still written.
 """
 import argparse
 import base64
 import json
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -38,7 +68,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, MATERIAL_SLOTS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, ground_fix, misplaced_decals  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -550,23 +580,37 @@ def tool(name, *argv, blender=False):
 
 
 def trial(spec, sheet, kind, work, name):
-    """Preflight, build and measure one candidate spec. A preflight failure is reported,
-    not fatal: the model is still built so there is always something to look at.
-    Returns (IoU per view or None when no GLB came out, preflight report or None, zone
-    report per view)."""
+    """Preflight, build (clay) and measure (shape gates) one candidate spec. A preflight
+    failure is reported, not fatal: the model is still built so there is always something
+    to look at. Returns (IoU per view or None when no GLB came out, preflight report or
+    None, zone report per view: always empty, colour is stage 2)."""
     path = work / f"{name}.json"
     path.write_text(json.dumps(spec, indent=2))
     glb = work / f"{name}.glb"
     pre = tool("preflight.py", path, kind, sheet)     # landmark targets from this sheet
     problem = pre.stdout if pre.returncode else None
-    build = tool("build_unit.py", path, glb, blender=True)
+    build = tool("build_unit.py", path, glb, *clay_args(kind), blender=True)
     if not glb.exists():
         return None, (problem or "") + build.stderr[-400:], None
-    tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind))
+    tool("silhouette.py", sheet, glb, work / f"{name}-sil", "--layout", layout_of(kind), "--shape")
     report = json.loads((work / f"{name}-sil" / "silhouette.json").read_text())
-    tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), blender=True)
+    tool("render_unit.py", glb, work / f"{name}-views", tilt_arg(report), "lit", blender=True)
     return ({view: r["iou"] for view, r in report.items()}, problem,
             {view: r["zones"] for view, r in report.items() if "zones" in r})
+
+
+def clay_args(kind):
+    """build_unit.py arguments of a stage 1 build: the chamfer budget (the ceiling the gate
+    checks), no fuse, and `clay` = one grey material, no texture, decal or glow."""
+    hi = str(BUDGETS[kind][1])
+    return [hi, "nofuse", hi, "clay"]
+
+
+def tilts_of(report):
+    """{view: tilt} the silhouette sweep chose, in views.parse_tilts form: top/bottom an int,
+    rts an (elevation, azimuth) tuple. What stage 2 shoots its views from."""
+    return {v: tuple(r["tilt"]) if isinstance(r["tilt"], (list, tuple)) else r["tilt"]
+            for v, r in report.items() if r.get("tilt")}
 
 
 def tilt_arg(report):
@@ -654,7 +698,7 @@ def accepted(prev, cur, view, *, zones=(None, None), problems=(None, None)):
     (`problems`: before, after)."""
     from silhouette import GATES
     return (cur is not None and cur[view] > prev[view]
-            and all(cur[g] >= prev[g] - REGRESSION for g in GATES)
+            and all(cur[g] >= prev[g] - REGRESSION for g in GATES if g in prev and g in cur)
             and zones_hold(*zones) and rules_hold(*problems))
 
 
@@ -712,41 +756,101 @@ def run_passes(spec, args, brief, views):
 
 
 def silhouette_vs(args, glb, layout, sheet, name):
-    """(gate passed, per-view report) of the model against one sheet."""
+    """(gate passed, per-view report) of the model against one sheet: shape only, the
+    colour zones belong to stage 2."""
     sil_dir = args.out / "sil" / name
-    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout)
+    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape")
     print(f"vs {name}:\n{sil.stdout.strip()}")
     return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
 
 
-def review(args, glb, layout):
-    """The verdict is the approved sheet's silhouette gate - the design contract, what
-    the human reviewer compares against too. The model is also measured against the
-    hard sheet it was built from (did it follow its input?), and both land in the run's
-    silhouette.json with the hard-vs-approved drift. Then the colour views and the
-    compare, shot from the cameras the approved silhouette matched."""
+def shape_review(args, glb, layout):
+    """Stage 1 measurement. The verdict is the approved sheet's silhouette gate on every
+    view (silhouette.GATES) - the design contract, what the human reviewer compares against
+    too. The model is also measured against the hard sheet it was built from (did it follow
+    its input?); both land in the run's silhouette.json with the hard-vs-approved drift and
+    the cameras the sweep chose. Then the clay views, shot from those cameras, and the
+    compare. Returns (gate passed, approved report)."""
     sil_ok, report, summary = True, {}, {"drift": args.drift}
     if not args.no_silhouette:
+        from silhouette import GATES
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
-        summary["zones"] = {"approved": zones_of(report)}
+        summary["tilt"] = tilts_of(report)
+        summary["gates"] = GATES
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
-            summary["zones"]["hard"] = zones_of(hard)
         summary["prop"] = prop_report(args)
         (args.out / "silhouette.json").write_text(json.dumps(summary, indent=2))
     args.summary = summary
-    view_dir = args.out / "views" / args.tag
+    view_dir = args.out / "views" / args.id
+    # lit: an unlit grey solid is one flat blob; the form has to read in the review image
+    tool("render_unit.py", glb, view_dir, tilt_arg(report), "lit", blender=True)
+    gameplay = view_dir / f"{glb.stem}-wc3.png"        # render_unit's name for the rts view
+    if gameplay.exists():
+        shutil.copy(gameplay, view_dir / f"{glb.stem}-rts.png")
     compare = args.out / "compare.png"
-    tool("render_unit.py", glb, view_dir, tilt_arg(report), blender=True)
     tool("make_compare.py", args.sheet, view_dir, glb.stem, compare, "--layout", layout)
     if args.build != args.sheet:
         # the same renders against the faceted drawing the model was built from: what the
         # silhouette cannot see (a chest disc, a hood, a club) shows up here
         tool("make_compare.py", args.build, view_dir, glb.stem, args.out / "compare-hard.png",
              "--layout", layout)
-    return sil_ok
+    return sil_ok, report
+
+
+def stage_shape(spec_path, args, layout):
+    """Stage 1: preflight, clay build, rig/budget stats and the shape gates on the spec at
+    `spec_path`. Returns a dict: ok, glb (clay GLB or None), tilts (tilts_of), checks
+    ({gate: bool}), failed (names of the gates that failed), pre (preflight stdout) and the
+    numbers tris, skins, anims, smear. A failed gate never stops the build: every output is
+    still written so there is something to look at."""
+    lo, hi = BUDGETS[args.kind]
+    pre = tool("preflight.py", spec_path, args.kind, args.sheet)
+    print(pre.stdout.strip())
+    if pre.returncode:
+        print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
+    glb = args.out / "clay.glb"
+    build = tool("build_unit.py", spec_path, glb, *clay_args(args.kind), blender=True)
+    if not glb.exists():
+        print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
+        return {"ok": False, "glb": None, "tilts": {}, "checks": {"build": False},
+                "failed": ["build"], "pre": pre.stdout, "tris": 0, "skins": 0, "anims": 0,
+                "smear": 0.0}
+    smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
+    smear_pct = float(smear.group(1)) if smear else 0.0
+    tris, _, skins, anims = glb_stats(glb)
+    sil_ok, report = shape_review(args, glb, layout)
+    checks = {"preflight": not pre.returncode, "tris": lo <= tris <= hi, "skins": skins == 1,
+              "anims": anims == 0 if args.rig in RF.STATIC else CLIPS[0] <= anims <= CLIPS[1],
+              "smear": smear_pct <= 0.5, "silhouette": sil_ok}
+    failed = [k for k, v in checks.items() if not v]
+    return {"ok": not failed, "glb": glb, "tilts": tilts_of(report), "checks": checks,
+            "failed": failed, "pre": pre.stdout, "tris": tris, "skins": skins, "anims": anims,
+            "smear": smear_pct}
+
+
+def load_colour_stage():
+    """The stage 2 module, or None while tools/blender/colour_stage.py does not exist. Only
+    its own absence is tolerated: an import error inside it must surface."""
+    try:
+        import colour_stage
+    except ModuleNotFoundError as err:
+        if err.name != "colour_stage":
+            raise
+        return None
+    return colour_stage
+
+
+def turntable(args, glb):
+    frames = pathlib.Path(f"/tmp/orbit-{args.tag}-{args.id}")
+    subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable_color.py"),
+                    "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(frames / "orbit-%03d.png"),
+                    "-vf", "fps=12,scale=420:-1:flags=lanczos", "-loop", "0",
+                    str(args.out / "turntable.gif")], check=False)
+    subprocess.run(["rm", "-rf", str(frames)], check=False)
 
 
 def make_brief(args, lo, hi):
@@ -833,14 +937,25 @@ RUNS = MSHEETS / "runs" / "draft"
 
 
 def iou_rows(summary):
-    """review.md rows: front/left/back IoU against each sheet, and the drift."""
-    def row(label, d):
-        return f"| {label} | " + " / ".join(f"{d.get(v, 0):.3f}" for v in ("front", "left", "back")) + " |\n"
+    """review.md rows: silhouette IoU per view against each sheet, the gates, the cameras
+    the sweep chose for top/bottom/rts, and the drift (front/left/back only)."""
+    def row(label, d, views):
+        return f"| {label} | " + " / ".join(f"{d[v]:.3f}" if v in d else "-" for v in views) + " |\n"
+    shape = ("front", "left", "back", "top", "bottom", "rts")
     out = ""
-    for key, label in (("approved", "IoU vs approved f/l/b"), ("hard", "IoU vs hard f/l/b"),
-                       ("drift", "drift hard vs approved f/l/b")):
-        if summary.get(key):
-            out += row(label, summary[key])
+    if summary.get("approved"):
+        out += f"| views | {' / '.join(shape)} |\n"
+        out += row("IoU vs approved", summary["approved"], shape)
+        if summary.get("gates"):
+            out += row("gates", summary["gates"], shape)
+        if summary.get("tilt"):
+            out += "| camera (tilt, rts elev/azim) | " + ", ".join(
+                f"{v} {'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}"
+                for v, t in summary["tilt"].items()) + " |\n"
+    if summary.get("hard"):
+        out += row("IoU vs hard", summary["hard"], shape)
+    if summary.get("drift"):
+        out += row("drift hard vs approved", summary["drift"], ("front", "left", "back"))
     return out
 
 
@@ -944,10 +1059,14 @@ def main():
                     help="unit height in metres (default: the rig's own height)")
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
     ap.add_argument("--flat", action="store_true",
-                    help="skip the procedural painted texture (on by default)")
-    ap.add_argument("--style", choices=("cel", "painted"), default="cel",
-                    help="texture style: cel = flat tone per face like the hard sheet (default); "
-                         "painted = the older painted gloss and pattern")
+                    help="stage 2: skip the procedural painted texture (on by default)")
+    ap.add_argument("--texture", "--style", dest="texture", choices=("cel", "painted", "sheet"),
+                    default="cel",
+                    help="stage 2 texture: cel = flat tone per face like the hard sheet (default); "
+                         "painted = the older painted gloss and pattern; sheet = the concept's "
+                         "panels projected on the model")
+    ap.add_argument("--shape-only", action="store_true",
+                    help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")
@@ -960,6 +1079,7 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
+    args.style = args.texture        # the old name, for stage 2 code that still reads it
 
     resolve_paths(args)
 
@@ -994,58 +1114,82 @@ def main():
     spec_path = args.out / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2))
 
-    # The spec is cheap to reject; the build is not. Preflight now runs before Blender.
-    pre = subprocess.run([sys.executable, str(ROOT / "tools/blender/preflight.py"),
-                          str(spec_path), args.kind, str(args.sheet)], capture_output=True, text=True)
-    print(pre.stdout.strip())
-    if pre.returncode:
-        print(f"{args.id}\t{args.tag}\tpreflight FAIL - building anyway, verdict will be CHECK")
+    # stage 1: forma. A spec that fails here stops: no texture, no turntable, no stage 2.
+    shape = stage_shape(spec_path, args, layout)
+    colour = None
+    if shape["ok"] and not args.shape_only:
+        colour = run_colour(spec, shape, args)
+    verdict = verdict_of(shape, colour)
+    write_review(args, shape, colour, verdict)
+    stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
+    print(f"{args.id}\t{args.run}\t{args.tag}\ttris {shape['tris']}/{lo}-{hi}\t"
+          f"skins {shape['skins']}\tanims {shape['anims']}\tsmear {shape['smear']} %\t"
+          f"preflight {'PASS' if shape['checks'].get('preflight') else 'FAIL'}\t"
+          f"stage1 {'PASS' if shape['ok'] else 'FAIL'}\tstage2 {stage2}\t{verdict}")
+    return 0 if verdict in OK_VERDICTS else 1
 
-    glb = args.out / "model.glb"
-    # the first number is what chamfers may spend up to: the budget ceiling, the same
-    # one the gate checks (lo + hi let a box-heavy building chamfer itself to 1100+ tris)
-    extra = [] if args.flat else [str(hi), "nofuse", str(hi), "tex", f"style={args.style}"]
-    build = subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"),
-                            "--", str(spec_path), str(glb)] + extra, capture_output=True, text=True)
-    if not glb.exists():
-        print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
-        return 1
-    smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
-    smear_pct = float(smear.group(1)) if smear else 0.0
 
-    tris, mats, skins, anims = glb_stats(glb)
-    frames = pathlib.Path(f"/tmp/orbit-{args.tag}-{args.id}")
-    subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/turntable_color.py"),
-                    "--", str(glb), str(frames), "24", "420"], capture_output=True, text=True)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(frames / "orbit-%03d.png"),
-                    "-vf", "fps=12,scale=420:-1:flags=lanczos", "-loop", "0",
-                    str(args.out / "turntable.gif")], check=False)
-    subprocess.run(["rm", "-rf", str(frames)], check=False)
+OK_VERDICTS = ("PASS", "SHAPE-PASS")
 
-    sil_ok = review(args, glb, layout)
-    ok = (not pre.returncode and lo <= tris <= hi and MATERIAL_SLOTS[0] <= len(mats) <= MATERIAL_SLOTS[1] and skins == 1
-          and (anims == 0 if args.rig in RF.STATIC else CLIPS[0] <= anims <= CLIPS[1])
-          and smear_pct <= 0.5 and sil_ok)
-    verdict = "PASS" if ok else "CHECK"
+
+def run_colour(spec, shape, args):
+    """Stage 2 on the approved spec: (ok, report), or None when colour_stage does not
+    exist yet. Its turntable is shot here from the model.glb it wrote."""
+    stage = load_colour_stage()
+    if stage is None:
+        print("stage 2: tools/blender/colour_stage.py not found; the run ends after stage 1")
+        return None
+    work = args.out / "stage2"
+    work.mkdir(parents=True, exist_ok=True)
+    ok, report = stage.stage_colour(spec, shape["glb"], args, shape["tilts"], work)
+    if ok and (args.out / "model.glb").exists():
+        turntable(args, args.out / "model.glb")
+    return ok, report
+
+
+def verdict_of(shape, colour):
+    """CHECK when a stage failed; SHAPE-PASS when stage 1 passed and stage 2 did not run;
+    PASS only when both stages passed."""
+    if not shape["ok"] or (colour is not None and not colour[0]):
+        return "CHECK"
+    return "SHAPE-PASS" if colour is None else "PASS"
+
+
+def stage1_section(args, shape):
+    lo, hi = BUDGETS[args.kind]
+    rows = "".join(f"| {name} | {'PASS' if shape['checks'][name] else 'FAIL'} |\n"
+                   for name in ("preflight", "silhouette") if name in shape["checks"])
+    return (f"## Stage 1 - shape (clay): **{'PASS' if shape['ok'] else 'FAIL'}**\n\n"
+            f"| gate | value |\n|---|---|\n{rows}"
+            f"| tris | {shape['tris']}/{lo}-{hi} |\n| skins | {shape['skins']} |\n"
+            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n"
+            f"{iou_rows(args.summary)}{prop_row(args.summary)}\n")
+
+
+def stage2_section(args, shape, colour):
+    if not shape["ok"]:
+        return (f"## Stage 2 - colour: not run\n\nstopped at stage 1, failed: "
+                f"{', '.join(shape['failed'])}. No texture, turntable or stage 2.\n")
+    if colour is None:
+        return "## Stage 2 - colour: not run\n\nno stage 2 for this run (--shape-only, or no colour_stage.py).\n"
+    ok, report = colour
+    body = report if isinstance(report, str) else "```json\n" + json.dumps(report, indent=2) + "\n```"
+    return (f"## Stage 2 - colour ({args.texture}): **{'PASS' if ok else 'FAIL'}**\n\n"
+            f"{zone_rows(args.summary)}\n{body}\n")
+
+
+def write_review(args, shape, colour, verdict):
+    """review.md: the run header, one section per stage, the verdict."""
     (args.out / "review.md").write_text(
         f"# {args.id} \u2014 run {args.run} ({args.tag})\n\n"
         f"- model: {args.model}\n- spec author: {args.tag}\n- kind: {args.kind}\n"
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
-        f"| gate | value |\n|---|---|\n"
-        f"| preflight | {'FAIL' if pre.returncode else 'PASS'} |\n"
-        f"| tris | {tris}/{lo}-{hi} |\n| materials | {len(mats)} |\n| skins | {skins} |\n"
-        f"| anims | {anims} |\n| smear | {smear_pct}% |\n"
-        f"| silhouette + colour zones (vs approved: the gate) | {'PASS' if sil_ok else 'FAIL'} |\n"
-        f"{iou_rows(args.summary)}{zone_rows(args.summary)}{prop_row(args.summary)}\n"
+        f"{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
         f"verdict: **{verdict}**\n\n"
-        f"artifacts: spec.json, model.glb, compare.png (vs the approved sheet), compare-hard.png "
-        f"(vs the hard sheet), turntable.gif, "
-        f"silhouette.json\n")
-    print(f"{args.id}\t{args.run}\t{args.tag}\ttris {tris}/{lo}-{hi}\tmats {len(mats)}\tskins {skins}\t"
-          f"anims {anims}\tsmear {smear_pct} %\tpreflight {'FAIL' if pre.returncode else 'PASS'}\t"
-          f"silhouette {'PASS' if sil_ok else 'FAIL'}\t{verdict}")
-    return 0 if ok else 1
+        f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
+        f"approved sheet), compare-hard.png (vs the hard sheet), silhouette.json; stage 2: "
+        f"model.glb, turntable.gif\n")
 
 
 if __name__ == "__main__":

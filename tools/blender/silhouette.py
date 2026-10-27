@@ -25,7 +25,10 @@ ROOT = HERE.parents[1]
 CANVAS_H = 256
 CANVAS_W = 384
 VIEWS = ["front", "left", "back", "top"]
-GATES = {"front": 0.75, "left": 0.65}
+# Shape gates (PIPELINE §18.F), min silhouette IoU per view; top/bottom are scored at the
+# tilt the sweep picks, rts at the (elevation, azimuth) it picks. Calibrated on clay rebuilds.
+GATES = {"front": 0.75, "left": 0.65, "back": 0.70, "top": 0.65, "bottom": 0.65, "rts": 0.70}
+ZONE_GATED = ("front", "left")   # views whose colour-zone numbers can fail the gate
 # Colour zones (PIPELINE §18): what the silhouette cannot see inside the contour.
 ZONE_VIEWS = ("front", "left", "back")
 PIECE_MIN = 0.005      # a zone piece under this share of the figure is noise, not a part
@@ -375,7 +378,7 @@ def zone_gate(report, zones):
     only warns, it is the passes' acceptance that must not make one."""
     bad = 0
     for name, z in zones.items():
-        fails = [m for m, lo in ZONE_GATES.items() if z[m] < lo] if name in GATES else []
+        fails = [m for m, lo in ZONE_GATES.items() if z[m] < lo] if name in ZONE_GATED else []
         report[name]["zones"] = {**z, "fails": fails}
         lost = f"  LOST {','.join(z['lost'])}" if z["lost"] else ""
         print(f"{name:8} zones mean {z['mean']:.3f}  cover {z['cover']:.3f}  "
@@ -474,6 +477,8 @@ def main():
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--measure", action="store_true", help="print sheet proportions and exit")
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
+    ap.add_argument("--shape", action="store_true",
+                    help="stage 1 (clay): silhouette gates only, no colour zones")
     args = ap.parse_args()
     if args.measure:
         print(json.dumps(measure(args.sheet), indent=2))
@@ -509,14 +514,16 @@ def main():
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")
         best_masks[name] = best_mask
 
-    bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout))
+    if not args.shape:
+        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
-    missing = [g for g in GATES if g not in report]
+    gated = [g for g in GATES if g in concept]    # a view with no concept image (no RTS draw) is not gated
+    missing = [g for g in gated if g not in report]
     if missing:
         # no render (missing GLB, failed Blender) must not read as a pass
         print(f"\nno measurement for gated views {missing}: FAIL")
         return 1
-    print(f"\n{len(GATES) - bad}/{len(GATES)} view gates pass")
+    print(f"\n{len(gated) - bad}/{len(gated)} view gates pass")
     return 1 if bad else 0
 
 

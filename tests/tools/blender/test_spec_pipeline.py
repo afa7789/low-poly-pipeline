@@ -188,9 +188,15 @@ class HardFirst(unittest.TestCase):
     def test_iou_rows_list_each_sheet(self):
         rows = SP.iou_rows({"approved": {"front": 0.8, "left": 0.7, "back": 0.6},
                             "hard": {"front": 0.9}, "drift": {}})
-        self.assertIn("IoU vs approved f/l/b | 0.800 / 0.700 / 0.600", rows)
+        self.assertIn("IoU vs approved | 0.800 / 0.700 / 0.600 / - / - / - |", rows)
         self.assertIn("IoU vs hard", rows)
         self.assertNotIn("drift", rows)
+
+    def test_iou_rows_show_gates_and_cameras(self):
+        rows = SP.iou_rows({"approved": {"front": 0.8, "rts": 0.7}, "gates": {"front": 0.75},
+                            "tilt": {"top": 10, "rts": [35, 30]}})
+        self.assertIn("gates | 0.750 / - / - / - / - / - |", rows)
+        self.assertIn("top 10, rts 35/30", rows)
 
 
 class Drift(unittest.TestCase):
@@ -225,6 +231,50 @@ class Accepted(unittest.TestCase):
 
     def test_failed_build_is_rejected(self):
         self.assertFalse(SP.accepted(self.PREV, None, "left"))
+
+    def test_view_with_no_concept_is_not_compared(self):
+        # PREV has no rts: a sheet without a gameplay-camera concept must not raise
+        self.assertTrue(SP.accepted(self.PREV, self.scores(back=0.7, rts=0.1), "back"))
+
+
+class Stages(unittest.TestCase):
+    def test_clay_build_takes_the_budget_ceiling_and_the_clay_flag(self):
+        self.assertEqual(SP.clay_args("mass"), ["700", "nofuse", "700", "clay"])
+
+    def test_tilts_are_the_sweeps_choice_in_parse_form(self):
+        tilts = SP.tilts_of({"front": {"tilt": 0}, "top": {"tilt": 10}, "rts": {"tilt": [35, 30]}})
+        self.assertEqual(tilts, {"top": 10, "rts": (35, 30)})
+
+    def test_verdict_needs_both_stages(self):
+        ok, bad = {"ok": True}, {"ok": False}
+        self.assertEqual(SP.verdict_of(ok, (True, "")), "PASS")
+        self.assertEqual(SP.verdict_of(ok, (False, "")), "CHECK")
+        self.assertEqual(SP.verdict_of(bad, None), "CHECK")
+        self.assertEqual(SP.verdict_of(ok, None), "SHAPE-PASS")   # no colour_stage: ends clean
+
+    def test_review_says_where_a_failed_run_stopped(self):
+        import types
+        args = types.SimpleNamespace(kind="mass", texture="cel")
+        text = SP.stage2_section(args, {"ok": False, "failed": ["silhouette"]}, None)
+        self.assertIn("stopped at stage 1, failed: silhouette", text)
+
+    def test_colour_stage_gets_the_contract_arguments(self):
+        import tempfile
+        import types
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            args = types.SimpleNamespace(out=pathlib.Path(tmp))
+            shape = {"glb": "clay.glb", "tilts": {"top": 10}}
+            stub = types.SimpleNamespace(stage_colour=mock.Mock(return_value=(False, "report")))
+            with mock.patch.dict(sys.modules, {"colour_stage": stub}):
+                self.assertEqual(SP.run_colour({"parts": []}, shape, args), (False, "report"))
+            stub.stage_colour.assert_called_once_with({"parts": []}, "clay.glb", args, {"top": 10},
+                                                      pathlib.Path(tmp) / "stage2")
+
+    def test_missing_colour_stage_is_none(self):
+        from unittest import mock
+        with mock.patch.dict(sys.modules, {"colour_stage": None}):   # as if the file were absent
+            self.assertIsNone(SP.load_colour_stage())
 
 
 def report(*fails):
