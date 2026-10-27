@@ -1072,3 +1072,18 @@ renders `<out>/views/<tag>/model-<view>.png`.
   with a strip "stage 2 not run (clay)"; `compare_runs.py` inherits it (same cell function).
 - Proof: e2e `--spec` of n00U v3-stages-r2 with `--rig spider` reproduces 0.531/0.639/0.530/0.586/
   0.586/0.564 (reference 0.530/0.639/0.530), gates 0.65/0.65/0.65/0.65/0.65/0.70 in review.md.
+
+### 18.I Per-part rotation in the DSL (2026-10-26)
+
+- `opts {"rot": [rx, ry, rz]}` (degrees: right, up, forward; one number = forward) is now in the
+  spec brief with examples (arm out, drooping pauldron, tipped hood, stepped leg). Works on box,
+  prism, frustum, dome that are not from/to parts (those are aimed by the endpoints).
+- `preflight.bbox` rotates the part's box (`rot_matrix`, same order as the build: right, forward,
+  up) and takes the envelope, so `band_span`, `ground_fix` and `overlaps` see the tilted part.
+- `validate` rejects |angle| > 60 and a malformed `rot`; `normalise` used to drop any non-number
+  `rot`, now it keeps a list.
+- Root-cause fix in `build_unit.build_part`: frustum and chamfered boxes got radians and converted
+  them again, so their rotation was ~0. Only old `opus55` specs with `rot` on chamfered boxes or
+  frustums change on rebuild (hard-v1 and v13 of n01X have none; hard-v1 rebuilt: .878/.769/.875).
+- Proof (n01X hard-v1, shoulder frustums, upper-arm prisms and hand boxes at +-15 deg around forward,
+  `at` in place of from/to): preflight 15/15, build ok, 6/6 gates, front .870 left .763 back .868.

@@ -76,6 +76,7 @@ Kinds and dims, exactly:
 - "prism": a tapered n-gon tube - THE limb and torso primitive. dims = (radius_bottom, radius_top, height). opts {{"sides": 6 or 8, "axis": "up" | "fwd"}}. Use a smaller radius_top so the limb tapers away from the body.
 - "frustum": a box with a scaled, offset top - THE wedge primitive. dims = (width_x, height_y, depth_z). opts {{"top": (scale_x, scale_z), "shift": (offset_x, offset_z)}}. Use for boots, trapezoid pelvis, waist taper and stepped fists.
 - "ring": a flat annulus with optional spokes and hub - THE valve-wheel primitive. dims = (outer_radius, radial_width, thickness). opts {{"sides": 10, "spokes": 3, "hub": 0.05, "axis": "up" | "fwd" | "side", "tilt": degrees, "spin": degrees}}. `axis` is the disc normal; a halo/steering wheel is axis "up" with tilt 20-30, NOT a disc facing the camera.
+- ROTATION: a box, prism, frustum or dome that is not a from/to part takes opts {{"rot": [rx, ry, rz]}}, degrees, each within +-60, turning around the part centre. rx: top tips forward (+z). ry: turns around up (front toward +x). rz: top tips toward -x, so the bottom swings toward +x. Examples: a hanging arm 15 degrees out is a prism with "rot": [0, 0, 15] when it stands at +x and [0, 0, -15] at -x; a drooping pauldron slab "rot": [0, 0, 20] at +x; a hood tipped forward a frustum with "rot": [25, 0, 0]; a leg stepping out [0, 0, 12] at +x. The preflight measures the rotated part, so keep `at` at the part centre.
 - "dome": only for a genuinely domed organic cap. Never a mechanical pauldron: use a box slab instead.
 - "box": for flat plates, slabs, boots, shields and weapon heads. dims = (width_x, height_y, depth_z). Never for a limb.
 - "cyl": a straight tube, only when a part is genuinely cylindrical. dims = (radius, depth). opts {{"axis": "up" | "fwd"}}.
@@ -477,7 +478,7 @@ def normalise(parts):
             p[0] = ALIASES.get(p[0], p[0])
         if isinstance(p[5], dict):
             opts = dict(p[5])
-            if not isinstance(opts.get("rot", 0), (int, float)):
+            if not isinstance(opts.get("rot", 0), (int, float, list)):  # [rx, ry, rz] stays
                 opts.pop("rot", None)
             p[5] = opts
             # a from/to limb may leave `at` out: the builder places it at the midpoint
@@ -546,6 +547,17 @@ def apply_patch(parts, txt, limit=PASS_EDITS, palette=None, extra=()):
     return parts, patch.get("why", "")
 
 
+MAX_ROT = 60.0      # degrees per axis of opts "rot"
+
+
+def bad_rot(opts):
+    """True when opts["rot"] is not a number or 3 numbers within MAX_ROT."""
+    rot = opts.get("rot", 0.0)
+    vals = rot if isinstance(rot, list) else [rot]
+    return (len(vals) not in (1, 3) or isinstance(rot, bool)
+            or not all(isinstance(v, (int, float)) and abs(v) <= MAX_ROT for v in vals))
+
+
 def validate(parts, palette=None, extra=()):
     if not isinstance(parts, list) or not parts:
         raise ValueError("no parts array")
@@ -558,6 +570,8 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i} below the ground plane")
         if isinstance(p[5], dict) and p[5].get("decal", "eyes2") not in DECALS:
             raise ValueError(f"part {i} decal outside {sorted(DECALS)}")
+        if isinstance(p[5], dict) and bad_rot(p[5]):
+            raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
     bad = misplaced_decals(parts)
     if bad:
         raise ValueError(f"decal on a non-head bone {bad}: eyes and faces go on a head/jaw part")

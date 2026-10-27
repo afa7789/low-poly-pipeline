@@ -112,6 +112,23 @@ class Palette(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "non-head bone"):
                         SP.validate([part])
 
+    def test_normalise_keeps_a_rot_triple(self):
+        part = ["arm.L", "prism", [0.2, 0.2, 0.4], [0.6, 1.8, 0], "iron", {"rot": [0, 0, 15]}]
+        self.assertEqual(SP.normalise([part])[0][5]["rot"], [0, 0, 15])
+        part[5] = {"rot": "15"}
+        self.assertNotIn("rot", SP.normalise([part])[0][5])
+
+    def test_rot_is_limited_to_60_degrees(self):
+        for rot, ok in ((0, True), (-45, True), ([0, 0, 15], True), ([60, -60, 0], True),
+                        (61, False), ([0, 0, 75], False), ([0, 0], False), ("15", False)):
+            part = ["arm.L", "prism", [0.2, 0.2, 0.4], [0.6, 1.8, 0], "iron", {"rot": rot}]
+            with self.subTest(rot=rot):
+                if ok:
+                    SP.validate([part])
+                else:
+                    with self.assertRaisesRegex(ValueError, "rot outside"):
+                        SP.validate([part])
+
     def test_legacy_specs_need_no_palette(self):
         self.assertNotIn("palette", SP.parse_spec(json.dumps({"parts": PARTS})))
 
