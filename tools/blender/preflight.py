@@ -333,6 +333,25 @@ def joint_rows(rows):
                                                  for k, got, want in rows))]
 
 
+FAMILY_BAND = (0.8, 1.25)    # family_place: the unit's length and wing span within -20 % / +25 % of the sheet's
+FAMILY_BLOCKING = False      # reports only: the FAIL rate is in PIPELINE 22.L4-4b
+
+
+def family_checks(parts, boxes, height, m):
+    """family_place (quadruped, wyrm, drake): the unit's length (z extent of the body parts) and, with wings, its span (x
+    extent of the plates) against the sheet's silhouette.measure_rig numbers, floor and ceiling of FAMILY_BAND.
+    [(rule, passed, detail)] (a report while FAMILY_BLOCKING is False)."""
+    body = [boxes[id(p)] for p in parts if p[1] != "plate"]
+    wings = [boxes[id(p)] for p in parts if p[1] == "plate"]
+    rows = [("length", (max(b[1][2] for b in body) - min(b[0][2] for b in body)) / height, m["len"])] if body else []
+    if wings and "wing" in m:
+        rows.append(("wing span", (max(b[1][0] for b in wings) - min(b[0][0] for b in wings)) / height, 2 * m["wing"]["span"]))
+    bad = [k for k, got, want in rows if not FAMILY_BAND[0] <= got / want <= FAMILY_BAND[1]]
+    return [("family_place", not bad or not FAMILY_BLOCKING,
+             ", ".join(f"{k} {got:.2f} H (sheet {want:.2f}, x{FAMILY_BAND[0]}-{FAMILY_BAND[1]})" + (" - OUT" if k in bad else "")
+                       for k, got, want in rows))] if rows else []
+
+
 def targets_from(sheet):
     """Landmark targets measured on this unit's approved sheet, or the n01X fallback."""
     if not sheet:
@@ -523,7 +542,9 @@ def normalise(parts, family="biped", extra=()):
 
 def load(path):
     """(parts, spec document) of a spec file."""
+    import rig_families as RF
     doc = json.loads(pathlib.Path(path).read_text())
+    RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     return load_parts(doc), doc
 
@@ -812,6 +833,8 @@ def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
         checks += biped_checks(parts, boxes, height, targets) + joint_checks(parts, boxes, height, targets)
     if doc.get("rig_measure") and family in RF.SPIDERS:
         checks += spider_checks(parts, boxes, height, doc["rig_measure"])
+    if doc.get("rig_measure") and family in RF.SCALABLE:
+        checks += family_checks(parts, boxes, height, doc["rig_measure"])
 
     if family == "biped":
         shares = split_shares(parts)

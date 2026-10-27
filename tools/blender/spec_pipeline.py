@@ -244,6 +244,8 @@ RIG_TEXT = {
            "tail.1-tail.4",
     "building": "a building: every part binds to body; it never moves",
 }
+SCALED_NOTE = (" - the skeleton is scaled to this sheet: put each part on its bone, from the bone's head to its tail, "
+               "and do not re-guess lengths or heights")
 SPIDER_MEASURED_TEXT = ("an eight-legged arthropod: abdomen and thorax mass on body, head and fangs on "
                         "head, legs leg1..leg8 (upper, lower) radiating around the body exactly as the rig "
                         "table lists them: the skeleton is scaled to this sheet, so put each leg part on its "
@@ -259,7 +261,7 @@ def rig_text(family):
     if family == "biped":
         limb, rig = RIG_TEXT["biped"]
         return limb, f"{rig} {EXTRA_BONES}"
-    note = SPIDER_MEASURED_TEXT if RIG_MEASURE and family in RF.SPIDERS else RIG_TEXT[family]
+    note = SPIDER_MEASURED_TEXT if RIG_MEASURE and family in RF.SPIDERS else RIG_TEXT[family] + SCALED_NOTE * bool(RIG_MEASURE)
     return ("Use this for every leg segment, neck, tail and any angled part.",
             f"Parts are rigid-bound: each part follows the bone you name. This unit is "
             f"{note}. Rules that mention arms, hands, elbows, knees or feet apply "
@@ -286,6 +288,29 @@ def spider_text(s):
             "usual failure." + leg_text(s))
 
 
+def line_text(m):
+    """Every 4th point of the sheet's snout-to-tail centre line (silhouette.body_line): x behind the snout, y up, radius."""
+    pts = " ".join(f"({x:.2f},{y:.2f},r{r:.2f})" for x, y, r in m["line"][::4])
+    return f"centre line from the snout to the tail tip (x behind the snout, y up, radius; fractions of H): {pts}"
+
+
+def wing_text(w):
+    """The sheet's wing numbers (silhouette.wing_measures) as one sentence."""
+    return (f" WINGS: tip {w['tip'][0]} H out and {w['tip'][1]} H high, root {w['root_x']} H out at {w['root_y']} H high, "
+            f"side view chord {w['chord'][0]}-{w['chord'][1]} H behind the snout.")
+
+
+def rig_text_of(m):
+    """What the scaled quadruped, wyrm or drake rig stands on (silhouette.measure_rig), for the brief."""
+    legs = m.get("legs")
+    quad = (f" Trunk from {m['trunk'][0]} to {m['trunk'][1]} H behind the snout, belly {m['belly']} H above the ground, legs "
+            f"at {legs['x'][0]} and {legs['x'][1]} H, feet {legs['spread']} H from the axis, leg radius {legs['r']} H."
+            if legs else "")
+    return (f"\nBODY (the rig table is already scaled to these, H = {RF.top(RIG)} m): length {m['len']} H; "
+            + line_text(m) + "." + quad + (wing_text(m["wing"]) if "wing" in m else "")
+            + " Put each part on its bone, size it to the line's radius there: a body thinner than the line is the usual failure.")
+
+
 def leg_text(s):
     """The sheet's leg thickness (leg_w median radius, leg_taper tip / base), empty for an old measure."""
     if "leg_w" not in s:
@@ -310,7 +335,7 @@ def measured_text(family, m):
         return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey "
                 "these, do not re-guess them):\nFront silhouette width profile, top to bottom, "
                 f"in 5% steps: {profile}.\nSide silhouette width profile, top to bottom, in 5% "
-                f"steps: {side}." + (spider_text(m["spider"]) if "spider" in m else ""))
+                f"steps: {side}." + (spider_text(m["spider"]) if "spider" in m else "") + (rig_text_of(m["rig"]) if "rig" in m else ""))
     return ("MEASURED FROM THIS SHEET (code-derived, fractions of total height H - obey these, "
             "do not\nre-guess them): "
             f"shoulder span {m['shoulder_span']} H, fist-to-fist span {m['fist_span']} H,\n"
@@ -377,12 +402,11 @@ def identity_text(items):
 
 
 def set_rig(family, measure=None):
-    """Pick the rig family; a spider with the sheet's measures (silhouette.measure_spider)
-    gets its skeleton scaled by them (L14), every other call keeps the fixed table."""
+    """Pick the rig family; a spider, quadruped, wyrm or drake with the sheet's measures (silhouette.measure_rig)
+    gets its skeleton scaled by them (L14, 22.L4-4b), every other call keeps the fixed table."""
     global RIG, BONES, RIG_MEASURE
-    RIG_MEASURE = measure if family in RF.SPIDERS else None
-    if RIG_MEASURE:
-        RF.scale_spider(family, RIG_MEASURE)
+    RIG_MEASURE = measure if family in RF.SCALERS else None
+    RF.scale_rig(family, RIG_MEASURE)
     RIG, BONES = family, set(RF.bones(family))
     lathe_limb.set_rig(family)
 
@@ -1482,11 +1506,11 @@ def hull_for(args, layout):
     part[5]["hull"]["tris"] = building_hull.export(part, args.out, args.kind)
     return part
 def spider_measure(args):
-    """The sheet's spider numbers for set_rig, None for another family or with --fixed-rig."""
-    if args.rig not in RF.SPIDERS or args.fixed_rig:
+    """The sheet's numbers for set_rig (silhouette.measure_rig), None for a family without a scaler or with --fixed-rig."""
+    if args.rig not in RF.SCALERS or args.fixed_rig:
         return None
-    from silhouette import measure_spider
-    return measure_spider(args.sheet)
+    from silhouette import measure_rig
+    return measure_rig(args.rig, args.sheet)
 
 
 def make_brief(args, lo, hi):
@@ -1500,7 +1524,7 @@ def make_brief(args, lo, hi):
         sheet_m["edges"] = edge_bands(args.build, sheet_m["shoulder_frac"])
         sheet_m.update({f"edge_{g}": sheet_m["edges"][b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
     if RIG_MEASURE:
-        sheet_m["spider"] = RIG_MEASURE
+        sheet_m["spider" if args.rig in RF.SPIDERS else "rig"] = RIG_MEASURE
     dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
                      surfaces=", ".join(SURFACES),
                      colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
@@ -1701,7 +1725,8 @@ def massing_spec(args):
     if args.no_massing or args.spec or args.rig not in massing.FAMILIES:
         return None
     try:
-        return parse_spec(json.dumps(massing.build(args.sheet, args.rig, args.race, args.build)))
+        spec = parse_spec(json.dumps(massing.build(args.sheet, args.rig, args.race, args.build)))
+        return {**spec, "rig": args.rig} if args.rig in RF.SCALABLE else spec    # a chain needs its rig to find its bones
     except (ValueError, IndexError, SystemExit) as err:
         print(f"massing: skipped, {err}")
         return None

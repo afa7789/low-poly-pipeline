@@ -131,6 +131,11 @@ def _blob_panels(fg, split, layout, grow=6):
     return panels
 
 
+# Sheets whose side profile is wider than a third of the page (quadruped, wyrm, drake): the default cut puts
+# the snout in the front panel, so they are split by blob (PIPELINE 22.L4-4a, 22.L4-4b).
+BLOB_SHEETS = ("n017", "n00H", "n010")
+
+
 def concept_panels(path, size=768, layout="unit", blob=False):
     """Key the flat background, split the 3+2 template on its empty bands, and
     return one boolean mask per panel in reading order, named by the sheet layout
@@ -138,6 +143,7 @@ def concept_panels(path, size=768, layout="unit", blob=False):
     `blob` splits by connected blob instead (quadruped, drake: a profile wider than a third of the page)."""
     from views import LAYOUTS
     fg = foreground(path, size)
+    blob = blob or (layout == "unit" and pathlib.Path(path).parent.name in BLOB_SHEETS)
 
     runs = gaps(fg, 1, 0, size)
     interior = [r for r in runs if r[0] > 0.2 * size and r[1] < 0.8 * size]
@@ -717,6 +723,198 @@ def measure_spider(sheet, size=768):
             "foot_r": round(float(max(half[-4:])), 3),
             **(leg_measures([(front, h), (top, 1 / k)]) or {})}
 
+
+# ---- quadruped, wyrm, drake (PIPELINE 22.L4-4b). Numbers are fractions of H, the figure's height in the
+# side panel; x runs from the snout (0) to the tail tip, y up from the ground. The side panel has the head on
+# the left, as the model's left view does.
+LINE_POINTS = 17      # points of a body centre line (snout to tail tip)
+TAIL_FLOOR = 0.25     # a quadruped's tail tip is above this height (the wolf's rope lies on the ground)
+TUBE = 1.3            # a pixel farther than this many radii from the centre line is not the body (a wing)
+
+
+def thin_opened(mask, share=0.6):
+    """The mask with its thin parts (legs, tail, rope) opened away by a disc of `share` of the thickest radius."""
+    from scipy import ndimage
+    r = ndimage.distance_transform_edt(mask).max()
+    q = int(share * r)
+    return ndimage.binary_opening(mask, structure=np.hypot(*np.ogrid[-q:q + 1, -q:q + 1]) <= share * r)
+
+
+def centreline(mask, n=LINE_POINTS, floor=0.0):
+    """[(col, row, radius)] x n along the medial path of the one blob in `mask` from its leftmost pixel to its
+    rightmost pixel above `floor` (fraction of the height up from the bottom: a rope on the ground is not the tail): the cheapest path where a pixel costs (R / (d + 1))^2, d its distance to the edge. A wing or a
+    leg is a side branch the path does not take. Radius = d in pixels."""
+    from scipy import ndimage, sparse
+    from scipy.sparse.csgraph import dijkstra
+    dist = ndimage.distance_transform_edt(mask)
+    ys, xs = np.nonzero(mask)
+    ids = -np.ones(mask.shape, int)
+    ids[ys, xs] = np.arange(len(ys))
+    cost = (dist.max() / (dist + 1)) ** 2
+    rows, cols, wts = [], [], []
+    for dy, dx in ((0, 1), (1, 0), (1, 1), (1, -1)):
+        y2, x2 = ys + dy, xs + dx
+        ok = (y2 < mask.shape[0]) & (x2 >= 0) & (x2 < mask.shape[1])
+        ok[ok] = mask[y2[ok], x2[ok]]
+        a, b = ids[ys[ok], xs[ok]], ids[y2[ok], x2[ok]]
+        rows.append(a), cols.append(b)
+        wts.append((cost[ys[ok], xs[ok]] + cost[y2[ok], x2[ok]]) / 2 * math.hypot(dy, dx))
+    graph = sparse.csr_matrix((np.concatenate(wts), (np.concatenate(rows), np.concatenate(cols))), shape=(len(ys),) * 2)
+    high = np.nonzero(ys <= (1 - floor) * mask.shape[0])[0]
+    ends = [int(np.argmin(xs)), int(high[np.argmax(xs[high])])]
+    _, pred = dijkstra(graph, directed=False, indices=ends[0], return_predecessors=True)
+    path, k = [], ends[1]
+    while k >= 0:
+        path.append(k)
+        k = pred[k]
+    pts = np.array([(xs[k], ys[k]) for k in path[::-1]], float)
+    arc = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
+    at = np.linspace(0, arc[-1], n)
+    px, py = np.interp(at, arc, pts[:, 0]), np.interp(at, arc, pts[:, 1])
+    return [(float(x), float(y), float(dist[int(round(y)), int(round(x))])) for x, y in zip(px, py)]
+
+
+def body_line(left, floor=0.0):
+    """{"len", "line": [[x, y, r]] x LINE_POINTS} of the side panel (cropped): fractions of its height; the line ends
+    at the rightmost pixel above `floor`."""
+    h = left.shape[0]
+    return {"len": round(left.shape[1] / h, 3),
+            "line": [[round(x / h, 3), round(1 - (y + 0.5) / h, 3), round(r / h, 3)] for x, y, r in centreline(left, floor=floor)]}
+
+
+def row_runs(mask, row, min_w=1):
+    """[(first col, last col)] of the runs of figure pixels in one row at least `min_w` wide."""
+    cols = np.nonzero(mask[row])[0]
+    if not len(cols):
+        return []
+    cut = np.nonzero(np.diff(cols) > 1)[0]
+    runs = zip(np.concatenate([[cols[0]], cols[cut + 1]]), np.concatenate([cols[cut], [cols[-1]]]))
+    return [(int(a), int(b)) for a, b in runs if b - a + 1 >= min_w]
+
+
+def trunk_span(line):
+    """(first, last) index of the line's trunk: the points whose radius is at least 0.6 of the widest."""
+    rmax = max(p[2] for p in line)
+    ok = [i for i, p in enumerate(line) if p[2] >= 0.6 * rmax]
+    return ok[0], ok[-1]
+
+
+def leg_columns(left, line, belly, i0, i1):
+    """([x of the front legs, x of the rear legs], leg radius) in fractions of H from the snout: the outer runs of the
+    side panel at knee height, inside the trunk's span, and their median half width; None for what the panel does not separate."""
+    h = left.shape[0]
+    row = int(round((1 - 0.5 * belly) * h))
+    lo, hi = line[i0][0] * h - 0.1 * h, line[i1][0] * h + 0.1 * h
+    runs = [(a, b) for a, b in row_runs(left, min(row, h - 1), int(0.035 * h)) if lo <= (a + b) / 2 <= hi]
+    if len(runs) < 2:
+        return [None, None], None
+    half = float(np.median([(b - a + 1) / 2 for a, b in runs])) / h
+    return [round((runs[0][0] + runs[0][1]) / 2 / h, 3), round((runs[-1][0] + runs[-1][1]) / 2 / h, 3)], round(half, 3)
+
+
+def leg_stance(front, level=0.08):
+    """(half spread of the feet, leg radius) in H from the front panel's runs at `level` H above the ground;
+    one merged run reads as a spread of a third of its width."""
+    h = front.shape[0]
+    cx = (front.shape[1] - 1) / 2
+    runs = row_runs(front, int(round((1 - level) * h)), int(0.02 * h))
+    outer = [r for r in runs if r[1] > cx]
+    if len(outer) > 1 or (outer and outer[0][0] > cx):
+        a, b = outer[-1]
+        return round(((a + b) / 2 - cx) / h, 3), round(float(np.clip((b - a + 1) / 2 / h, 0.025, 0.09)), 3)
+    wide = (max(b for _, b in runs) - cx) / h if runs else 0.2
+    return round(wide / 1.5, 3), 0.05
+
+
+def measure_quadruped(sheet, size=768, winged=False):
+    """Quadruped proportions of the sheet (rig_families.scale_quadruped builds the rig from them): body_line
+    (the snout-to-tail centre line with its radius), `trunk` (x of the first and last trunk point), `belly`
+    (height of the underside), `legs` (x of the front and rear pair, half spread of the feet, radius). The
+    trunk's radius is the line's. `winged` (a drake) adds `wing` as measure_chain does."""
+    panels = concept_panels(sheet, size)
+    left, front = _crop(panels["left"]), _crop(panels["front"])
+    m = body_line(left, TAIL_FLOOR)
+    i0, i1 = trunk_span(m["line"])
+    rmax = max(p[2] for p in m["line"])
+    spread, leg_r = leg_stance(front)
+    belly = max(m["line"][(i0 + i1) // 2][1] - rmax, 0.0)
+    xs, side_r = leg_columns(left, m["line"], belly, i0, i1)
+    out = {**m, "trunk": [m["line"][i0][0], m["line"][i1][0]], "belly": round(belly, 3),
+           "legs": {"x": xs, "spread": spread, "r": round(min(leg_r, side_r or leg_r), 3)}}
+    return {**out, "wing": wing_measures(panels, m["line"])} if winged else out
+
+
+def wing_side(front, low=0.10, high=0.45):
+    """(+x wing region mask, centre column) of a winged front panel: above `high` of the height, what lies beyond
+    1.15 x the body's half width, the median over the rows from `low` to `high` (the feet and the wings stay out)."""
+    h, w = front.shape
+    cx = (w - 1) / 2
+    rows = [(np.ptp(np.nonzero(front[r])[0]) + 1) / 2 for r in range(int((1 - high) * h), int((1 - low) * h)) if front[r].any()]
+    start = int(cx + 1.15 * float(np.median(rows)) + 1)
+    region = np.zeros_like(front)
+    region[:int((1 - high) * h), start:] = front[:int((1 - high) * h), start:]
+    return region, cx
+
+
+def wing_numbers(front):
+    """{"span", "tip": [x, y], "root_x", "root_y", "width", "area"} of the +x wing of the front panel, fractions of
+    H: the outer edge; the spar, which runs through the middle of the wing's rows (tip = its top end at the highest
+    row, root = its bottom end at the lowest); the mean row width and the area (H^2)."""
+    h = front.shape[0]
+    region, cx = wing_side(front)
+    rows = np.nonzero(region.any(axis=1))[0]
+    mid = np.array([(np.nonzero(region[r])[0].min() + np.nonzero(region[r])[0].max() + 1) / 2 for r in rows])
+    wid = np.array([np.ptp(np.nonzero(region[r])[0]) + 1 for r in rows])
+    k = max(len(rows) // 7, 1)
+    r3 = lambda v: round(float(v), 3)   # noqa: E731
+    return {"span": r3((np.nonzero(region)[1].max() + 1 - cx) / h),
+            "tip": [r3((mid[:k].mean() - cx) / h), r3(1 - rows[0] / h)],
+            "root_x": r3((mid[-k:].mean() - cx) / h), "root_y": r3(1 - (rows[-1] + 1) / h),
+            "width": r3(wid.mean() / h), "area": round(float(region.sum()) / h ** 2, 4)}
+
+
+def wing_mask(left, line):
+    """The wing in the side panel (cropped): the highest blob left when the body (the line's discs of TUBE x
+    radius) is taken away."""
+    from scipy import ndimage
+    h = left.shape[0]
+    yy, xx = np.mgrid[:left.shape[0], :left.shape[1]]
+    body = np.zeros_like(left)
+    for x, y, r in line:
+        body |= np.hypot(xx - x * h, yy - (1 - y) * h) <= TUBE * r * h + 2
+    lab, n = ndimage.label(left & ~body)
+    tops = [np.nonzero(lab == k)[0].min() for k in range(1, n + 1)]
+    return lab == 1 + int(np.argmin(tops))
+
+
+def wing_blob(left, line):
+    """{"chord": [x0, x1], "top": x of the wing's highest pixel, "root": index of the nearest line point} of wing_mask."""
+    h = left.shape[0]
+    ys, xs = np.nonzero(wing_mask(left, line))
+    k = int(np.argmin(ys))
+    near = [np.hypot(xs - x * h, ys - (1 - y) * h).min() for x, y, _ in line]
+    return {"chord": [round(float(xs.min()) / h, 3), round(float(xs.max() + 1) / h, 3)], "top": round(float(xs[k] + 0.5) / h, 3),
+            "root": int(np.argmin(near))}
+
+
+def wing_measures(panels, line):
+    """The `wing` entry of measure_chain: the front panel's numbers and the side panel's blob."""
+    return {**wing_numbers(_crop(panels["front"])), **wing_blob(_crop(panels["left"]), line)}
+
+
+def measure_chain(sheet, winged=True, size=768):
+    """Serpent proportions (rig_families.scale_wyrm): body_line, and for a winged one `wing`: span, tip [x, y],
+    root_y, root_x, area (front panel), chord, top and root (side panel; root = index of the line point the wing
+    hangs on)."""
+    panels = concept_panels(sheet, size)
+    m = body_line(_crop(panels["left"]))
+    return {**m, "wing": wing_measures(panels, m["line"])} if winged else m
+
+
+def measure_rig(family, sheet):
+    """The sheet's measures for a family rig_families can scale (spider, quadruped, wyrm, drake), else None."""
+    return {"spider": measure_spider, "spider_high": measure_spider, "quadruped": measure_quadruped,
+            "wyrm": measure_chain, "drake": lambda s: measure_quadruped(s, winged=True)}.get(family, lambda s: None)(sheet)
 
 def read_mask(path):
     return read_rgba(path, 512)[..., 3] > 16

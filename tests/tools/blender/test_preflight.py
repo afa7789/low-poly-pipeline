@@ -246,6 +246,20 @@ class JointPlace(unittest.TestCase):
         self.assertAlmostEqual(PF.joint_height(limb, {id(limb[0]): PF.bbox(limb[0])}, 1.0, "knee_h"), 0.4)
 
 
+class FamilyPlace(unittest.TestCase):
+    def rule(self, z, span):
+        parts = [["spine.1", "prism", [0.1, 0.1, 1.0], [0, 0.5, 0], "iron", {"from": [0, 0.5, -z / 2], "to": [0, 0.5, z / 2]}],
+                 ["wing1.upper", "plate", [span, 0.2, 0.05], [0, 0.5, 0], "iron", {"axis": "front"}]]
+        m = {"len": 1.0, "wing": {"span": 0.5}}
+        return PF.family_checks(parts, {id(p): PF.bbox(p) for p in parts}, 1.0, m)
+
+    def test_floor_and_ceiling_are_reported_not_enforced(self):
+        for name, z, span, out in (("near", 0.9, 1.0, False), ("short", 0.5, 1.0, True), ("wide", 0.9, 1.6, True)):
+            with self.subTest(name):
+                (rule, ok, detail), = self.rule(z, span)
+                self.assertEqual((rule, ok, "OUT" in detail), ("family_place", True, out))
+
+
 if __name__ == "__main__":
     unittest.main()
 

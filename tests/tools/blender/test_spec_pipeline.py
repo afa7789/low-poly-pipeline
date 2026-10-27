@@ -2,10 +2,13 @@
 import json
 import pathlib
 import sys
+import types
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
 
+import rig_families as RF  # noqa: E402
+import silhouette  # noqa: E402
 import spec_pipeline as SP  # noqa: E402
 
 PARTS = [
@@ -229,8 +232,25 @@ class ScaledSpiderBrief(unittest.TestCase):
         self.assertIsNone(SP.RIG_MEASURE)
         self.assertNotIn("rig_measure", SP.parse_spec(json.dumps({"parts": [
             ["leg1.upper", "prism", [0.1, 0.1, 0.5], [0.2, 0.3, 0.1], "iron", {"sides": 6}]]})))
-        self.assertIsNone(SP.set_rig("quadruped", self.M))   # measures are for spiders only
+        self.assertIsNone(SP.set_rig("vehicle", self.M))   # measures are for the families rig_families.SCALERS names
         self.assertIsNone(SP.RIG_MEASURE)
+
+
+class MassingCarriesItsRig(unittest.TestCase):
+    """A chain finds its bones through the spec's rig: the pre-spec of a scaled family names it (22.L4-4b)."""
+
+    def tearDown(self):
+        RF.FAMILIES.update(RF.FIXED)
+        RF._drop_caches()
+        SP.set_rig("biped")
+
+    def test_wyrm_pre_spec_has_rig_and_measure(self):
+        sheet = SP.REFS / "n00H" / "sheet.jpg"
+        SP.set_rig("wyrm", silhouette.measure_rig("wyrm", sheet))
+        args = types.SimpleNamespace(no_massing=False, spec=None, rig="wyrm", sheet=sheet, race="", build=sheet)
+        spec = SP.massing_spec(args)
+        self.assertEqual(spec["rig"], "wyrm")
+        self.assertIn("line", spec["rig_measure"])
 
 
 class HardFirst(unittest.TestCase):

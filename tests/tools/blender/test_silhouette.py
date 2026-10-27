@@ -1,6 +1,8 @@
 """python3 -m unittest discover -s tests/tools/blender"""
 import pathlib
+import shutil
 import sys
+import tempfile
 import unittest
 import unittest.mock
 
@@ -234,6 +236,44 @@ class ZoneRamp(unittest.TestCase):
         self.assertIsNone(S.luma_l1(sheet, lab * 0, sheet, lab, 1))                            # no zone in both
 
 
+class Families(unittest.TestCase):
+    """quadruped, wyrm, drake (PIPELINE 22.L4-4b): centre line, wings, measure_rig."""
+
+    def test_centreline_follows_a_bar_and_skips_a_rope_below_the_floor(self):
+        m = np.zeros((80, 200), bool)
+        m[20:50, 10:150] = True                          # body, 30 px thick
+        m[75:78, 150:199] = True                         # a thin rope on the ground, farther right
+        m[60:78, 148:152] = True                         # ... joined to it
+        line = S.centreline(m, floor=0.0)
+        self.assertEqual(len(line), S.LINE_POINTS)
+        self.assertGreater(line[-1][0], 190)             # the rope is the rightmost pixel
+        line = S.centreline(m, floor=0.4)
+        self.assertLess(line[-1][0], 150)                # above the floor the body ends the line
+        self.assertTrue(all(18 < y < 52 for _, y, _ in line))
+        self.assertAlmostEqual(line[len(line) // 2][2], 15, delta=2)    # radius = half the thickness
+
+    def test_wing_numbers_read_the_spar_and_the_row_width(self):
+        m = np.zeros((100, 100), bool)
+        m[40:100, 40:60] = True                           # body column
+        for r in range(0, 40):                            # a wing leaning out: centre col 70 + (40 - r) / 2, 10 wide
+            c = 70 + (40 - r) // 2
+            m[r, c - 5:c + 5] = True
+            m[r, 100 - c - 5:100 - c + 5] = True
+        w = S.wing_numbers(m)
+        self.assertAlmostEqual(w["width"], 0.1, delta=0.02)
+        self.assertGreater(w["tip"][0], w["root_x"])      # the spar leans out going up
+        self.assertAlmostEqual(w["tip"][1], 1.0, delta=0.01)
+        self.assertGreater(w["span"], w["tip"][0])
+
+    def test_measure_rig_only_for_scalable_families(self):
+        self.assertIsNone(S.measure_rig("biped", WOLF))
+        m = S.measure_rig("quadruped", WOLF)
+        self.assertGreater(m["len"], 1.5)                                 # a wolf is longer than tall
+        self.assertLess(m["trunk"][0], m["trunk"][1])
+        self.assertLess(m["legs"]["x"][0], m["legs"]["x"][1])             # front pair nearer the snout
+        self.assertNotIn("wing", m)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -373,8 +413,11 @@ WOLF = ROOT / "artifacts/model-sheets/refs/n017/sheet.jpg"
 @unittest.skipUnless(WOLF.exists(), "n017 sheet not checked out")
 class BlobPanels(unittest.TestCase):
     def test_wide_profile_keeps_its_whole_body(self):
-        thirds = S.concept_panels(WOLF)
+        with tempfile.TemporaryDirectory() as tmp:           # n017 is in BLOB_SHEETS: another folder name gets the thirds split
+            shutil.copy(WOLF, pathlib.Path(tmp) / "sheet.jpg")
+            thirds = S.concept_panels(pathlib.Path(tmp) / "sheet.jpg")
         blobs = S.concept_panels(WOLF, blob=True)
+        self.assertEqual(S.concept_panels(WOLF)["left"].sum(), blobs["left"].sum())      # the named sheets default to blob
         self.assertEqual(list(blobs), list(thirds))
         width = lambda m: int(m.any(axis=0).sum())  # noqa: E731
         self.assertGreater(width(blobs["left"]), 768 // 3)      # the thirds split clips it at 256
