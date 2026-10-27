@@ -441,3 +441,9 @@ lido só do left. Prova de cada item: rerodar n00U, n017, n00H, hfoo (e n005 com
 - **L7-4 lathe deitado e prop inclinado.** `lathe_limb`: `axis: z` (anéis ao longo de z) para tronco de
   quadrúpede/wyrm/drake (massing `_brick` → um lathe deitado por tronco/abdômen); prop longo (lança, pique, clava):
   ângulo lido de front E left (eixo maior da máscara do prop em cada vista) → `rot` do prop; hfoo left .450 → > .65.
+- **L7-5 deformar o corpo contra o corpo, props contra os props.** Achado nos overlays do hfoo v10: a deformação puxa
+  as pernas para o contorno mais próximo do sheet, que é a lança diagonal (uma parte que a malha não tem), e o modelo
+  estica corpo e pés (vermelho embaixo no left/rts). `deform_to_sheet` e `fit_spec` passam a usar a silhueta do CORPO
+  (painel do sheet menos as máscaras dos props de `parts.json`/`props.json`, dilatadas 2 px) como alvo do corpo; cada
+  prop (componente próprio) casa só com a própria máscara; vértice sem alvo na máscara certa não se move. Meta: hfoo
+  left/rts sem o arrasto dos pés; n005 igual ou melhor; `uncovered` do corpo e do prop reportados separados.
