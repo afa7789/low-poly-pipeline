@@ -246,3 +246,33 @@ class Outline(unittest.TestCase):
         import numpy as np
         m = np.ones((100, 20), bool)
         self.assertEqual(S.band_areas(m, 0.2), [0.2, 0.3, 0.5])
+
+
+@unittest.skipUnless(HARD.exists(), "hfoo refs not checked out")
+class Edges(unittest.TestCase):
+    def test_bands_have_facets_and_salience_sums_to_one(self):
+        m = S.measure(REFS / "sheet.jpg")
+        bands = S.edge_bands(HARD, m["shoulder_frac"])
+        self.assertEqual(list(bands), list(S.EDGE_BANDS))
+        self.assertAlmostEqual(sum(b["salience"] for b in bands.values()), 1.0, delta=0.01)
+        self.assertTrue(all(b["facets"] >= 1 for b in bands.values()))
+
+    def test_rim_is_not_an_edge(self):
+        mask = S.concept_panels(HARD)["front"]
+        hit = S.edges(HARD, mask)
+        from scipy.ndimage import binary_erosion
+        self.assertFalse((hit & ~binary_erosion(mask, iterations=S.EDGE_RIM)).any())
+
+
+class EdgeChamfer(unittest.TestCase):
+    def test_same_lines_are_zero_and_missing_lines_are_far(self):
+        import numpy as np
+        mask = np.zeros((200, 200), bool)
+        mask[20:180, 40:160] = True
+        lines = np.zeros_like(mask)
+        lines[60:62, 50:150] = True
+        self.assertEqual(S.edge_chamfer(lines, mask, lines, mask), {"drawn": 0.0, "extra": 0.0})
+        other = np.zeros_like(mask)
+        other[140:142, 50:150] = True
+        self.assertGreater(S.edge_chamfer(lines, mask, other, mask)["drawn"], 0.1)
+        self.assertIsNone(S.edge_chamfer(lines, mask, np.zeros_like(mask), mask))

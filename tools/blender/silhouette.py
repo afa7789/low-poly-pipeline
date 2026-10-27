@@ -344,11 +344,113 @@ def measure(sheet, size=768):
         "body_depth": round(max(ls[8:16]) * k, 3),
         "foot_length": round(max(ls[18:]) * k, 3),
         # the widest top row is the shoulder line: how far below the top it sits
+        "shoulder_frac": shoulder_row / 199,
         "head_clear": round(0.05 * max(range(2, 7), key=lambda i: fs[i]), 3),
         "outline": outlines(panels),
         "front_width_profile": [round(v, 3) for v in fs],
         "left_width_profile": [round(v * k, 3) for v in ls],
     }
+
+
+EDGE_REL = 0.3       # an edge is a gradient above this share of the panel's 99th percentile (shadows stay under)
+EDGE_RIM = 7         # px at 768 of the silhouette rim dropped: the contour is not an inner edge
+EDGE_BANDS = ("head", "torso", "legs")
+
+
+def edges(path, mask, size=768):
+    """Inner edges of a concept panel: Sobel gradient of the smoothed luma, thresholded
+    relative to the panel's own strong edges (soft shading is far weaker than a drawn facet
+    line), minus a rim along the mask border. Ink lines give two ridges; a 1 px closing merges
+    them. Boolean, same shape as `mask`."""
+    from scipy import ndimage as ndi
+    luma = ndi.gaussian_filter(read_rgba(path, size)[..., :3].astype(float) @ LUMA, 1.0)
+    mag = np.hypot(ndi.sobel(luma, axis=1), ndi.sobel(luma, axis=0))
+    inner = ndi.binary_erosion(mask, iterations=EDGE_RIM)
+    if not inner.any():
+        return inner
+    hit = inner & (mag > EDGE_REL * np.percentile(mag[inner], 99))
+    return ndi.binary_closing(hit, iterations=1) & inner
+
+
+def edge_bands(path, shoulder_frac, size=768):
+    """Per height band (head above the shoulder line, torso to the hips, legs; the same cuts as
+    band_areas) of the hard sheet's front panel: share of all inner-edge pixels (`salience`),
+    facets (median edge lines a scanline crosses, plus one) and the dominant direction of the
+    lines (vertical / horizontal / mixed: which long straight runs dominate)."""
+    from scipy import ndimage as ndi
+    mask = concept_panels(path, size)["front"]
+    hit = edges(path, mask, size)
+    rows = np.where(mask.any(axis=1))[0]
+    top, h = rows.min(), rows.max() - rows.min() + 1
+    cuts = [top, top + int(shoulder_frac * h), top + h // 2, top + h]
+    total = max(int(hit.sum()), 1)
+    out = {}
+    for name, a, b in zip(EDGE_BANDS, cuts, cuts[1:]):
+        band = hit[a:b]
+        runs = [int(((r[1:] & ~r[:-1]).sum()) + r[0]) for r in band[::2] if r.any()]
+        # long straight runs: a vertical facet line survives a 9x1 opening, a horizontal one a 1x9
+        vert = ndi.binary_opening(band, np.ones((9, 1), bool)).sum()
+        horiz = ndi.binary_opening(band, np.ones((1, 9), bool)).sum()
+        direction = ("vertical" if vert > 1.5 * horiz else "horizontal" if horiz > 1.5 * vert else "mixed")
+        out[name] = {"salience": round(float(band.sum()) / total, 3),
+                     "facets": int(np.median(runs)) + 1 if runs else 0, "direction": direction}
+    return out
+
+
+def fit_canvas(edge, mask):
+    """`edge` cropped to the bounding box of `mask` and resampled onto the CANVAS_H x CANVAS_W
+    canvas, centred, aspect kept (what normalize does for a silhouette)."""
+    ys, xs = np.where(mask)
+    e = edge[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    h, w = e.shape
+    scale = min(CANVAS_H / h, CANVAS_W / w)
+    th, tw = max(1, round(h * scale)), max(1, round(w * scale))
+    small = e[(np.arange(th) * h / th).astype(int)[:, None], (np.arange(tw) * w / tw).astype(int)[None, :]]
+    out = np.zeros((CANVAS_H, CANVAS_W), bool)
+    y0, x0 = (CANVAS_H - th) // 2, (CANVAS_W - tw) // 2
+    out[y0:y0 + th, x0:x0 + tw] = small
+    return out
+
+
+def wire_edges(path, size=512):
+    """(edges, mask) of a render_wire.py image: figure = pixels off the flat background, edges =
+    the dark lines inside it."""
+    rgb = read_rgba(path, size)[..., :3].astype(float)
+    border = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
+    mask = np.abs(rgb - np.median(border, axis=0)).sum(axis=2) > 30
+    return (rgb @ LUMA < 110) & mask, mask
+
+
+def edge_chamfer(hard_edge, hard_mask, wire, wire_mask):
+    """Chamfer between the hard sheet's inner edges and the clay's wire, both fitted to one
+    canvas (in canvas heights; Sketch2Mesh Eq. 5 on edges instead of contours). `drawn` = mean
+    distance from a drawn edge to the nearest wire edge (did the model facet where the drawing
+    does), `extra` = the other way (the wire also carries the triangulation, so this one is
+    large by construction). The better of the two left-right mirrors, as the silhouette gate
+    does."""
+    from scipy.ndimage import distance_transform_edt
+    if not (hard_edge.any() and wire.any()):
+        return None
+    a, b = fit_canvas(hard_edge, hard_mask), fit_canvas(wire, wire_mask)
+    best = None
+    for w in (b, np.fliplr(b)):
+        drawn = distance_transform_edt(~w)[a].mean() / CANVAS_H
+        extra = distance_transform_edt(~a)[w].mean() / CANVAS_H
+        best = min(best or (drawn, extra), (drawn, extra))
+    return {"drawn": round(float(best[0]), 4), "extra": round(float(best[1]), 4)}
+
+
+def edge_report(hard, wire_dir):
+    """{view: edge_chamfer} of the hard sheet against wire-<view>.png in `wire_dir`, for the
+    views both have."""
+    out = {}
+    for view, mask in concept_panels(hard).items():
+        path = wire_dir / f"wire-{view}.png"
+        if view == "rts" or not path.exists():
+            continue
+        wire, wmask = wire_edges(path)
+        out[view] = edge_chamfer(edges(hard, mask), mask, wire, wmask)
+    return {v: r for v, r in out.items() if r}
 
 
 def read_mask(path):

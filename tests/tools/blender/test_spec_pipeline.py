@@ -246,6 +246,14 @@ class HardFirst(unittest.TestCase):
         self.assertIn("top 10, rts 35/30", rows)
 
 
+class FacetText(unittest.TestCase):
+    def test_line_per_band_and_empty_without_edges(self):
+        self.assertEqual(SP.facet_text({}), "")
+        bands = {"torso": {"facets": 6, "direction": "vertical"}, "legs": {"facets": 4, "direction": "mixed"}}
+        text = SP.facet_text({"edges": bands})
+        self.assertIn("torso: 6 facets vertical; legs: 4 facets.", text)
+
+
 class Drift(unittest.TestCase):
     SHEET = pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
 
