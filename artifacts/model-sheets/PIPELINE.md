@@ -1087,3 +1087,26 @@ renders `<out>/views/<tag>/model-<view>.png`.
   frustums change on rebuild (hard-v1 and v13 of n01X have none; hard-v1 rebuilt: .878/.769/.875).
 - Proof (n01X hard-v1, shoulder frustums, upper-arm prisms and hand boxes at +-15 deg around forward,
   `at` in place of from/to): preflight 15/15, build ok, 6/6 gates, front .870 left .763 back .868.
+
+### 18.K Props in the brief and the preflight; new sheet measures with floor and ceiling (2026-10-26)
+
+- **Props.** `prompts/<id>/props.json` (hfoo, n005, n02X) lists the unit's props in the order drawn
+  on `refs/<id>/sheet-props.jpg`, left to right: `{name, where, bones, extent: [min, max]}`, `extent` =
+  longest side of the prop's part in fractions of H, calibrated on the existing specs. The brief gets
+  the list (`PROPS OF THIS UNIT`, bone and size per prop) and one crop per prop as an extra image
+  (`prop_measure.crop_props`: foreground components of the props sheet, cut from the full-resolution
+  sheet with a 5% margin; used only when the drawings match props.json one to one).
+- **Convention, rule `props_present`** (`preflight.props_missing`): each prop, in order, claims one
+  unclaimed part on one of its bones whose longest side is inside its bracket; a part serves one prop.
+  A prop with no part fails the rule, naming it. It is a presence check: it does not compare shapes
+  (`prop_measure.py` does, on the built model), and a body part of the right size on the right bone
+  can satisfy it. The sheet id comes from the `<sheet>` argument's folder name; no props.json = no rule.
+- **Measures** in `silhouette.measure` (approved sheet, fractions of H): `boot_height` (rows from the
+  ground whose side-view length stays >= 0.7 x the sole), `head_width` (widest row in the top 70% of
+  the way to the shoulder line), `neck_width` (narrowest row below the first 30%), `arm_angle` (degrees
+  from vertical, outward positive, outer edge from shoulder to fist) and `arm_length`. All go to
+  `measured_text`. Biped only; the spider sheets give meaningless values (no boot, no neck).
+- **Floor and ceiling.** `boot_height` 0.7-1.6 x the sheet's, `head_width` 0.6-1.4 x the sheet's.
+  n01X hard-v1 and v13 pass both (boot .074/.063 vs .070, head .243/.258 vs .237). Across the existing
+  specs `boot_height` fails where `feet_mass` fails (n005 v2-hard-r2 .152 H, hfoo abH1 .063 H vs .136).
+- Arm angle and length are in the brief only; no rule uses them yet (needs T1's rotation to be hit).

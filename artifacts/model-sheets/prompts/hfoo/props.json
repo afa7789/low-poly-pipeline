@@ -1,0 +1,5 @@
+[
+  {"name": "trench pike", "where": "held in the right hand, shaft along the forearm and up", "bones": ["forearm.R", "forearm.L", "arm.R", "arm.L"], "extent": [0.5, 1.1]},
+  {"name": "field pack", "where": "on the back, against the torso", "bones": ["spine"], "extent": [0.15, 0.5]},
+  {"name": "belt lantern", "where": "hanging at the belt, on the hip", "bones": ["pelvis"], "extent": [0.04, 0.18]}
+]

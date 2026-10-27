@@ -172,6 +172,27 @@ class Shape(unittest.TestCase):
                 self.assertIn(want, rule(run(spec), "decal_place"))
 
 
+class Props(unittest.TestCase):
+    PROPS = [{"name": "tank", "bones": ["spine"], "extent": [0.25, 0.55]},
+             {"name": "lantern", "bones": ["pelvis"], "extent": [0.04, 0.15]}]
+    TANK = ["spine", "box", [0.4, 0.8, 0.4], [0, 1, 0], "iron", {}]      # 0.8 of H = 2.0: 0.4 H
+
+    def missing(self, parts):
+        return PF.props_missing(parts, {id(p): PF.bbox(p) for p in parts}, 2.0, self.PROPS)
+
+    def test_a_part_per_prop_in_its_bracket(self):
+        lamp = ["pelvis", "box", [0.2, 0.2, 0.2], [0, 1, 0], "lamp", {}]     # 0.1 H
+        self.assertEqual(self.missing([self.TANK, lamp]), [])
+
+    def test_missing_and_oversized_parts_are_reported(self):
+        giant = ["pelvis", "box", [0.2, 1.6, 0.2], [0, 1, 0], "lamp", {}]    # 0.8 H: over the ceiling
+        self.assertEqual(self.missing([self.TANK, giant]), ["lantern"])
+        self.assertEqual(self.missing([self.TANK]), ["lantern"])
+
+    def test_unit_without_props_file_has_none(self):
+        self.assertEqual(PF.load_props("no-such-unit"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

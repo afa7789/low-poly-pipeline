@@ -14,6 +14,7 @@ background bands of the 3+2 template, so the same code works for every unit shee
 """
 import argparse
 import json
+import math
 import pathlib
 import subprocess
 import sys
@@ -144,6 +145,58 @@ def concept_panels(path, size=768, layout="unit"):
     return panels
 
 
+def row_spans(mask, count):
+    """(height, half-width x2 per row as fractions of the height) of a mask, sampled at
+    `count` rows from the top to the bottom of the figure."""
+    ys = np.where(mask.any(axis=1))[0]
+    h = ys.max() - ys.min() + 1
+    spans = []
+    for f in np.linspace(0.0, 1.0, count):
+        cols = np.where(mask[ys.min() + int(f * (h - 1))])[0]
+        spans.append((cols.max() - cols.min() + 1) / h if len(cols) else 0.0)
+    return h, np.array(spans)
+
+
+BOOT_ROW = 0.7   # a boot row is as long (side view) as this share of the sole row
+
+
+def boot_height(side, k):
+    """Height of the boot in fractions of H: the rows from the ground up that stay at least
+    BOOT_ROW as long as the sole (side view); the shin above is narrower."""
+    _, ls = row_spans(side, 200)
+    sole = max(ls[-20:])
+    rows = ls[::-1] >= BOOT_ROW * sole
+    start = int(np.argmax(rows))               # the outline's own last rows may be thin
+    run = 0
+    for ok in rows[start:]:
+        if not ok:
+            break
+        run += 1
+    return run / 199
+
+
+def arm_measures(spans, shoulder_row):
+    """(arm angle from vertical in degrees, outward positive; arm length in H) read on the
+    outer edge of the front silhouette: from the shoulder tip down to the lowest row (60-85%
+    from the top) still as wide as the shoulders' own half width at the hip row."""
+    half = spans / 2
+    n = len(spans) - 1
+    top = half[shoulder_row]
+    fist = max((i for i in range(int(0.6 * n), int(0.85 * n) + 1) if half[i] >= half[int(0.5 * n)]),
+               default=int(0.65 * n))
+    dy = (fist - shoulder_row) / n
+    dx = half[fist] - top
+    return round(math.degrees(math.atan2(dx, dy)), 1), round(math.hypot(dx, dy), 3)
+
+
+def head_measures(spans, shoulder_row):
+    """(head width, neck width) in H: the head is the widest row in the top 70% of the way
+    down to the shoulder line, the neck the narrowest row below the first 30%."""
+    above = spans[:max(shoulder_row, 4)]
+    cut = max(int(0.7 * len(above)), 1)
+    return round(float(above[:cut].max()), 3), round(float(above[int(0.3 * len(above)):].min()), 3)
+
+
 def measure(sheet, size=768):
     """Code-derived proportions from the five panels, in fractions of front-view H.
     The spec author gets numbers, not adjectives; this is the measurement stage the
@@ -163,7 +216,14 @@ def measure(sheet, size=768):
     fh, fs = profile(panels["front"])
     lh, ls = profile(panels["left"])
     k = lh / fh
+    fine_h, fine = row_spans(panels["front"], 200)
+    shoulder_row = 8 + int(np.argmax(fine[8:60] >= 0.85 * fine[8:60].max()))   # first wide row
+    angle, arm_len = arm_measures(fine, shoulder_row)
+    head_w, neck_w = head_measures(fine, shoulder_row)
     return {
+        "boot_height": round(boot_height(panels["left"], k), 3),
+        "head_width": head_w, "neck_width": neck_w,
+        "arm_angle": angle, "arm_length": arm_len,
         "shoulder_span": round(max(fs[2:7]), 3),
         "fist_span": round(max(fs[12:17]), 3),
         "stance": round(max(fs[19:]), 3),
