@@ -29,6 +29,8 @@ from scipy.spatial import ConvexHull, QhullError
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import cut_hull  # noqa: E402
+import lathe_limb  # noqa: E402
 import preflight  # noqa: E402
 import rig_families as RF  # noqa: E402
 import silhouette  # noqa: E402
@@ -36,10 +38,12 @@ import silhouette  # noqa: E402
 FIT_VIEWS = ("front", "left", "back")
 DIMS_RANGE = 0.10       # a dim may move by this fraction (0.20 pulled limbs off their parents, PIPELINE 20.N12)
 AT_RANGE = 0.03         # `at` may move by this fraction of the height
+PROFILE_RANGE = 0.15    # a lathe's profile radii and squash may move by this fraction (PIPELINE 21.F2)
+KNEE_RANGE = 0.15       # a limb's knee fraction may move by this much, its dx/dz by AT_RANGE * height
 LOOSE_W = 0.3           # objective cost of each part not connected to its parent (80 % boxes)
 # bones whose parts keep their width and depth: the torso, and the hood (the widest part on the head)
 NO_GROW = ("spine", "pelvis", "body", "abdomen")
-HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,)}
+HORIZONTAL = {"box": (0, 2), "frustum": (0, 2), "prism": (0, 1), "cyl": (0,), "dome": (0,), "lathe": (0,)}
 CHAMFER_W = 1.0         # objective = (1 - IoU) + CHAMFER_W * chamfer, per view
 PENALTY = 10.0          # a preflight rule that held and breaks costs this much, plus 1 per rule
 BAND_SHARE = 0.6        # failing band: rows whose error is this share of the worst row's
@@ -149,6 +153,10 @@ def part_points(part):
     """World points (Blender axes) whose convex hull is the part's outline."""
     _, kind, dims, at, _, opts = part
     opts = opts or {}
+    if kind in ("lathe", "limb"):
+        rings = lathe_limb.lathe_rings(dims, at, opts) if kind == "lathe" else lathe_limb.limb_rings(dims, opts)
+        pts = np.array([p for ring in rings for p in ring], float)
+        return np.stack([pts[:, 0], -pts[:, 2], pts[:, 1]], 1)
     span = "from" in opts and "to" in opts
     if span:
         a, b = tuple(opts["from"]), tuple(opts["to"])
@@ -259,6 +267,8 @@ def flip_x(part):
     for key in ("from", "to", "shift"):
         if key in opts:
             opts[key][0] = -opts[key][0]
+    if "knee" in opts:
+        opts["knee"][1] = -opts["knee"][1]
     if "rot" in opts:
         rx, ry, rz = spec_rot(opts)
         opts["rot"] = [rx, -ry, -rz]
@@ -294,8 +304,35 @@ def groups_of(parts, free):
     return groups
 
 
+def extra_count(part):
+    """Unit parameters after dims and `at`: a lathe's profile radii and squash, a limb's knee
+    fraction, dx and dz."""
+    if part[1] == "lathe":
+        return len(part[5].get("profile") or ()) + 1
+    return 3 if part[1] == "limb" else 0
+
+
+def clip(v, lo, hi):
+    return round(min(max(v, lo), hi), 4)
+
+
+def tuned(part, x, height, mirror):
+    """In place: the lathe/limb parameters of `part` moved by the unit parameters x."""
+    opts = part[5]
+    if part[1] == "lathe":
+        prof = opts.get("profile") or []
+        opts["profile"] = [clip(v * (1 + PROFILE_RANGE * s), 0.05, lathe_limb.PROFILE_MAX) for v, s in zip(prof, x)]
+        opts["squash"] = clip(float(opts.get("squash", 1.0)) * (1 + PROFILE_RANGE * x[len(prof)]), 0.5, 2.0)
+    elif part[1] == "limb":
+        frac, dx, dz, *rest = opts.get("knee", lathe_limb.KNEE)
+        step = AT_RANGE * height
+        opts["knee"] = [clip(frac + KNEE_RANGE * x[0], 0.15, 0.85),
+                        round(dx + step * x[1] * (-1 if mirror else 1), 4), round(dz + step * x[2], 4), *rest]
+
+
 def moved(part, x, height, mirror=False):
-    """A copy of `part` with unit parameters x = (dim scales..., dx, dy, dz) in [-1, 1] applied."""
+    """A copy of `part` with unit parameters x = (dim scales..., dx, dy, dz, lathe/limb extras...)
+    in [-1, 1] applied."""
     out = copy.deepcopy(part)
     n = len(out[2])
     out[2] = [d * (1 + DIMS_RANGE * s) for d, s in zip(out[2], x[:n])]
@@ -305,13 +342,14 @@ def moved(part, x, height, mirror=False):
     for end in ("from", "to"):
         if end in opts:
             opts[end] = [a + d for a, d in zip(opts[end], delta)]
+    tuned(out, x[n + 3:], height, mirror)
     return out
 
 
 def apply(parts, groups, x, height):
     out, k = list(parts), 0
     for i, j in groups:
-        n = len(parts[i][2]) + 3
+        n = len(parts[i][2]) + 3 + extra_count(parts[i])
         out[i] = moved(parts[i], x[k:k + n], height)
         if j is not None:
             out[j] = moved(parts[j], x[k:k + n], height, mirror=True)
@@ -334,7 +372,9 @@ def bounds_of(part, no_grow):
     """scipy bounds of one group's unit parameters: a no-grow part may only shrink its horizontal dims."""
     horizontal = HORIZONTAL.get(part[1], ()) if no_grow else ()
     n = len(part[2])
-    return [(-1, 0 if k in horizontal else 1) for k in range(n)] + [(-1, 1)] * 3
+    cap = 0 if no_grow and part[1] == "lathe" else 1       # a no-grow lathe's profile only shrinks
+    extra = [(-1, cap)] * (extra_count(part) - 1) + [(-1, 1)] if part[1] == "lathe" else [(-1, 1)] * extra_count(part)
+    return [(-1, 0 if k in horizontal else 1) for k in range(n)] + [(-1, 1)] * 3 + extra
 
 
 def loose_of(parts, parent_of):
@@ -346,10 +386,22 @@ def broken_rules(parts, doc, kind, targets, props):
     return {n for n, ok, _ in preflight.checks_of(parts, doc, kind, targets, props) if not ok}
 
 
+def baked(parts, sheet):
+    """The parts with the sheet profile written into every lathe that has none, so the fit can move
+    its radii; a copy, the doc is untouched until a fit is accepted."""
+    read = cut_hull.lathe_profiles(parts, sheet) if any(p[1] == "lathe" for p in parts) else {}
+    if not read:
+        return parts
+    out = copy.deepcopy(parts)
+    for i, found in read.items():
+        out[i][5]["profile"] = found["profile"]
+    return out
+
+
 def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_EVALS):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule."""
-    parts = doc["parts"] if "parts" in doc else None
+    parts = baked(doc["parts"], sheet) if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))
     panels = silhouette.concept_panels(sheet)
     proxy = Proxy({v: silhouette.normalize(panels[v]) for v in views}, views)
@@ -366,7 +418,7 @@ def fit(doc, sheet, kind="mass", views=FIT_VIEWS, margin=MARGIN, max_evals=MAX_E
     targets, props = preflight.targets_from(sheet), preflight.load_props(pathlib.Path(sheet).parent.name)
     held = broken_rules(parts, doc, kind, targets, props)
     cache = {i: part_points(p) for i, p in enumerate(parts) if i not in free}
-    sizes = [len(parts[i][2]) + 3 for i, _ in groups]
+    sizes = [len(parts[i][2]) + 3 + extra_count(parts[i]) for i, _ in groups]
     hood = hood_index(parts)
     bounds = [b for i, j in groups for b in bounds_of(parts[i], parts[i][0] in NO_GROW or hood in (i, j) and hood is not None)]
     # the anchor: a part that was connected to its parent stays connected (hard); each one that

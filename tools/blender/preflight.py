@@ -40,9 +40,11 @@ import sys
 
 import numpy as np
 
+import lathe_limb
+
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
-             "dome": 28, "ring": 144}
+             "dome": 28, "ring": 144, "lathe": 68, "limb": 32}
 CUT_TRIS = 60   # a part cut by the sheet silhouette (cut_hull.py), upper end of the measured range
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
@@ -378,6 +380,8 @@ def part_tris(part):
         return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
     if kind == "prism":
         return 4 * int(opts.get("sides", 8)) - 4
+    if kind in ("lathe", "limb"):
+        return lathe_limb.tris(kind, opts)
     if kind != "ring":
         return BASE_TRIS.get(kind, 12)
     sides = int(opts.get("sides", 10))
@@ -459,7 +463,9 @@ def rotated_half(half, euler):
 
 
 def bbox(part):
-    _, kind, dims, _, _, opts = part
+    _, kind, dims, at, _, opts = part
+    if kind in ("lathe", "limb"):
+        return lathe_limb.half_extent(kind, dims, at, opts)
     if "from" in opts and "to" in opts:
         a, b = opts["from"], opts["to"]
         r = SPAN_RADIUS.get(kind, lambda d: max(d[0], d[2]) / 2)(dims)
@@ -544,9 +550,11 @@ def biped_checks(parts, boxes, height, targets):
     else:
         checks.append(("feet_mass", False, "no foot parts"))
 
-    shins = [p for p in parts if p[0] in ("shin.L", "shin.R") and p[1] == "prism"]
+    # a limb on the thigh bone carries the shin too (dims = r_top, r_knee, r_base)
+    shins = [p for p in parts if (p[0] in ("shin.L", "shin.R") and p[1] == "prism")
+             or (p[0] in ("thigh.L", "thigh.R") and p[1] == "limb")]
     if shins:
-        sw = max(max(p[2][0], p[2][1]) * 2 for p in shins) / height
+        sw = max(max(p[2][-2:] if p[1] == "limb" else p[2][:2]) * 2 for p in shins) / height
         checks.append(("shin_mass", sw >= 0.09, f"width {sw:.3f} H"))
     else:
         checks.append(("shin_mass", False, "no shin parts"))
@@ -603,7 +611,9 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
                    and mats <= palette,
                    f"{sorted(mats)} ({len(mats)} slots)"))
 
-    missing = RF.required(family) - {p[0] for p in parts}
+    need = RF.required(family)
+    covered = {p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], need) or ()}
+    missing = need - covered       # a limb covers its upper and lower bone
     checks.append(("bones", not missing, f"{family}: missing {sorted(missing) or 'none'}"))
 
     boxes = {id(p): bbox(p) for p in parts}
