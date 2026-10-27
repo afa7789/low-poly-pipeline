@@ -2217,3 +2217,40 @@ Papers: Sano 2026 (visual hull como volume base), Gao 2022 (massa regularizada, 
   Os dois passam estágio 1 e 2 (PASS, 21/21, tris 668 e 644). r1 mostrou o defeito: o torso do pré-spec já carregava o volume do tanque (profundidade do left) e o autor adicionou o tanque de novo (prisma em z = -0,92): left .816 -> .608 depois do edit, o fit levou a .708. Daí o corte de profundidade com prop nas costas: r2 left .780 (+0,07), bottom .798, top .684. Front e back ficam 0,01-0,02 abaixo do r1. Contra o v6-r4 (autor do zero): front +.015, left -.03, back -.03, top -.04, bottom +.02, rts -.10; o ganho real do edit é tempo de autoria (7-8 edits em vez de 28 peças) e preflight 21/21 de saída, não IoU.
 - **Piorou / pendente.** (1) Não atingi "massing sozinho ≥ v6": top/bottom/rts perdem. (2) N=1 run com LLM por configuração; a diferença r1 x r2 (+0,07 no left) é maior que o ruído medido em §20.S5 (~0,03) mas é um run. (3) O n005 com corte falha o gate do left sozinho (a massa sem o tanque), o que só importa na seção "massing alone" do review. (4) Pés e mãos dependem de heurísticas de corrida (`nearest_run`); sheets com pé fora do padrão podem sair com o pé do tamanho da perna. (5) Quadrúpede, serpente, veículo e edifício: sem massing (`None`, brief antigo); edifício tem `--hull`. (6) `LEG_FAT` = 1,8 é calibração em 1 spider.
 - **Testes.** `test_massing.py` (View/specks/recentre, `breakpoints`, pilha, fallback de kind, `ensure_slots`, pré-spec do n01X passa `checks_of` sem falhas e cobre os ossos exigidos, família sem massing) e a classe `Pipeline` no mesmo arquivo (`edit_changes`, `rules_of`, `--no-massing`, seção do review).
+
+## 22. Leva 4 (2026-10-28)
+
+### 22.L4-4a Sheets para quadruped, wyrm e drake (2026-10-28) - sheets prontos, `measure` só vale em parte, n00H sem RTS
+
+Miniaturas (`history/2026-10-28-l4-4a/miniaturas.jpg`): linha 1 `sheet.jpg` n017 | n00H | n010, linha 2 `sheet-hard.jpg`, linha 3 `sheet-rts.jpg` (n017, vazio no n00H, n010).
+
+- **Unidades.** `n017` Frost Wolf (rig `quadruped`), `n00H` Winged Serpent (`wyrm`: corpo serpentino + asas), `n010` Azure Drake (`drake`). Nenhuma tinha `refs/<id>/sheet.jpg`. Prompts escritos à mão a partir de `unit_facts.py` e dos templates (sem LLM de spec): `prompts/<id>/unit-<id>.txt`, `unit-<id>-hard.txt`, `n017/unit-n017-props.txt`. Layout 3+2, fundo #CCCCCC, `{blocks}` da família no lugar de "two arms, two legs", pose neutra por família (§16), linha "Weapon match" e "Rank in its chain".
+- **Chamadas (nano banana, ppq.ai, custo informado pela API: US$ 0,0034 sheet, 0,0036 edit 2K, 0,0025 edit 1K; total ~ US$ 0,04).** 12 de 12 permitidas: n017 sheet, hard, rts, props; n00H sheet, sheet r2, hard, rts (falhou); n010 sheet, sheet r2, hard, rts. Nada foi sobrescrito: as primeiras tentativas de n00H/n010 e o RTS ruim do n00H foram para `refs/<id>/old/` e `prompts/<id>/old/`.
+- **Refeitos.** n00H e n010 saíram na 1a tentativa com asas abertas largas demais (n010: a asa do front invade a coluna do perfil; n00H: o S aparece também em front/back). A 2a tentativa trocou "wings spread" por "half-folded in a narrow V" e pediu o S só no perfil. n00H ficou bom (front/back = coluna reta, S só no left). n010 ficou com **top/bottom girados 90° (cabeça à esquerda)**, defeito aberto: sem chamada sobrando. Corrigir regenerando o sheet com "top-down: head toward the top of the page" antes de qualquer massing/compare de top e bottom desse id.
+- **`silhouette.concept_panels(blob=True)` (novo, opt-in).** O corte padrão acha as duas lacunas verticais do topo, mas ordena por largura e as margens da página (0-55 px e 731-768 px) ganham das lacunas internas (28 e 9 px): sobra `inner` com 0 itens e o fallback é terços iguais, que corta um perfil de quadrúpede (mais largo que 1/3 da página) em 256 px e põe o focinho no painel front. `blob=True` separa por componente conexo (dilatação 6 px; 3 maiores em cima, 2 embaixo, ordem pela posição x). Não é o default: medido com `blob` só no lugar do fallback de terços, 18 dos 23 sheets de unidade/edifício existentes (todos menos hfoo hard-clean, n005 hard-clean e os 3 do n01X) caem nesse fallback e mudariam de máscara (e o n005 hard deixaria de achar 3 figuras); fica para quando alguém recalibrar os gates. Teste: `test_silhouette.BlobPanels` (suíte 339 OK; ruff limpo nos dois arquivos).
+
+Tabela de coerência (768 px; alturas em linhas ocupadas por painel, `blob=True`):
+
+| id | painéis não vazios | h front / left / back | desvio da mediana | RTS: figuras | hard x sheet (IoU front/left/back/top/bottom) | `props.json` |
+|---|---|---|---|---|---|---|
+| n017 wolf | 5/5 | 242 / 237 / 259 | 0 / -2,1 / +7,0 % | 1 | .946 / .946 / .943 / .949 / .965 | sim (2 itens, `sheet-props.jpg` com 2 desenhos, `crop_props` = 2) |
+| n00H wyrm | 5/5 | 329 / 329 / 329 | 0 / 0 / 0 % | **5 (falhou, movido p/ old/)** | .944 / .933 / .932 / .961 / .954 | não (card lista props de corpo; sem chamada p/ sheet-props) |
+| n010 drake | 5/5 | 255 / 259 / 253 | 0 / +1,6 / -0,8 % | 1 | **.894 / .933 / .885** / .944 / .963 | não (idem) |
+
+Todos dentro de +-10 % de altura. `DRIFT_MIN = 0.90`: n010 front (.894) e back (.885) ficam abaixo (o hard redesenhou o fecho das asas); n017 e n00H passam. `props.json` do n017: extents são estimativa do sheet (`[0.2, 0.6]` nos dois), sem spec para calibrar; ajustar quando houver run. `check_rts` global: tudo 1 figura, exceto o n00H, que foi retirado para o pipeline (`ensure_rts` desenha de novo).
+
+**`silhouette.measure` em quadruped, wyrm, drake** (valores com `blob=True`; sem ele o n017 dá `boot_height` .764, `shoulder_span` .802, `area_head` .007, pior):
+
+| medida | quadruped (n017) | wyrm (n00H) | drake (n010) | veredito |
+|---|---|---|---|---|
+| `area_head/body/legs` (faixas do front por `shoulder_row`) | .138/.374/.488 | .011/.572/.417 | .019/.455/.526 | só ordem de grandeza: a faixa "cabeça" sai do primeiro degrau largo, não da cabeça; no wyrm não existem pernas |
+| `boot_height` (perfil, bota) | .131 | .271 | .412 | sem sentido: não há bota; seria altura do casco/pata |
+| `head_width`, `neck_width` | .302 / .285 | .559 / .523 | .698 / .675 | sem sentido: leem a largura do corpo no topo do front (n010: a abertura das asas) |
+| `arm_angle`, `arm_length`, `fist_span`, `shoulder_span` | 2,1 / .448 / .401 / .397 | -11,2 / .825 / .191 / .483 | -11,8 / .826 / .318 / .624 | sem sentido: não há braço; no drake `shoulder_span` é o vão das asas (útil, com outro nome) |
+| `stance` | .413 | .176 | .341 | vale no quadruped (afastamento das patas da frente); nos outros, largura do corpo |
+| `body_depth`, `foot_length` (perfil / front) | 1,28 / 1,24 | .535 / .678 | 1,22 / .482 | `body_depth` = comprimento do perfil / H: vale (wolf 1,72 em largura de perfil sobre H); `foot_length` não |
+| `shoulder_frac`, `head_clear` | .20 / .25 | .04 / .10 | .04 / .10 | sem sentido: constantes de bípede |
+
+O que uma `measure_quadruped` precisaria (a `measure_spider` é o modelo: lê o left, não o front): (1) comprimento total/H e comprimento do tronco (peito à garupa) no left; (2) altura da cernelha e da garupa/H e folga da barriga ao chão (vão sob o corpo, como o `daylight` da aranha); (3) comprimento e espessura do pescoço e do focinho (cabeça: comprimento/altura no left, largura no front); (4) comprimento da cauda e ângulo (nível x caída); (5) afastamento das patas de frente e de trás no top e no front, comprimento do cano (upper/lower) pelo left; (6) para drake: envergadura/H e área da asa no top, altura da ponta da asa sobre a cernelha no front, e se as asas sobem (V) ou abrem (plano); (7) para wyrm/serpente: comprimento da linha central, espessura ao longo dela (afilamento), número e amplitude das curvas do S no left, relação cabeça/corpo, envergadura. Todas saem das mesmas máscaras; o pré-requisito é o `blob=True` como split.
+
+- **Pendente.** (1) n00H sem `sheet-rts.jpg`; (2) n010 top/bottom girados; (3) hard-clean não gerado (não pedido); (4) massing dessas famílias espera `chain`/`plate`; (5) `props.json` de n00H/n010 só com sheet-props (estourava o limite de chamadas).

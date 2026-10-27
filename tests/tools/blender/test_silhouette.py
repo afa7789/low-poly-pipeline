@@ -338,3 +338,18 @@ class LegMeasures(unittest.TestCase):
         self.assertAlmostEqual(got["leg_w"], 0.04, delta=0.012)
         self.assertLess(got["leg_taper"], 1.1)
         self.assertIsNone(S.leg_measures([(np.pad(np.ones((30, 30), bool), 20), 100.0)]))
+
+
+WOLF = ROOT / "artifacts/model-sheets/refs/n017/sheet.jpg"
+
+
+@unittest.skipUnless(WOLF.exists(), "n017 sheet not checked out")
+class BlobPanels(unittest.TestCase):
+    def test_wide_profile_keeps_its_whole_body(self):
+        thirds = S.concept_panels(WOLF)
+        blobs = S.concept_panels(WOLF, blob=True)
+        self.assertEqual(list(blobs), list(thirds))
+        width = lambda m: int(m.any(axis=0).sum())  # noqa: E731
+        self.assertGreater(width(blobs["left"]), 768 // 3)      # the thirds split clips it at 256
+        self.assertLessEqual(width(thirds["left"]), 768 // 3)
+        self.assertLess(width(blobs["front"]), width(thirds["front"]))   # no snout in the front panel
