@@ -1485,3 +1485,62 @@ Causa: densidade de aresta desenhada põe ~50 % nas pernas (tinta de bota e cane
 
 **O que piorou/ficou.** Sheet escuro sobre fundo escuro (casaco do n005) perde linhas: mapa de arestas esparso no torso; olhar `edges-n005.png`. Provas: `scratchpad/leva2-e15/edges-{n01X,n005,hfoo}.png` (linha 1 painel do hard sheet, linha 2 `edges`, linha 3 wire do clay, colunas front/left/back/top/bottom).
 
+### 20.S5 Ruído entre runs iguais: `compare_runs.py --stability` (2026-10-27)
+Paper: Sketch2Mesh 2021 (Chamfer como distância entre formas). `compare_runs.py --stability <run_a> <run_b>`: Chamfer 3D entre os
+`clay.glb` (5000 pontos por GLB, triângulo sorteado por área, simétrico, em % da altura de A; `scipy.cKDTree`) e |ΔIoU| por vista do
+`silhouette.json`. Só relatório. Medido (`clay.glb`, 3 unidades):
+
+| unidade | par | Chamfer % H | \|ΔIoU\| média / máx | pior vista |
+|---|---|---|---|---|
+| n01X | v3-stages-r1 × r2 | 1.75 | .017 / .042 | top .042, left .039 |
+| n01X | v4-oneshot-r1 × v5-oneshot-r1 | 1.50 | .014 / .026 | top .026 |
+| n005 | v3-stages-r1 × r2 | 2.50 | .092 / .251 | left .251, rts .139 |
+| n005 | v4-oneshot-r1 × v5-oneshot-r1 | 2.13 | .038 / .096 | left .096 |
+| n00U | v3-stages-r1 × r2 | 3.58 | .053 / .109 | front .109, back .108 |
+| n00U | v4-oneshot-r1 × v5-oneshot-r1 | 9.02 | .120 / .187 | left .187 |
+
+Piso do estimador: o mesmo spec reconstruído (v5-oneshot-r1 original × rebuild) dá |ΔIoU| ≤ .005 (build e silhueta são
+determinísticos) e Chamfer 1.1 / 1.3 / 2.3 % H (n01X / n005 / n00U): são duas amostragens independentes de 5k pontos, não diferença de
+forma. Leitura: Chamfer abaixo de ~2 % H é o mesmo modelo. O ruído de geração (autor, mesma receita) é pequeno no n01X (média .015, vista
+.04) e grande nas outras: n005 até .25 numa vista, n00U .11 (r1 × r2). Uma melhora de IoU numa vista abaixo de ~.05 (n01X) ou ~.10-.25
+(n005, n00U) não prova nada com N=1; a média das 6 vistas precisa de ~.02 (n01X) ou ~.05-.09 (n005, n00U). Os pares v4 × v5 não são
+"iguais": o v5 mudou receita (preflight, orçamento), então o .12 do n00U mistura ruído e efeito. Isso reforça `--variants` (§19.D2).
+Teste: `test_mesh_lint.py::Protocol::test_chamfer_3d`.
+
+### 20.S7 KB do atlas e texels por altura no Readiness (2026-10-27)
+Paper: Begemann & Hutson 2026 (matriz técnica: orçamento de textura). `mesh_lint.lint` ganha `atlas_kb` (bytes do PNG embutido / 1024) e
+`texel_per_height` (texel mediano em px por unidade de mundo × altura: pixels do atlas ao longo do modelo). Linha nova no Readiness:
+`atlas KB / texels per height`. Só relatório. n01X v5-oneshot-r1: 10.2 KB / 206 (texel min/max 27/761). Clay: `- / -` (sem atlas).
+Os KB são pequenos (atlas de células chapadas comprime bem); os texels por altura de um modelo celado dependem de `face_span` (§19.A1),
+então não viram gate.
+
+### 20.S6 `engine import`: o GLB pelo loader do jogo (2026-10-27)
+O jogo carrega modelos com raylib (`LoadModel` + `LoadModelAnimations`, `UnitModels::LoadModelFiles`). `tools/glb_import_check.cpp`
+(único arquivo, só raylib) faz as mesmas duas chamadas e valida como o jogo (malhas > 0, vértices > 0, clipes batem com o
+esqueleto); janela oculta, porque o raylib sobe malha e textura na GPU (`LoadGLTF` chama `UploadMesh`). Saída por arquivo:
+`ok meshes=N verts=V anims=A` ou `error <primeiro aviso do raylib>`; exit 1 se algum falha. `mesh_lint.engine_import(glb)` roda o
+binário (`$GLB_IMPORT_CHECK`, `build/glb_import_check` do CMake, `make glb-check`; na falta, compila uma cópia em `$TMPDIR` com
+`c++` + `pkg-config raylib`, ~1 s) e vira a linha `engine import` do Readiness; sem compilador/raylib/janela: `n/a (...)`.
+Custo ~0.4 s por GLB, então roda sempre (sem `--engine-check`). Só relatório, não muda status.
+Prova (v5-oneshot-r1 reconstruído): n01X `ok meshes=6 verts=1181 anims=7`, n005 `ok meshes=1 verts=877 anims=7`, n00U `ok meshes=1 verts=874 anims=5`;
+arquivo ausente: `error FILEIO: ... Failed to open file`; lixo: `error MODEL: ...`.
+Não verificado: o alvo CMake (`glb_import_check` dentro do `CF_BUILD_GAME`) e `make glb-check`: o configure baixa dependências (FetchContent)
+e não rodei aqui; o binário de prova veio do caminho `c++`. Teste: `test_mesh_lint.py::Protocol::test_engine_import_lines` (binário falso).
+
+### 20.M10 `mesh_lint.py --decimate`: o que os triângulos compram (2026-10-27)
+Paper: Chen 2023 (malha baixa por simplificação). `tools/blender/decimate_glb.py` (Blender, DECIMATE collapse 0.5 em cada malha, pose de
+repouso, sem clipes) + `mesh_lint.decimate_loss`: mede a IoU média (silhouette.py, mesmas vistas) do GLB e do decimado, e devolve
+`lost_per_100_tris = 100 * (IoU antes - IoU depois) / tris removidos`. CLI: `mesh_lint.py <clay.glb> --decimate <sheet.jpg> [--rig]`; no
+pipeline, `spec_pipeline.py --decimate` põe a linha `IoU lost per 100 tris (decimate 50 %)` no Readiness (~8 s, opt-in). Só relatório.
+
+| unidade (v5-oneshot-r1, clay) | tris | IoU média | IoU perdida por 100 tris |
+|---|---|---|---|
+| n01X | 632 -> 316 | .790 -> .745 | **0.0141** |
+| n005 | 740 -> 370 | .761 -> .751 | 0.0026 |
+| n00U | 556 -> 278 | .364 -> .356 | 0.0028 |
+
+Leitura: o n01X usa os triângulos (perde .045 ao cortar metade); n005 e n00U perdem ~.01 com metade dos triângulos, ou seja, boa parte do
+orçamento deles não aparece na silhueta (n00U está longe do gate por outro motivo, §19). Não há limiar: sem gate. Limite: a decimação
+colapsa arestas sem olhar o sheet, e a IoU só vê o contorno (o que some dentro dele não conta).
+
+Arquivos da prova: `scratchpad/leva2-s5/{n01X,n005,n00U}/review.md` (Readiness com as linhas novas), `*.log`.
