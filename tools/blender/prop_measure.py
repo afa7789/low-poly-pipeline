@@ -43,7 +43,11 @@ def touches(a, b):
 
 
 def prop_parts(parts):
-    """Indices of the parts that form the prop held by an arm bone, or []."""
+    """Indices of the parts that form the prop held by an arm bone, or []: the parts marked opts "prop" with
+    a hand anchor (PIPELINE 23.L5-3) when the spec has them, else found by size and material."""
+    marked = [i for i, p in enumerate(parts) if PF.is_prop(p) and str(p[5].get("anchor", "")).startswith("hand")]
+    if marked:
+        return marked
     boxes = [PF.bbox(p) for p in parts]
     height = max(max(b[1][1] for b in boxes), 1e-6)
     arms = [q[4] for q in parts if q[0].startswith(ARM_BONES)]
@@ -88,6 +92,61 @@ def crop_props(path, out_dir, stem, size=384, pad=0.05, px=512):
         paths.append(pathlib.Path(out_dir) / f"{stem}-{n}.png")
         crop.save(paths[-1])
     return paths
+
+
+def words(text):
+    return {w for w in text.lower().replace("-", " ").split() if len(w) > 3}
+
+
+def match_prop(name, props):
+    """Index in props.json of the prop a part's opts "prop" name stands for: one name contains the other,
+    else the entry sharing the most words of 4+ letters; None when none shares a word."""
+    name = name.lower()
+    scores = [(name in p["name"].lower() or p["name"].lower() in name, len(words(name) & words(p["name"])))
+              for p in props]
+    best = max(range(len(props)), key=scores.__getitem__, default=None)
+    return best if best is not None and any(scores[best]) else None
+
+
+def crops_by_part(parts, props, crops):
+    """{str(part index): crop png} for each part marked opts "prop" whose name matches a props.json entry
+    (the n-th crop is the n-th entry: crop_props reads the sheet left to right, like props.json)."""
+    out = {}
+    for i, p in enumerate(parts):
+        n = match_prop(str(p[5]["prop"]), props) if PF.is_prop(p) else None
+        if n is not None and n < len(crops):
+            out[str(i)] = str(crops[n])
+    return out
+
+
+PROP_SEEN = 0.002    # prop_reads: a prop reads in a view when its largest piece covers this share of the figure ...
+PROP_WHOLE = 0.5     # ... and is at least this share of what shows of it (the rest is not a scatter of crumbs)
+
+
+def prop_views(unit, prop_name, props, parts_json=None):
+    """The views of front/left/back in which the unit's sheet shows a prop: from refs/<id>/parts.json
+    (L5-1, a part with "prop": true and a box2d for the view) when it exists and names the prop, else from
+    props.json: a prop worn on the back shows from the side and the back, any other from the front and side."""
+    if parts_json and pathlib.Path(parts_json).exists():
+        rows = [p for p in json.loads(pathlib.Path(parts_json).read_text()).get("parts", []) if p.get("prop")]
+        n = match_prop(prop_name, rows)
+        if n is not None:
+            return [v for v in ("front", "left", "back") if v in rows[n].get("box2d", {})]
+    n = match_prop(prop_name, props)
+    back = n is not None and "back" in props[n]["where"]
+    return ["left", "back"] if back else ["front", "left"]
+
+
+def prop_seen(rgb, alpha, colour):
+    """(share of the figure, share of the prop's visible pixels) of the prop's largest piece in an ID
+    render: `colour` is one of preflight.PROP_IDS; nothing of it shows -> (0, 0)."""
+    from scipy.ndimage import label
+    mask = (np.abs(rgb - np.array(colour) * 255).max(axis=-1) < 40) & alpha
+    pieces, n = label(mask)
+    if not n:
+        return 0.0, 0.0
+    biggest = int(np.bincount(pieces.ravel())[1:].max())
+    return biggest / max(int(alpha.sum()), 1), biggest / int(mask.sum())
 
 
 def orientations(mask):

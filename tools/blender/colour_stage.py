@@ -27,7 +27,7 @@ import sys
 
 import cut_hull
 import silhouette as SIL
-from preflight import BUDGETS, misplaced_decals
+from preflight import BUDGETS, is_prop, load_props, misplaced_decals
 from surfaces import DECALS, SURFACES
 from views import layout_of
 
@@ -171,7 +171,7 @@ def build_textured(spec, glb_clay, args, glb, work):
     path.write_text(json.dumps(spec, indent=2))
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
-        *face_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
+        *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
     return glb.exists()
 
 
@@ -181,6 +181,22 @@ def face_args(spec, args, work):
         return []
     from split_sheet import head_face
     return [f"face={head_face(pathlib.Path(args.sheet), work / 'face.png')}"]
+
+
+def prop_args(spec, args, work):
+    """["propcrops=<json>"]: {part index: crop of the props sheet} for the prop parts (opts "prop") that
+    match a drawing of the unit's props sheet; the build projects each crop on its part (PIPELINE 23.L5-3).
+    Nothing when the unit has no props sheet, its drawings do not match props.json one to one, or no part is marked."""
+    props, sheet = load_props(args.id), getattr(args, "props", None)
+    if not (props and sheet and pathlib.Path(sheet).exists() and any(is_prop(p) for p in spec["parts"])):
+        return []
+    from prop_measure import crop_props, crops_by_part
+    crops = crop_props(sheet, work, "propcrop")
+    found = crops_by_part(spec["parts"], props, crops) if len(crops) == len(props) else {}
+    if not found:
+        return []
+    (work / "propcrops.json").write_text(json.dumps(found))
+    return [f"propcrops={work / 'propcrops.json'}"]
 
 
 def measure(glb, args, tilts, work):

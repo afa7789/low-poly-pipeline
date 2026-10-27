@@ -110,6 +110,7 @@ Sheet colours (code-measured, share of the figure; near-black ink outlines remov
 - HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back. Paint the face or mask as a decal on the FRONT face of the head part inside the hood, and push that head part slightly forward of the hood's back wall so the hood does not hide it. Never model the eyes as geometry.
 - BOXES: at most a third of the parts may be kind "box"; prefer prism, frustum, dome or cyl for everything else (the preflight rule box_ceiling fails the spec otherwise).
 - SYMMETRY: every part on a `.L` bone has a twin on the `.R` bone with the same kind and dims and the mirrored rot ([rx, -ry, -rz]); the preflight rule symmetry fails the spec otherwise. A weapon, shield or lantern carried on one side is the exception: give it opts {{"asym": true}}.
+- PROPS: a weapon, tank, pack or lantern is its own part (several parts of one prop share the name), never merged into the body: opts {{"prop": "<name>", "anchor": "hand.R" | "hand.L" | "back" | "belt" | "head"}}. The anchor is where the body holds it; put the part on that anchor's bone (forearm.R/forearm.L, spine, pelvis, head) with its box touching the body there and standing off it: the preflight rule prop_clearance wants at most 20 % of the prop's box inside the torso, pelvis or head. A prop needs no .L/.R twin and keeps its size when the fit runs.
 """
 
 BUILDING_BRIEF = """You are a technical artist building a low-poly game building in the style of classic Warcraft III. The attached image is a five-view elevation sheet of ONE building: the top row is the front, left and back elevations, the bottom row the right elevation and the roof plan. It is a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: footprint, wall heights, roof line, where each prop sits and where the colour zones are.
@@ -1282,6 +1283,41 @@ def zones_clay(spec_path, args, layout, tilts, heads=None):
     return {v: {k: z[k] for k in ("mean", "cover", "lost")} for v, z in zones.items()}
 
 
+PROP_READS_BLOCKING = False   # report only until calibrated (PIPELINE 23.L5-3)
+
+
+def prop_reads(spec_path, args):
+    """{prop name: {view: reads}} (PIPELINE 23.L5-3): the spec rebuilt with every prop in a flat colour of its
+    own (build_unit propid), rendered like the ID render; in each view where the sheet shows the prop
+    (prop_measure.prop_views) its largest piece must cover PROP_SEEN of the figure. {} when the spec marks no
+    prop or the build fails: a report, never a stop."""
+    from preflight import PROP_IDS, is_prop, prop_names
+    from prop_measure import PROP_SEEN, PROP_WHOLE, prop_seen, prop_views
+    from silhouette import read_rgba
+    spec = json.loads(pathlib.Path(spec_path).read_text())
+    names = prop_names(spec["parts"]) if any(is_prop(p) for p in spec["parts"]) else []
+    work = args.out / "sil" / "ids-prop"
+    work.mkdir(parents=True, exist_ok=True)
+    glb, hi = work / "propid.glb", str(BUDGETS[args.kind][1])
+    if names:
+        tool("build_unit.py", spec_path, glb, hi, "nofuse", hi, "propid",
+             *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
+    if not (names and glb.exists()):
+        return {}
+    tool("render_silhouette.py", glb, work / "ids", "ids", blender=True)
+    props, out = load_props(args.id), {}
+    for n, name in enumerate(names):
+        for view in prop_views(args.id, name, props, REFS / args.id / "parts.json"):
+            png = work / "ids" / f"propid-zone-{view}.png"
+            if not png.exists():
+                continue
+            shot = read_rgba(png, 512)
+            share, whole = prop_seen(shot[..., :3].astype(float), shot[..., 3] > 16, PROP_IDS[n % len(PROP_IDS)])
+            out.setdefault(name, {})[view] = {"share": round(share, 4), "whole": round(whole, 2),
+                                              "reads": share >= PROP_SEEN and whole >= PROP_WHOLE}
+    return out
+
+
 def stage_shape(spec_path, args, layout):
     """Stage 1: preflight, clay build, rig/budget stats and the shape gates on the spec at
     `spec_path`. Returns a dict: ok, glb (clay GLB or None), tilts (tilts_of), checks
@@ -1312,6 +1348,7 @@ def stage_shape(spec_path, args, layout):
     if args.summary.get("approved"):
         args.summary["zones_clay"] = zones_clay(spec_path, args, layout, tilts_of(report),
                                                 args.summary.get("top_orientation", {}))
+        args.summary["prop_reads"] = prop_reads(spec_path, args)
         (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
     # the preflight counts estimated tris; the GLB may land a few over the round ceiling
     # (n005 v5-fit-r2: preflight PASS, GLB 704 vs 700). TRI_SLACK keeps that from failing stage 1.
@@ -1577,6 +1614,9 @@ def signal_rows(summary, row, shape):
     if summary.get("turn"):
         out += "| turn views 3/4 (report): IoU @ azimuth, side | " + ", ".join(
             f"{a} {r['iou']:.3f} @ {r['azim']} {r['side']}" for a, r in summary["turn"].items()) + " |\n"
+    for name, views in (summary.get("prop_reads") or {}).items():
+        out += (f"| prop_reads {name} (report; share of figure, reads) | "
+                + ", ".join(f"{v} {r['share']:.3f} {'ok' if r['reads'] else 'HIDDEN'}" for v, r in views.items()) + " |\n")
     for key in ("mean", "cover"):
         if summary.get("zones_clay"):
             out += row(f"zones_clay {key} (report)", {v: z[key] for v, z in summary["zones_clay"].items()}, shape)

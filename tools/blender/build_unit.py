@@ -953,19 +953,20 @@ def painted_image(name, rgb, size=64):
 
 CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut", {"profile"} of a lathe (cut_hull.py)
 FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
-DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
+DECALS = []      # (centre, half, kind, colour, side, owner) of parts whose front face (side 1; a back prop: -1) carries a decal;
+#                  owner = the part's meta entry for a prop crop (only that part's faces wear it), else None
 
 
-def decal_uv(centre_w, normal_w, co):
+def decal_uv(centre_w, normal_w, co, near=None):
     """(cell, u, v) when this face (world centre and normal) is the front of a decal
     part, else None. The front is projected over the part's box, so the decal lands
-    where it was placed."""
-    if normal_w.y > -0.5:                          # front faces look down -Y in Blender
-        return None
-    for i, (centre, half, _, _) in enumerate(DECALS):
+    where it was placed. `near` = the meta entry nearest the face: a prop crop is worn by its own part only."""
+    for i, (centre, half, _, _, side, owner) in enumerate(DECALS):
+        if normal_w.y * side > -0.5 or (owner is not None and owner != near):   # front faces look down -Y in Blender
+            continue
         if all(abs(centre_w[a] - centre[a]) <= half[a] * 1.02 + 1e-4 for a in range(3)):
-            return (8 + i, (co.x - centre.x + half.x) / max(2 * half.x, 1e-6),
-                    (co.z - centre.z + half.z) / max(2 * half.z, 1e-6))
+            u = (co.x - centre.x + half.x) / max(2 * half.x, 1e-6)
+            return 8 + i, (u if side > 0 else 1.0 - u), (co.z - centre.z + half.z) / max(2 * half.z, 1e-6)
     return None
 
 
@@ -1019,7 +1020,8 @@ def atlas_uvs(body, meta, block, cols, rows):
     world, turn = body.matrix_world, body.matrix_world.to_3x3()   # meta is in world space
     for poly in mesh.polygons:
         centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
-        bone = nearest_part(meta, centre_w)[0]
+        near = nearest_part(meta, centre_w)
+        bone = near[0]
         cell = TEX_SLOTS.get(bone, order.get(bone, 1))
         bx, by = block[slot_base[poly.material_index]]
         tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
@@ -1033,7 +1035,7 @@ def atlas_uvs(body, meta, block, cols, rows):
         for k, li in enumerate(poly.loop_indices):
             co = mesh.vertices[mesh.loops[li].vertex_index].co
             lu, lv = (co.x * 0.6, co.y * 0.6) if axis == 2 else ((co.x + co.y) * 0.6, co.z * 0.6)
-            dec = decal_uv(centre_w, normal_w, world @ co)
+            dec = decal_uv(centre_w, normal_w, world @ co, near)
             if dec:
                 cell, du, dv = dec
                 tx, ty = bx * 4 + cell % 4, by * 4 + cell // 4
@@ -1077,15 +1079,34 @@ def sheet_face(cell):
     return face[..., :3], face[..., 3]
 
 
+def crop_face(path, cell, upright):
+    """(rgb, alpha) of a props-sheet crop sampled to a cell x cell decal (nearest), bottom-up like the atlas;
+    the background is the colour of the crop's border: transparent where a pixel is close to it. The sheet
+    draws a club or a spear lying down: on an `upright` part a wider-than-tall crop is turned a quarter, head up."""
+    import numpy as np
+    img = bpy.data.images.load(path, check_existing=True)
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(img.size[1], img.size[0], 4)[..., :3]
+    if upright and px.shape[1] > 1.2 * px.shape[0]:
+        px = np.rot90(px, -1)           # rows run bottom-up: -1 sends the right edge to the top
+    border = np.median(np.concatenate([px[0], px[-1], px[:, 0], px[:, -1]]), axis=0)
+    alpha = (np.abs(px - border).max(axis=-1) > 0.12).astype(np.float32)
+    idx_y = ((np.arange(cell) + 0.5) * px.shape[0] / cell).astype(int)
+    idx_x = ((np.arange(cell) + 0.5) * px.shape[1] / cell).astype(int)
+    return px[idx_y][:, idx_x], alpha[idx_y][:, idx_x]
+
+
 def paint_decals(pixels, SF, x0, y0, size):
     """Paint each decal into its spare cell (8 + i) of one material block."""
     cell = size // 4
-    for i, (_, _, kind, colour) in enumerate(DECALS):
+    for i, (_, half, kind, colour, _, _) in enumerate(DECALS):
         rgb = None
-        if colour:
+        if colour and kind != "propcrop":
             hexv = colour.lstrip("#")
             rgb = tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
-        paint, alpha = sheet_face(cell) if kind == "sheet" else SF.decal(kind, rgb, cell)
+        if kind == "propcrop":
+            paint, alpha = crop_face(colour, cell, half.z > 1.3 * half.x)
+        else:
+            paint, alpha = sheet_face(cell) if kind == "sheet" else SF.decal(kind, rgb, cell)
         cx, cy = x0 + ((8 + i) % 4) * cell, y0 + ((8 + i) // 4) * cell
         region = pixels[cy:cy + cell, cx:cx + cell, :3]
         region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
@@ -1310,17 +1331,51 @@ def load_spec(target):
 
 
 def load_cuts(argv):
-    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py)."""
+    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py); propcrops=<json>."""
     for arg in argv:
         if arg.startswith("cuts="):
             CUTS.update(json.loads(pathlib.Path(arg[len("cuts="):]).read_text()))
+        if arg.startswith("propcrops="):
+            PROPCROPS.update(json.loads(pathlib.Path(arg[len("propcrops="):]).read_text()))
+
+
+PROPCROPS = {}   # (arg propcrops=<json>) {part index: png of the props sheet's drawing}: a prop part's front face wears it
+PROPID = False   # (arg propid) each prop in a flat colour of its own (preflight.PROP_IDS): the ID render's prop_reads reads them
+
+
+def prop_rows(spec):
+    """The spec rows with each prop (opts "prop" + "anchor", PIPELINE 23.L5-3) on its anchor's bone, so its
+    skin is 100 % there, and on a material of its own: when the body shares the prop's material the prop
+    gets a copy, prop_<name>, in the palette's colour and surface (while the rig has material slots to spare)."""
+    PF = sibling("preflight")
+    bones = {b[0] for b in BONES}
+    body = {row[4] for row in spec if not PF.is_prop(row)}
+    rows = []
+    for row in spec:
+        if PF.is_prop(row):
+            bone, mat = PF.anchor_bone(row, bones), row[4]
+            if mat in body and len(body | {r[4] for r in rows}) < PF.MATERIAL_SLOTS[1]:
+                new = "prop_" + "".join(c if c.isalnum() else "_" for c in str(row[5]["prop"]).lower())
+                for table in (MATERIALS, SURFACE, ALPHA, RAMPS):
+                    if mat in table:
+                        table[new] = table[mat]
+                mat = new
+            row = (bone, row[1], row[2], row[3], mat, row[5])
+        rows.append(row)
+    return rows
 
 
 def build_spec_parts(spec, chamfers):
     """(object, bone) per spec row; a row with opts "decal" marks its object so
     texturize paints that decal on the part's front face."""
     parts = []
+    spec = prop_rows(spec)
+    PF = sibling("preflight")
+    names = PF.prop_names(spec)
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
+        if PROPID and (opts or {}).get("prop") and not CLAY:
+            mat_name = f"propid{names.index(str(opts['prop']))}"
+            MATERIALS[mat_name], SURFACE[mat_name] = (*PF.PROP_IDS[int(mat_name[6:]) % len(PF.PROP_IDS)], 1.0), "metal"
         if (opts or {}).get("cut") == "sheet" and str(idx) in CUTS:
             obj = cut_part(bone, mat_name, idx)
         elif kind in ("lathe", "limb", "chain", "plate"):
@@ -1329,9 +1384,14 @@ def build_spec_parts(spec, chamfers):
         else:
             obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
                              idx in chamfers)
+        if (opts or {}).get("prop"):
+            obj["prop"] = str(opts["prop"])
         if (opts or {}).get("decal") and not CLAY:
             obj["decal"] = "face" if opts["decal"] == "sheet" and FACE is None else opts["decal"]
             obj["decal_color"] = opts.get("decal_color", "")
+        elif str(idx) in PROPCROPS and not CLAY:      # the prop wears its drawing on the front face (a decal of its own)
+            obj["decal"], obj["decal_color"] = "propcrop", PROPCROPS[str(idx)]
+            obj["decal_side"] = "back" if opts.get("anchor") == "back" else "front"      # a tank shows its back to the camera
         parts.append((obj, bone))
     return parts
 
@@ -1348,14 +1408,44 @@ def parts_meta(parts):
         hi = Vector((max(c[i] for c in corners) for i in range(3)))
         meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
         if obj.get("decal") and len(DECALS) < 8:
-            DECALS.append(((lo + hi) / 2, (hi - lo) / 2, obj["decal"], obj["decal_color"]))
+            crop = obj["decal"] == "propcrop"
+            DECALS.append(((lo + hi) / 2, (hi - lo) / 2, obj["decal"], obj["decal_color"],
+                           -1 if obj.get("decal_side") == "back" else 1, meta[-1] if crop else None))
     return meta
+
+
+PROP_GAP = 0.03     # attach: a prop's mesh may stand this far (spec metres) off its anchor's before it is loose
+
+
+def mesh_gap(obj, near, trees):
+    """Distance from a prop's mesh to the closest of the `near` parts (0 when they cross)."""
+    if any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
+        return 0.0
+    return min((trees[id(o)].find_nearest(obj.matrix_world @ v.co)[3] for o in near for v in obj.data.vertices),
+               default=0.0)
+
+
+def prop_gaps(parts, parent, trees):
+    """{part name: gap} of every prop part to the body on its anchor bone (or its parent); a part of a
+    prop that stands off the body but touches a held part of the same prop (a valve on a tank) takes
+    the gap to that part instead."""
+    props = [(o, b) for o, b in parts if o.get("prop")]
+    gaps = {o.name: mesh_gap(o, [q for q, qb in parts if not q.get("prop") and qb in (b, parent.get(b))], trees)
+            for o, b in props}
+    for _ in props:
+        for o, _b in props:
+            held = [q for q, _qb in props if q is not o and q["prop"] == o["prop"] and gaps[q.name] <= PROP_GAP]
+            if gaps[o.name] > PROP_GAP and held:
+                gaps[o.name] = min(gaps[o.name], mesh_gap(o, held, trees))
+    return gaps
 
 
 def attach_report(parts):
     """Parts whose mesh crosses no other part on their bone or on the parent bone: the same
     rule as preflight.overlap, measured on the real meshes instead of the boxes (PIPELINE
-    20.N12). Never raises: the build goes on and the report carries the error."""
+    20.N12). A prop (own component, PIPELINE 23.L5-3) only has to stand within PROP_GAP of the body
+    on its anchor bone and is listed under "props" with its gap. Never raises: the build goes on and
+    the report carries the error."""
     from mathutils.bvhtree import BVHTree
     try:
         bpy.context.view_layer.update()
@@ -1363,12 +1453,17 @@ def attach_report(parts):
         trees = {id(o): BVHTree.FromPolygons([o.matrix_world @ v.co for v in o.data.vertices],
                                              [tuple(f.vertices) for f in o.data.polygons])
                  for o, _ in parts}               # FromObject would stay in each part's local space
-        loose = []
+        gaps = prop_gaps(parts, parent, trees)
+        loose, props = [], []
         for obj, bone in parts:
-            near = [o for o, b in parts if o is not obj and b in (bone, parent.get(bone))]
-            if bone in parent and near and not any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
+            near = [o for o, b in parts if o is not obj and not o.get("prop") and b in (bone, parent.get(bone))]
+            if obj.get("prop"):
+                props.append({"part": obj.name, "prop": obj["prop"], "bone": bone, "gap": round(gaps[obj.name], 4)})
+                if gaps[obj.name] > PROP_GAP:
+                    loose.append({"part": obj.name, "bone": bone, "parent": parent.get(bone)})
+            elif bone in parent and near and not any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
                 loose.append({"part": obj.name, "bone": bone, "parent": parent[bone]})
-        return {"parts": len(parts), "loose": loose}
+        return {"parts": len(parts), "loose": loose, "props": props}
     except Exception as err:  # noqa: BLE001 - a report must not stop a build
         return {"parts": len(parts), "loose": [], "error": repr(err)}
 
@@ -1380,6 +1475,8 @@ def main():
     atlas_path = None
     global STYLE, CLAY, FACE, RAMP
     CLAY = "clay" in rest
+    global PROPID
+    PROPID = "propid" in rest
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
@@ -1483,7 +1580,8 @@ def main():
     if "union" in cli:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears
-        keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"]
+        keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"
+                or p[0].get("prop")]       # a prop stays its own component too
         union_targets = [p for p in parts if p not in keep]
         merged = union_parts(union_targets, meta, per_chain=True)
         for obj, _ in keep:
