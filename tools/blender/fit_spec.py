@@ -782,6 +782,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
     (PIPELINE 22.L4-3); None is the single Powell over every parameter."""
     t0 = time.monotonic()
+    RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     parts = baked(doc["parts"], sheet) if "parts" in doc else None
     gates = silhouette.gates_for(doc.get("rig"))

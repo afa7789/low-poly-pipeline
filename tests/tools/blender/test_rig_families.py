@@ -110,6 +110,38 @@ class Clips(unittest.TestCase):
         self.assertGreater(spins[-1], 300)
 
 
+class ScaledByLine(unittest.TestCase):
+    """quadruped, wyrm, drake rebuilt from a snout-to-tail centre line (PIPELINE 22.L4-4b)."""
+    LINE = [[0.1 * i, 0.5 - 0.01 * i, 0.08] for i in range(17)]
+    M = {"len": 1.6, "line": LINE, "trunk": [0.5, 1.1], "belly": 0.35, "legs": {"x": [0.55, 1.05], "spread": 0.15, "r": 0.05},
+         "wing": {"span": 0.4, "tip": [0.3, 1.0], "root_x": 0.15, "root_y": 0.6, "width": 0.08, "area": 0.03, "chord": [0.5, 0.9], "top": 0.7, "root": 6}}
+
+    def tearDown(self):
+        RF.FAMILIES.update(RF.FIXED)
+        RF._drop_caches()
+
+    def test_same_bones_as_the_fixed_table_and_the_height_kept(self):
+        for fam in RF.SCALABLE:
+            with self.subTest(fam):
+                table = RF.scale_rig(fam, self.M) and RF.FAMILIES[fam]
+                self.assertEqual({b[0] for b in table}, {b[0] for b in RF.FIXED[fam]})
+                self.assertEqual(RF.top(fam), RF.HEIGHT[fam])
+                self.assertTrue(all(b[2][1] >= 0 and b[3][1] >= 0 for b in table))      # nothing under the ground
+
+    def test_quadruped_legs_stand_at_the_measured_columns_and_spread(self):
+        RF.scale_rig("quadruped", self.M)
+        legs = {b[0]: b for b in RF.FAMILIES["quadruped"]}
+        self.assertAlmostEqual(legs["leg1.upper"][2][0], 0.15 * RF.HEIGHT["quadruped"], 3)
+        self.assertGreater(legs["leg1.upper"][2][2], legs["leg3.upper"][2][2])        # front pair ahead of the rear pair (z forward)
+
+    def test_wings_and_fallback(self):
+        RF.scale_rig("drake", self.M)
+        wing = {b[0]: b for b in RF.FAMILIES["drake"]}["wing1.lower"]
+        self.assertAlmostEqual(wing[3][1], RF.HEIGHT["drake"], 3)                     # the tip is the sheet's highest pixel
+        self.assertFalse(RF.scale_rig("biped", self.M))
+        self.assertFalse(RF.scale_rig("drake", None))
+
+
 if __name__ == "__main__":
     unittest.main()
 

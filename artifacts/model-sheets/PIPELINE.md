@@ -2354,3 +2354,41 @@ Arquivos: `tools/blender/fit_spec.py` (`STAGES`, `stage_masks`, `descend`, `fit(
 - **Resultado: negativo na meta.** Nenhuma variante dá top/bottom +0.02 sem perder front: a pilha de frustums do v7-r2 já cobre o top (unc .079), e o plate oval lido do sheet cobre menos que o aro retangular (unc sobe) ou, somado, só aumenta o spill. O que melhora: tris (A: 656 vs 700) e rts +0.01 (A/B). Plate de carapaça sozinho perde o front (-0.09) porque a pirâmide de frustums some. O kind fica opt-in (nenhum default muda); o ganho esperado é em asas/placas/leme, onde a alternativa é um box.
 - **Pendente.** Prova com LLM de asa (harpy/drake) em L4-4; `rot` não entra no fit (`rot_allowed` é por osso); a leitura do top assume que as caixas das peças desenham a mesma massa que o painel.
 - **Testes.** `test_lathe_limb.py::Plate` (tris, eixos, bevel, rot, validate, `top_outline`, `top_flipped`, pontos e params do fit).
+
+### 22.L4-4b Massing e medidas de quadruped, wyrm e drake (2026-10-28) - massing pronto, LLM melhora mas nenhum passa o estágio 1
+
+- **O que mudou.**
+  - `silhouette.centreline` / `body_line`: linha central focinho -> ponta da cauda do painel left, caminho de custo mínimo (`(R/(d+1))^2`, d = distância à borda, Dijkstra em `scipy.sparse.csgraph`; asa e perna são galhos que o caminho não toma). 17 pontos `[x, y, raio]` em frações de H (x desde o focinho, y para cima). `floor` (0,25 no quadruped) descarta o que está no chão: a corda do n017 não vira a cauda.
+  - `measure_quadruped` (tronco = pontos com raio >= 0,6 do maior, barriga, colunas das pernas em altura de joelho, afastamento e raio das patas pelo front/left), `measure_chain` (linha + asa: `wing_numbers` do front, `wing_blob` do left = o maior blob que sobra tirando os discos de 1,3 x raio da linha), `measure_rig(family, sheet)` (spider, quadruped, wyrm, drake; o resto `None`). `concept_panels` usa `blob=True` sozinho para `BLOB_SHEETS = (n017, n00H, n010)` (pelo nome da pasta; os outros sheets seguem no corte antigo, ver 22.L4-4a).
+  - `rig_families`: `scale_quadruped/wyrm/drake(m)` refazem a tabela com os mesmos ossos (clipes e retargets seguem), topo = `HEIGHT` (o da tabela fixa), `SCALERS`, `scale_rig(family, measure)` (os spiders entram no mesmo despacho; sem medida a tabela fixa fica). Chamado em `build_unit.load_family`, `preflight.load`, `fit_spec.fit`, `spec_pipeline.set_rig` (agora `RIG_MEASURE` vale para toda família de `SCALERS`; `--fixed-rig` desliga) e `massing.build`. O spec leva `rig_measure` (a linha inteira) e `massing_spec` põe `"rig"` no pré-spec (sem ele a cadeia procurava ossos no biped).
+  - `spec_pipeline.measured_text`: `rig_text_of(m)` (comprimento, linha a cada 4 pontos, tronco/barriga/pernas, asa) e `SCALED_NOTE` no brief.
+  - `massing.py` (`FAMILIES` + 3): quadruped = 8 tijolos `frustum` em z (altura pelo contorno do left sem as pernas, largura = min(top aberto, front) x `WIDTH` 0,9), 4 `limb` nas pernas do rig + pata (tijolo), cabeça em 4 tijolos, cauda `chain`; wyrm = `chain` nos 6 ossos `spine.k` (raio = raio da linha x `CHAIN_FAT` 1,1) + cabeça em 3 prismas + 4 `plate`; drake = tronco em tijolos (altura = a da barriga espelhada na linha, a asa esconde o dorso), pescoço e cauda `chain`, cabeça em prismas, asas. Asa = lâmina: `plate` eixo `left` com o contorno do blob do left (metade interna no osso `upper`, externa no `lower`, 8 % de sobreposição), inclinada (`rot` z = -/+ atan(dx/dy) do eixo da asa no front), espessura = largura média das linhas do front x `WING_FAT` 1,3 x cos. A metade interna ganha um vértice dentro do corpo (ponto da linha mais perto do pé da asa, >= 0,06 H abaixo do blob) para o mesh encostar no corpo: sem isso `attach` dava `loose` nos dois. `DETAIL = ((6, 0), (8, 0), (8, 0,15))` (lados, bisel) até passar o piso de 400 tris.
+  - `preflight.family_place` (relatório, `FAMILY_BLOCKING = False`): comprimento (extensão z das peças que não são plate) e vão das asas (extensão x dos plates) dentro de x0,8-1,25 do sheet. Taxa de FAIL: 0 de 12 (3 pré-specs + 9 variantes do autor); não há spec antigo dessas famílias, então fica relatório.
+  - `fit_spec`: sem mudança além de `scale_rig`; `part_points` de `limb`/`chain`/`plate` já existiam.
+- **Prova sem LLM** (massing sozinho, `--shape-only`, 6 vistas; n00H sem RTS, `--no-rts`; n010 top/bottom estão girados no sheet, fora do que o gate sabe ler):
+
+  | | IoU front / left / back / top / bottom / rts | média | uncovered médio | tris | preflight | attach loose |
+  |---|---|---|---|---|---|---|
+  | n017 quadruped | .800 .701 .742 .775 .856 .680 | .759 | .102 | 412 | 12/12 | 0 |
+  | n00H wyrm | .739 .650 .739 .665 .639 - | .687 | .199 | 400 | 11/11 | 0 |
+  | n010 drake | .681 .852 .528 .439 .445 .545 | .582 | .336 | 520 | 11/11 | 0 |
+
+  Sem número "antes": essas famílias não tinham massing. Com o fit (`fit-<id>`, mesmo spec, 1500-1800 avaliações; clay real antes -> depois): n017 front .800 -> .831, left .701 -> .721, back .742 -> .776, top .775 -> .786, bottom .856 -> .856, rts .680 -> .692; n00H .739 -> .801, .650 -> .651, .739 -> .797, .666 -> .732, .640 -> .678; n010 .681 -> .681, .852 -> .859, .528 -> .571, .439 -> .458, .445 -> .466, .545 -> .582. O fit não quebrou nenhuma das três (`bones`, orçamento e preflight seguem; n017 e n010 `loose` 0).
+- **Prova com LLM** (`session:opus`, 1 run, tudo default menos `--rig` e `--no-rts` no n00H; `runs/draft/<id>/leva4-fam-r1/`): todos CHECK, estágio 1 FAIL na silhueta, preflight PASS, `family_place` PASS.
+
+  | unidade | variante escolhida | IoU final | média (massing -> autor) | tris | attach | o que reprova |
+  |---|---|---|---|---|---|---|
+  | n017 | 1 de 3 | .833 .733 .778 .821 .843 .693 | .759 -> .783 | 568 | 0 | só rts (.693 < .70) |
+  | n00H | 2 de 3 | .815 .663 .809 .728 .682 - | .687 -> .739 | 628 | 1 (`spine.2_2`, peça do autor) | nenhuma vista medida abaixo do gate; a silhueta ainda reprova (o RTS ausente é a hipótese, não conferida) |
+  | n010 | 3 de 3 | .685 .891 .575 .441 .449 .559 | .582 -> .600 | 636 | 0 | front .685, back .575, rts .559, top/bottom |
+
+  O autor melhora o massing em +0,02 a +0,05 de média, sem tirar nenhuma unidade do CHECK. O diagnóstico automático (CHECK) do n00H aponta a raiz da asa interna como caixa funda atrás da borda de ataque (`diagnosis.md` da run).
+- **Piorou / limites.**
+  - n010: top/bottom (.44/.45) estão no sheet girado 90° (cabeça à esquerda). Girar o conceito só soma +0,03 (top .473) e +0,10 (bottom .542): a lâmina não desenha a planta da asa. Front/back baixos (.68/.53) porque a lâmina é reta e a asa do sheet alarga na base; back também porque o sheet desenha as duas asas diferentes.
+  - Asa = lâmina de espessura constante; planta larga exigiria 2 plates por asa (um no plano do front, outro no do top) ou `rot` em y. Não feito.
+  - n017: a linha termina na ponta da cauda fofa (acima de 0,25 H); a corda no chão fica como `uncovered` no left (.207). Pernas retas (sem joelho dobrado: o fit move `knee`), tronco em degraus (aparece no RTS: .680).
+  - Larguras do tronco pelo top aberto/front: o sheet do n017 desenha o top mais largo que o front (spill de 16-21 % no front/back no massing sozinho).
+  - O fit pode soltar o plate interno do corpo no mesh (n00H: `loose` 2 após o fit; o `loose_of` do fit usa caixas). Não corrigido.
+  - Efeito colateral: `concept_panels` mudou para n017/n00H/n010 (blob). `ensure_rts` desenhou `refs/n017/sheet-hard-rts.jpg` e `refs/n010/sheet-hard-rts.jpg` na prova (2 chamadas de imagem, ~US$ 0,005; o n00H foi com `--no-rts`).
+- **Não feito.** Leitura de pata/pé (tijolo fixo), cauda do wyrm (a ponta com hélice é prop), `props.json` do n00H/n010, plano `top` das asas, RTS do n00H (precisa de sheet), recalibrar `GATES` por família (o front do drake só chega perto com asa de planta larga).
+- **Testes.** `test_silhouette.Families` (linha central e chão, asa, `measure_rig`), `BlobPanels` (nome da pasta), `test_rig_families.ScaledByLine`, `test_massing.Families` (ossos cobertos, orçamento, asas espelhadas), `test_preflight.FamilyPlace`, `test_spec_pipeline.MassingCarriesItsRig`. Suíte 385 OK; ruff: 10 achados antigos, nenhum novo.

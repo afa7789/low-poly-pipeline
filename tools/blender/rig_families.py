@@ -327,6 +327,146 @@ OPTIONAL = {"spider": {"abdomen"}, "spider_high": {"abdomen"}, "drake": {"jaw"},
             "aircraft": {"prop", "rudder"}, "tracked": {"arm.L", "arm.R"}}
 
 
+# ---------------------------------------------------------------- rigs scaled by the sheet (PIPELINE 22.L4-4b)
+# quadruped, wyrm and drake: like the spiders, the table can be rebuilt from the sheet's measures
+# (silhouette.measure_quadruped / measure_chain: a snout-to-tail centre line [x, y, r] in fractions of H, x from the
+# snout, y up). Same bones and names as the fixed table, so clips and retargets keep working; the top stays the
+# fixed table's (HEIGHT). A family without measures keeps the fixed table.
+SCALABLE = ("quadruped", "wyrm", "drake")
+FIXED = {f: FAMILIES[f] for f in SCALABLE}
+HEIGHT = {f: max(max(h[1], t[1]) for _, _, h, t in FIXED[f]) for f in SCALABLE}
+HEAD_FRAC = {"wyrm": 0.12, "drake": 0.10}      # share of the line the head bone takes, from the snout
+WYRM_SPINES = 6
+
+
+def _line_at(line, t):
+    """[x, y, r] at fraction t (0 = snout, 1 = tail tip) of the centre line."""
+    f = min(max(t, 0.0), 1.0) * (len(line) - 1)
+    i = min(int(f), len(line) - 2)
+    return [a + (b - a) * (f - i) for a, b in zip(line[i], line[i + 1])]
+
+
+def _t_of_x(line, x):
+    """Fraction of the line where it passes x (the first crossing)."""
+    xs = [p[0] for p in line]
+    i = next((k for k in range(len(xs) - 1) if xs[k] <= x <= xs[k + 1]), len(xs) - 2 if x > xs[-1] else 0)
+    return (i + (x - xs[i]) / max(xs[i + 1] - xs[i], 1e-6)) / (len(xs) - 1)
+
+
+class Frame:
+    """Sheet fractions (x from the snout, y up) -> rig metres: z forward from `x0`, y up, both x H."""
+
+    def __init__(self, m, family, x0):
+        self.line, self.H, self.x0 = m["line"], HEIGHT[family], x0
+
+    def pt(self, t, dy=0.0):
+        x, y, _ = _line_at(self.line, t)
+        return (0.0, round((y + dy) * self.H, 4), round((self.x0 - x) * self.H, 4))
+
+    def xyz(self, x, y, z):
+        return (round(x * self.H, 4), round(y * self.H, 4), round((self.x0 - z) * self.H, 4))
+
+
+def _chain_bones(prefix, parent, f, ts, first=1):
+    """Bones prefix.first.. along the line from ts[0] to ts[-1] (one bone per interval)."""
+    return [(f"{prefix}.{first + i}", parent if i == 0 else f"{prefix}.{first + i - 1}", f.pt(a), f.pt(b))
+            for i, (a, b) in enumerate(zip(ts[:-1], ts[1:]))]
+
+
+def _spaced(a, b, n):
+    return [a + (b - a) * i / n for i in range(n + 1)]
+
+
+def _wings_measured(parent, m, f):
+    """wing1 on +x, wing2 mirrored: root at the front panel's inner edge and height, the side panel's line
+    point (z), tip at the sheet's highest pixel; the elbow halfway, a little higher."""
+    w = m["wing"]
+    z_root = _line_at(m["line"], w["root"] / (len(m["line"]) - 1))[0]
+    out = []
+    for n, side in ((1, 1), (2, -1)):
+        root = f.xyz(side * w["root_x"], w["root_y"], z_root)
+        tip = f.xyz(side * w["tip"][0], w["tip"][1], w["top"])
+        elbow = tuple(round((a + b) / 2, 4) for a, b in zip(root, tip))
+        out += [(f"wing{n}.upper", parent, root, elbow), (f"wing{n}.lower", f"wing{n}.upper", elbow, tip)]
+    return out
+
+
+def _quad_body(m, f, family):
+    """root, spine.1/.2 over the trunk, the four legs: the quadruped rig without head and tail. Returns (table,
+    (t_front, t_rear))."""
+    t0, t1 = _t_of_x(m["line"], m["trunk"][0]), _t_of_x(m["line"], m["trunk"][1])
+    table = [("root", None, (0, 0, 0), (0, 0.3, 0)),
+             ("spine.1", "root", f.pt(t1), f.pt((t0 + t1) / 2)), ("spine.2", "spine.1", f.pt((t0 + t1) / 2), f.pt(t0))]
+    legs = m["legs"]
+    fx = [legs["x"][0] if legs["x"][0] is not None else m["trunk"][0] + 0.25 * (m["trunk"][1] - m["trunk"][0]),
+          legs["x"][1] if legs["x"][1] is not None else m["trunk"][1] - 0.25 * (m["trunk"][1] - m["trunk"][0])]
+    foot = 0.05 * f.H
+    for pair, (zx, parent) in enumerate(zip(fx, ("spine.2", "spine.1"))):
+        hip_y = _line_at(m["line"], _t_of_x(m["line"], zx))[1] * f.H
+        for k, side in enumerate((1, -1)):
+            x, z = side * legs["spread"] * f.H, round((f.x0 - zx) * f.H, 4)
+            name = f"leg{2 * pair + k + 1}"
+            hip, knee, ankle = (x, round(hip_y, 4), z), (x * 1.05, round((hip_y + foot) / 2, 4), z), (x * 1.05, foot, z)
+            table += [(f"{name}.upper", parent, hip, knee), (f"{name}.lower", f"{name}.upper", knee, ankle)]
+    return table, (t0, t1)
+
+
+def scale_quadruped(m):
+    """FAMILIES["quadruped"] rebuilt from measure_quadruped: spine over the trunk, the head from its front to the
+    snout, two tail bones to the tail tip, legs at the measured columns and spread."""
+    f = Frame(m, "quadruped", sum(m["trunk"]) / 2)
+    table, (t0, t1) = _quad_body(m, f, "quadruped")
+    table += [("head", "spine.2", f.pt(t0), f.pt(0.0))]
+    table += _chain_bones("tail", "spine.1", f, _spaced(t1, 1.0, 2))
+    FAMILIES["quadruped"] = table
+    _drop_caches()
+    return table
+
+
+def scale_drake(m):
+    """FAMILIES["drake"]: the quadruped body, a 2-bone neck and the head up to HEAD_FRAC of the line, a 3-bone tail,
+    wings from the sheet (_wings_measured)."""
+    f = Frame(m, "drake", sum(m["trunk"]) / 2)
+    table, (t0, t1) = _quad_body(m, f, "drake")
+    hb = HEAD_FRAC["drake"]
+    table += _chain_bones("neck", "spine.2", f, _spaced(t0, hb, 2))
+    head, tip = f.pt(hb), f.pt(0.0)
+    table += [("head", "neck.2", head, tip),
+              ("jaw", "head", (0, head[1] - 0.04 * f.H, head[2] - 0.03 * f.H), (0, tip[1] - 0.1 * f.H, tip[2] - 0.05 * f.H))]
+    table += _chain_bones("tail", "spine.1", f, _spaced(t1, 1.0, 3))
+    table += _wings_measured("spine.2", m, f)
+    FAMILIES["drake"] = table
+    _drop_caches()
+    return table
+
+
+def scale_wyrm(m):
+    """FAMILIES["wyrm"]: the head bone on the first HEAD_FRAC of the line, WYRM_SPINES spine bones along the rest,
+    wings from the sheet. The line is the S of the side panel."""
+    f = Frame(m, "wyrm", m["len"] / 2)
+    hb = HEAD_FRAC["wyrm"]
+    table = [("root", None, (0, 0, 0), (0, 0.2, 0))]
+    table += _chain_bones("spine", "root", f, _spaced(hb, 1.0, WYRM_SPINES))
+    table += [("head", "spine.1", f.pt(hb), f.pt(0.0))]
+    table += _wings_measured("spine.1", m, f)
+    FAMILIES["wyrm"] = table
+    _drop_caches()
+    return table
+
+
+SCALERS = {"quadruped": scale_quadruped, "wyrm": scale_wyrm, "drake": scale_drake,
+           "spider": lambda m: scale_spider("spider", m), "spider_high": lambda m: scale_spider("spider_high", m)}
+
+
+def scale_rig(family, measure):
+    """Rebuild the table of `family` from the sheet's measures when it has a scaler and a measure (otherwise the
+    fixed table stays); True when it did."""
+    if not measure or family not in SCALERS:
+        return False
+    SCALERS[family](measure)
+    return True
+
+
 def with_extras(family, extras):
     """The family table plus a spec's own prop bones [[name, parent, head, tail]]:
     a mast, a second head, a counterweight. Names must be new, parents must exist."""
@@ -360,7 +500,7 @@ def required(family):
 
 def top(family):
     """Highest bone point: the rig's natural height in spec metres."""
-    return max(max(head[1], tail[1]) for _, _, head, tail in FAMILIES[family])
+    return HEIGHT.get(family) or max(max(head[1], tail[1]) for _, _, head, tail in FAMILIES[family])
 
 
 def has_biped_limbs(family):

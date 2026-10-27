@@ -9,6 +9,7 @@ import numpy as np
 HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[3] / "tools/blender"))
 
+import lathe_limb  # noqa: E402
 import massing as M  # noqa: E402
 import preflight as PF  # noqa: E402
 import rig_families as RF  # noqa: E402
@@ -86,7 +87,7 @@ class Build(unittest.TestCase):
         self.assertEqual([c[0] for c in checks if not c[1]], [])
 
     def test_other_families_have_no_massing(self):
-        self.assertIsNone(M.build(REFS / "n01X/sheet.jpg", "quadruped"))
+        self.assertIsNone(M.build(REFS / "n01X/sheet.jpg", "vehicle"))
 
 
 class Joints(unittest.TestCase):
@@ -127,6 +128,39 @@ class Pipeline(unittest.TestCase):
         self.assertIn("massing alone", text)
         self.assertIn("0.800 / - / -", text)
         self.assertIn("3 parts new or edited, 1 dropped (of 2)", text)
+
+
+class Families(unittest.TestCase):
+    """The pre-spec of the three new body plans, on their real sheets (PIPELINE 22.L4-4b)."""
+
+    def tearDown(self):
+        RF.FAMILIES.update(RF.FIXED)
+        RF._drop_caches()
+
+    def test_each_unit_covers_its_bones_inside_the_budget(self):
+        for unit, rig, kinds in (("n017", "quadruped", {"frustum", "limb", "chain"}), ("n00H", "wyrm", {"chain", "plate", "prism"}),
+                                 ("n010", "drake", {"chain", "plate", "limb", "prism"})):
+            with self.subTest(unit):
+                spec = M.build(REFS / unit / "sheet.jpg", rig)
+                parts = spec["parts"]
+                self.assertTrue(kinds <= {p[1] for p in parts})
+                self.assertIn("line", spec["rig_measure"])
+                have = {p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], RF.required(rig)) or ()} \
+                    | {b for p in parts if p[1] == "chain" for b in lathe_limb.chain_bones(p[0], p[5]["bones"]) or ()}
+                self.assertFalse(RF.required(rig) - have)
+                tris = sum(PF.part_tris(p) for p in parts)
+                self.assertGreaterEqual(tris, PF.BUDGETS["mass"][0])
+                self.assertLessEqual(tris, 700)
+
+    def test_wings_lean_out_and_mirror(self):
+        spec = M.build(REFS / "n00H" / "sheet.jpg", "wyrm")
+        plates = {p[0]: p for p in spec["parts"] if p[1] == "plate"}
+        self.assertEqual(set(plates), {"wing1.upper", "wing1.lower", "wing2.upper", "wing2.lower"})
+        self.assertAlmostEqual(plates["wing1.upper"][3][0], -plates["wing2.upper"][3][0], 3)
+        self.assertAlmostEqual(plates["wing1.lower"][5]["rot"][2], -plates["wing2.lower"][5]["rot"][2], 3)
+
+    def test_slot_groups_hand_out_zones_for_the_new_families(self):
+        self.assertTrue(set(M.SLOT_GROUPS_FOR) == {"quadruped", "wyrm", "drake"})
 
 
 if __name__ == "__main__":

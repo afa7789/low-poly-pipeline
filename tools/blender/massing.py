@@ -36,7 +36,7 @@ import rig_families as RF  # noqa: E402
 import preflight  # noqa: E402
 import silhouette as SIL  # noqa: E402
 
-FAMILIES = ("biped", "spider", "spider_high")
+FAMILIES = ("biped", "spider", "spider_high", "quadruped", "wyrm", "drake")
 # frustum stacks follow the sheet's depth centre per slice; a lathe cannot (its axis is straight), and
 # measured alone it lost 0.03-0.06 on left/top/bottom (n01X) with no gain on the spider (2026-10-27).
 # LATHE_MASSING flips head/torso/pelvis/shell to the lathe emitters for a one-surface look.
@@ -45,7 +45,9 @@ LATHE_MASSING = False
 # of midway: n01X +0.002 mean IoU, n005 -0.004 (2026-10-28, PIPELINE 22.L4-6), so it stays off.
 MEASURED_JOINTS = False
 KIND_FOR = {"head": "frustum", "torso": "frustum", "pelvis": "frustum", "foot": "frustum", "hand": "frustum",
-            "arm": "prism", "leg": "prism", "shell": "frustum", "tail": "chain", "neck": "chain"}
+            "arm": "prism", "leg": "prism", "shell": "frustum", "tail": "chain", "neck": "chain",
+            # quadruped, wyrm, drake (22.L4-4b): a brick is a frustum in a z-slab, the wing a plate on the side panel's blob
+            "trunk": "slab", "paw": "slab", "snout": "prism", "leg4": "limb", "wing": "plate", "spine": "chain"}
 if LATHE_MASSING:
     KIND_FOR.update(head="lathe", torso="lathe", pelvis="lathe", shell="lathe")
 LATHE_RINGS = {"torso": 8, "shell": 8, "head": 6, "pelvis": 6}   # profile samples per role (lathe_limb.PROFILE_RANGE)
@@ -60,7 +62,8 @@ EDGE = 0.008            # half the row window a width is read over, in H
 THIN = 0.03             # a stack slice shorter than this share of the top is a step, drawn without taper
 MIN_TRIS = 410            # the class floor is 400; grow the torso stack until the pre-spec clears it
 SURFACE = {"Mech": "metal"}    # race -> palette surface; the author edits it
-DEFAULT_SURFACE = {"biped": "cloth", "spider": "chitin", "spider_high": "chitin"}
+DEFAULT_SURFACE = {"biped": "cloth", "spider": "chitin", "spider_high": "chitin", "quadruped": "fur", "wyrm": "scales",
+                   "drake": "scales"}
 LEG_SIDES = 6            # spider legs are thin: a hexagonal tube reads as round and saves 8 tris a leg
 LEG_FAT = 2.2             # spider legs are drawn this much thicker than the sheet's runs: the rig's joints are near the sheet's legs, not on them
 REACH = 1.1             # the elbow's outer edge stays within this share of the sheet's shoulder span (preflight allows 1.15)
@@ -248,16 +251,34 @@ def _lathe_body(role, bone, slot, g):
 CHAIN_SIDES = 6          # a chain's ring is a hexagon (lathe_limb.chain_rings phases it to read round from the side and above)
 
 
-def _chain_run(role, bone, slot, g):
+def _chain_run(role, bone, slot, g):  # ponytail: round rings only; an elliptical trunk needs a lathe on its side, add when a sheet needs it
     """One chain along the rig bones from `bone` (g["bones"] of them): the radius at each joint is
-    g["half"](joint), the sheet's half width there (metres). PIPELINE 22.L4-1. No family in FAMILIES
-    has a tail or a neck to massing yet (L4-4): the emitter waits for its caller, opt-in by role."""
+    g["half"](joint), the sheet's half width there (metres). PIPELINE 22.L4-1; the tails, necks and bodies of
+    the quadruped, wyrm and drake (22.L4-4b) call it."""
     radii = [r3(max(g["half"](j), 0.02)) for j in lathe_limb.chain_joints(bone, g["bones"])]
     return [[bone, "chain", radii, [0, 0, 0], slot,
-             {"bones": g["bones"], "sides": CHAIN_SIDES, "profile_axis": "left"}]]
+             {"bones": g["bones"], "sides": g.get("sides", CHAIN_SIDES), "profile_axis": "left"}]]
 
 
-EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run}
+def _brick(role, bone, slot, g):
+    """One frustum, w x h x d at g["at"], no taper: a z-slab of a body seen from the side and from above."""
+    return [[bone, "frustum", [r3(g["w"]), r3(g["h"]), r3(g["d"])], [r3(v) for v in g["at"]], slot, {"top": [1.0, 1.0], "shift": [0, 0]}]]
+
+
+def _limb_leg(role, bone, slot, g):
+    """One limb from g["a"] to g["b"], radii g["r"] = (top, knee, base), the knee halfway."""
+    return [[bone, "limb", [r3(v) for v in g["r"]], [0, 0, 0], slot,
+             {"from": [r3(v) for v in g["a"]], "to": [r3(v) for v in g["b"]], "sides": g.get("sides", SIDES), "knee": [0.5, 0, 0]}]]
+
+
+def _plate_wing(role, bone, slot, g):
+    """One plate on the side panel's axis: dims (w, h, t), centre g["at"], profile g["profile"], turned g["rot"] about forward."""
+    return [[bone, "plate", [r3(v) for v in g["dims"]], [r3(v) for v in g["at"]], slot,
+             {"axis": "left", "profile": g["profile"], "rot": [0, 0, r3(g["rot"])], "bevel": g.get("bevel", 0.0)}]]
+
+
+EMIT = {"frustum": _frustum_stack, "prism": _prism_limb, "lathe": _lathe_body, "chain": _chain_run,
+        "slab": _brick, "limb": _limb_leg, "plate": _plate_wing}
 
 
 def emit(role, bone, slot, geometry):
@@ -619,13 +640,15 @@ def _slab(bone, slot, z, y, width, dome):
 
 
 SLOT_GROUPS = ("foot.*", "head", "abdomen", "forearm.*", "leg?.lower")   # parts handed the unused zones, in this order
+SLOT_GROUPS_FOR = {"quadruped": ("head", "leg?.lower", "tail.1", "leg?.upper"), "wyrm": ("head", "wing?.lower", "wing?.upper"),
+                   "drake": ("head", "wing?.lower", "tail.*", "leg?.lower")}
 
 
-def ensure_slots(parts, names, need=3):
+def ensure_slots(parts, names, need=3, groups=SLOT_GROUPS):
     """The preflight wants `need` materials in use: when the dominant zones leave fewer, the parts of the
     first SLOT_GROUPS hand the colours no part took (a sheet of one dark colour: every part is zone 1)."""
     spare = [n for n in names if n not in {p[4] for p in parts}]
-    for pattern in SLOT_GROUPS:
+    for pattern in groups:
         if len({p[4] for p in parts}) >= need or not spare:
             return
         name = spare.pop(0)
@@ -655,11 +678,200 @@ def placeholder_props(parts, rig, unit, slot):
     return out
 
 
+# ---- quadruped, wyrm, drake (PIPELINE 22.L4-4b)
+
+DETAIL = ((6, 0.0), (8, 0.0), (8, 0.15))   # (sides, plate bevel) tried in order until the pre-spec clears the class floor
+TRUNK_SLABS = 8          # bricks along the trunk (one frustum each: the side view's top and bottom line, the top view's width)
+HEAD_SLABS = 4
+WING_OVERLAP = 0.08      # the two plates of a wing overlap by this share of its height
+
+
+class Scaled:
+    """The side, front and top panels of a quadruped, wyrm or drake sheet in rig metres (the rig was scaled by `m`):
+    x runs from the snout, z = (x0 - x) * H, y up."""
+
+    def __init__(self, sheet, family, m, labels_for):
+        panels = {k: SIL._crop(v) for k, v in SIL.concept_panels(sheet).items()}
+        self.m, self.family, self.labels_for = m, family, labels_for
+        self.left, self.line = panels["left"], m["line"]
+        self.h = self.left.shape[0]
+        self.H = RF.top(family)
+        self.x0 = sum(m["trunk"]) / 2 if "trunk" in m else m["len"] / 2
+        self.front = View(panels["front"], self.H)
+        top = panels["top"]
+        self.top = np.rot90(top, -1) if top.shape[1] > 1.2 * top.shape[0] else top    # n010's top is drawn head left
+        self.bones = {n: (h, t) for n, _, h, t in RF.FAMILIES[family]}
+        self.opened = SIL.thin_opened(self.left)
+
+    def z(self, x):
+        return (self.x0 - x) * self.H
+
+    def y_range(self, mask, xa, xb):
+        """(bottom, top) in metres of `mask` over the columns x = xa..xb (fractions of H from the snout)."""
+        rows = np.nonzero(mask[:, int(xa * self.h):max(int(xb * self.h), int(xa * self.h) + 1)].any(axis=1))[0]
+        return (self.h - rows.max() - 1) / self.h * self.H, (self.h - rows.min()) / self.h * self.H
+
+    def top_half(self, xa, xb, opened=True):
+        """Mean half width in metres of the top view between x = xa..xb, None when the panel has no rows there."""
+        mask = SIL.thin_opened(self.top) if opened else self.top
+        k = mask.shape[0] / self.m["len"]
+        halves = [(np.ptp(np.nonzero(row)[0]) + 1) / 2 for row in mask[int(xa * k):max(int(xb * k), int(xa * k) + 1)] if row.any()]
+        return float(np.mean(halves)) / k * self.H if halves else None
+
+    def line_y(self, x):
+        """The centre line's height in metres at x (fractions of H from the snout)."""
+        return float(np.interp(x, [p[0] for p in self.line], [p[1] for p in self.line])) * self.H
+
+    def radius_at(self, joint):
+        """Radius in metres of the centre line's point nearest the joint (x, y, z)."""
+        best = min(self.line, key=lambda p: math.hypot(self.z(p[0]) - joint[2], p[1] * self.H - joint[1]))
+        return best[2] * self.H
+
+    def chain(self, role, bone, n, sides):
+        return emit(role, bone, self.labels_for(0.0, self.H, -0.3 * self.H, 0.3 * self.H), {"bones": n, "half": lambda j: CHAIN_FAT * self.radius_at(j), "sides": sides})
+
+
+def _slabs(S, role, bone_of, xa, xb, n, mask, winged, opened_top=True):
+    """n bricks from x = xa to xb: height from the side panel's `mask` in the brick's columns, width from the top
+    view (the front view for a winged body, whose wings cover the top line: then the brick is as tall above the centre line as the belly is below)."""
+    parts = []
+    for a, b in zip(np.linspace(xa, xb, n + 1)[:-1], np.linspace(xa, xb, n + 1)[1:]):
+        ybot, ytop = S.y_range(mask, a, b)
+        front = S.front.half(ybot, ybot + 0.6 * (ytop - ybot))
+        half = WIDTH * (front if winged else min(S.top_half(a, b, opened_top) or front, front))
+        if winged:
+            ytop = min(ytop, 2 * S.line_y((a + b) / 2) - ybot)    # the wing hides the back line: the trunk is as tall as the belly is far below the line
+        slot = S.labels_for(ybot, ytop, -half, half)
+        parts += emit(role, bone_of((a + b) / 2), slot, {"w": 2 * half, "h": ytop - ybot + JOINT * S.H, "d": (b - a) * S.H * 1.12,
+                                                        "at": (0.0, (ybot + ytop) / 2, S.z((a + b) / 2))})
+    return parts
+
+
+def _paws_and_legs(S, sides):
+    """Four limbs along the rig's leg bones and a paw brick under each."""
+    r = S.m["legs"]["r"] * S.H
+    parts = []
+    for i in range(1, 5):
+        (hip, _), (_, foot) = S.bones[f"leg{i}.upper"], S.bones[f"leg{i}.lower"]
+        slot = S.labels_for(0.0, hip[1], min(hip[0], 0) - 0.1 * S.H, max(hip[0], 0) + 0.1 * S.H)
+        parts += emit("leg4", f"leg{i}.upper", slot, {"a": hip, "b": foot, "r": (1.5 * r, 1.05 * r, 0.8 * r), "sides": sides})
+        parts += emit("paw", f"leg{i}.lower", slot, {"w": 2.4 * r, "h": 0.06 * S.H, "d": 3.4 * r, "at": (foot[0], 0.03 * S.H, foot[2] + r)})
+    return parts
+
+
+CHAIN_FAT = 1.1          # the side panel's radius under-reads the body's width in the front panel (n00H: 0.082 against 0.095 H)
+WIDTH = 0.9              # a brick is a box: its outline is as wide as the sheet's widest row, the sheet's body tapers; 0.9 measured on n017
+BODY_DEPTH = 0.06        # ... and at least this far (H) below the wing's lowest pixel
+BODY_REACH = 0.4         # the inner wing plate ends this many radii above the centre line
+WING_FAT = 1.3          # blade thickness over the wing's mean row width (the wing flares toward its base)
+HEAD_PIECES = 3          # tapered tubes along a prism head: a skull, a muzzle, a snout
+
+
+def _head_prism(S, sides):
+    """The head bone as HEAD_PIECES tapered tubes: the line's radius at the bone's base, 0.35 of it at the tip."""
+    head, tip = S.bones["head"]
+    r = S.radius_at(head)
+    slot = S.labels_for(head[1] - r, head[1] + r, -r, r)
+    at = lambda f: tuple(a + f * (b - a) for a, b in zip(head, tip))   # noqa: E731
+    k = HEAD_PIECES
+    return [p for i in range(k) for p in emit("snout", "head", slot, {
+        "a": at(i / k), "b": at((i + 1) / k), "r": (r * (1.15 - 0.8 * i / k), r * (1.15 - 0.8 * (i + 1) / k)), "sides": sides})]
+
+
+def _wing_plates(S, bevel):
+    """Both wings as blades: the side panel's wing blob is cut in two halves (upper bone, lower bone), each a plate in
+    the (z, y) plane with that outline, turned about forward to lean out like the front panel's spar (root to tip).
+    The inner half gets one more vertex, inside the body at the line point nearest the wing's foot, so it meets the body."""
+    w = S.m["wing"]
+    blob = SIL.wing_mask(S.left, S.line)
+    rows = np.nonzero(blob.any(axis=1))[0]
+    r0, r1 = rows.min(), rows.max() + 1
+    mid = (r0 + r1) / 2
+    (rx, ry), (tx, ty) = (w["root_x"], w["root_y"]), w["tip"]
+    theta = math.degrees(math.atan2(tx - rx, ty - ry))
+    thick = float(np.clip(WING_FAT * w["width"] * math.cos(math.radians(theta)), 0.02, 0.25)) * S.H    # the row width is horizontal, the plate's thickness is across the blade
+    xs = np.nonzero(blob.any(axis=0))[0]
+    ax, ay, ar = min(S.line, key=lambda p: math.hypot(p[0] - (xs.min() + xs.max()) / 2 / S.h, p[1] - (S.h - r1) / S.h))
+    foot = (ax * S.h, max((1 - ay - BODY_REACH * ar) * S.h, r1 + BODY_DEPTH * S.h))       # (col, row) in the side panel
+    parts = []
+    for name, (a, b) in (("upper", (mid - WING_OVERLAP * (r1 - r0), r1)), ("lower", (r0, mid + WING_OVERLAP * (r1 - r0)))):
+        part = np.zeros_like(blob)
+        part[int(a):int(b)] = blob[int(a):int(b)]
+        poly, box = _blade(part, foot if name == "upper" else None)
+        if poly is None:
+            continue
+        (c0, c1), (q0, q1) = box
+        top, bottom = (S.h - q0) / S.h * S.H, (S.h - q1) / S.h * S.H
+        yc, length = (top + bottom) / 2, top - bottom
+        xc = max((rx + (yc / S.H - ry) / (ty - ry) * (tx - rx)) * S.H, 0.0)
+        if name == "upper":
+            xc = max(xc - 0.5 * thick, 0.0)      # the inner plate's face reaches into the body's tube
+        for n, side in ((1, 1), (2, -1)):
+            slot = S.labels_for(yc - length / 2, yc + length / 2, 0.0, side * S.H)
+            parts += emit("wing", f"wing{n}.{name}", slot,
+                          {"dims": ((c1 - c0) / S.h * S.H, length / math.cos(math.radians(theta)), thick),
+                           "at": (side * xc, yc, S.z((c0 + c1) / 2 / S.h)), "profile": poly, "rot": -side * theta,
+                           "bevel": bevel})
+    return parts
+
+
+def _blade(mask, spike=None):
+    """([[u, v]] polygon of at most 8 points in 0-1 of its box, u toward the head as the plate's z, v up) and the
+    ((c0, c1), (r0, r1)) pixel box (the box grows to hold `spike`, a (col, row) vertex put after the lowest one);
+    (None, None) for an empty mask."""
+    ys, xs = np.nonzero(mask)
+    if not len(ys):
+        return None, None
+    c0, c1, r0, r1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
+    hs = r1 - r0
+    poly = SIL.outline(mask[r0:r1, c0:c1], eps=0.004, limit=7 if spike else 8)
+    pts = [(c0 + (c1 - c0 - 1) / 2 + x * hs, r1 - 1 - y * hs) for x, y in poly]
+    if spike:
+        low = max(range(len(pts)), key=lambda i: pts[i][1])
+        pts.insert(low + 1, spike)
+        c0, c1, r1 = min(c0, spike[0]), max(c1, spike[0]), max(r1, spike[1])
+    px, py = np.array(pts).T
+    u = 1 - (px - c0) / max(c1 - c0, 1e-6)
+    v = (r1 - py) / max(r1 - r0, 1e-6)
+    return [[r3(min(max(a, 0), 1)), r3(min(max(b, 0), 1))] for a, b in zip(u, v)][::-1], ((c0, c1), (r0, r1))
+
+
+def _quadruped_parts(S, detail):
+    """Trunk bricks, head bricks (or a prism for a drake), legs and paws, tail and neck chains: a quadruped or drake."""
+    m, winged, (sides, bevel) = S.m, "wing" in S.m, detail
+    x0, x1 = m["trunk"]
+    pad = 0.4 * max(p[2] for p in S.line)
+    mid = (x0 + x1) / 2
+    parts = _slabs(S, "trunk", lambda x: "spine.2" if x < mid else "spine.1", x0 - pad, x1 + pad, TRUNK_SLABS, S.opened, winged)
+    parts += _paws_and_legs(S, sides)
+    if winged:
+        parts += _head_prism(S, sides) + S.chain("neck", "neck.1", 2, sides) + S.chain("tail", "tail.1", 3, sides) + _wing_plates(S, bevel)
+    else:
+        parts += _slabs(S, "trunk", lambda x: "head", 0.0, x0 - pad, HEAD_SLABS, S.left, False, opened_top=False)
+        parts += S.chain("tail", "tail.1", 2, sides)
+    return parts
+
+
+def _wyrm_parts(S, detail):
+    """The body as one chain over spine.1..6, the head as a prism, two wing blades."""
+    sides, bevel = detail
+    return S.chain("spine", "spine.1", RF.WYRM_SPINES, sides) + _head_prism(S, sides) + _wing_plates(S, bevel)
+
+
+def scaled(sheet, rig, m, labels_for, detail):
+    """Parts of the quadruped, wyrm or drake pre-spec (the rig was scaled by the measures `m`); detail = (sides, bevel)."""
+    S = Scaled(sheet, rig, m, labels_for)
+    return _wyrm_parts(S, detail) if rig == "wyrm" else _quadruped_parts(S, detail)
+
+
 def build(sheet, rig, race="", palette_sheet=None):
     """The pre-spec dict for `sheet` and rig family, or None for a family without a massing."""
     if rig not in FAMILIES:
         return None
     palette, names, centres = palette_of(palette_sheet or sheet, race, rig)
+    measure = SIL.measure_rig(rig, sheet) if rig in RF.SCALABLE else None
+    RF.scale_rig(rig, measure)
+    lathe_limb.set_rig(rig)
     H = RF.top(rig)
     pan = SIL.concept_panels(palette_sheet or sheet)["front"]
     fv = View(pan, H)
@@ -670,13 +882,14 @@ def build(sheet, rig, race="", palette_sheet=None):
         return names[min(zone_slot(labels, fv, y0, y1, x0, x1), len(centres) - 1)]
 
     parts = []
-    for sides in ((LEG_SIDES, 8, 10) if rig != "biped" else (SIDES, 10, 12)):   # more sides until the pre-spec clears the class floor
-        parts = biped(sheet, H, labels_for, sides) if rig == "biped" else spider(sheet, rig, labels_for, sides)
+    for sides in {"biped": (SIDES, 10, 12), "quadruped": DETAIL, "wyrm": DETAIL, "drake": DETAIL}.get(rig, (LEG_SIDES, 8, 10)):   # more sides until the pre-spec clears the class floor
+        parts = (biped(sheet, H, labels_for, sides) if rig == "biped" else scaled(sheet, rig, measure, labels_for, sides)
+                 if measure else spider(sheet, rig, labels_for, sides))
         if sum(preflight.part_tris(p) for p in parts) >= MIN_TRIS:
             break
     parts += placeholder_props(parts, rig, pathlib.Path(sheet).parent.name, names[-1])
-    ensure_slots(parts, names)
-    return {"palette": palette, "parts": parts, "rig": rig}
+    ensure_slots(parts, names, groups=SLOT_GROUPS_FOR.get(rig, SLOT_GROUPS))
+    return {"palette": palette, "parts": parts, "rig": rig, **({"rig_measure": measure} if rig in RF.SCALABLE else {})}
 
 
 def main():
@@ -687,8 +900,7 @@ def main():
     ap.add_argument("--race", default="")
     ap.add_argument("--palette-sheet", type=pathlib.Path, default=None)
     a = ap.parse_args()
-    if a.rig in RF.SPIDERS:        # the pipeline does this in set_rig; standalone, scale the rig by the sheet here
-        RF.scale_spider(a.rig, SIL.measure_spider(a.sheet))
+    RF.scale_rig(a.rig, SIL.measure_rig(a.rig, a.sheet))     # the pipeline does this in set_rig; standalone, scale the rig by the sheet here
     spec = build(a.sheet, a.rig, a.race, a.palette_sheet)
     a.out.write_text(json.dumps(spec, indent=2))
     print(f"{len(spec['parts'])} parts -> {a.out}")

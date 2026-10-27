@@ -97,11 +97,10 @@ def families():
 
 def load_family(name, extras=None, measure=None):
     """Swap the rig family before building: a spec can ask for spider, quadruped...,
-    plus its own prop bones (rig_families.with_extras). A spider spec's "rig_measure" (the
-    sheet's numbers, silhouette.measure_spider) scales the skeleton."""
+    plus its own prop bones (rig_families.with_extras). A spec's "rig_measure" (the sheet's
+    numbers, silhouette.measure_rig) scales the skeleton of a spider, quadruped, wyrm or drake."""
     fam = families()
-    if measure and name in fam.SPIDERS:
-        fam.scale_spider(name, measure)
+    fam.scale_rig(name, measure)
     global BONES, BONE_MAP, FAMILY
     FAMILY = name if name in fam.FAMILIES else "biped"
     BONES = fam.with_extras(FAMILY, extras)
