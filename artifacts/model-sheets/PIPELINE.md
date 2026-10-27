@@ -2968,3 +2968,56 @@ silhouette.py com render real, antes = union, depois = union deformada; tabela c
 - Fora: top/bottom puxados por default (só opt-in), `cotangent` (Laplaciano uniforme; trocar se a malha ganhar anéis regulares no L6-1),
   Chamfer 3D, qualquer termo de aresta interna (L6-12 entra depois deste passo).
 - Papers: Sketch2Mesh 2021 (§3.3 Chamfer de contornos externos, Fig. 2c, Eq. 6), Wiersma 2026 (slivers, recusa de inversão).
+
+### 24.L6-7 Wiersma: otimização de vértices de topologia fixa, opt-in `--fit-verts` (2026-10-27)
+
+**O que mudou.** `tools/blender/optimize_verts.py <glb> <sheet> <out.glb> [--views front,left,back,top,bottom,rts] [--iters 30] [--seconds 120]`
+(python3.14 + numpy/scipy/PIL, sem Blender, sem SDS). Só POSITION/NORMAL mudam (skin e UV ficam; `deform_to_sheet.rewrite` virou
+o leitor/escritor comum). Variáveis = vértices soldados da maior componente (o corpo); props (outras componentes) ficam parados.
+1. Objetivo (em alturas): Σ vistas (1 − IoU suave do raster 4x dos triângulos) + 10·chamfer de contorno (vértices de contorno → contorno do
+   painel, Sketch2Mesh Eq. 5) + 0.05·fairness (média de ((ângulo − π/3)/(π/3))², Wiersma §3) + 10·|L(x − x0)|² (Laplaciano do deslocamento).
+2. Gradiente do IoU por diferença finita **local por vértice**: re-rasteriza só o 1-anel numa janela (contagem de cobertura em 4x, soma
+   incremental de interseção/união): ~1-2 s por gradiente completo. Fairness: diferenças finitas por canto de triângulo; chamfer e
+   Laplaciano analíticos. Vistas com IoU inicial < 0.5 (rts de um voador, top/bottom do n010) saem do objetivo.
+3. Passo máximo 0.02 H; line search em 6 frações; se o passo inteiro não baixa o objetivo, tenta por 8 blocos de altura (coordinate
+   descent). Recusa/repara: face virada (contra a orientação inicial) ou sliver novo (< 10°): os vértices da face têm o passo
+   cortado ao meio 3 vezes e depois zerado; nenhuma vista cai > 0.01 de IoU abaixo do começo. No fim `settled` puxa de volta as
+   faces que o `mesh_lint` contaria como `flipped` (cosseno face × normal dos cantos do arquivo < 0 e pior que no começo).
+4. Multi-resolução: 35 % do tempo só com âncoras (1 vértice em 4; o resto segue por interpolação harmônica), depois todos.
+   Medido (n005, 90 s): objetivo final 0.754 com âncoras, 0.772 sem.
+5. Gancho: `spec_pipeline --fit-verts` (`FIT_VERTS = False`), depois do `deform_to_sheet.apply` (guarda `clay-prefit.glb`, `clay.verts.json`)
+   e em `colour_stage.build_textured`; só com `UNION_BODY`. ~2 min por unidade.
+
+**Prova sem LLM** (8 specs v9-r1 reconstruídos com `spec_pipeline --spec ... --no-repair --no-fit --shape-only` no HEAD, corpo = 1 casca +
+props; antes = clay deformado do L6-5, depois = `optimize_verts` 120 s; silhouette.py com render real; `history/2026-10-28-l6-7/`):
+
+| unidade | IoU f/l/b antes | depois | vermelho médio f/l/b | verde médio f/l/b | ΔIoU top/bottom/rts | slivers % | flipped | normal_diff médio | vistas <8 % (v+v) | s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | .854/.920/.859 | .893/.923/.906 | 4.1 → 3.5 % | 8.8 → 6.2 % | +.054/+.043/+.029 | 14.1 → 11.4 | 0 → 0 | 44.16 → 48.44 | 1 → 3 | 123 |
+| n00H | .804/.678/.800 | .859/.805/.854 | 12.5 → 4.0 % | 14.4 → 13.0 % | +.096/+.036/+.018 | 10.7 → 6.6 | 0 → 0 | 47.38 → 53.58 | 0 → 0 | 124 |
+| n00U | .853/.747/.853 | .875/.788/.869 | 6.4 → 4.3 % | 13.3 → 12.3 % | +.032/+.056/+.016 | 21.7 → 15.8 | 0 → 0 | 44.25 → 49.48 | 0 → 0 | 122 |
+| n010 | .778/.842/.607 | .815/.869/.653 | 13.2 → 7.7 % | 16.9 → 17.1 % | -.003/-.009/+.043 | 17.1 → 13.2 | 0 → 0 | 50.48 → 52.87 | 0 → 0 | 122 |
+| n017 | .884/.731/.816 | .884/.765/.824 | 7.9 → 6.5 % | 13.0 → 12.6 % | +.013/+.039/+.027 | 29.3 → 24.8 | 0 → 0 | 46.35 → 49.38 | 0 → 0 | 122 |
+| n01X | .845/.875/.848 | .883/.851/.885 | 9.0 → 6.0 % | 6.5 → 7.6 % | +.056/+.048/+.026 | 19.4 → 15.2 | 0 → 0 | 51.48 → 51.65 | 0 → 2 | 125 |
+| n02X | .837/.866/.850 | .849/.866/.863 | 5.7 → 5.5 % | 10.3 → 9.5 % | +.025/+.034/+.061 | 19.8 → 15.2 | 1 → 1 | 52.64 → 53.91 | 0 → 0 | 127 |
+| hfoo | .796/.515/.814 | .828/.546/.822 | 18.6 → 15.9 % | 17.0 → 16.4 % | +.016/-.005/+.028 | 17.6 → 15.4 | 0 → 0 | 44.73 → 47.78 | 0 → 0 | 127 |
+IoU mean f/l/b before 0.8031 after 0.8323
+red mean f/l/b before 0.0968 after 0.0668
+green mean f/l/b before 0.1253 after 0.1183
+views <8%: 1 -> 5 of 24
+
+- IoU f/l/b médio .803 → .832 (sobe em 7 das 8 unidades nas 3 vistas médias; top/bottom/rts sobem em quase todas: n00H top +.096).
+  Vermelho médio f/l/b 9.7 → 6.7 % (abaixo de 8 %); **verde 12.5 → 11.8 %: a meta (vermelho E verde < 8 % em front/left/back) não
+  fecha**: 5 de 24 vistas (1 antes), só o n005 (3 de 3) e n01X (2 de 3). O verde é malha fora do contorno do sheet (proporção da
+  figura, corpo largo demais no left do hfoo/n00U); com a mesma malha de ~630 faces o otimizador só troca vermelho por IoU. Por isso
+  **continua opt-in** (`FIT_VERTS = False`).
+- Slivers (mesh_lint) caem em todas: 14.1 → 11.4, 10.7 → 6.6, 21.7 → 15.8, 17.1 → 13.2, 29.3 → 24.8, 19.4 → 15.2, 19.8 → 15.2, 17.6 → 15.4 %
+  (a fairness e a recusa de sliver novo). `flipped` 0 → 0 em 7 unidades (n02X já tinha 1, fica 1).
+- **Piorou:** `normal_diff` médio sobe 0.2-5.3° (44.2 → 48.4 no n005, 47.4 → 53.6 no n00H): a malha segue o contorno e dobra mais; n010 top/bottom
+  −.003/−.009 e hfoo bottom −.005 (vistas só vigiadas); esticão p99.5 do `walk` igual ±0.6 (n005 3.80 → 4.44, n00H 2.65 → 2.96; as demais iguais
+  ou menores), `max_dup_split` 0.0 nas 8: sem rasgo (`history/.../walk.txt`).
+- Tempo: 120 s por unidade (para por prazo; ainda descendo: 90 s dá objetivo ~3 % pior). Tentativas que NÃO ajudaram: sem o gate de
+  `flipped` o `mesh_lint` marcava 1-3 faces `flipped` por unidade (slivers de ~150° que viravam de lado); fazer esse teste a cada passo
+  (normais soldadas) recusava a maior parte dos passos e perdia metade do ganho; ficou como passe final.
+- Fora: SDS/difusão, fabricação, cotangente, aresta interna (L6-12), props como variáveis, `normal_diff` no objetivo (próximo passo se o corpo dobrar demais).
+- Papers: Wiersma 2026 §3-4 (orçamento fixo, posição de vértices, line search que recusa inversão, fairness), Sketch2Mesh 2021 (chamfer Eq. 5).

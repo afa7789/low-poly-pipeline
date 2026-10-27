@@ -69,6 +69,7 @@ import urllib.request
 import building_hull
 import cut_hull
 import deform_to_sheet
+import optimize_verts
 import diagnose
 import lathe_limb
 import massing
@@ -1402,6 +1403,10 @@ def stage_shape(spec_path, args, layout):
     if deformed:
         print(f"deform: {deformed['steps']} steps, {deformed['refused']} refused, "
               f"slivers {deformed['slivers_before']} -> {deformed['slivers_after']}")
+    fitted = optimize_verts.apply(glb, args)          # opt-in: vertex optimisation of the deformed body (24.L6-7)
+    if fitted:
+        print(f"fit-verts: {fitted['steps']} steps in {fitted['seconds']} s, objective {fitted['objective'][0]} -> "
+              f"{fitted['objective'][1]}, slivers {fitted['slivers_before']} -> {fitted['slivers_after']}")
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -1989,6 +1994,9 @@ def main():
     ap.add_argument("--no-deform", dest="deform", action="store_false", default=DEFORM,
                     help="skip the Sketch2Mesh deformation of the unioned body onto the sheet's outlines "
                          "(deform_to_sheet.py, PIPELINE 24.L6-5)")
+    ap.add_argument("--fit-verts", dest="fit_verts", action="store_true", default=FIT_VERTS,
+                    help="after the deformation, optimise the body's vertex positions against the 6 sheet views at a "
+                         "fixed topology (optimize_verts.py, Wiersma 2026; about 2 min; PIPELINE 24.L6-7)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2076,6 +2084,7 @@ VIEW_FLOOR = {None: ("front", "rts"), "spider": ("top", "bottom", "rts"),
 RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's red) may not grow more than this
 FORM_W = 0.5          # fit_accepted / margin_of: form cost (slivers + mean normal_diff / 90), PIPELINE 24.L6-6
 DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the sheet's outlines (--no-deform)
+FIT_VERTS = False     # PIPELINE 24.L6-7: opt-in (--fit-verts); about 2 min a unit, so not a default
 # 24.L6-4: the deformation needs the welded body; read build_unit.UNION_BODY from its source (it imports bpy)
 UNION_BODY = bool(re.search(r"^UNION_BODY\s*=\s*True", (ROOT / "tools/blender/build_unit.py").read_text(), re.M))
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
