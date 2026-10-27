@@ -1867,3 +1867,33 @@ Papers: Sketch2Mesh 2021 (Eq. 6: refinar só perto da região que falha), MeshGP
   Peças editáveis por passe: 8-16 de 28-29 (28-57 %). Autor: 4 pedidos novos e 4 de `fbb2fc0f` (`--no-repair`, só autor), 8/8 viram spec sem reenvio, taxa de spec malformado 0/4 contra 0/4: **o schema não mede ganho com `session:opus`**, que já devolvia JSON válido; o ganho esperado é no Gemini, e lá o schema não existe (ver acima), só o reenvio.
 - **Piorou / pendente.** (1) N pequeno: 9 patches, nenhum tocou peça congelada; não provo que o `[FROZEN]` segura um modelo mais solto, só que `opus` respeita a lista, e o `apply_patch` cobre o caso nos testes. (2) A diferença de passes aceitos (3/9 contra 0/4) é ruído de LLM, não prova de ganho. (3) Nas runs de n005 as regras do repair eram globais (`shoulder_span`, `fist_span`, `budget_split`): o repair nunca congelou nada; mapear `shoulder_span`/`fist_span` aos ossos `arm`/`forearm` é o próximo passo se o repair parcial importar. (4) A banda usa a altura do modelo; um conceito com adereço alto (capuz, antena) desloca as faixas. (5) O `[FROZEN]` custa linhas no prompt, não tokens de imagem.
 - **Testes.** `test_spec_pipeline.py`: `AuthorSchema` (flag do CLI, `structured_output`, `json_object` e fallback 400, reenvio uma vez) e `FrozenParts` (bones das regras, `set`/`drop`/`add` fora da lista, faixas sobre máscaras sintéticas, marcação `[FROZEN]`).
+
+## 21. Leva 3 (2026-10-27)
+
+### 21.F5 Few-shot no brief e `--variants 3` por default (2026-10-27) - few-shot ligado, sem prova de ganho
+
+- **O que mudou** (`spec_pipeline.py`). (a) `with_fewshot` acrescenta ao prompt do autor, depois das referências, um exemplo
+  spec→render por família de rig: o spec resumido (uma linha por peça nos 6 slots da DSL; dos opts só `from`/`to`) e uma
+  imagem `fewshot/<família>.jpg` (concept | clay front, recorte do `compare.png`). biped: `n01X/hard-v1` (PASS); spider:
+  `n00U/v6-r3`, a melhor aranha até agora (nenhuma passou o estágio 1; o texto diz que front/left/back passam e top/bottom
+  não: "copie escala e número de peças, não os defeitos"). Texto: "this is what a PASS looks like in this DSL: note the scale
+  of dims against H and how few parts it takes". Outras famílias (edifícios) e `--no-fewshot`: brief antigo. O exemplo fica
+  atrás de `FEWSHOT_MARK`; repair e passes cortam o texto (as imagens deles são outras, a numeração não vale).
+  (b) `--variants` default 3 (`1` desliga); `best_of_n` inalterado, perdedores em `variants/<k>/`.
+- **Custo** (registrado em `review.md`, seção Few-shot): 1 imagem extra (~460 tokens, w*h/750) + ~680 tokens de texto por
+  chamada do autor; `--variants 3` triplica as chamadas (paralelas) e os builds do estágio 1 (~80 s cada, em série).
+- **Medida** (n005, `session:opus`, `--shape-only --no-repair`, `runs/draft/n005/leva3-f5-r1`). O vencedor (1 de 3 variantes
+  que passaram a validação) depois do fit: IoU front/left/back/top/bottom/rts **.825/.773/.887/.680/.702/.812**, contra
+  v6-r4 .823/.810/.870/.723/.774/.835 (v6-r4 teve repair/passes; este não): melhor em front e back, pior em left, top,
+  bottom e rts; preflight FAIL, estágio 1 FAIL. Margem da variante vencedora antes do fit: +0.253.
+- **Piorou / achado.** (1) Primeira versão do resumo omitia `from/to` (peças de membro ficavam com `at` 0,0,0 e dims de
+  offset): 3/3 variantes caíram; consertado (`fewshot_summary` mantém `from`/`to`). A segunda mostrava `from/to` no lugar de
+  `at` e o autor copiou o formato (schema inválido): por isso o resumo segue os 6 slots. (2) **Falha que já existia:** o
+  autor erra "part N below the ground plane" em quase todo pedido do n005 neste HEAD. Sem few-shot (`--no-fewshot`, 3 runs
+  de 3 variantes = 9/9 variantes caíram, mesmo após o reenvio); com few-shot (versão final) 1 de 3 sobreviveu. Com
+  `--variants 3` um run morre ("no reply parsed into a spec") quando as 3 caem, igual ao run único de antes; o certo é
+  atacar essa validação (candidato: `ground_fix` antes de rejeitar), não é desta frente. (3) N=1 por braço: o sinal
+  few-shot 1/3 contra 0/9 é fraco e o IoU não prova ganho; sem controle pareado de margens (o braço sem few-shot nunca
+  produziu spec). Few-shot fica ligado por pedido do roadmap; reavaliar na bateria v7.
+- **Testes.** `test_spec_pipeline.py`: `FewShot` (exemplo por família, `--no-fewshot`, família sem exemplo, o corte do
+  texto pelos passes, resumo sem opts e com `from/to`).

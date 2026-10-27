@@ -671,3 +671,32 @@ class BestOfN(unittest.TestCase):
         text = SP.timing_section(types.SimpleNamespace(times={"gen": 12.34, "build": 80, "n_passes": 2}))
         for line in ("- t_gen: 12.3 s", "- t_build: 80.0 s", "- t_colour: 0.0 s", "- passes: 2"):
             self.assertIn(line, text)
+
+
+class FewShot(unittest.TestCase):
+    def args(self, rig, off=False):
+        import types
+        return types.SimpleNamespace(rig=rig, no_fewshot=off)
+
+    def test_example_per_family_and_switches(self):
+        for rig in ("biped", "spider"):
+            with self.subTest(rig=rig):
+                a = self.args(rig)
+                brief, imgs = SP.with_fewshot("BRIEF", a, 3)
+                self.assertEqual(len(imgs), 1)
+                self.assertTrue(imgs[0].exists())
+                self.assertIn("Image 3 ", brief)
+                self.assertIn("what a PASS looks like", brief)
+                self.assertEqual(brief.split(SP.FEWSHOT_MARK)[0], "BRIEF")   # passes strip it
+                self.assertIn("## Few-shot", SP.fewshot_section(a))
+        for a in (self.args("biped", off=True), self.args("building")):
+            self.assertEqual(SP.with_fewshot("BRIEF", a, 2), ("BRIEF", []))
+            self.assertEqual(SP.fewshot_section(a), "")
+
+    def test_summary_drops_opts_and_rounds(self):
+        spec = {"parts": [["head", "box", [0.123456, 0.2, 0.2], [0, 2.4, 0], "iron", {"sides": 8}]]}
+        self.assertEqual(SP.fewshot_summary(spec), '["head","box",[0.12,0.2,0.2],[0,2.4,0],"iron",{}]')
+        limb = {"parts": [["arm.L", "prism", [0.2, 0.2, 0.4], [0, 0, 0], "iron",
+                           {"from": [0.5, 2.0, 0], "to": [0.6, 1.5, 0.004]}]]}
+        self.assertEqual(SP.fewshot_summary(limb),
+                         '["arm.L","prism",[0.2,0.2,0.4],[0,0,0],"iron",{"from":[0.5,2.0,0],"to":[0.6,1.5,0.0]}]')
