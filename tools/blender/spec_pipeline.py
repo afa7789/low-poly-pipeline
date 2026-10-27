@@ -1745,7 +1745,13 @@ def pairwise_of(args, shape):
     """The review_pair result of this run against --pair, or None (no --pair, no GLB)."""
     if not args.pair or shape["glb"] is None:
         return None
-    return review_pair.compare(args.pair, args.out, args.id, args.kind)
+    other = pathlib.Path(args.pair)
+    if not other.is_dir():                      # a run name: the sibling run of this unit
+        other = args.out.parent / args.pair
+    if not (other / "clay.glb").exists():
+        print(f"pairwise: no clay.glb under {other}; skipped")
+        return None
+    return review_pair.compare(other, args.out, args.id, args.kind)
 
 
 def lint_target(args, shape, colour):
