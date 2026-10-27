@@ -47,6 +47,12 @@ def strip_outline(mask, frame, lo, hi, axis):
             for u, v in poly]
 
 
+def hull_cut(hull, box):
+    """The cut entry of a building's base volume (building_hull.py): its outlines are already in
+    metres, so they are used as they are; the boolean is followed by a planar dissolve."""
+    return {"box": [list(box[0]), list(box[1])], **hull, "dissolve": True}
+
+
 def cut_polys(parts, sheet, layout="unit"):
     """{part index: {"box": [lo, hi], "front": [[x, y]..], "left": [[z, y]..]}} for the parts that
     ask for the cut and whose strip could be read; the others build as their plain primitive."""
@@ -54,10 +60,13 @@ def cut_polys(parts, sheet, layout="unit"):
     if not wanted:
         return {}
     boxes = [preflight.bbox(p) for p in parts]
+    out = {i: hull_cut(parts[i][5]["hull"], boxes[i]) for i in wanted if "hull" in parts[i][5]}
+    wanted = [i for i in wanted if i not in out]
+    if not wanted:
+        return out
     top = max(b[1][1] for b in boxes)
     centre = {a: (min(b[0][a] for b in boxes) + max(b[1][a] for b in boxes)) / 2 for a in (0, 2)}
     panels = SIL.concept_panels(sheet, layout=layout)
-    out = {}
     for i in wanted:
         lo, hi = boxes[i]
         front = strip_outline(panels["front"], (top, centre[0]), lo, hi, 0)

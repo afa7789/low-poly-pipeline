@@ -1458,3 +1458,27 @@ script **não** entra no `review.md` e fica como experimento. O CLIP separa unid
 texto +0.042, rank 1/7), mas não mede fidelidade de forma: renders low-poly de qualquer unidade ficam em cosine ~0.80-0.89 entre si,
 e o gate de silhueta já captura o que o CLIP não vê. Texto negativo é esperado (nomes de raça/papel dominam, não a forma).
 Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda só na CLI).
+
+## 20. Leva 2 (2026-10-27)
+
+### 20.L13 Massing de edifício por hull: `building_hull.py`, `--hull` (2026-10-27)
+- **O que.** `building_hull.py` lê as máscaras front e left do sheet de edifício (`concept_panels`, layout building), tira as pontas finas (linhas/colunas com < 75 % do pixel count da mais cheia, nas duas pontas: chaminé, rampa, trilhos, braço de guindaste, telhado mais estreito), traça o contorno, Douglas-Peucker (eps 2 % da altura do corpo), snap H/V (10°), arestas < 6 % da altura viram canto reto, vértices colineares saem. Resultado: uma peça `["body","box",dims,at,"hull",{"cut":"sheet","hull":{"front":..,"left":..}}]` em metros, pés em y=0, x/z centrados. Caminho de build é o do `cut_hull`/`cut_part` (extrude front ∩ extrude left, BOOLEAN EXACT) mais `DECIMATE` DISSOLVE 1° (faces coplanares, 12-28 tris). `cut_hull.hull_cut` usa os contornos como estão (sem sheet); `preflight.part_tris` usa `hull.tris`.
+- **Fluxo.** CLI: `python3.14 tools/blender/building_hull.py <sheet> <out>` grava `hull-spec.json` (spec parcial), `hull.glb` (clay) e `hull-iou.json`. `spec_pipeline.py --kind building --hull`: constrói o hull em `<out>/hull.glb`, o brief ganha "BASE VOLUME, READY ... do NOT recreate it", e a peça é inserida em toda spec do autor (`with_hull`, idempotente com `--spec`). Teste de registro: `tests/tools/blender/test_building_hull.py`.
+- **Paper.** Sano 2026 §3.4-3.5 (contorno regularizado, visual hull); Gao, Wu, Pan 2022 (edifício como massa ortogonal de faces planas).
+- **Medida sem LLM (hull sozinho; IoU pelo mesmo `best_match` do gate; provas em `scratchpad/leva2-l13/{h09B,h05X}/hull-iou.json`).** Só há dois edifícios com sheet (h09B, h05X). O sheet do h05X não segue o 3+2 (2+1+2, legendas dentro da máscara): `concept_panels` erra o corte; a prova usou os 5 painéis recortados e remontados no layout 3+2 (`scratchpad/leva2-l13/h05X-reflow/sheet.jpg`).
+
+| edifício | hull (m) / tris | IoU front/left/back/roof, hull | idem, 1 box do bbox | hull vs corpo do sheet (sem pontas) |
+|---|---|---|---|---|
+| h09B | 4.13x3.41x4.32 / 16 | 0.794 / 0.729 / 0.856 / 0.726 | 0.714 / 0.783 / 0.756 / 0.853 | 0.992 / 0.994 / 1.000 / 0.995 |
+| h05X | 5.92x3.02x6.64 / 12 | 0.818 / 0.596 / 0.772 / 0.624 | 0.800 / 0.621 / 0.800 / 0.916 | 0.980 / 0.978 / 0.948 / 0.557 |
+
+  O hull traça o corpo com fidelidade (0.98-1.00), mas contra o sheet inteiro (props incluídos, bbox normalizado) não bate uma caixa simples em left/roof: ele descarta de propósito rampa, trilhos e braço, e o bbox do sheet os conta. No h05X o roof 0.557 é inconsistência do próprio sheet (a profundidade do left, 350 px, não bate com a da planta, ~215 px): o hull confia em front x left. Os dois edifícios são caixas quase puras, então o teste do contorno não-retangular é sintético (`test_building_hull.py`, L e torre).
+- **Medida com LLM (session:opus, 1 amostra por braço, h09B, `--shape-only --no-repair --no-rts`; runs em `runs/draft/h09B/leva2-l13-base` e `leva2-l13-r1`).**
+
+| braço | partes | tris GLB | IoU front/left/back | estágio 1 |
+|---|---|---|---|---|
+| sem hull | 28 | 752 | 0.746 / 0.918 / 0.809 | FAIL (front < 0.75; preflight budget) |
+| `--hull` | 24 | 628 | 0.823 / 0.777 / 0.860 | silhueta PASS; FAIL só no preflight budget (468 estimado vs 600-800) |
+
+  n=1: a variância do autor é maior que a diferença. O ganho é front/back e menos tris; o left piorou (o autor sem hull desenhou o braço do guindaste e a plataforma sobre a lateral).
+- **Piorou / pendente.** Um volume de duas vistas ignora pisos mais baixos e alas (a "ponta fina" também leva uma ala baixa: o autor tem de recolocá-la). O estimador do preflight conta caixa chanfrada abaixo do GLB (468 vs 628): vale para as duas runs. Pulado: QEM (`-> skipped: QEM, add when hull > 1/4 do orçamento`; dissolve basta com 12-28 tris), `hull` como kind no DSL (a peça é box + `cut`, nada muda no schema). Falta rodar nos 53 specs; os dois sheets de edifício são o que existe, mais sheets de edifício antes de decidir `--hull` como default.
