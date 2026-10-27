@@ -120,7 +120,7 @@ class Landmarks(unittest.TestCase):
     def test_a_too_wide_footman_fails_its_own_sheet(self):
         sheet = ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
         wide = run({"parts": self.biped(1.0)}, sheet=sheet)
-        self.assertIn("shoulder_span  FAIL", wide)
+        self.assertRegex(wide, r"shoulder_span\s+FAIL")
         self.assertIn("sheet 0.46", wide)
 
 
@@ -382,3 +382,35 @@ class SpiderRules(unittest.TestCase):
                 self.assertTrue(got[0], "report only")
                 self.assertEqual("OUT" in got[1], not ok)
         self.assertNotIn("spider_leg_w", self.rules(self.MEASURE))
+
+
+class Identity(unittest.TestCase):
+    """identity_items / identity_rows / identity_status (PIPELINE 23.L5-6), no sheet needed."""
+    PARTS = [["head", "frustum", [0.3, 0.3, 0.3], [0, 2, 0], "hood", {"decal": "sheet", "decal_color": "#8A2A35"}],
+             ["pelvis", "box", [0.1, 0.1, 0.1], [0.3, 1, 0], "lantern", {}],
+             ["spine", "box", [0.5, 0.8, 0.5], [0, 1.5, 0], "tank", {}]]
+    DOC = {"palette": {"hood": {"color": "#2E2D30"}, "lantern": {"color": "#5A6AA8"}, "tank": {"color": "#64686E"}}}
+
+    def test_checklist_sources(self):
+        fixture = ROOT / "tests/tools/blender/fixtures/parts-n005.json"
+        kinds = [i["kind"] for i in PF.identity_items("n005", parts_path=fixture)]
+        self.assertEqual(kinds, ["eyes", "text", "prop", "prop", "prop"])   # tank, lantern, vaporiser -> their props.json entries
+        self.assertEqual([i["kind"] for i in PF.identity_items("n005", parts_path="/nowhere")],
+                         ["prop", "prop", "prop", "eyes"])                   # props.json + eyes
+        self.assertEqual([i["kind"] for i in PF.identity_items("n005", biped=False, parts_path="/nowhere")],
+                         ["prop"] * 3)
+
+    def test_rows_and_status(self):
+        blue = {"name": "blue detail #586B87", "kind": "zone", "hex": "#586B87"}
+        red = {"name": "red detail #50252E", "kind": "zone", "hex": "#50252E"}
+        gold = {"name": "orange detail #89704B", "kind": "zone", "hex": "#89704B"}
+        items = [{"name": "eyes", "kind": "eyes"}, {"name": "tank", "kind": "prop"}, blue, red, gold,
+                 {"name": "whatever", "kind": "text"}]
+        rows = PF.identity_rows(items, self.PARTS, self.DOC, ["tank"])
+        self.assertEqual([(r["name"], r["present"], r["via"]) for r in rows],
+                         [("eyes", True, "decal"), ("tank", False, "part"), (blue["name"], True, "material"),
+                          (red["name"], True, "decal"), (gold["name"], False, None)])   # text is not scored
+        self.assertEqual(PF.identity_status(rows)["missing"], ["tank", gold["name"]])
+        read = PF.identity_status(rows, [{"hex": "#586B87", "ratio": 0.2, "read": False}])
+        self.assertIn("blue detail #586B87 (not in the render: 20% of the sheet's area)", read["missing"])
+        self.assertEqual((read["ok"], read["total"]), (2, 5))
