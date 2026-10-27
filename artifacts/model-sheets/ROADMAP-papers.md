@@ -165,3 +165,54 @@ Regras iguais às da leva 1: medir antes de gatear (regra nova nasce como relat�
 
 ## Onda 3
 - Bateria v6 nas 3 unidades (one-shot com tudo ligado), compares em `history/2026-10-27-v6/`, §20 no PIPELINE, ficha 02 no IA_gen_paper.
+
+---
+
+# Leva 3 (2026-10-27, noite) — acoplamento apertado: o autor edita, não inventa
+
+Diagnóstico do v6: as áreas vermelhas (sheet sem modelo) e verdes (modelo fora do sheet) ainda são grandes porque
+(1) o autor escreve a massa do zero, (2) caixa/prisma não fazem capuz, manga, abdômen, (3) o fit é estreito
+(3 vistas, dims/at ±10 %), (4) só medimos IoU, não "quanto sobrou vermelho". Ordem nova do pipeline:
+
+```
+sheet (front/left/back + top/bottom + turntable 8 vistas)
+  → medidas (silhouette.measure, measure_spider, leg_w, perfis de largura por faixa)
+  → MASSING determinístico: pré-spec com lathe/limb/box por osso, direto das silhuetas   [novo estágio 0]
+  → autor EDITA o pré-spec (props, materiais, decals, ajustes pequenos; few-shot no brief; --variants 3)
+  → preflight → fit largo (8 vistas, rot, top/bottom/rts, zonas, cut)  → gates: IoU + uncovered + spill
+  → cor (inalterado)
+```
+
+## Frentes (uma leva, em paralelo)
+- **F1 massing (`massing.py`, estágio 0).** Do perfil de largura do sheet por faixa (front e left) e do rig: um pré-spec
+  com uma peça por osso — bípede: cabeça (lathe), torso (lathe ou frustum), pelvis, braços/coxas/canelas (limb), pés
+  (frustum); aranha: corpo/abdômen (lathe), cabeça, 8 pernas (limb com joelho, raio = leg_w). Materiais = slots da
+  paleta do sheet (`zone_palette`) pela zona dominante da faixa. O brief passa a ter o pré-spec em JSON e o modo
+  "EDIT: keep every part unless the sheet says otherwise; add props, decals, materials; ≤ 8 changes". `--no-massing`
+  volta ao brief antigo. Prova sem LLM: só o pré-spec, nas 3 unidades, IoU 6 vistas (meta: ≥ v6 só com o massing).
+- **F2 kinds `lathe` e `limb`.** `lathe`: revolve o perfil de largura da faixa `[y0,y1]` do sheet (front ou left, o
+  autor escolhe `axis`) em volta do eixo do osso, N lados (6-8), opcional `squash` (razão x/z vinda do top); 40-80 tris.
+  `limb`: dois segmentos afunilados (upper/lower) de `from` ao `to` com `knee` (fração e deslocamento) e raios dos
+  contornos; substitui "dois cilindros". Em `build_unit`, `preflight` (tris, bbox), DSL text, `fit_spec` (parâmetros
+  contínuos: raios, knee, squash), `cut_hull` ignora. Prova: n005 capuz+torso em lathe, n00U abdômen lathe + pernas
+  limb, IoU antes/depois.
+- **F3 `leg_w` da aranha.** `measure_spider` ganha espessura de perna (mediana da largura das pernas no front/top);
+  rig/brief/preflight (`spider_leg_w` relatório); massing usa. Prova: n00U front/back.
+- **F4 fit largo.** `fit_spec`: parâmetros `rot` (±20°) para braços/pernas/capuz; top/bottom/rts no objetivo (proxy
+  com projeção inclinada pela tilt do run); dims até 20 % quando a peça está ligada ao pai (attach); termo de zonas
+  (`zones_clay`: peça do material X dentro da cor X); `cut: sheet` decidido pelo fit para torso/pelvis/capuz; usa as
+  vistas do turntable quando existirem (F6). Prova: v6 specs refitados, 6 vistas + uncovered/spill.
+- **F5 few-shot + variants.** Brief com 1-2 pares spec→render aprovados (n01X hard-v1; e o melhor da mesma família);
+  `--variants 3` default (`--variants 1` desliga). Prova: 1 run n005.
+- **F6 turntable 8 vistas.** `redo_turntable.py` (nano banana, 1 chamada por unidade de teste): sheet-turn.jpg com 8
+  painéis a 45°, mesma figura, mesma escala, linha de chão. Teste de coerência (altura/largura ±10 %, front×back
+  espelhados) antes de usar; `silhouette` ganha varredura de azimute (±20°) como tem de tilt; vistas 3/4 entram como
+  relatório no review e como vistas extras no fit (F4). Se incoerente: registrar negativo, manter 3+2.
+- **F7 acoplamento apertado (métricas e gates).** `silhouette`: por vista, `uncovered` (vermelho / área do sheet) e
+  `spill` (verde / área do modelo), por faixa de altura também (onde está o vermelho); review, compare (rodapé e
+  overlay com os números), `compare_runs`. Calibrar nos runs v4-v6 e propor gates (`UNCOVERED_MAX`, `SPILL_MAX`,
+  relatório até calibrar). `edge_chamfer` entra como termo opcional do fit.
+
+## Onda final
+- Bateria v7 nas 3 unidades (massing + autor edita + fit largo + variants 3), compares `history/2026-10-27-v7/`,
+  §21 no PIPELINE, ficha 03.
