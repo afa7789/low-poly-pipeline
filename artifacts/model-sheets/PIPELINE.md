@@ -1458,3 +1458,49 @@ script **não** entra no `review.md` e fica como experimento. O CLIP separa unid
 texto +0.042, rank 1/7), mas não mede fidelidade de forma: renders low-poly de qualquer unidade ficam em cosine ~0.80-0.89 entre si,
 e o gate de silhueta já captura o que o CLIP não vê. Texto negativo é esperado (nomes de raça/papel dominam, não a forma).
 Teste: `test_clip_score.py` (embeddings stub, sem baixar pesos; o modelo roda só na CLI).
+
+## 20. Leva 2 (2026-10-27)
+
+### 20.L14 Rig spider medido do sheet (2026-10-27)
+
+Sem paper novo: é o estágio de medição do §19 (Sano 2026: números do sheet no brief) aplicado ao esqueleto. A bateria v5
+mostrou o rig fixo como causa no n00U: corpo pequeno e pernas longas e finas, ~2x o comprimento do sheet na mesma altura.
+- **`silhouette.measure_spider(sheet)`** (frações da altura H da vista front): `body_r` e `body_len` (top, com as pernas
+  abertas fora por `binary_opening`; o painel top é calibrado pela largura da abertura das pernas, igual no front), `body_under`
+  (barriga sobre o chão, no back, onde as presas não pendem), `knee_h`/`knee_r` (linha mais larga do front entre a casca e os
+  pés), `foot_r` (meia largura nos pés). n00U: .323/.853/.238/.172/.578/.580. n01N: .182/.869/.382/.465/.672/.438.
+- **`rig_families.scale_spider(family, m)`** troca `FAMILIES[spider|spider_high]` por um esqueleto feito dessas medidas
+  (mesmos ossos e nomes; topo fixo em `SPIDER_H` = 0.74 m, o H da medida; joelho nunca abaixo de metade da barriga, porque as
+  pernas que alargam em linha reta não mostram joelho). Sem sheet a tabela fixa continua; `--fixed-rig` força a fixa.
+- **Fluxo:** `set_rig(family, measure)` (spider, sem `--fixed-rig`) escala o rig, `parse_spec` grava `rig_measure` no
+  `spec.json`, `build_unit.load_family` re-escala no Blender (rebuild reproduzível). O brief ganha `SPIDER BODY (...)` em
+  `measured_text` com os números em H e em metros, e o `RIG_TEXT` fixo (joelho "y 1.15") dá lugar a "siga a tabela".
+- **Preflight (relatório primeiro):** `spider_body`, `spider_reach`, `spider_leg` comparam o spec com `rig_measure`
+  (banda 0.7-1.4x). Taxa de FAIL nos 15 specs spider de `runs/draft/*/*/` (os outros 38 não são spider): `spider_leg` 3/15
+  (bloqueia: pega v5-oneshot-r1/v5-fit-r1, pernas 1.43-1.48x, e n01N v2-hard-r2), `spider_body` 7/15 e `spider_reach` 11/15
+  (> 1/3, só relatório; a maioria dos specs antigos tem altura 1.1-1.3 m, não 0.74).
+- **`rig_remap.py`** (prova sem LLM): as peças ficam em coordenadas de modelo, não relativas ao osso, então o rig novo
+  **não** as move. O script leva cada peça de perna do osso fixo para o osso escalado (mesma fração, mesmo desvio) na altura do
+  próprio spec; corpo/cabeça/abdômen ficam. Teste em `test_rig_remap.py`.
+
+Prova (clay, 6 vistas, front/left/back/top/bottom/rts; baseline = mesmo spec com `--fixed-rig`; baseline n00U v5 reproduz o
+v5 do §19 .254/.368/.257/.411/.404/.490):
+
+| spec | rig fixo | rig medido (pernas remapeadas) |
+|---|---|---|
+| n00U v5-oneshot-r1 | .254/.368/.257/.411/.404/.490 | **.630/.585/.636/.579/.592/.627** |
+| n00U v4-oneshot-r1 | .400/.554/.394/.513/.531/.516 | **.616/.596/.620/.557/.595/.575** (top/rts pioram) |
+| n01N v2-hard-r2 | .502/.452/.506/.361/.486/.474 | .417/.475/.394/.354/.351/.354 (**pior**) |
+
+O n01N piora porque o corpo do spec antigo (1.29 m, barril longo) é o erro dominante; o remap só mexe nas pernas. Não é
+prova contra o rig: é prova de que o remap não conserta o autor. Comparar em `scratchpad/leva2-l14/{l14-v5,l14-v4,l14-n01N,base-*}/compare.png`.
+
+Run com LLM (`session:opus`, `--fit`, `--shape-only`, `--run leva2-l14-r1`, `runs/draft/n00U/leva2-l14-r1/`): front/left/back/top/bottom/rts
+**.627/.601/.636/.705/.666/.623**; top e bottom passam o gate (.65), front/back ficam a .02 da meta .65. Antes: v5-oneshot-r1 .254/.368/.257/.411/.404/.490,
+v5-fit-r2 .618/.569/.612/.630/.599/.610. Os 3 `spider_*` do preflight passam (.73/.60/.70 H contra .65/.58/.70). O que resta no overlay é
+espessura: as pernas do sheet são ~2x mais grossas que as do modelo (o rig mede comprimento, não diâmetro) e o corpo é uma
+caixa onde o sheet tem um ovo; próximo passo: `leg_w` em `measure_spider` (largura da perna no front, linha dos pés) e passá-la ao brief.
+
+Animação: o clay do run tem 5 clips (attack, death, idle, spell, walk); `render_anim` de walk/attack/death/idle em 8 quadros
+(`scratchpad/leva2-l14/clips.png`): as pernas andam, o ataque levanta a frente, a morte tomba; o retarget é relativo ao idle do
+Quaternius, não depende do comprimento do osso. Default: rig medido ligado para spider quando há sheet.

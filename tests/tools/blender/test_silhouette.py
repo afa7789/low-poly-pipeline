@@ -246,3 +246,16 @@ class Outline(unittest.TestCase):
         import numpy as np
         m = np.ones((100, 20), bool)
         self.assertEqual(S.band_areas(m, 0.2), [0.2, 0.3, 0.5])
+
+
+SPIDER_SHEET = ROOT / "artifacts/model-sheets/refs/n00U/sheet.jpg"
+
+
+@unittest.skipUnless(SPIDER_SHEET.exists(), "n00U refs not checked out")
+class MeasureSpider(unittest.TestCase):
+    def test_n00u_body_belly_and_legs(self):
+        m = S.measure_spider(SPIDER_SHEET)
+        self.assertTrue(0.28 <= m["body_r"] <= 0.36, m)       # the shell: about 0.65 H wide
+        self.assertTrue(0.18 <= m["body_under"] <= 0.30, m)   # belly a quarter of H above the floor
+        self.assertTrue(0.5 <= m["foot_r"] <= 0.65, m)        # legs spread over 1.16 H
+        self.assertTrue(m["body_len"] > m["body_r"], m)

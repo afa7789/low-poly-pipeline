@@ -309,3 +309,22 @@ class OutsideHull(unittest.TestCase):
         arm = ["arm.L", "prism", [0.05, 0.05, 1], [0, 0.5, 0], "iron", {"from": [0, 0, 0], "to": [1, 1, 0]}]
         pts = PF.sample_points(arm, 0.1)
         self.assertTrue(np.allclose(pts[:, 0], pts[:, 1]))
+
+
+class SpiderRules(unittest.TestCase):
+    MEASURE = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
+
+    def rules(self, measure):
+        parts = spider_spec()["parts"]
+        boxes = {id(p): PF.bbox(p) for p in parts}
+        height = max(b[1][1] for b in boxes.values())
+        return {name: (ok, detail) for name, ok, detail in PF.spider_checks(parts, boxes, height, measure)}
+
+    def test_only_the_leg_rule_blocks_and_all_three_name_the_numbers(self):
+        big = {**self.MEASURE, "knee_r": 3.0, "foot_r": 3.0, "body_r": 2.0}   # a sheet far bigger than the fixed spider
+        got = self.rules(big)
+        self.assertEqual(set(got), {"spider_body", "spider_reach", "spider_leg"})
+        self.assertFalse(got["spider_leg"][0])
+        self.assertTrue(got["spider_body"][0] and got["spider_reach"][0])      # report only
+        self.assertTrue(all("OUT" in got[r][1] for r in got))
+        self.assertIn("vs sheet", got["spider_leg"][1])

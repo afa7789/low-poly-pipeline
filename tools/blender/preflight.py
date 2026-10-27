@@ -466,6 +466,39 @@ def overlaps(a, b):
     return all(al[i] <= bh[i] and bl[i] <= ah[i] for i in range(3))
 
 
+# Spider rules that fail the preflight: FAIL rate over the 15 spider specs of runs/draft/*/*/ was
+# spider_leg 3/15 (blocks), spider_body 7/15 and spider_reach 11/15 (> 1/3: report only), PIPELINE section 20.L14
+SPIDER_BLOCKING = {"spider_leg"}
+SPIDER_BAND = (0.7, 1.4)  # a body or a leg within -30%/+40% of the sheet's measure
+
+
+def spider_checks(parts, boxes, height, m):
+    """The three spider rules against the sheet's measures (silhouette.measure_spider, kept in
+    the spec as rig_measure), each a fraction of the unit's own height: body width, leg reach
+    and leg length. [(rule, passed, detail)]."""
+    import rig_families as RF
+    body = [boxes[id(p)] for p in parts if p[0] in ("body", "abdomen")]
+    legs = [p for p in parts if p[0].startswith("leg")]
+    width = (max(b[1][0] for b in body) - min(b[0][0] for b in body)) / height if body else 0.0
+    reach = max([max(abs(boxes[id(p)][i][a]) for i in (0, 1) for a in (0, 2)) for p in legs] or [0.0]) / height
+    per_leg = {}
+    for p in legs:
+        a, b = p[5].get("from"), p[5].get("to")
+        if a and b:
+            per_leg[p[0].split(".")[0]] = per_leg.get(p[0].split(".")[0], 0.0) + math.dist(a, b)
+    length = sorted(per_leg.values())[len(per_leg) // 2] / height if per_leg else 0.0
+    rows = [("spider_body", width, 2 * m["body_r"], "body+abdomen width"),
+            ("spider_reach", reach, max(m["knee_r"], m["foot_r"]), "leg reach from the axis"),
+            ("spider_leg", length, RF.spider_leg_len(m), "leg length hip-knee-foot")]
+    out = []
+    for rule, got, want, what in rows:
+        ok = SPIDER_BAND[0] * want <= got <= SPIDER_BAND[1] * want
+        out.append((rule, ok or rule not in SPIDER_BLOCKING,
+                    f"{what} {got:.2f} H vs sheet {want:.2f} H (band {SPIDER_BAND[0]}-{SPIDER_BAND[1]} x)"
+                    + ("" if ok else " - OUT")))
+    return out
+
+
 def biped_checks(parts, boxes, height, targets):
     """Biped landmarks against the unit's own sheet (targets_from), within TOLERANCE."""
     checks = []
@@ -555,6 +588,8 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
     height = max(max(b[1][1] for b in boxes.values()), 1e-6)
     if family == "biped":
         checks += biped_checks(parts, boxes, height, targets)
+    if doc.get("rig_measure") and family in RF.SPIDERS:
+        checks += spider_checks(parts, boxes, height, doc["rig_measure"])
 
     if family == "biped":
         shares = split_shares(parts)

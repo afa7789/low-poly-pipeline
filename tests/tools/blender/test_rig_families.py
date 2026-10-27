@@ -1,4 +1,5 @@
 """python3 -m unittest discover -s tests/tools/blender"""
+import math
 import pathlib
 import sys
 import unittest
@@ -111,3 +112,24 @@ class Clips(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScaledSpider(unittest.TestCase):
+    M = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
+
+    def test_same_bones_height_kept_and_legs_follow_the_measures(self):
+        fixed = {fam: list(RF.FAMILIES[fam]) for fam in RF.SPIDERS}
+        try:
+            for fam in RF.SPIDERS:
+                table = RF.scale_spider(fam, self.M)
+                self.assertEqual([b[0] for b in table], [b[0] for b in fixed[fam]])
+                self.assertAlmostEqual(RF.top(fam), RF.SPIDER_H)
+                feet = [b[3] for b in table if b[0].endswith(".lower")]
+                self.assertTrue(all(abs(math.hypot(x, z) - 0.45 * RF.SPIDER_H) < 1e-9 for x, _, z in feet))
+                knee = next(b[3] for b in table if b[0] == "leg1.upper")
+                self.assertAlmostEqual(knee[1], 0.45 * RF.SPIDER_H)
+        finally:
+            RF.FAMILIES.update(fixed)
+
+    def test_leg_length_is_hip_knee_foot(self):
+        self.assertGreater(RF.spider_leg_len(self.M), 0.6)
