@@ -239,5 +239,14 @@ class FitAccepted(unittest.TestCase):
                 self.assertEqual(SP.fit_accepted(prev, cur, self.GATES, problems), want)
 
 
+class JointTerm(unittest.TestCase):
+    def test_gap_in_h_and_zero_without_a_target(self):
+        thigh = ["thigh.L", "prism", [0.1, 0.1, 0.5], [0, 0.75, 0], "iron", {"from": [0, 1.0, 0], "to": [0, 0.6, 0]}]
+        shin = ["shin.L", "prism", [0.1, 0.1, 0.5], [0, 0.3, 0], "iron", {"from": [0, 0.6, 0], "to": [0, 0, 0]}]
+        for name, targets, want in (("gap", {"knee_h": 0.5}, 0.1), ("on it", {"knee_h": 0.6}, 0.0), ("unseen", {}, 0.0)):
+            with self.subTest(name):
+                self.assertAlmostEqual(F.joint_term([thigh, shin], targets, 1.0), want, places=1)
+
+
 if __name__ == "__main__":
     unittest.main()

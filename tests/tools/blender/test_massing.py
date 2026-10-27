@@ -89,6 +89,24 @@ class Build(unittest.TestCase):
         self.assertIsNone(M.build(REFS / "n01X/sheet.jpg", "quadruped"))
 
 
+class Joints(unittest.TestCase):
+    def test_measured_joint_is_kept_inside_the_bone_and_midway_without_it(self):
+        for name, y, want in (("none", None, 5.0), ("in", 4.0, 4.0), ("too low", 0.1, 1.5), ("too high", 9.9, 8.5)):
+            with self.subTest(name):
+                self.assertAlmostEqual(M.joint_between(y, 0.0, 10.0), want)
+
+    def test_landmarks_follow_the_measure_only_when_enabled(self):
+        front, m = M.View(figure(), 1.0), {"shoulder_frac": 0.2, "arm_length": 0.4, "arm_angle": 0.0, "boot_height": 0.07,
+                                           "knee_h": 0.3, "elbow_h": 0.6}
+        self.assertEqual((M.landmarks(front, 1.0, m)["knee"], M.landmarks(front, 1.0, m)["elbow"]), (None, None))
+        M.MEASURED_JOINTS = True
+        try:
+            lm = M.landmarks(front, 1.0, m)
+        finally:
+            M.MEASURED_JOINTS = False
+        self.assertEqual((lm["knee"], lm["elbow"]), (0.3, 0.6))
+
+
 class Pipeline(unittest.TestCase):
     def test_edit_report(self):
         import spec_pipeline as SP

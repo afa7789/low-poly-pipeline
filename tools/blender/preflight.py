@@ -167,6 +167,40 @@ def props_missing(parts, boxes, height, props):
     return missing
 
 
+JOINT_TOL = 0.06        # joint_place: a joint within this many H of the sheet's (silhouette.joint_measures)
+JOINT_BLOCKING = False  # reports only: FAIL rate over the draft specs is in PIPELINE 22.L4-6
+# joint key -> (upper bones, lower bones) whose meeting height is the joint
+JOINTS = {"knee_h": (("thigh.L", "thigh.R"), ("shin.L", "shin.R")),
+          "elbow_h": (("arm.L", "arm.R"), ("forearm.L", "forearm.R"))}
+JOINT_KEYS = tuple(JOINTS)
+
+
+def joint_height(parts, boxes, height, key):
+    """Height of a joint in H: the mean of the upper bone parts' lowest y and the lower bone parts'
+    highest y (the bones meet there), a `limb` on the thigh bone giving its knee point; None without
+    both sides."""
+    upper, lower = JOINTS[key]
+    limb = [p for p in parts if p[1] == "limb" and p[0] in upper]
+    if limb:
+        return lathe_limb.knee_of(limb[0][5])[1] / height
+    ups = [boxes[id(p)][0][1] for p in parts if p[0] in upper and p[1] != "limb"]
+    los = [boxes[id(p)][1][1] for p in parts if p[0] in lower and p[1] != "limb"]
+    return (min(ups) + max(los)) / 2 / height if ups and los else None
+
+
+def joint_checks(parts, boxes, height, targets):
+    """joint_place: each joint the sheet shows lies within JOINT_TOL H of the unit's own; nothing for a
+    joint the sheet does not show. [(rule, passed, detail)] (a report while JOINT_BLOCKING is False)."""
+    rows = [(k, joint_height(parts, boxes, height, k), targets[k]) for k in JOINT_KEYS if k in targets]
+    rows = [(k, got, want) for k, got, want in rows if got is not None]
+    if not rows:
+        return []
+    bad = [k for k, got, want in rows if abs(got - want) > JOINT_TOL]
+    return [("joint_place", not bad or not JOINT_BLOCKING,
+             ", ".join(f"{k[:-2]} {got:.2f} H (sheet {want:.2f}, +/-{JOINT_TOL})" + (" - OUT" if k in bad else "")
+                       for k, got, want in rows))]
+
+
 def targets_from(sheet):
     """Landmark targets measured on this unit's approved sheet, or the n01X fallback."""
     if not sheet:
@@ -174,6 +208,7 @@ def targets_from(sheet):
     from silhouette import measure
     m = measure(pathlib.Path(sheet))
     targets = {k: float(m[k]) for k in N01X_TARGETS}
+    targets.update({k: float(m[k]) for k in JOINT_KEYS if k in m})   # only the joints the drawing shows
     hard = pathlib.Path(sheet).with_name("sheet-hard.jpg")
     if hard.exists():       # edge density per band (head, body = torso, legs) of the hard sheet
         from silhouette import edge_bands
@@ -629,7 +664,7 @@ def checks_of(parts, doc, kind, targets, props, sheet=None):
     boxes = {id(p): bbox(p) for p in parts}
     height = max(max(b[1][1] for b in boxes.values()), 1e-6)
     if family == "biped":
-        checks += biped_checks(parts, boxes, height, targets)
+        checks += biped_checks(parts, boxes, height, targets) + joint_checks(parts, boxes, height, targets)
     if doc.get("rig_measure") and family in RF.SPIDERS:
         checks += spider_checks(parts, boxes, height, doc["rig_measure"])
 

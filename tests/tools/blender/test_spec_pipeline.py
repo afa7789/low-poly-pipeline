@@ -495,6 +495,14 @@ class CountFigures(unittest.TestCase):
         self.assertEqual(SP.count_figures(np.zeros((9, 9), bool)), 0)
 
 
+class JointText(unittest.TestCase):
+    def test_only_the_readable_joints(self):
+        self.assertIn("knee at 0.27 H, elbow at 0.62 H", SP.joint_text({"knee_h": 0.27, "elbow_h": 0.62}))
+        self.assertIn("elbow at 0.47 H", SP.joint_text({"elbow_h": 0.47}))
+        self.assertNotIn("knee", SP.joint_text({"elbow_h": 0.47}))
+        self.assertEqual(SP.joint_text({}), "")
+
+
 if __name__ == "__main__":
     unittest.main()
 

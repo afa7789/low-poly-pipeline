@@ -204,6 +204,31 @@ class Props(unittest.TestCase):
         self.assertEqual(PF.load_props("no-such-unit"), [])
 
 
+class JointPlace(unittest.TestCase):
+    def parts(self, knee_y):
+        return [["thigh.L", "prism", [0.1, 0.1, 0.5], [0, (knee_y + 1.0) / 2, 0], "iron", {"from": [0, 1.0, 0], "to": [0, knee_y, 0]}],
+                ["shin.L", "prism", [0.1, 0.1, 0.5], [0, knee_y / 2, 0], "iron", {"from": [0, knee_y, 0], "to": [0, 0, 0]}]]
+
+    def rule(self, parts, targets):
+        boxes = {id(p): PF.bbox(p) for p in parts}
+        return PF.joint_checks(parts, boxes, 1.0, targets)
+
+    def test_within_the_band_and_out(self):
+        for name, knee_y, out in (("near", 0.5, False), ("far", 0.7, True)):
+            with self.subTest(name):
+                (rule, ok, detail), = self.rule(self.parts(knee_y), {"knee_h": 0.5})
+                self.assertEqual((rule, "OUT" in detail), ("joint_place", out))
+                self.assertTrue(ok, "report only")
+
+    def test_silent_without_a_measured_joint(self):
+        self.assertEqual(self.rule(self.parts(0.5), {}), [])
+        self.assertEqual(self.rule([], {"knee_h": 0.5}), [])
+
+    def test_limb_gives_its_knee_point(self):
+        limb = [["thigh.L", "limb", [0.1, 0.1, 0.1], [0, 0.5, 0], "iron", {"from": [0, 1.0, 0], "to": [0, 0, 0], "knee": [0.6, 0, 0]}]]
+        self.assertAlmostEqual(PF.joint_height(limb, {id(limb[0]): PF.bbox(limb[0])}, 1.0, "knee_h"), 0.4)
+
+
 if __name__ == "__main__":
     unittest.main()
 

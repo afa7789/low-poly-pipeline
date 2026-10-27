@@ -186,6 +186,33 @@ class SheetMeasures(unittest.TestCase):
         self.assertEqual(S.head_measures(spans, 8), (0.25, 0.1))
 
 
+class JointMeasures(unittest.TestCase):
+    def figure(self, thigh=12, shin=24):
+        """Front mask 200 rows: a right leg (x 110..) thin above row 120, wide below; the left leg mirrors it."""
+        m = np.zeros((200, 200), bool)
+        for x0, sign in ((110, 1), (90, -1)):
+            for rows, w in ((slice(60, 120), thigh), (slice(120, 200), shin)):
+                m[rows, x0:x0 + w] = True if sign > 0 else False
+                if sign < 0:
+                    m[rows, x0 - w:x0] = True
+        return m
+
+    def test_knee_is_the_width_step(self):
+        front = self.figure()
+        row = S.knee_row(S.limb_widths(front, 180, 60, S.leg_run))
+        self.assertAlmostEqual(row, 120, delta=8)
+
+    def test_no_step_no_knee(self):
+        front = self.figure(thigh=24)
+        self.assertIsNone(S.knee_row(S.limb_widths(front, 180, 60, S.leg_run)))
+
+    def test_outline_breaks_do_not_split_a_run(self):
+        row = np.zeros(40, bool)
+        row[5:15] = row[17:30] = True            # a 2 px ink gap
+        self.assertEqual(S._runs(row), [(5, 30)])
+        self.assertEqual(S._runs(row, gap=0), [(5, 15), (17, 30)])
+
+
 class ZoneRamp(unittest.TestCase):
     def test_oklab_matches_the_reference_values(self):
         lab = S.oklab(np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
