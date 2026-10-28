@@ -3359,3 +3359,47 @@ Slivers: fase 1 igual ao v10; a fase 2 soma 0 a 1.7 pp (n017 27.8 > 29.4 %, n005
 - Testes: `test_soft_sil.py` (4 rápidos: projeção = frame duro com mirror ±1, τ→0 de logistic/uniform/yager2 = raster duro ≤ 0.01,
   gradiente reduz a loss, asym ainda não; 1 lento `SLOW=1` com n005 v11-r1 nas 6 vistas ≤ 0.01).
 - Negativos/limites: τ pequeno (< ~0.3 px) sem `ss` dá gradiente esparso (só pixels de borda); DIB-R (alpha de fundo) não usado.
+
+### 26.L8-2 `optimize_verts` com gradiente do raster suave (`GRAD = "soft"`)
+
+- O que mudou: o gradiente da silhueta em `optimize_verts` deixa de ser a diferença finita por 1-anel (`iou_gradient`, mantida) e vira
+  `loss.backward()` de `soft_sil.loss` somado nas vistas ativas (`soft_gradient`: uma passada de autograd até as posições 3D, bbox do
+  enquadramento incluída). Chamfer, Laplaciano e fairness seguem em numpy (analíticos / diferença por canto) e somam ao gradiente;
+  `Ctx` (raster duro 4x), `evaluate`, `holds`, aceite, line search, recusa de flip/sliver, `settled`, blocos e âncoras intactos: o
+  duro decide, o suave só dá a direção. `FIT_VERTS` continua False (L8-6 liga).
+- Constantes/flags: `GRAD = "soft" | "fd"` (default soft; `fd` = L6-7 para comparar), `TAU = 0.5` px, `DEVICE = "cpu" | "mps"`,
+  `DETACH = False` (bbox do enquadramento constante no gradiente). CLI: `--grad`, `--tau`, `--device`. Âncoras/blocos ficam ligados
+  (ablação: `COARSE=0` não ganha, n005 .914/.944/.920 vs .926/.945/.923 em 30 s).
+- Tempo do gradiente completo (n005, 6 vistas, ~630 tris, todos os vértices): soft 0.46 s CPU vs fd 1.52 s. O soft converge antes
+  de 120 s (84-112 s reais).
+- Escolha de τ (soft-30, f/l/b): 2.0 px piora (n005 .904/.937/.906); 1.0 px .918/.940/.916 (n005), .865/.728/.868 (n00U);
+  **0.5 px** .926/.945/.923 (n005), .872/.742/.871 (n00U), melhor ou igual; 0.35 px igual a 0.5 (±.004). `DETACH=1`: n00U sobe
+  (.893-.900/.755/.887) mas n005 left e n017 left caem 0.01-0.015: fica desligado.
+- Medição (clay de entrada = `runs/draft/<id>/v11-r1/clay.glb`, n02X v10-r1; IoU duro do raster de `optimize_verts` em f/l/b;
+  τ=0.5 CPU; outros agentes carregavam a máquina (load ~3), então os segundos são pessimistas). Depois: fd-120 | soft-120 | soft-30;
+  flipped / slivers % / normal_diff médio / segundos reais:
+
+| unidade | antes | fd 120 | soft 120 | soft 30 | entrada (flip / sliver / nd) | fd 120 | soft 120 | soft 30 |
+|---|---|---|---|---|---|---|---|---|
+| n005 | .910/.935/.905 | .926/.928/.925 | .924/.942/.926 | .924/.945/.926 | 0 / 15.9 / 42.6 | 0 / 11.6 / 46.9 / 125 | 0 / 12.2 / 45.7 / 95 | 0 / 12.9 / 45.0 / 33 |
+| n00U | .844/.696/.840 | .875/.753/.865 | .892/.751/.892 | .873/.737/.873 | 0 / 20.4 / 50.8 | 0 / 16.1 / 56.8 / 122 | 0 / 16.9 / 54.4 / 84 | 0 / 17.8 / 52.5 / 31 |
+| hfoo | .838/.534/.850 | .863/.582/.859 | .877/.589/.884 | .859/.573/.865 | 0 / 11.3 / 47.0 | 0 / 8.3 / 49.1 / 121 | 0 / 8.9 / 49.6 / 112 | 0 / 9.4 / 48.4 / 31 |
+| n017 | .882/.745/.833 | .887/.765/.828 | .901/.787/.854 | .899/.784/.850 | 0 / 31.5 / 45.5 | 0 / 25.9 / 50.2 / 120 | 0 / 27.2 / 49.4 / 87 | 0 / 27.9 / 48.2 / 34 |
+| n02X | .866/.810/.890 | .888/.817/.909 | .881/.831/.903 | .883/.828/.901 | 0 / 15.4 / 47.1 | 0 / 12.4 / 51.7 / 127 | 0 / 13.0 / 52.7 / 94 | 0 / 13.7 / 51.2 / 30 |
+
+  MPS (n005, 30 s): .926/.943/.926, objetivo 0.689 (CPU 0.716): sem ganho relevante de IoU; CPU basta.
+- Aceite (soft-30 ≥ tabela L6-7 em f/l/b, flipped 0, slivers não sobem): n005 (.893/.923/.906) **sim**; hfoo (.828/.546/.822) **sim**;
+  n017 (.884/.765/.824) **sim**; n00U (.875/.788/.869) **não**: .873/.737/.873 (a entrada v11 já começa em .844/.696/.840, abaixo do
+  clay da L6-7, .853/.747/.853; soft-120 chega a .892/.751/.892 e fd-120 a .875/.753/.865 na mesma entrada); n02X (.849/.866/.863
+  na L6-7, entrada v9-r1) **não** no left: .828 (a entrada v10-r1 começa em .810). flipped 0 nas 15 saídas; slivers caem em todas.
+  Contra fd-120 na mesma entrada, soft-30 (4x menos tempo) empata ou ganha em n005 left, hfoo e n017 e perde 0.002-0.025 em n00U f/l e
+  n005 f; soft-120 ganha ou empata (±.003) em 13 de 15 f/l/b.
+- Achado: o `iou_gradient` por diferença para frente só vê o movimento +x/+y/+z do vértice; numa parede esquerda de caixa, cujo
+  movimento útil é para fora (-x) e cujo movimento para dentro é encoberto pelas outras faces, dá 0 (medido na malha sintética), e
+  ignora a renormalização do enquadramento pela bbox; o gradiente suave é simétrico e inclui a bbox (pico ±1.15 nos vértices extremos
+  da caixa; no modelo real a busca de linha filtra).
+- Negativos: `normal_diff` ainda sobe (n005 42.6 → 45.0 em 30 s, +1.4 a +4 nas cinco): o L8-4 trata; n00U left não fecha em 30 s;
+  DIB-R (Cheng et al. 2019) não usado (fundo/alpha não entram), sem linha em `docs/references.md`.
+- Testes: `test_optimize_verts.py` +4 (cosseno soft × fd > 0.5 na parede direita da caixa sintética; um passo soft baixa o objetivo e
+  sobe o IoU duro; `GRAD` inválido levanta; lento `SLOW=1`: n005 30 s, turned 0, slivers e IoU f/l/b não pioram). 525 testes OK (3
+  pulados).

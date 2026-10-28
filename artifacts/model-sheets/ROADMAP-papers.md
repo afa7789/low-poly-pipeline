@@ -474,3 +474,5 @@ Ordem: L8-1 → L8-2 → (L8-3, L8-4, L8-5 em paralelo) → L8-6 → L8-7; L8-8 
 dependência, câmera por gradiente, textura por raster suave, redes implícitas, difusão/SDS (05–09 fora de domínio ou vetados).
 
 **Estado L8-1 (2026-10-29):** `soft_sil.py` integrado (PIPELINE §26.L8-1), sem flag, ainda não usado por nada. |IoU suave(τ=0.5) − IoU duro| ≤ 0.0075 vs `Ctx` (≤ 0.0080 vs `silhouette.iou`) nos 5 clays × 6 vistas; forward+backward ~630 tris: CPU mediana 33–59 ms (meta 50: n00U passa, 59), MPS 8–18 ms.
+
+**Estado L8-2 (2026-10-29):** `optimize_verts` usa `loss.backward()` de `soft_sil` (`GRAD = "soft"`, `TAU = 0.5`, `DEVICE` cpu|mps; `GRAD = "fd"` guarda o antigo), PIPELINE §26.L8-2. Gradiente completo 0.46 s vs 1.52 s; soft-30 ≥ tabela L6-7 em n005, hfoo, n017; n00U e n02X não (entradas v11/v10 começam abaixo do clay da L6-7); soft-120 ≥ fd-120 (±.003) em 13 de 15 f/l/b; flipped 0, slivers caem. `normal_diff` ainda sobe (L8-4). `FIT_VERTS` segue False.
