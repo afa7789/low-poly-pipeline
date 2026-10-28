@@ -3328,3 +3328,34 @@ Slivers: fase 1 igual ao v10; a fase 2 soma 0 a 1.7 pp (n017 27.8 > 29.4 %, n005
 - Reproduzir: `build_unit`/`spec_pipeline --spec runs/draft/<id>/v10-r1/spec.json --no-repair` (fit e deform rodam) e
   `deform_to_sheet.py clay-raw.glb refs/<id>/sheet.jpg out.glb --rig spider`.
 
+## 26. Leva 8 (2026-10-29)
+
+### 26.L8-1 Raster suave de silhueta (`tools/blender/soft_sil.py`)
+
+- O que é: o gêmeo diferenciável (torch) do raster duro de `optimize_verts.Ctx`, só para o gradiente; gates e vereditos seguem em
+  `silhouette.py`. `project(pos, view)` repete `View.uv` + `frame` (mirror, bbox ajustada ao canvas) em torch, então vale para
+  front/left/back e para as câmeras rts/top/bottom (`make_views` com `cams`). `soft_mask(xy_tris, shape, tau, dist, agg, ss)`:
+  distância assinada pixel→triângulo só na janela bbox+3τ de cada triângulo (SoftRas Eq. 1, `D=F(δ d²/τ²)`, τ em px do canvas),
+  janelas ragged sem padding à la PyTorch3D (blocos de 2M pixels), `dist` logistic|uniform, `agg` prob (`1−∏(1−D)`, Eq. 4, em
+  soma de logs) | yager2 (`min(1,√ΣD²)`, GenDR), `ss` = supersample + `avg_pool2d` (como `optimize_verts.pool`). `soft_iou` =
+  `Σmin/Σmax`; `loss = 1 − soft_iou`, `mode="asym"` reservado para L8-5 (levanta NotImplementedError). Autograd até `pos` 3D.
+- Sem flag: módulo novo, nada o chama ainda (base de L8-2..L8-7). `optimize_verts.py` e `fit_spec.py` intocados.
+  CLI: `python3.14 tools/blender/soft_sil.py <run> <sheet.jpg> [--tau 0.5] [--dist] [--agg] [--device]`.
+- Medição, τ = 0.5 px, logística/prob, ss=1: |IoU suave − IoU do raster duro `Ctx` (SS=4)| por vista
+  (front / left / back / top / bottom / rts); contra `silhouette.iou` o máximo é 0.0080 (n017 bottom).
+
+| unidade | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .0001 | .0048 | .0017 | .0017 | .0004 | .0025 |
+| n00U | .0008 | .0004 | .0008 | .0003 | .0004 | .0002 |
+| hfoo | .0040 | .0018 | .0002 | .0001 | .0005 | .0001 |
+| n017 | .0015 | .0038 | .0040 | .0002 | .0075 | .0029 |
+| n02X (v10-r1) | .0001 | .0064 | .0023 | .0007 | .0017 | .0005 |
+
+- Tempo forward+backward por vista (~630 tris, float32, mediana de 18 chamadas depois de aquecer): CPU 33 / 59 / 36 / 37 / 44 ms
+  (n005 / n00U / hfoo / n017 / n02X; máximo 88 ms em n00U front, triângulos grandes), MPS 8–18 ms. Meta ≤ 50 ms CPU: cumprida
+  em 4 de 5 na mediana; n00U (59 ms) passa por causa de triângulos grandes (janelas de ~10^5 px). Janelas ragged já são a
+  vetorização; não precisou de mais.
+- Testes: `test_soft_sil.py` (4 rápidos: projeção = frame duro com mirror ±1, τ→0 de logistic/uniform/yager2 = raster duro ≤ 0.01,
+  gradiente reduz a loss, asym ainda não; 1 lento `SLOW=1` com n005 v11-r1 nas 6 vistas ≤ 0.01).
+- Negativos/limites: τ pequeno (< ~0.3 px) sem `ss` dá gradiente esparso (só pixels de borda); DIB-R (alpha de fundo) não usado.
