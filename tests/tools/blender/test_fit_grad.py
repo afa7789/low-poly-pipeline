@@ -52,8 +52,12 @@ def real_parts(unit, version="v11-r1"):
 
 
 class Parity(unittest.TestCase):
+    def setUp(self):
+        self.families = dict(F.RF.FAMILIES)    # real_parts scales the rigs of n00U / n017: the other suites want the fixed tables
+
     def tearDown(self):
-        F.RF.FAMILIES.update(F.RF.FIXED)       # real_parts scales the rig of n017: the other suites want the fixed table
+        F.RF.FAMILIES.clear()
+        F.RF.FAMILIES.update(self.families)
         F.RF._drop_caches()
         lathe_limb.set_rig("biped")
 
