@@ -1,4 +1,5 @@
 """python3.14 -m unittest discover -s tests/tools/blender"""
+import os
 import pathlib
 import sys
 import tempfile
@@ -45,6 +46,31 @@ class TestOptimizeVerts(unittest.TestCase):
         g = O.iou_gradient(ctxs[0], prob.pos0, TRI, side, prob.rings)
         self.assertTrue((g[:, 0] < 0).all())                 # d(1 - IoU)/dx < 0 on the right wall: moving right helps
         self.assertTrue(np.allclose(g[:, 1], 0))             # depth is invisible in the front view
+
+    def test_soft_gradient_points_where_the_finite_difference_does(self):
+        prob = problem()
+        _, ctxs, _ = prob.evaluate(prob.pos0)
+        # the right wall: the forward difference only sees outward moves there (the left wall's helpful move is -x)
+        free = np.flatnonzero(np.isclose(prob.pos0[:, 0], 0.25) & (prob.pos0[:, 2] > 0.1) & (prob.pos0[:, 2] < 0.9))
+        fd = O.iou_gradient(ctxs[0], prob.pos0, TRI, free, prob.rings)
+        soft = O.soft_gradient(ctxs, prob.pos0, TRI)[free]
+        cos = (fd * soft).sum() / (np.linalg.norm(fd) * np.linalg.norm(soft))
+        self.assertGreater(cos, 0.5)
+
+    def test_one_soft_step_lowers_the_hard_loss(self):
+        prob = problem()
+        value, ctxs, _ = prob.evaluate(prob.pos0)
+        free = prob.body
+        step = O.descent_step(prob, prob.gradient(prob.pos0, ctxs, np.flatnonzero(free)), free, np.ones(len(POS), bool))
+        best = O.search(prob, prob.pos0, step, value, ctxs, {"unsafe": 0, "worse": 0})
+        self.assertIsNotNone(best)
+        self.assertGreater(best[1][0].iou, ctxs[0].iou)
+
+    def test_grad_switch_rejects_unknown(self):
+        prob = problem()
+        _, ctxs, _ = prob.evaluate(prob.pos0)
+        with mock.patch.object(O, "GRAD", "nope"), self.assertRaises(ValueError):
+            prob.gradient(prob.pos0, ctxs, np.flatnonzero(prob.body))
 
     def test_optimize_raises_iou_and_keeps_faces(self):
         panels = {"front": panel(1.15), "left": panel(1.0), "back": panel(1.15)}
@@ -94,6 +120,21 @@ class TestOptimizeVerts(unittest.TestCase):
     def test_apply_needs_both_switches(self):
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=True, union_body=False)))
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=False, union_body=True)))
+
+
+REAL = ROOT / "artifacts/model-sheets/runs/draft/n005/v11-r1/clay.glb"
+SHEET = ROOT / "artifacts/model-sheets/refs/n005/sheet.jpg"
+
+
+@unittest.skipUnless(os.environ.get("SLOW") and REAL.exists() and SHEET.exists(), "SLOW=1: n005, 30 s")
+class RealClay(unittest.TestCase):
+    def test_soft_30_s_keeps_faces_and_does_not_lose_iou(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rep = O.run(REAL, SHEET, pathlib.Path(tmp, "o.glb"), seconds=30)
+        self.assertEqual(rep["turned"], 0)
+        self.assertLessEqual(rep["slivers_after"], rep["slivers_before"])
+        for v in ("front", "left", "back"):
+            self.assertGreaterEqual(rep["after"][v]["iou"], rep["before"][v]["iou"])
 
 
 def blit(cnt, tri, sign):

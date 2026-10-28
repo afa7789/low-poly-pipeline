@@ -12,7 +12,9 @@ components, the props, stay), no SDS and no diffusion. Objective, in units of th
   + lam_f * mean ((inner angle - pi/3) / (pi/3))^2 over the triangles                      [fairness]
   + lam_l * mean |L (x - x0)|^2 over the vertices                                          [smooth displacement]
 
-The silhouette gradient is a forward finite difference per vertex, evaluated locally: the 1-ring's triangles
+GRAD = "soft" (default, L8-2): the silhouette gradient is `loss.backward()` of soft_sil (differentiable raster, TAU px
+edge band, one pass over all views); accept / holds / evaluate stay on the hard raster below. GRAD = "fd" keeps the
+L6-7 gradient: a forward finite difference per vertex, evaluated locally: the 1-ring's triangles
 are re-rasterised (4x supersampled, so the coverage is continuous in the position) in a small window and the
 IoU is updated incrementally. Fairness uses finite differences per triangle corner, chamfer and Laplacian are
 analytic. Descent steps move at most STEP * H; a step that turns a face over or leaves a new sliver
@@ -55,6 +57,10 @@ SETTLE = 16               # rounds of `settled`
 HALVE, REPAIR = 3, 24     # a step that spoils faces: the moves of their vertices are halved HALVE times, then dropped
 GAIN = 1e-5               # the objective must fall by this much for a step to count
 VIEW_MIN = 0.5            # a view that starts under this IoU is another drawing than the model: left out
+GRAD = "soft"             # silhouette gradient: "soft" = autograd of soft_sil (L8-2), "fd" = the 1-ring finite difference (L6-7)
+TAU = 0.5                # edge band of the soft raster, canvas px (measured L8-2: 0.5 > 1.0 > 2.0; below ~0.3 px sparse)
+DETACH = False            # the bbox fit of the projection counts as a constant in the soft gradient (the fd one always does)
+DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 
 
@@ -166,6 +172,17 @@ def iou_gradient(ctx, pos, tri, verts, rings):
     return g
 
 
+def soft_gradient(ctxs, pos, tri):
+    """d sum(1 - soft IoU)/d position, all rows, one backward over every view (soft_sil, SoftRas Eq. 1+4). The hard
+    contexts keep deciding what is accepted; this is only the direction."""
+    import torch
+    import soft_sil
+    p = torch.tensor(pos, dtype=torch.float32, device=DEVICE, requires_grad=True)
+    t = torch.as_tensor(tri, device=DEVICE)
+    sum(soft_sil.loss(p, t, c.view, TAU, detach=DETACH) for c in ctxs).backward()
+    return p.grad.cpu().numpy().astype(np.float64)
+
+
 def tri_fairness(q):
     """Per triangle: mean ((inner angle - pi/3) / (pi/3))^2."""
     a = np.radians(ML.angles(q))
@@ -222,8 +239,13 @@ class Problem:
     def gradient(self, pos, ctxs, free):
         """d objective / d position, rows of `free` for the silhouette term, everywhere for the others."""
         g = np.zeros_like(pos)
+        if GRAD == "soft":
+            g[free] += soft_gradient(ctxs, pos, self.tri)[free]
+        elif GRAD != "fd":
+            raise ValueError(f"GRAD {GRAD!r}: soft | fd")
         for c in ctxs:
-            g[free] += iou_gradient(c, pos, self.tri, free, self.rings)
+            if GRAD == "fd":
+                g[free] += iou_gradient(c, pos, self.tri, free, self.rings)
             move, near = c.contour
             g -= 2 * LAMBDA["chamfer"] / self.nb * np.where((near & self.body)[:, None], move, 0.0)
         g += LAMBDA["fair"] * fairness_gradient(pos, self.tri_b)
@@ -465,6 +487,7 @@ def apply(glb, args):
 
 
 def main():
+    global GRAD, TAU, DEVICE
     ap = argparse.ArgumentParser()
     ap.add_argument("glb")
     ap.add_argument("sheet")
@@ -472,7 +495,11 @@ def main():
     ap.add_argument("--views", default=",".join(DEFAULT_VIEWS))
     ap.add_argument("--iters", type=int, default=30, help="descent steps per stage")
     ap.add_argument("--seconds", type=float, default=120.0)
+    ap.add_argument("--grad", default=GRAD, choices=("soft", "fd"))
+    ap.add_argument("--tau", type=float, default=TAU, help="soft raster edge band, px")
+    ap.add_argument("--device", default=DEVICE, choices=("cpu", "mps"))
     a = ap.parse_args()
+    GRAD, TAU, DEVICE = a.grad, a.tau, a.device
     r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.seconds)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
