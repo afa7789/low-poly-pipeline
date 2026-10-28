@@ -38,6 +38,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 TEXTURES = ("cel", "painted", "sheet")
 COLOUR_OPTS = ("decal", "decal_color")     # the only part fields a colour pass may set
 HEX = re.compile(r"#[0-9A-Fa-f]{6}")
+FIT_LUMA = False    # stage 2 cel: per-slot tone multipliers and a light direction fitted to the sheet (--fit-luma, PIPELINE 26.L8-8)
 
 
 def run(script, *argv, blender=False):
@@ -89,13 +90,20 @@ def valid_ramp(ramp):
                             and all(isinstance(v, (int, float)) for v in ramp) and 0 <= ramp[0] <= ramp[1] <= 1)
 
 
+def valid_tones(tones):
+    """None (the surface's own tones) or [up, side, down] multipliers, each in (0, 3]."""
+    return tones is None or (isinstance(tones, (list, tuple)) and len(tones) == 3
+                             and all(isinstance(v, (int, float)) and 0 < v <= 3 for v in tones))
+
+
 def check_palette(old, new):
     """Same slots, same alpha; each slot's colour is #RRGGBB, its surface a known one, its ramp valid."""
     if set(new) != set(old):
         raise ValueError(f"colour pass changed the palette slots: {sorted(set(new) ^ set(old))}")
     for name, entry in new.items():
         if (not HEX.fullmatch(str(entry.get("color", ""))) or entry.get("surface") not in SURFACES
-                or entry.get("alpha", 1.0) != old[name].get("alpha", 1.0) or not valid_ramp(entry.get("ramp"))):
+                or entry.get("alpha", 1.0) != old[name].get("alpha", 1.0) or not valid_ramp(entry.get("ramp"))
+                or not valid_tones(entry.get("tones"))):
             raise ValueError(f"palette slot {name} outside the schema: {entry}")
 
 
@@ -160,6 +168,30 @@ def with_ramps(spec, sheet):
         rgb = np.array([int(entry["color"][i:i + 2], 16) for i in (1, 3, 5)], float)
         entry["ramp"] = list(ramps[int(np.argmin(((zone_rgb - rgb) ** 2).sum(axis=1)))])
     return out
+
+
+def fit_luma(spec, args, tilts, work):
+    """(spec, report): `spec` with palette[slot]["tones"] = the cel multipliers fit_luma.fit measured on the
+    sheet (PIPELINE 26.L8-8). The ID + normal shots come from the spec rebuilt as flat palette colours, like
+    spec_pipeline.zones_clay. The spec comes back as it was, report None, when nothing was fitted."""
+    import fit_luma as FL
+    work = pathlib.Path(work) / "luma"
+    work.mkdir(parents=True, exist_ok=True)
+    glb, path, hi = work / "ids.glb", work / "spec.json", BUDGETS[args.kind][1]
+    path.write_text(json.dumps(spec, indent=2))
+    run("build_unit.py", path, glb, hi, "nofuse", hi, *cut_hull.args(spec, args.sheet, args.kind, work), blender=True)
+    if glb.exists():
+        run("render_silhouette.py", glb, work, "ids", blender=True)
+    if not glb.exists():
+        return spec, None
+    report = FL.fit(work, glb.stem, args.sheet, layout_of(args.kind), spec.get("palette", {}),
+                    {v: t for v, t in tilts.items() if isinstance(t, int)})
+    if report is None:
+        return spec, None
+    out = copy.deepcopy(spec)
+    for slot, tones in report["tones"].items():
+        out["palette"][slot]["tones"] = tones
+    return out, report
 
 
 def build_textured(spec, glb_clay, args, glb, work):
@@ -299,6 +331,9 @@ def stage_colour(spec, glb_clay, args, tilts, work, ask=None):
     """Texture the frozen `spec` and gate its colour zones. Returns (ok, markdown) where the
     markdown is the review.md section "Stage 2 — colour". The final GLB is <out>/model.glb."""
     work = pathlib.Path(work)
+    luma = None
+    if (FIT_LUMA or getattr(args, "fit_luma", False)) and args.texture == "cel":
+        spec, luma = fit_luma(spec, args, tilts, work)
     glb, zones, best_work = attempt(spec, glb_clay, args, tilts, work, "texture")
     if zones is None:
         return False, f"## Stage 2 — colour\n\nBUILD FAILED: the `{args.texture}` texture produced no GLB.\n"
@@ -323,6 +358,9 @@ def stage_colour(spec, glb_clay, args, tilts, work, ask=None):
          "zones": zones, "colour_pass": log}, indent=2))
     md = ["## Stage 2 — colour", "", "| gate | value |", "|---|---|", f"| texture | {args.texture} |",
           *table_rows(zones, tilts)]
+    if luma:
+        md.append(f"| luma fit (light az/el {luma['light']}, b {luma['b']}, loss {luma['cost0']} -> {luma['cost']}) | "
+                  + ("DEGENERATE, no light direction" if luma["degenerate"] else "applied") + " |")
     if log:
         md.append("| colour pass | " + "; ".join(log) + " |")
     md += ["", f"colour: **{'PASS' if ok else 'FAIL'}**", ""]

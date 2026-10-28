@@ -217,13 +217,14 @@ def ramp_slope(ramp, rgb):
     return max(0.0, min(RAMP_MAX, (ramp[1] - ramp[0]) / max(luma, 1e-3)))
 
 
-def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE):
+def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE, tones=None):
     """One slot image in cel style: cells 0..2 hold the light/mid/dark tone, the others the
     mid tone (the decal cells are painted over by the caller). Each cell is a vertical ramp of
     RAMP_SLOTS flat slots, darker at the bottom, and a face fills one whole slot (its colour
     is flat). The border of each slot (1-2 px) is darker: faces span their slot, so it reads
-    as WC3's ink line. A glow surface has no ramp and no line."""
-    tones = CEL_SURFACE.get(surface, CEL_TONES)
+    as WC3's ink line. A glow surface has no ramp and no line. `tones` (light, mid, dark) replaces the
+    surface's multipliers: the ones fit_luma measured on the sheet (a glow surface keeps its own)."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES) if tones is None or surface == "glow" else tuple(tones)
     u, v, tx, ty = _cells(size)
     cell = (ty * GRID + tx).astype(int)
     k = np.array(tones + (tones[1],) * (GRID * GRID - 3))[cell]
