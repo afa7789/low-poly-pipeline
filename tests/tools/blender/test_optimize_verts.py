@@ -72,6 +72,22 @@ class TestOptimizeVerts(unittest.TestCase):
         with mock.patch.object(O, "GRAD", "nope"), self.assertRaises(ValueError):
             prob.gradient(prob.pos0, ctxs, np.flatnonzero(prob.body))
 
+    def test_tau_schedule_falls_with_progress(self):
+        with mock.patch.object(O, "TAU_SCHEDULE", (4, 2, 1, 0.5, 0.5)):
+            taus = [O.tau_at(p / 20) for p in range(21)]
+            self.assertEqual((taus[0], taus[-1]), (4, 0.5))
+            self.assertEqual(taus, sorted(taus, reverse=True))
+            self.assertEqual(O.next_level(0.05), 0.2)
+            self.assertIsNone(O.next_level(0.9))
+        self.assertEqual(O.tau_at(0.3), O.TAU)             # no schedule: the constant
+
+    def test_annealed_gradient_still_descends(self):
+        prob = problem()
+        _, ctxs, _ = prob.evaluate(prob.pos0)
+        with mock.patch.object(O, "DIST", "gamma_inv"):
+            g = prob.gradient(prob.pos0, ctxs, np.flatnonzero(prob.body), tau=4.0)
+        self.assertTrue(np.isfinite(g).all() and np.abs(g).max() > 0)
+
     def test_optimize_raises_iou_and_keeps_faces(self):
         panels = {"front": panel(1.15), "left": panel(1.0), "back": panel(1.15)}
         with mock.patch.object(O, "make_views", return_value=[
