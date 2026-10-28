@@ -67,6 +67,7 @@ TAU_SCHEDULE = None       # None = constant TAU; or a tuple of tau px, decreasin
 DIST, AGG = "logistic", "prob"    # soft_sil distribution (logistic | uniform | gamma_inv) and aggregation (prob | yager2)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+PIPELINE_SECONDS = 30.0   # budget when spec_pipeline calls apply (26.L8-2: soft-30 keeps the L6-7 table on 3 of 5 units); the CLI keeps 120
 
 
 def stamp(tri_xy):
@@ -574,7 +575,7 @@ def apply(glb, args):
     glb = pathlib.Path(glb)
     before = glb.with_name(f"{glb.stem}-prefit.glb")
     before.write_bytes(glb.read_bytes())
-    return run(before, args.sheet, glb, layout=layout_of(args.kind))
+    return run(before, args.sheet, glb, seconds=PIPELINE_SECONDS, layout=layout_of(args.kind))
 
 
 def main():
