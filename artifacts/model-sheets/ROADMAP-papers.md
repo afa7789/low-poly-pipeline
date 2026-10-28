@@ -472,3 +472,5 @@ torch 2.14.1 instalado no `python3.14` (MPS disponível; CPU basta). Unidades de
 
 Ordem: L8-1 → L8-2 → (L8-3, L8-4, L8-5 em paralelo) → L8-6 → L8-7; L8-8 independente. Não aplicar: PyTorch3D como
 dependência, câmera por gradiente, textura por raster suave, redes implícitas, difusão/SDS (05–09 fora de domínio ou vetados).
+
+**Estado L8-1 (2026-10-29):** `soft_sil.py` integrado (PIPELINE §26.L8-1), sem flag, ainda não usado por nada. |IoU suave(τ=0.5) − IoU duro| ≤ 0.0075 vs `Ctx` (≤ 0.0080 vs `silhouette.iou`) nos 5 clays × 6 vistas; forward+backward ~630 tris: CPU mediana 33–59 ms (meta 50: n00U passa, 59), MPS 8–18 ms.
