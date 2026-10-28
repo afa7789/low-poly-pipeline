@@ -3514,3 +3514,63 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
   da saída, não com este termo. Não testado: λ entre 3 e 10 (a curva é monótona nas cinco), diedro com normais suavizadas por grupo.
 - Testes: `test_optimize_verts.py` +3 (`TestDihedral`: arestas de 90° da caixa fora da seleção; grade com vértice central levantado:
   termo > 0, um passo contra o gradiente o reduz, sem arestas vale 0; λ=0 não cria a chave `dihedral`).
+
+### 26.L8-3 Anelamento de τ e ablação de distribuição/agregação em `optimize_verts` (2026-10-29)
+
+- O que mudou (aditivo): `optimize_verts.TAU_SCHEDULE = None` (None = `TAU` constante; tupla de px, um degrau por parcela igual do
+  progresso da corrida, ex. `(4, 2, 1, 0.5, 0.5)`), `DIST = "logistic"`, `AGG = "prob"` (passados ao `soft_sil.loss`), `tau_at`,
+  `next_level`, `run_progress`; `soft_gradient(..., tau=None)` e `Problem.gradient(..., tau=None)`; `stage(..., span)` calcula o progresso
+  global (parcela do estágio de âncoras `(0, COARSE)`, fino `(COARSE, 1)`; maior entre iteração/iters e tempo/orçamento) e, quando nada
+  baixa o objetivo naquele τ, pula para o próximo degrau em vez de encerrar. CLI: `--tau-schedule 4,2,1,0.5`, `--dist`, `--agg`.
+  `soft_sil.gamma_inv` (Gamma p=0.5 invertida, GenDR: massa toda fora do triângulo, `D = 1` dentro e `erfc(d/τ)` fora) como `dist="gamma_inv"`.
+  Sem schedule o comportamento é idêntico ao L8-2.
+- Ablação (soft-30 s CPU, entrada = clay v11-r1, n02X v10-r1; IoU duro f/l/b | vermelho+verde % f/l/b do `D.measure`; 3 processos em
+  paralelo, load ~5, então os absolutos do n00U ficam .01 abaixo do L8-2; só a comparação entre linhas vale). Grade completa em
+  n005 e n00U (18 configurações); sliver 13-15 % (n005) e 19-20 % (n00U), turned 0 em todas:
+
+| schedule | dist / agg | n005 IoU | n005 verm+verd % | n00U IoU | n00U verm+verd % |
+|---|---|---|---|---|---|
+| const .5 | logistic / prob (L8-2) | .921/.944/.921 | 8.2/5.7/8.2 | .862/.718/.864 | 14.7/32.4/14.6 |
+| const .5 | logistic / yager2 | .924/.946/.924 | 7.9/5.6/7.8 | .862/.719/.862 | 14.8/32.4/14.7 |
+| const .5 | uniform / prob | .927/.942/.921 | 7.5/6.0/8.2 | .863/.719/.866 | 14.7/32.5/14.4 |
+| const .5 | uniform / yager2 | .925/.946/.921 | 7.7/5.6/8.2 | .864/.720/.865 | 14.6/32.3/14.4 |
+| const .5 | gamma_inv / prob | .921/.945/.925 | 8.2/5.7/7.8 | .863/.717/.865 | 14.7/32.6/14.4 |
+| const .5 | gamma_inv / yager2 | .924/.943/.921 | 7.9/5.9/8.2 | .863/.716/.864 | 14.7/32.8/14.5 |
+| 4→.5 | logistic / prob | .919/.943/.919 | 8.4/5.8/8.4 | .866/.715/.864 | 14.4/32.9/14.5 |
+| 4→.5 | logistic / yager2 | .920/.942/.922 | 8.3/6.0/8.1 | .865/.718/.863 | 14.5/32.5/14.7 |
+| 4→.5 | uniform / prob | .916/.940/.909 | 8.8/6.2/9.5 | .860/.707/.860 | 15.0/34.1/15.0 |
+| 4→.5 | uniform / yager2 | .918/.942/.915 | 8.6/6.0/8.8 | .861/.717/.862 | 14.9/32.8/14.8 |
+| 4→.5 | gamma_inv / prob | .919/.945/.917 | 8.5/5.7/8.6 | .857/.715/.856 | 15.5/33.1/15.5 |
+| 4→.5 | gamma_inv / yager2 | .919/.945/.922 | 8.4/5.6/8.1 | .865/.715/.863 | 14.5/32.9/14.6 |
+| 2→.5 | logistic / prob | .914/.939/.913 | 9.0/6.3/9.1 | .865/.717/.865 | 14.5/32.7/14.4 |
+| 2→.5 | logistic / yager2 | .914/.943/.914 | 8.9/5.9/8.9 | .861/.721/.862 | 15.0/32.3/14.9 |
+| 2→.5 | uniform / prob | .913/.942/.910 | 9.1/5.9/9.4 | .866/.724/.865 | 14.4/31.9/14.4 |
+| 2→.5 | uniform / yager2 | .916/.943/.911 | 8.7/5.8/9.3 | .867/.725/.866 | 14.2/31.6/14.3 |
+| 2→.5 | gamma_inv / prob | .914/.942/.909 | 8.9/6.0/9.5 | .865/.718/.865 | 14.4/32.5/14.5 |
+| 2→.5 | gamma_inv / yager2 | .917/.943/.913 | 8.6/5.9/9.1 | .868/.730/.866 | 14.1/30.8/14.3 |
+
+  Confirmação nas outras três (const .5, mais 4→.5 logistic/yager2; IoU f/l/b | verm+verd % f/l/b | sliver):
+
+| unidade | const logistic/prob | const logistic/yager2 | const uniform/yager2 | const gamma_inv/yager2 | 4→.5 logistic/yager2 |
+|---|---|---|---|---|---|
+| hfoo | .853/.566/.859 · 15.9/55.5/15.1 | .858/.566/.866 · 15.3/55.4/14.4 | .860/.566/.865 · 15.1/55.4/14.5 | .860/.570/.866 · 15.0/54.7/14.3 | .856/.564/.865 · 15.6/55.8/14.5 |
+| n017 | .892/.779/.849 · 11.4/24.4/16.2 | .894/.777/.843 · 11.1/24.6/16.8 | .894/.774/.847 · 11.1/25.0/16.3 | .896/.776/.843 · 10.9/24.8/16.8 | .896/.770/.852 · 11.0/25.8/15.8 |
+| n02X | .881/.832/.900 · 12.6/18.4/10.4 | .878/.828/.899 · 12.8/18.8/10.5 | .877/.830/.898 · 13.0/18.5/10.7 | .882/.827/.900 · 12.5/18.9/10.4 | .886/.829/.904 · 12.0/18.6/10.0 |
+
+  Tempo: 30-33 s em todas (gamma_inv 33-38 s sob load; `erfc` e sqrt custam pouco). Slivers: iguais entre as configurações da mesma
+  unidade (hfoo 9.7-10.2 %, n017 28.7-29.0 %, n02X 14.2-14.9 %).
+- Resultado: **nenhuma variante vira default.** Todas as diferenças ficam em ±.005 de IoU duro (ruído do orçamento de tempo sob
+  load); o anelamento de 4 ou 2 px **não ganha** do τ constante 0.5 em n005 (perde .003-.010 em f/b) nem em n00U/hfoo/n017 (±.005),
+  e só ajuda um pouco em n02X (4→.5 front +.005, back +.004). Yager(2) rende +.003 em n005 f/b e ±.004 nas outras: dentro do ruído.
+  A distribuição (logística, uniforme, Gamma-inv) não separa: no regime τ=0.5 px as três se parecem (banda de ~1 px).
+  Aceite (vermelho+verde < 8 % em ≥ 12 de 15 f/l/b; n017 left ≥ .75): **NÃO atendido** por nenhuma configuração; o melhor tem 3
+  de 15 (n005 f/l/b com const logistic/yager2: 7.9/5.6/7.8 %); n00U, hfoo, n017 e n02X ficam em 10-55 %, e o limite é a entrada
+  (silhueta do clay v11 longe do painel) e não o gradiente, como já via o L8-2. n017 left ≥ .75 passa em todas (.770-.779). Defaults
+  mantidos: `TAU_SCHEDULE=None`, `DIST="logistic"`, `AGG="prob"`; tudo opt-in via flags.
+- Âncoras (`COARSE`): com o anelamento elas **não ficam redundantes**. `COARSE=0` (só o estágio fino) em n005: const logistic/yager2
+  .918/.942/.921 vs .924/.946/.924 com âncoras; 4→.5 .913/.939/.916 vs .920/.942/.922; n00U igual (±.003). Ficam ligadas.
+- Negativos: schedule de τ grande não ajuda porque o line search e o aceite já estão no raster duro e o passo é limitado a
+  `STEP*H`; o gradiente com τ=4 px move vértices para fora do contorno que o passo seguinte desfaz. `uniform` com 4→.5 foi a pior
+  combinação em n005 back (.909).
+- Testes: `test_soft_sil` (τ→0 também para `gamma_inv`, ≤ .01 na caixa sintética), `test_optimize_verts` +2 (schedule decrescente pelo
+  progresso e `next_level`; gradiente anelado com `gamma_inv` finito e não nulo).

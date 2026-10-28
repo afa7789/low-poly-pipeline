@@ -34,7 +34,7 @@ class TestSoftSil(unittest.TestCase):
 
     def test_tau_to_zero_is_the_hard_raster(self):
         hard = O.Ctx(FRONT, POS, TRI).iou
-        for kw in ({}, {"dist": "uniform"}, {"agg": "yager2"}):
+        for kw in ({}, {"dist": "uniform"}, {"dist": "gamma_inv"}, {"agg": "yager2"}):
             with self.subTest(**kw):
                 self.assertLess(abs(soft_value(torch.tensor(POS), tau=0.1, ss=4, **kw) - hard), 0.01)
 

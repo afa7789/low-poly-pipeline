@@ -4,7 +4,7 @@ deform_to_sheet.raster / optimize_verts.Ctx, for the gradient only. Gates and ve
 
     SoftRas (Liu 2019) Eq. 1:  D_j(p) = F(delta_j(p) * d_j(p)^2 / tau^2)      delta = +1 inside the triangle, -1 outside
     SoftRas Eq. 4:             A(p)   = 1 - prod_j (1 - D_j(p))                  ("prob")
-    GenDR (Wang 2022):         F logistic or uniform (a linear ramp), aggregation Yager(2): min(1, sqrt(sum D_j^2))
+    GenDR (Wang 2022):         F logistic, uniform (a linear ramp) or gamma_inv (reversed Gamma p=.5), aggregation Yager(2): min(1, sqrt(sum D_j^2))
 
 `tau` is in canvas pixels (the width of the edge band), d the distance in pixels of the pixel centre to the triangle.
 PyTorch3D (Ravi 2020) pattern: every triangle is evaluated only in its bbox grown by 3 tau; the windows are laid out
@@ -27,7 +27,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import deform_to_sheet as D  # noqa: E402
 import silhouette as S  # noqa: E402
 
-REACH = 3.0               # window margin, in tau (logistic: D(3 tau) = 1.2e-4)
+REACH = 3.0               # window margin, in tau (logistic: D(3 tau) = 1.2e-4; gamma_inv: erfc(3) = 2e-5)
 CHUNK = 1 << 21           # window pixels per vectorised block
 EPS = 1e-9
 SHAPE = (S.CANVAS_H, S.CANVAS_W)
@@ -68,7 +68,15 @@ def squash(x, dist):
         return torch.sigmoid(x)
     if dist == "uniform":
         return (0.5 + x / 4).clamp(0, 1)
-    raise ValueError(f"dist {dist!r}: logistic | uniform")
+    if dist == "gamma_inv":
+        return gamma_inv(x)
+    raise ValueError(f"dist {dist!r}: logistic | uniform | gamma_inv")
+
+
+def gamma_inv(x):
+    """GenDR's reversed Gamma(p = 0.5), one-sided: all the mass is outside the triangle (faces come out larger, no
+    gaps between neighbours). 1 inside; outside 1 - P(0.5, d^2 / tau^2) = erfc(d / tau), with x = -d^2 / tau^2."""
+    return torch.where(x >= 0, 1.0, torch.erfc((-x).clamp(min=EPS).sqrt()))
 
 
 def windows(xy, size, margin):
@@ -81,7 +89,7 @@ def windows(xy, size, margin):
 
 def triangle_terms(xy_tris, size, tau, dist):
     """(flat canvas index, D) of every pixel of every triangle's window, ragged: no padding, one row per pixel."""
-    margin = REACH * tau if dist == "logistic" else math.sqrt(2.0) * tau
+    margin = math.sqrt(2.0) * tau if dist == "uniform" else REACH * tau
     lo, ext = windows(xy_tris, size, margin)
     count = ext[:, 0] * ext[:, 1]
     ends = count.cumsum(0)
