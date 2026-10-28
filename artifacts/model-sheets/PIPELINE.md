@@ -3484,3 +3484,33 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 - Testes: `test_soft_sil.py` +2 líquido (máscara só vermelha → termo verde 0 e o inverso, pesos vindos dos gates, gradiente asym
   desce, modo inválido levanta; o teste do gancho `NotImplementedError` foi substituído), `test_optimize_verts.py` +1 (termo e passo
   asym, `asym` com `GRAD=fd` levanta).
+
+### 26.L8-4 Regularizador de diedro em `optimize_verts` (`LAMBDA["dihedral"]`, opt-in, default 0)
+
+- O que mudou (aditivo): `flat_edges(pos, tri)` seleciona, no corpo soldado e na malha INICIAL, as arestas internas de duas faces cujo
+  diedro é < `align_features.FEATURE_DEG` (35°); as vivas do WC3 (>= 35°) não entram, e a seleção fica fixa (`Problem.flat`).
+  `dihedral_term(pos, tri, faces)` = média de `(cos θ + 1)² = (1 - n0·n1)²` (NMR Eq. 6; plano = π) e seu gradiente por autograd de
+  torch (float64), somado em `Problem.gradient`/`evaluate` só quando `LAMBDA["dihedral"] != 0`. Média, não soma, para o λ não depender
+  do número de arestas. CLI `--dihedral λ`. DIB-R (Eq. 11, a mesma regularização de normais) não foi usado como código: sem linha própria.
+- Medição (soft-30, mesma entrada do L8-2; 5 processos em paralelo, então poucos passos por rodada: λ=0 é a coluna de controle sob a mesma
+  carga). IoU duro f/l/b | `normal_diff` médio entrada > saída | slivers % entrada > saída; flipped 0 em todas as saídas:
+
+| unidade | λ=0 | λ=1 | λ=3 | λ=10 | λ=30 |
+|---|---|---|---|---|---|
+| n005 (nd 42.6, sl 15.9) | .921/.943/.918 (descarregado; nd 44.8, sl 13.5) | .915/.941/.918 · 43.2 · 14.8 | .911/.940/.913 · 42.6 · 15.6 | .908/.937/.907 · 42.2 · 15.6 | .907/.936/.904 · 41.9 · 15.9 |
+| n00U (50.8, 20.4) | .861/.716/.863 · 51.4 · 19.9 | .862/.718/.864 · 51.2 · 19.3 | .860/.717/.859 · 51.0 · 19.3 | .848/.699/.845 · 50.8 · 20.4 | .846/.697/.842 · 50.7 · 20.4 |
+| hfoo (47.0, 11.3) | .852/.556/.855 · 47.1 · 9.8 | .855/.559/.858 · 47.1 · 10.2 | .851/.551/.861 · 47.1 · 10.5 | .846/.540/.850 · 46.9 · 11.1 | .842/.542/.847 · 46.8 · 11.1 |
+| n017 (45.5, 31.5) | .894/.773/.844 · 46.8 · 29.0 | .885/.775/.847 · 46.1 · 29.3 | .887/.770/.843 · 45.6 · 30.0 | .880/.764/.844 · 45.7 · 29.2 | .883/.753/.839 · 45.2 · 30.3 |
+| n02X (47.1, 15.4) | .871/.826/.896 · 49.1 · 14.9 | .874/.824/.896 · 47.8 · 14.6 | .882/.825/.899 · 47.7 · 14.1 | .877/.825/.891 · 47.3 · 14.6 | .874/.824/.891 · 46.7 · 14.5 |
+
+  Confirmação com 120 s (n005, n017; λ=0 > λ=30): n005 .921/.941/.923, nd 45.0, sl 12.7 > .911/.941/.909, nd 41.6, sl 15.1;
+  n017 .901/.788/.853, nd 49.1, sl 26.9 > .888/.770/.846, nd 45.1, sl 28.9.
+- Aceite (`normal_diff` saída <= entrada nas 5 E IoU f/l/b dentro de -0.005 do λ=0): **não atendido**. `normal_diff` só fica <= entrada
+  nas cinco com λ=30 (41.9, 50.7, 46.8, 45.2, 46.7), e aí o IoU cai 0.010-0.020 em f/l/b (n005 f -.014, b -.014; n017 l -.020;
+  hfoo f -.010); com λ<=3 o IoU quase não muda mas o `normal_diff` ainda sobe 0.2-1.4 (n017, n02X, n00U). O termo troca silhueta
+  por suavidade quase um por um: não há λ que cumpra os dois. Slivers: λ>=10 devolve o ganho que o λ=0 tinha (n005 13.5 > 15.6-15.9).
+- Decisão: `LAMBDA["dihedral"] = 0` (desligado, comportamento anterior idêntico: nenhuma chave nova em `terms`). Ligar com
+  `--dihedral 30` se um aceite futuro priorizar forma sobre IoU. O L8-6 (fit_verts ligado por default) deve decidir com o `normal_diff`
+  da saída, não com este termo. Não testado: λ entre 3 e 10 (a curva é monótona nas cinco), diedro com normais suavizadas por grupo.
+- Testes: `test_optimize_verts.py` +3 (`TestDihedral`: arestas de 90° da caixa fora da seleção; grade com vértice central levantado:
+  termo > 0, um passo contra o gradiente o reduz, sem arestas vale 0; λ=0 não cria a chave `dihedral`).

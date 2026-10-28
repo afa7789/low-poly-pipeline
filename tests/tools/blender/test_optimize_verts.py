@@ -156,5 +156,36 @@ def blit(cnt, tri, sign):
     O.blit(cnt, np.zeros(2, int), lo, mask, sign)
 
 
+class TestDihedral(unittest.TestCase):
+    @staticmethod
+    def bumped_grid(lift=0.3):
+        """3x3 vertex grid in z=0 (8 triangles) with the centre vertex lifted: gentle dihedrals on every interior edge."""
+        pos = np.array([[x, y, 0.0] for y in range(3) for x in range(3)], float)
+        pos[4, 2] = lift
+        quads = [(0, 1, 4, 3), (1, 2, 5, 4), (3, 4, 7, 6), (4, 5, 8, 7)]
+        return pos, np.array([t for a, b, c, d in quads for t in ((a, b, c), (a, c, d))])
+
+    def test_cube_edges_at_90_degrees_are_not_selected(self):
+        faces = O.flat_edges(POS, TRI)
+        n = np.cross(POS[TRI[:, 1]] - POS[TRI[:, 0]], POS[TRI[:, 2]] - POS[TRI[:, 0]])
+        n /= np.linalg.norm(n, axis=1, keepdims=True)
+        self.assertLess(len(faces), 3 * len(TRI) // 2)                       # the box's creases are out
+        self.assertTrue((np.einsum("ed,ed->e", n[faces[:, 0]], n[faces[:, 1]]) > 0.99).all())   # only coplanar pairs
+
+    def test_bump_costs_and_the_gradient_flattens_it(self):
+        pos, tri = self.bumped_grid()
+        faces = O.flat_edges(pos, tri)
+        self.assertGreater(len(faces), 0)
+        value, grad = O.dihedral_term(pos, tri, faces)
+        self.assertGreater(value, 0)
+        after, _ = O.dihedral_term(pos - 0.1 * grad, tri, faces)
+        self.assertLess(after, value)
+        self.assertEqual(O.dihedral_term(pos, tri, faces[:0])[0], 0.0)
+
+    def test_zero_lambda_leaves_the_objective_unchanged(self):
+        prob = problem()
+        self.assertNotIn("dihedral", prob.evaluate(prob.pos0)[2])
+
+
 if __name__ == "__main__":
     unittest.main()
