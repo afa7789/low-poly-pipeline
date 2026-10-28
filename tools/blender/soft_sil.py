@@ -119,19 +119,40 @@ def soft_mask(xy_tris, shape=SHAPE, tau=0.5, dist="logistic", agg="prob", ss=1):
     return torch.nn.functional.avg_pool2d(out.reshape(1, 1, h, w), ss).reshape(shape) if ss > 1 else out.reshape(shape)
 
 
-def soft_iou(mask, concept, mode="sym"):
+def asym_weights(view):
+    """(w_red, w_green) of a view name from the coupling gates (silhouette.UNCOVERED_MAX / SPILL_MAX): each share is
+    priced by 1 / its cap, so a share at its cap costs the same on either side; scaled to w_red + w_green = 2 (the
+    symmetric loss' scale). left: caps .20 / .15 -> (.857, 1.143), the green dearer; top: .25 / .25 -> (1, 1)."""
+    inv_r, inv_g = 1 / S.UNCOVERED_MAX.get(view, 1), 1 / S.SPILL_MAX.get(view, 1)
+    return 2 * inv_r / (inv_r + inv_g), 2 * inv_g / (inv_r + inv_g)
+
+
+def soft_asym(mask, concept, w_red=1.0, w_green=1.0):
+    """DVR Eq. 14-15 as masks: w_red * sum C(1-S)/sum C (sheet left bare = occupancy) + w_green * sum S(1-C)/sum S
+    (model outside the sheet = freespace). The two shares are the soft uncovered / spill of silhouette.coupling."""
+    red = (concept * (1 - mask)).sum() / concept.sum().clamp(min=EPS)
+    green = (mask * (1 - concept)).sum() / mask.sum().clamp(min=EPS)
+    return w_red * red + w_green * green
+
+
+def soft_iou(mask, concept, mode="sym", w_red=1.0, w_green=1.0):
     """sum min / sum max of the soft mask and the sheet's panel (what optimize_verts.Ctx.iou computes today).
-    ponytail: only "sym"; "asym" (the red / green weighting of DVR) is L8-5."""
+    mode "asym": 1 - soft_asym, so that `1 - soft_iou` is the asymmetric loss (the weights only matter there)."""
+    if mode == "asym":
+        return 1 - soft_asym(mask, concept, w_red, w_green)
     if mode != "sym":
-        raise NotImplementedError(f"mode {mode!r}: L8-5")
+        raise ValueError(f"mode {mode!r}: sym | asym")
     return torch.minimum(mask, concept).sum() / torch.maximum(mask, concept).sum()
 
 
-def loss(pos, tri, view, tau=0.5, dist="logistic", agg="prob", ss=1, mode="sym", detach=False):
-    """1 - soft IoU of the mesh (torch Z-up positions [N,3], int triangles [T,3]) with the view's panel."""
+def loss(pos, tri, view, tau=0.5, dist="logistic", agg="prob", ss=1, mode="sym", detach=False, w_red=None, w_green=None):
+    """1 - soft IoU of the mesh (torch Z-up positions [N,3], int triangles [T,3]) with the view's panel; mode "asym":
+    the weighted red / green loss instead (weights given, or asym_weights(view.name) when both are None)."""
     xy = project(pos, view, detach)
     concept = torch.as_tensor(view.concept, dtype=pos.dtype, device=pos.device)
-    return 1 - soft_iou(soft_mask(xy[tri], concept.shape, tau, dist, agg, ss), concept, mode)
+    if mode == "asym" and w_red is None and w_green is None:   # ponytail: both or neither
+        w_red, w_green = asym_weights(view.name)
+    return 1 - soft_iou(soft_mask(xy[tri], concept.shape, tau, dist, agg, ss), concept, mode, w_red, w_green)
 
 
 def load_welded(glb):

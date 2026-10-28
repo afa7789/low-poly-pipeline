@@ -46,9 +46,31 @@ class TestSoftSil(unittest.TestCase):
         step = pos.detach() - 0.05 * pos.grad / pos.grad.norm()
         self.assertLess(SS.loss(step, torch.as_tensor(TRI), FRONT, tau=1.0).item(), before.item())
 
-    def test_asym_is_not_there_yet(self):
-        with self.assertRaises(NotImplementedError):
-            SS.soft_iou(torch.zeros(2, 2), torch.ones(2, 2), mode="asym")
+    def test_asym_has_one_term_per_colour(self):
+        c = torch.zeros(8, 8)
+        c[:, :4] = 1
+        for name, mask, red, green in (("only red", c * 0.5, 0.5, 0.0), ("only green", torch.ones(8, 8), 0.0, 0.5)):
+            with self.subTest(name):
+                self.assertAlmostEqual(SS.soft_asym(mask, c, 1, 0).item(), red, places=6)
+                self.assertAlmostEqual(SS.soft_asym(mask, c, 0, 1).item(), green, places=6)
+        self.assertAlmostEqual(SS.soft_asym(c, c, 3, 5).item(), 0.0, places=6)
+
+    def test_asym_weights_come_from_the_gates(self):
+        self.assertEqual(SS.asym_weights("top"), (1.0, 1.0))
+        red, green = SS.asym_weights("left")        # caps .20 / .15: the green is dearer
+        self.assertAlmostEqual(red / green, S.SPILL_MAX["left"] / S.UNCOVERED_MAX["left"])
+        self.assertAlmostEqual(red + green, 2.0)
+
+    def test_asym_gradient_descends(self):
+        pos = torch.tensor(POS, requires_grad=True)
+        tri = torch.as_tensor(TRI)
+        before = SS.loss(pos, tri, FRONT, tau=1.0, mode="asym")
+        before.backward()
+        self.assertGreater(pos.grad.abs().max().item(), 0)
+        step = pos.detach() - 0.05 * pos.grad / pos.grad.norm()
+        self.assertLess(SS.loss(step, tri, FRONT, tau=1.0, mode="asym").item(), before.item())
+        with self.assertRaises(ValueError):
+            SS.soft_iou(torch.zeros(2, 2), torch.ones(2, 2), mode="nope")
 
 
 @unittest.skipUnless(os.environ.get("SLOW") and SHEET.exists(), "SLOW=1: a real clay, 6 views, ~10 s")

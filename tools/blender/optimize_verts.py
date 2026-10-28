@@ -59,6 +59,8 @@ GAIN = 1e-5               # the objective must fall by this much for a step to c
 VIEW_MIN = 0.5            # a view that starts under this IoU is another drawing than the model: left out
 GRAD = "soft"             # silhouette gradient: "soft" = autograd of soft_sil (L8-2), "fd" = the 1-ring finite difference (L6-7)
 TAU = 0.5                # edge band of the soft raster, canvas px (measured L8-2: 0.5 > 1.0 > 2.0; below ~0.3 px sparse)
+LOSS = "iou"              # silhouette term: "iou" = 1 - IoU per view, "asym" = soft_sil.soft_asym red / green (L8-5); needs GRAD = soft
+RED_BOOST = 1.0           # asym: extra factor on the red (uncovered) weight of every view
 DETACH = False            # the bbox fit of the projection counts as a constant in the soft gradient (the fd one always does)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
@@ -123,6 +125,12 @@ class Ctx:
     def iou(self):
         return self.inter / self.union
 
+    def asym(self, w_red, w_green):
+        """w_red * uncovered + w_green * spill of the (hard, pooled) coverage: soft_sil.soft_asym on the hard raster."""
+        red = np.maximum(self.c - self.cov, 0).sum() / max(self.c.sum(), 1e-9)
+        green = np.maximum(self.cov - self.c, 0).sum() / max(self.cov.sum(), 1e-9)
+        return w_red * red + w_green * green
+
     @cached_property
     def contour(self):
         """(world displacement of each vertex toward the panel's outline, 0 off the contour), unit-height frame."""
@@ -179,8 +187,21 @@ def soft_gradient(ctxs, pos, tri):
     import soft_sil
     p = torch.tensor(pos, dtype=torch.float32, device=DEVICE, requires_grad=True)
     t = torch.as_tensor(tri, device=DEVICE)
-    sum(soft_sil.loss(p, t, c.view, TAU, detach=DETACH) for c in ctxs).backward()
+    sum(soft_sil.loss(p, t, c.view, TAU, detach=DETACH, mode="sym" if LOSS == "iou" else "asym", **dict(zip(
+        ("w_red", "w_green"), view_weights(c.view.name)))) for c in ctxs).backward()
     return p.grad.cpu().numpy().astype(np.float64)
+
+
+def view_weights(name):
+    """(w_red, w_green) of a view under LOSS: (None, None) for "iou"; for "asym" soft_sil.asym_weights(name) with the red
+    scaled by RED_BOOST."""
+    if LOSS == "iou":
+        return None, None
+    if LOSS != "asym" or GRAD != "soft":
+        raise ValueError(f"LOSS {LOSS!r} with GRAD {GRAD!r}: iou | asym (asym needs soft)")
+    import soft_sil
+    w_red, w_green = soft_sil.asym_weights(name)
+    return w_red * RED_BOOST, w_green
 
 
 def tri_fairness(q):
@@ -228,7 +249,7 @@ class Problem:
     def evaluate(self, pos, prev=None):
         """(objective, per-view contexts, terms) at `pos`; `prev` = the contexts of a nearby position."""
         ctxs = [Ctx(v, pos, self.tri, prev[i] if prev else None) for i, v in enumerate(self.views)]
-        terms = {"iou": float(sum(1 - c.iou for c in ctxs))}
+        terms = {"iou": float(sum(1 - c.iou if LOSS == "iou" else c.asym(*view_weights(c.view.name)) for c in ctxs))}
         terms["chamfer"] = LAMBDA["chamfer"] * sum(
             float((np.linalg.norm(m, axis=1)[n & self.body] ** 2).sum()) for m, n in (c.contour for c in ctxs)) / self.nb
         terms["fair"] = LAMBDA["fair"] * float(tri_fairness(pos[self.tri_b]).mean())
@@ -465,7 +486,7 @@ def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=
               "fairness_before": round(float(tri_fairness(x0[tri]).mean()), 4),
               "fairness_after": round(float(tri_fairness(x[tri]).mean()), 4),
               "turned": int(D.turned(prob.ref, x, tri).sum()), "body_vertices": prob.nb, "vertices": len(pos),
-              "views": [v.name for v in views], "skipped": skipped, "seconds": round(time.time() - start, 1), **log}
+              "loss": LOSS, "views": [v.name for v in views], "skipped": skipped, "seconds": round(time.time() - start, 1), **log}
     return new, report
 
 
@@ -487,7 +508,7 @@ def apply(glb, args):
 
 
 def main():
-    global GRAD, TAU, DEVICE
+    global GRAD, TAU, DEVICE, LOSS, RED_BOOST
     ap = argparse.ArgumentParser()
     ap.add_argument("glb")
     ap.add_argument("sheet")
@@ -497,9 +518,11 @@ def main():
     ap.add_argument("--seconds", type=float, default=120.0)
     ap.add_argument("--grad", default=GRAD, choices=("soft", "fd"))
     ap.add_argument("--tau", type=float, default=TAU, help="soft raster edge band, px")
+    ap.add_argument("--loss", default=LOSS, choices=("iou", "asym"), help="silhouette term (asym: weighted uncovered / spill)")
+    ap.add_argument("--red-boost", type=float, default=RED_BOOST, help="asym: factor on the red weight")
     ap.add_argument("--device", default=DEVICE, choices=("cpu", "mps"))
     a = ap.parse_args()
-    GRAD, TAU, DEVICE = a.grad, a.tau, a.device
+    GRAD, TAU, DEVICE, LOSS, RED_BOOST = a.grad, a.tau, a.device, a.loss, a.red_boost
     r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.seconds)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
