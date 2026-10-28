@@ -41,7 +41,23 @@ def bounds():
     return (lo + hi) / 2, (hi - lo)
 
 
-def zones(scene, cam, centre, out, stem):
+def paint_normals():
+    """A "nrm" colour attribute on every mesh: each face corner carries its face's world normal as
+    (n + 1) / 2, linear. With color_type VERTEX the zone shots then write the normal G-buffer."""
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH":
+            continue
+        mesh, turn = obj.data, obj.matrix_world.to_3x3()
+        attr = mesh.color_attributes.new("nrm", "FLOAT_COLOR", "CORNER")
+        for poly in mesh.polygons:
+            n = (turn @ poly.normal).normalized()
+            for li in poly.loop_indices:
+                attr.data[li].color = (n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5, 1.0)
+        mesh.color_attributes.active_color = attr
+        mesh.color_attributes.render_color_index = mesh.color_attributes.find("nrm")
+
+
+def zones(scene, cam, centre, out, stem, prefix="zone", color="TEXTURE"):
     """<stem>-zone-<view>.png: front/left/back/top/bottom in flat material colours, no light
     and no anti-aliasing (every pixel is one slot's colour), for silhouette.py's colour zones.
     Top and bottom also come as <stem>-zone-<view>@<tilt>.png at every views.TILTS, like their
@@ -49,9 +65,9 @@ def zones(scene, cam, centre, out, stem):
     Run after the silhouette shots: it changes the shading and leaves it changed."""
     scene.display.render_aa = "OFF"
     scene.view_settings.view_transform = "Standard"   # the default tone map darkens every colour
-    scene.display.shading.color_type = "TEXTURE"
-    shots = [(name, 0, f"{stem}-zone-{name}.png") for name in ZONE_VIEWS]
-    shots += [(name, t, f"{stem}-zone-{name}@{t}.png") for name in TILTED for t in TILTS if t]
+    scene.display.shading.color_type = color
+    shots = [(name, 0, f"{stem}-{prefix}-{name}.png") for name in ZONE_VIEWS]
+    shots += [(name, t, f"{stem}-{prefix}-{name}@{t}.png") for name in TILTED for t in TILTS if t]
     for name, tilt, filename in shots:
         offset, rot = camera(name, tilt)
         cam.location = centre + mathutils.Vector(offset)
@@ -110,6 +126,8 @@ def main():
     if ids:
         cam.data.ortho_scale = span
         zones(scene, cam, centre, out, stem)
+        paint_normals()      # the normal G-buffer <stem>-nrm-<view>.png beside the ID shots (colour_stage.fit_luma)
+        zones(scene, cam, centre, out, stem, "nrm", "VERTEX")
         print("id renders ->", out)
         return
 

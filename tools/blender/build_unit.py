@@ -44,6 +44,7 @@ STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_c
 CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal or glow: the shape alone
 CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
+TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
 SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
@@ -59,6 +60,8 @@ def register_palette(palette):
             ALPHA[name] = float(entry["alpha"])
         if entry.get("ramp"):
             RAMPS[name] = tuple(entry["ramp"])
+        if entry.get("tones"):
+            TONES[name] = tuple(entry["tones"])
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
@@ -1295,9 +1298,11 @@ def paint_slot(SF, base, size):
     surface, rgb = SURFACE.get(base, "metal"), MATERIALS[base][:3]
     if STYLE != "cel":
         return SF.paint(surface, rgb, size)
+    tones = TONES.get(base)
     if RAMP is None and base in RAMPS:
-        return SF.paint_cel(surface, rgb, size, slope=SF.ramp_slope(RAMPS[base], rgb))
-    return SF.paint_cel(surface, rgb, size) if RAMP is None else SF.paint_cel(surface, rgb, size, slope=RAMP)
+        return SF.paint_cel(surface, rgb, size, slope=SF.ramp_slope(RAMPS[base], rgb), tones=tones)
+    return (SF.paint_cel(surface, rgb, size, tones=tones) if RAMP is None
+            else SF.paint_cel(surface, rgb, size, slope=RAMP, tones=tones))
 
 
 def arg_value(rest, name):
@@ -1588,7 +1593,7 @@ def prop_rows(spec):
             bone, mat = PF.anchor_bone(row, bones), row[4]
             if mat in body and len(body | {r[4] for r in rows}) < PF.MATERIAL_SLOTS[1]:
                 new = "prop_" + "".join(c if c.isalnum() else "_" for c in str(row[5]["prop"]).lower())
-                for table in (MATERIALS, SURFACE, ALPHA, RAMPS):
+                for table in (MATERIALS, SURFACE, ALPHA, RAMPS, TONES):
                     if mat in table:
                         table[new] = table[mat]
                 mat = new

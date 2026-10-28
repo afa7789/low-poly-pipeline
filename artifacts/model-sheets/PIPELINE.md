@@ -3359,3 +3359,36 @@ Slivers: fase 1 igual ao v10; a fase 2 soma 0 a 1.7 pp (n017 27.8 > 29.4 %, n005
 - Testes: `test_soft_sil.py` (4 rápidos: projeção = frame duro com mirror ±1, τ→0 de logistic/uniform/yager2 = raster duro ≤ 0.01,
   gradiente reduz a loss, asym ainda não; 1 lento `SLOW=1` com n005 v11-r1 nas 6 vistas ≤ 0.01).
 - Negativos/limites: τ pequeno (< ~0.3 px) sem `ss` dá gradiente esparso (só pixels de borda); DIB-R (alpha de fundo) não usado.
+
+### 26.L8-8 Luma do cel por shading diferido (2026-10-29)
+
+Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterização fixa vira G-buffer, a luz é ajustada depois).
+- `render_silhouette.py --ids` agora também grava `<stem>-nrm-<vista>.png` (normal de mundo da face por pixel, mesma câmera dos
+  `zone`). `tools/blender/fit_luma.py`: `luma(p) = tom[slot(p)] x ((1-b) + b x max(0, n.L))`, incógnitas L (azimute, elevação),
+  b, um tom por slot; `scipy.optimize.least_squares` (soft_l1, 4 inícios de azimute) contra os quantis p10/p50/p90 de luma de
+  cada zona do sheet (as mesmas de `silhouette.luma_l1`; modelo e sheet não casam pixel a pixel, então o alvo é a
+  distribuição). Saída por slot: multiplicadores claro/médio/escuro (`tones`) por média do luma ajustado em cada classe de
+  `surfaces.tone_index`, refinados contra o mesmo alvo com a luma do slot e o clip em branco. Slot `glow` fica de fora.
+- `palette[slot]["tones"] = [up, side, down]` (validado em `colour_stage.valid_tones`, 0 < v <= 3); `build_unit.register_palette`
+  lê e `surfaces.paint_cel(tones=...)` usa no lugar de `CEL_TONES`/`CEL_SURFACE`. Ligar: `spec_pipeline --fit-luma` (só
+  `--texture cel`) ou `colour_stage.FIT_LUMA = True`. **Default desligado.** Linha "luma fit" no review (luz az/el, b, perda,
+  DEGENERATE quando b < 0.05).
+- Medida (stage 2 cel sobre o `clay.glb` mais recente com spec, câmeras do estágio 1; ~14 s sem, ~18 s com o fit):
+
+| unidade | | luma_l1 f/l/b/top/bottom | zones mean f/l/b/top/bottom | cover f/l/b/top/bottom |
+|---|---|---|---|---|
+| n005 v11-r1 | antes | .049/.035/.035/.033/.072 | .62/.72/.65/.43/.31 | .92/.96/.92/.68/.63 |
+| n005 v11-r1 | depois | .037/.022/.022/.005/.069 | .62/.71/.67/.43/.32 | .94/.96/.94/.68/.64 |
+| n01X v9-r1 | antes | .024/.024/.059/.044/.071 | .24/.19/.41/.16/.06 | .50/.46/.75/.45/.21 |
+| n01X v9-r1 | depois | .039/.024/.046/.026/.043 | .24/.18/.24/.18/.08 | .51/.47/.48/.49/.27 |
+
+- Luz ajustada: n005 az -139 / el 58, b .22; n01X az -2 / el 0, b .45 (luz rasante: a perda cai de 1.63 para .29 mas a direção
+  é pouco confiável com 5 slots, e o `darkiron` bate no teto 1.6).
+- **Aceite (.029/.031/.024 e zone mean não cai): NÃO atendido.** n005 f .037 (falha), l .022, b .022 passam; n01X f .039 e b .046
+  falham e o zone mean do back cai de .41 para .24 (o back "antes" do n01X é alto por sorte de limiar de matiz; o tom
+  fitado clareia/escurece a ponto de mudar a zona). Ganho real no n005 (todas as vistas menos bottom por pouco) e em top/bottom
+  do n01X; perda em front/back do n01X. b não é ~0 em nenhuma (não degenerou). **Fica opt-in, desligado.**
+- Não feito: fitar L/b por unidade só com os slots de zonas bem cobertas; restringir tons a uma faixa mais estreita que
+  [0.2, 1.6]; medir nas outras 5 unidades.
+- Testes: `test_fit_luma` (ajuste sintético de 8 materiais recupera luz, b e tons; tons de classe no intervalo; flag desligada
+  não chama o fit; stage_colour pinta com os tons; schema `tones`).
