@@ -3436,3 +3436,51 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 - Testes: `test_optimize_verts.py` +4 (cosseno soft × fd > 0.5 na parede direita da caixa sintética; um passo soft baixa o objetivo e
   sobe o IoU duro; `GRAD` inválido levanta; lento `SLOW=1`: n005 30 s, turned 0, slivers e IoU f/l/b não pioram). 525 testes OK (3
   pulados).
+
+### 26.L8-5 Perda assimétrica vermelho/verde (`LOSS = "asym"`)
+
+- O que mudou: `soft_sil.soft_asym(mask, concept, w_red, w_green)` = `w_red · ΣC(1−S)/ΣC + w_green · ΣS(1−C)/ΣS` (vermelho = sheet
+  descoberto = occupancy; verde = modelo fora do sheet = freespace; DVR Eq. 14-15 em máscara; os dois termos são o `uncovered`/`spill`
+  suaves de `silhouette.coupling`). `soft_sil.soft_iou(mode="asym")` (o gancho) devolve `1 − soft_asym`, e `soft_sil.loss(mode="asym")`
+  sem pesos usa `asym_weights(view.name)`. `optimize_verts`: `LOSS = "iou"` (default) | `"asym"`; com `asym` o gradiente (`soft_gradient`)
+  E o termo de silhueta do objetivo duro (`Problem.evaluate`, via `Ctx.asym` no raster duro 4x) trocam de IoU para a perda assimétrica,
+  senão a busca de linha recusaria os passos que o gradiente propõe. As guardas (`holds`, piso de IoU por vista) seguem em IoU duro.
+  `asym` exige `GRAD = "soft"` (levanta com `fd`).
+- Pesos por vista (`asym_weights`): `w_red ∝ 1/UNCOVERED_MAX[v]`, `w_green ∝ 1/SPILL_MAX[v]`, normalizados a `w_red + w_green = 2`
+  (escala da perda simétrica): uma fatia no teto custa o mesmo de cada lado. front .15/.20 → (1.14, .86); left .20/.15 → (.86, 1.14);
+  back (1, 1); top (1, 1); bottom .25/.20 → (.89, 1.11); rts .20/.25 → (1.11, .89). `RED_BOOST` multiplica o `w_red` de todas as vistas.
+- Flags: `--loss iou|asym`, `--red-boost` (default 1.0). `clay.verts.json` ganha `"loss"`; `uncovered`/`spill` por vista antes/depois já
+  estavam em `before`/`after` (`D.measure`), com `uncovered_body`/`spill_body` quando há `parts.json` na vista.
+- Medição (soft-30, mesma entrada do L8-2, CPU, 3 execuções em paralelo; IoU duro f/l/b; `*` = a vista passa o gate de acoplamento só
+  com o `uncovered`/`spill` de cima, f/l/b). Formato `IoU (uncovered/spill)`; "asym2" = `--red-boost 2`:
+
+| unidade | entrada | iou | asym | asym2 |
+|---|---|---|---|---|
+| n005 f | .910 (.040/.055) | .924 (.035/.044) | .922 (.030/.051) | .916 (.026/.061) |
+| n005 l | .935 (.023/.044) | .946 (.021/.035) | .941 (.020/.040) | .939 (.021/.042) |
+| n005 b | .905 (.038/.062) | .920 (.032/.051) | .918 (.027/.058) | .914 (.022/.067) |
+| n00U f/l/b | .844/.696/.840 | .863/.722/.866 | .866/.731/.867 | .865/.736/.860 |
+| n00U l (u/s) | .140/.214 | .129/.192 | .121/.187 | .111/.190 |
+| hfoo f/l/b | .838/.534/.850 | .856/.562/.860 | .855/.572/.863 | .852/.565/.862 |
+| hfoo l (u/s) | .313/.294 | .283/.278 | .274/.270 | .275/.280 |
+| n017 f/l/b | .882/.745/.833 | .894/.773/.844 | .893/.785/.843 | .883/.763/.837 |
+| n017 l (u/s) | .176/.114 | .170/.081 | .167/.068 | .167/.099 |
+| n02X f | .866 (.057/.086) | .871 (.049/.089) | .873 (.043/.091) | .872 (.039/.096) |
+| n02X l | .810 (.093/.117) | .826 (.084/.106) | .828 (.082/.106) | .827 (.081/.108) |
+| n02X b | .890 (.046/.070) | .896 (.037/.072) | .896 (.033/.076) | .892 (.030/.082) |
+
+  Tempo 31-34 s nas 15 execuções; turned 0; slivers: asym ≤ iou em n005, n00U, hfoo, n02X (n017 igual).
+- Gate de acoplamento (left: uncovered ≤ .20, spill ≤ .15): n005 e n02X passam em **todas** as variantes, inclusive na entrada e
+  em `iou` (o left deles já estava dentro dos tetos; a queda do v8 vinha de outra versão do clay, não medida aqui). n00U e hfoo left seguem
+  fora (spill .187 e uncovered .274; o clay é que não cobre/ultrapassa, 1-2 pontos de otimização de vértice não fecham). n017 left
+  uncovered .167, spill .068: passa nas três.
+- Aceite: o gate no left passa (sem depender da perda); n005 f/l/b com asym cai .002/.005/.002 contra `iou` (todas acima da
+  entrada, a do left no limite do −0.005). Efeito real: asym baixa o **uncovered** em 15 de 15 vistas f/l/b contra `iou` (n005
+  −.005 f/b, n00U −.014/−.008/−.014, hfoo −.003/−.009/−.005, n02X −.006/−.002/−.004) e sobe o IoU em n00U, hfoo e n017 left (+.009,
+  +.010, +.012); o preço é spill +.003..+.007 e n005 −.002..−.005. `asym2` empurra o vermelho mais (n005 f .026) mas o spill sobe
+  +.01 e o IoU cai: pior. **Decisão: fica opt-in** (`LOSS = "iou"` default); o ganho é pequeno, de sinal misto no IoU e não muda
+  nenhum veredito do gate nesta amostra.
+- Negativos: nenhum veredito muda; `RED_BOOST = 2` piora o IoU em 4 das 5 unidades; n005 perde até .005 no left.
+- Testes: `test_soft_sil.py` +2 líquido (máscara só vermelha → termo verde 0 e o inverso, pesos vindos dos gates, gradiente asym
+  desce, modo inválido levanta; o teste do gancho `NotImplementedError` foi substituído), `test_optimize_verts.py` +1 (termo e passo
+  asym, `asym` com `GRAD=fd` levanta).

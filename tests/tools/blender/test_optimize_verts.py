@@ -72,6 +72,20 @@ class TestOptimizeVerts(unittest.TestCase):
         with mock.patch.object(O, "GRAD", "nope"), self.assertRaises(ValueError):
             prob.gradient(prob.pos0, ctxs, np.flatnonzero(prob.body))
 
+    def test_asym_loss_term_and_step(self):
+        prob = problem()
+        with mock.patch.object(O, "LOSS", "asym"):
+            value, ctxs, terms = prob.evaluate(prob.pos0)
+            w = O.view_weights("front")
+            self.assertAlmostEqual(terms["iou"], ctxs[0].asym(*w))
+            free = prob.body
+            step = O.descent_step(prob, prob.gradient(prob.pos0, ctxs, np.flatnonzero(free)), free, np.ones(len(POS), bool))
+            best = O.search(prob, prob.pos0, step, value, ctxs, {"unsafe": 0, "worse": 0})
+            self.assertIsNotNone(best)
+            self.assertLess(best[2]["iou"], terms["iou"])
+            with mock.patch.object(O, "GRAD", "fd"), self.assertRaises(ValueError):
+                O.view_weights("front")
+
     def test_optimize_raises_iou_and_keeps_faces(self):
         panels = {"front": panel(1.15), "left": panel(1.0), "back": panel(1.15)}
         with mock.patch.object(O, "make_views", return_value=[
