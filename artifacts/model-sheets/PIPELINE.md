@@ -3471,11 +3471,11 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 
   Tempo 31-34 s nas 15 execuções; turned 0; slivers: asym ≤ iou em n005, n00U, hfoo, n02X (n017 igual).
 - Gate de acoplamento (left: uncovered ≤ .20, spill ≤ .15): n005 e n02X passam em **todas** as variantes, inclusive na entrada e
-  em `iou` (o left deles já estava dentro dos tetos; o que os derrubava no v8 era outra versão do clay). n00U e hfoo left seguem
+  em `iou` (o left deles já estava dentro dos tetos; a queda do v8 vinha de outra versão do clay, não medida aqui). n00U e hfoo left seguem
   fora (spill .187 e uncovered .274; o clay é que não cobre/ultrapassa, 1-2 pontos de otimização de vértice não fecham). n017 left
   uncovered .167, spill .068: passa nas três.
 - Aceite: o gate no left passa (sem depender da perda); n005 f/l/b com asym cai .002/.005/.002 contra `iou` (todas acima da
-  entrada, a do left no limite do −0.005). Efeito real: asym baixa o **uncovered** em 13 de 15 vistas f/l/b contra `iou` (n005
+  entrada, a do left no limite do −0.005). Efeito real: asym baixa o **uncovered** em 15 de 15 vistas f/l/b contra `iou` (n005
   −.005 f/b, n00U −.014/−.008/−.014, hfoo −.003/−.009/−.005, n02X −.006/−.002/−.004) e sobe o IoU em n00U, hfoo e n017 left (+.009,
   +.010, +.012); o preço é spill +.003..+.007 e n005 −.002..−.005. `asym2` empurra o vermelho mais (n005 f .026) mas o spill sobe
   +.01 e o IoU cai: pior. **Decisão: fica opt-in** (`LOSS = "iou"` default); o ganho é pequeno, de sinal misto no IoU e não muda
