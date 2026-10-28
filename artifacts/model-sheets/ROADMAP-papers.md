@@ -470,5 +470,7 @@ torch 2.14.1 instalado no `python3.14` (MPS disponível; CPU basta). Unidades de
 | L8-7 | `fit_spec` por gradiente: proxy paramétrico diferenciável em torch, união pela agregação, Adam com τ anelado; Powell fallback `--fit-powell` | 01, 12 | mesmo `fit_accepted` e IoU ±0.01 em ≤ 1/3 do tempo, ou IoU maior no mesmo tempo |
 | L8-8 | luma por shading diferido: G-buffer (ID + normais) → tons por material + luz por `least_squares` contra a luma do sheet | 10 | `luma_l1` f/l/b < .029/.031/.024 e zone mean não cai em n005/n01X |
 
+**Estado L8-8 (2026-10-29):** `fit_luma.py` + `--fit-luma` (opt-in, `colour_stage.FIT_LUMA = False`) integrado (PIPELINE §26.L8-8). Aceite NÃO atendido: n005 luma_l1 f/l/b .049/.035/.035 -> .037/.022/.022 (l e b passam, f não), n01X .024/.024/.059 -> .039/.024/.046 e zone mean do back .41 -> .24. Fica desligado.
+
 Ordem: L8-1 → L8-2 → (L8-3, L8-4, L8-5 em paralelo) → L8-6 → L8-7; L8-8 independente. Não aplicar: PyTorch3D como
 dependência, câmera por gradiente, textura por raster suave, redes implícitas, difusão/SDS (05–09 fora de domínio ou vetados).
