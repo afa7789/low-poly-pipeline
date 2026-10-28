@@ -868,6 +868,16 @@ def descend(objective, bounds, masks, seconds):
                 break
 
 
+def search(grad, objective, groups, bounds, masks, scene, seconds):
+    """Powell (descend) or, with `grad`, Adam on the soft proxy (fit_grad.descend; `scene` = parts, extra, proxy, height).
+    Both leave the best point in objective.best; returns the report entries of the search."""
+    if not grad:
+        descend(objective, bounds, masks, seconds)
+        return {}
+    import fit_grad
+    return fit_grad.descend(objective, groups, bounds, *scene, seconds)
+
+
 def baked(parts, sheet):
     """The parts with the sheet profile written into every lathe that has none, so the fit can move
     its radii; a copy, the doc is untouched until a fit is accepted."""
@@ -903,7 +913,7 @@ def misplaced(proxy, parts):
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
         seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False,
-        split=True):
+        split=True, grad=False):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
@@ -912,7 +922,9 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     `split`: the proxy scores the body against the sheet's body mask and the props against theirs (PIPELINE 25.L7-5).
     `depth` (opt-in, needs partfit) starts from Depth Anything's z and occlusion order (depth_map.py, PIPELINE 23.L5-4b).
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
-    (PIPELINE 22.L4-3); None is the single Powell over every parameter."""
+    (PIPELINE 22.L4-3); None is the single Powell over every parameter.
+    `grad` (opt-in, PIPELINE 26.L8-7) replaces Powell by Adam on the soft-silhouette twin of the proxy (fit_grad.py); the same
+    objective judges and keeps the best point, `stages` do not apply."""
     t0 = time.monotonic()
     RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
@@ -964,7 +976,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     objective = Objective(proxy, doc, parts, groups, free, ctx)
     start = proxy.loss(parts, free=free) + LOOSE_W * len(loose0)
     masks = stage_masks(parts, groups, extra, stages) if stages else None
-    descend(objective, bounds, masks, seconds)
+    report.update(search(grad, objective, groups, bounds, masks, (parts, extra, proxy, height), seconds))
     best = objective.best
     report.update(free=len(free), groups=len(groups), evals=objective.n, loss=[round(start, 4), round(best["f"], 4)],
                   seconds=round(time.monotonic() - t0, 1))
@@ -993,6 +1005,8 @@ def main():
                     help="adds the joint term (knee and elbow height vs the sheet's width step)")
     ap.add_argument("--depth", action="store_true",
                     help="start from Depth Anything V2 small's z and occlusion order (needs parts.json; PIPELINE 23.L5-4b)")
+    ap.add_argument("--fit-grad", action="store_true",
+                    help="Adam on a differentiable soft-silhouette proxy instead of Powell (fit_grad.py, PIPELINE 26.L8-7)")
     ap.add_argument("--fit-parts", action="store_true", help="use refs/<id>/parts.json: part masks and depth order (L5-4)")
     ap.add_argument("--parts", type=pathlib.Path, default=None,
                     help="a parts.json other than the one beside the sheet (implies --fit-parts)")
@@ -1001,7 +1015,7 @@ def main():
     views = tuple(args.views.split(",")) if args.views else None
     out, report = fit(doc, args.sheet, args.kind, views, args.margin, wide=not args.fast,
                       tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard, joints=args.fit_joints,
-                      partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts, depth=args.depth)
+                      partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts, depth=args.depth, grad=args.fit_grad)
     args.out.write_text(json.dumps(out, indent=2))
     print(json.dumps(report))
     return 0
