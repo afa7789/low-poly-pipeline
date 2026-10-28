@@ -3574,3 +3574,23 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
   combinação em n005 back (.909).
 - Testes: `test_soft_sil` (τ→0 também para `gamma_inv`, ≤ .01 na caixa sintética), `test_optimize_verts` +2 (schedule decrescente pelo
   progresso e `next_level`; gradiente anelado com `gamma_inv` finito e não nulo).
+
+### 26.L8-7 `fit_spec` por gradiente (`tools/blender/fit_grad.py`, `--fit-grad`)
+
+- O que é: o proxy de `fit_spec` em torch. `dynamic` + `POINTS` são o gêmeo de `moved` + `part_points` para box/prism/frustum/cyl/dome/ring/wheel/lathe/limb/chain/plate (dims, `at`, from/to, rot, profile, squash, knee, perfil de plate contínuos; erro < 1e-4 contra o numpy em 89 partes/poses). O contorno convexo de cada parte por vista vira leque de triângulos (a lista de vértices do casco sai dos pontos destacados, os vértices seguem diferenciáveis) e `soft_sil.soft_mask` faz a união pela agregação `1-prod(1-D)`; a canvas é a bbox de todos os vértices, como `canvas_of`. Perda = a de `Proxy.loss`: média ponderada por vista (`weight`), melhor espelho, corpo contra a máscara do corpo e props contra a deles (`split`), `1-IoU` + meia chamfer (só o termo contorno-do-modelo -> mapa de distância da sheet; o outro meio exige distância do contorno predito). Adam, tau 4 -> 2 -> 1 -> 0.7 -> 0.5 px (GenDR), 12 passos por tau (60), lr 0.08; bounds por projeção (clamp), não sigmoide: x0 = 0 fica na borda dos intervalos (-1, 0) de `NO_GROW`, onde a sigmoide não tem gradiente. Um vetor por par L/R (simetria por construção) e props pegam o deslocamento médio da âncora (`carry_props`).
+- Regras: a cada 6 passos o ponto passa pelo `Objective` exato (raster duro, preflight, partes soltas, zonas, profundidade); regra quebrada ou custo > melhor + 0.1 puxa o ponto para o último bom (meia distância até 3x, depois o próprio); sem sucesso, lr/2. O `Objective` guarda o melhor ponto exato, e `fit_accepted` segue julgando o clay real. Hinges diferenciáveis na perda das regras que o gradiente quebrava: `ground`, `overlap`/partes soltas (bboxes dos pontos, k=0.8 como `loose_of`), `symmetry` de gêmeos fora de grupo, `feet_mass`/`boot_height`. Partes de kind desconhecido ou `cut: sheet` ficam fixas e vão em `grad_fixed` no report.
+- Flags: `fit_spec.py --fit-grad`, `spec_pipeline.py --fit-grad` (opt-in; Powell segue default). `--fit-stages` não vale com grad.
+- Medição (mesma entrada `fit/before.json`; n005 `spec.json` já passa todos os gates, então margem 0.1 para forçar o fit). IoU duro do clay real (Blender) depois - antes em f/l/b/top/bottom/rts; `fit_accepted` True em todos (Powell e grad). Tempo: rodada 1 (máquina quase livre) / rodada 2 (outros agentes rodando; carga até 7).
+
+| unidade | Powell (1 run) | grad r1 | grad r2 |
+|---|---|---|---|
+| n017 | 24 s: +.023 -.006 +.021 +.002 -.013 +.009 | 20 s: +.073 .000 +.099 +.023 -.026 +.013 | 28 s: +.085 +.013 +.099 +.021 -.012 +.021 |
+| hfoo | 124 s: +.172 +.100 +.167 +.103 +.109 +.083 | 23 s: +.157 +.036 +.149 +.088 +.105 +.082 | 63 s: +.153 +.034 +.145 +.091 +.105 +.083 |
+| n02X (v10-r1) | 54 s: +.036 +.027 +.029 +.057 +.042 +.014 | 25 s: +.040 +.033 +.040 +.106 +.053 +.033 | 115 s: +.045 +.035 +.044 +.099 +.050 +.034 |
+| n00U | 153 s: +.022 +.039 +.025 +.021 +.039 +.019 | 47 s: +.043 +.084 +.049 +.049 +.032 +.060 | 75 s: +.043 +.084 +.050 +.049 +.032 +.061 |
+| n005 (margem 0.1) | 144 s: +.024 +.023 +.012 +.015 +.021 +.021 | 46 s: +.038 +.034 +.035 +.028 +.010 +.013 | 87 s: +.036 +.034 +.031 +.028 +.013 +.014 |
+
+- Veredito: critério "IoU f/l/b maior no mesmo tempo ou menos" cumprido em n017, n02X, n00U e n005 (n00U e n005 também em ~1/3 do tempo na rodada limpa). **hfoo não cumpre**: f/l/b ficam .015/.064/.018 abaixo do Powell (em 1/5 do tempo; o Powell longo acha o left). Powell é determinístico (rodadas idênticas); o grad varia (n017 loss 1.48-1.79, n02X 0.33-0.63 em f exato, IoU real quase igual). Recomendação: virar default quando hfoo fechar a diferença (ex. Powell curto de polimento depois do Adam); o default NÃO foi mudado.
+- Negativos/limites: sem termos de zona/partfit/edges/leg_spill na perda suave (`LEG_SPILL_W = 0`; zonas e partfit entram só no julgamento exato dos checkpoints); metade da chamfer; a bbox dos pontos não é a do preflight (hinges conservadores, 3% de folga nos pés); o ponto fica preso quando uma regra sem hinge (outras bandas biped) bloqueia; sem hinge de `budget`. Tempos da rodada 2 contaminados por carga alheia. CPU, 0.2-0.4 s por passo.
+- Testes: `test_fit_grad.py` (paridade torch x numpy em todos os kinds + 3 specs reais, um passo Adam reduz a loss, gêmeos espelhados, flag nos dois CLIs; lento `SLOW=1`: n005 com margem 0.1 sobe o IoU de proxy nos gates).
+
