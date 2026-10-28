@@ -60,6 +60,8 @@ VIEW_MIN = 0.5            # a view that starts under this IoU is another drawing
 GRAD = "soft"             # silhouette gradient: "soft" = autograd of soft_sil (L8-2), "fd" = the 1-ring finite difference (L6-7)
 TAU = 0.5                # edge band of the soft raster, canvas px (measured L8-2: 0.5 > 1.0 > 2.0; below ~0.3 px sparse)
 DETACH = False            # the bbox fit of the projection counts as a constant in the soft gradient (the fd one always does)
+TAU_SCHEDULE = None       # None = constant TAU; or a tuple of tau px, decreasing, one per equal share of the run (L8-3), e.g. (4, 2, 1, 0.5, 0.5)
+DIST, AGG = "logistic", "prob"    # soft_sil distribution (logistic | uniform | gamma_inv) and aggregation (prob | yager2)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 
@@ -172,14 +174,30 @@ def iou_gradient(ctx, pos, tri, verts, rings):
     return g
 
 
-def soft_gradient(ctxs, pos, tri):
+def tau_at(progress, schedule=None):
+    """Edge band (px) at `progress` in [0, 1] of the run: TAU, or the step of TAU_SCHEDULE (annealing, GenDR) it falls in."""
+    schedule = TAU_SCHEDULE if schedule is None else schedule
+    if not schedule:
+        return TAU
+    return schedule[min(int(progress * len(schedule)), len(schedule) - 1)]
+
+
+def next_level(progress, schedule=None):
+    """Progress at which the schedule leaves the step `progress` is in; None without a schedule or in the last step."""
+    schedule = TAU_SCHEDULE if schedule is None else schedule
+    if not schedule or progress >= (len(schedule) - 1) / len(schedule):
+        return None
+    return (int(progress * len(schedule)) + 1) / len(schedule)
+
+
+def soft_gradient(ctxs, pos, tri, tau=None):
     """d sum(1 - soft IoU)/d position, all rows, one backward over every view (soft_sil, SoftRas Eq. 1+4). The hard
     contexts keep deciding what is accepted; this is only the direction."""
     import torch
     import soft_sil
     p = torch.tensor(pos, dtype=torch.float32, device=DEVICE, requires_grad=True)
     t = torch.as_tensor(tri, device=DEVICE)
-    sum(soft_sil.loss(p, t, c.view, TAU, detach=DETACH) for c in ctxs).backward()
+    sum(soft_sil.loss(p, t, c.view, TAU if tau is None else tau, DIST, AGG, detach=DETACH) for c in ctxs).backward()
     return p.grad.cpu().numpy().astype(np.float64)
 
 
@@ -236,11 +254,11 @@ class Problem:
         terms["lap"] = LAMBDA["lap"] * float((lap_d ** 2).sum(1).mean())
         return sum(terms.values()), ctxs, terms
 
-    def gradient(self, pos, ctxs, free):
+    def gradient(self, pos, ctxs, free, tau=None):
         """d objective / d position, rows of `free` for the silhouette term, everywhere for the others."""
         g = np.zeros_like(pos)
         if GRAD == "soft":
-            g[free] += soft_gradient(ctxs, pos, self.tri)[free]
+            g[free] += soft_gradient(ctxs, pos, self.tri, tau)[free]
         elif GRAD != "fd":
             raise ValueError(f"GRAD {GRAD!r}: soft | fd")
         for c in ctxs:
@@ -376,14 +394,23 @@ def blocks(prob, free):
     return out
 
 
-def stage(prob, pos, free, known, iters, deadline, log):
+def run_progress(i, iters, t0, deadline, span):
+    """Share of the whole run (span = this stage's slice of it) reached at iteration i: the larger of the iteration and
+    the time share, for tau_at."""
+    here = max(i / iters, (time.time() - t0) / max(deadline - t0, 1e-9))
+    return span[0] + (span[1] - span[0]) * min(here, 1.0)
+
+
+def stage(prob, pos, free, known, iters, deadline, log, span=(0.0, 1.0)):
     """Gradient descent on the vertices `free` until `iters`, the deadline, or nothing lowers the objective: when
     the whole step does not, it is tried one height block at a time (block coordinate descent)."""
     value, ctxs, terms = prob.evaluate(pos)
-    for _ in range(iters):
+    t0, floor = time.time(), 0.0       # floor: progress forced up when a tau step is exhausted
+    for i in range(iters):
         if time.time() > deadline:
             break
-        step = descent_step(prob, prob.gradient(pos, ctxs, np.flatnonzero(free)), free, known)
+        here = max(run_progress(i, iters, t0, deadline, span), floor)
+        step = descent_step(prob, prob.gradient(pos, ctxs, np.flatnonzero(free), tau_at(here)), free, known)
         if step is None:
             break
         tries = [step] + [np.where(m[:, None], step, 0.0) for m in blocks(prob, free)]
@@ -397,7 +424,9 @@ def stage(prob, pos, free, known, iters, deadline, log):
                 if part is step:
                     break
         if not moved:
-            break
+            floor = next_level(here) or span[1]       # nothing lowers the objective at this tau: the next, sharper one
+            if floor >= span[1]:
+                break
     return pos, value, terms
 
 
@@ -453,8 +482,8 @@ def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=
     value0, ctxs0, terms0 = prob.evaluate(x0)
     prob.floor = [c.iou - D.GUARD for c in ctxs0]
     anchor = anchors(prob, free)
-    x, _, _ = stage(prob, x0, anchor, anchor | ~prob.body, iters, start + COARSE * seconds, log)
-    x, value, terms = stage(prob, x, free, np.ones(len(pos), bool), iters, start + seconds, log)
+    x, _, _ = stage(prob, x0, anchor, anchor | ~prob.body, iters, start + COARSE * seconds, log, (0.0, COARSE))
+    x, value, terms = stage(prob, x, free, np.ones(len(pos), bool), iters, start + seconds, log, (COARSE, 1.0))
     x = settled(prob, x0, x)
     value, _, terms = prob.evaluate(x)
     new = x * prob.height
@@ -487,7 +516,7 @@ def apply(glb, args):
 
 
 def main():
-    global GRAD, TAU, DEVICE
+    global GRAD, TAU, DEVICE, TAU_SCHEDULE, DIST, AGG
     ap = argparse.ArgumentParser()
     ap.add_argument("glb")
     ap.add_argument("sheet")
@@ -498,8 +527,12 @@ def main():
     ap.add_argument("--grad", default=GRAD, choices=("soft", "fd"))
     ap.add_argument("--tau", type=float, default=TAU, help="soft raster edge band, px")
     ap.add_argument("--device", default=DEVICE, choices=("cpu", "mps"))
+    ap.add_argument("--tau-schedule", help="annealed tau, comma separated px, e.g. 4,2,1,0.5 (default: constant --tau)")
+    ap.add_argument("--dist", default=DIST, choices=("logistic", "uniform", "gamma_inv"))
+    ap.add_argument("--agg", default=AGG, choices=("prob", "yager2"))
     a = ap.parse_args()
-    GRAD, TAU, DEVICE = a.grad, a.tau, a.device
+    GRAD, TAU, DEVICE, DIST, AGG = a.grad, a.tau, a.device, a.dist, a.agg
+    TAU_SCHEDULE = tuple(float(x) for x in a.tau_schedule.split(",")) if a.tau_schedule else None
     r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.seconds)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
