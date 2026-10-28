@@ -38,6 +38,7 @@ from scipy.sparse.csgraph import connected_components
 from scipy.sparse.linalg import spsolve
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import align_features as AF  # noqa: E402
 import deform_to_sheet as D  # noqa: E402
 import mesh_lint as ML  # noqa: E402
 import silhouette as S  # noqa: E402
@@ -47,7 +48,7 @@ SS = 4                    # supersampling of the raster: the coverage of a pixel
 STEP = 0.02               # largest move of a vertex per step, fractions of the model height
 FD = 0.006                # forward difference of the silhouette gradient, fractions of H (1.5 px)
 FD_ANGLE = 1e-5           # same, for the fairness gradient
-LAMBDA = {"chamfer": 10.0, "fair": 0.05, "lap": 10.0}
+LAMBDA = {"chamfer": 10.0, "fair": 0.05, "lap": 10.0, "dihedral": 0.0}   # dihedral: L8-4 (NMR Eq. 6), 0 = off
 ANCHOR_EVERY = 4
 COARSE = 0.35             # share of the time budget given to the anchor stage
 BLOCKS = 8                # height bands tried one by one when the whole step does not lower the objective
@@ -183,6 +184,40 @@ def soft_gradient(ctxs, pos, tri):
     return p.grad.cpu().numpy().astype(np.float64)
 
 
+def flat_edges(pos, tri):
+    """(face pairs [E,2] into `tri`) of the interior edges shared by exactly two faces whose dihedral at `pos` is under
+    align_features.FEATURE_DEG: the live (WC3) edges are not in it. Faces of near-zero area are skipped."""
+    q = pos[tri]
+    cross = np.cross(q[:, 1] - q[:, 0], q[:, 2] - q[:, 0])
+    area = np.linalg.norm(cross, axis=1)
+    ok = area > D.TINY * np.median(area)
+    pair = np.sort(np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]]), axis=1)
+    _, inv, count = np.unique(pair, axis=0, return_inverse=True, return_counts=True)
+    inv = inv.reshape(-1)
+    order = np.argsort(inv, kind="stable")
+    shared = order[np.flatnonzero(count[inv[order]] == 2)].reshape(-1, 2)
+    f = shared % len(tri)
+    n = cross / np.maximum(area, 1e-30)[:, None]
+    flat = ok[f[:, 0]] & ok[f[:, 1]] & (np.einsum("ed,ed->e", n[f[:, 0]], n[f[:, 1]]) > math.cos(math.radians(AF.FEATURE_DEG)))
+    return f[flat]
+
+
+def dihedral_term(pos, tri, faces):
+    """(mean over `faces` of (cos theta + 1)^2, its gradient wrt `pos`), theta = dihedral between the two faces of an edge
+    (flat = pi, so cos theta + 1 = 1 - n0 . n1; Neural Mesh Renderer Eq. 6). Analytic through torch autograd."""
+    import torch
+    if not len(faces):
+        return 0.0, np.zeros_like(pos)
+    p = torch.tensor(pos, dtype=torch.float64, requires_grad=True)
+    q = p[torch.as_tensor(tri)]
+    n = torch.cross(q[:, 1] - q[:, 0], q[:, 2] - q[:, 0], dim=1)
+    n = n / n.norm(dim=1, keepdim=True).clamp_min(1e-12)
+    f = torch.as_tensor(faces)
+    loss = ((1 - (n[f[:, 0]] * n[f[:, 1]]).sum(1)) ** 2).mean()
+    loss.backward()
+    return float(loss.detach()), p.grad.numpy()
+
+
 def tri_fairness(q):
     """Per triangle: mean ((inner angle - pi/3) / (pi/3))^2."""
     a = np.radians(ML.angles(q))
@@ -216,6 +251,7 @@ class Problem:
         self.lap = D.laplacian(tri, len(pos))
         self.ref = D.reference(self.pos0, tri, nor)
         self.rings = ring_index(tri, len(pos))
+        self.flat = flat_edges(self.pos0, self.tri_b)     # the edges the dihedral term smooths: fixed at the start
         self.nb = int(self.body.sum())
         self.floor = [0.0] * len(views)
         for v in views:      # the nearest outline pixel of the panel, once
@@ -234,6 +270,8 @@ class Problem:
         terms["fair"] = LAMBDA["fair"] * float(tri_fairness(pos[self.tri_b]).mean())
         lap_d = (self.lap @ (pos - self.pos0))[self.body]
         terms["lap"] = LAMBDA["lap"] * float((lap_d ** 2).sum(1).mean())
+        if LAMBDA["dihedral"]:
+            terms["dihedral"] = LAMBDA["dihedral"] * dihedral_term(pos, self.tri_b, self.flat)[0]
         return sum(terms.values()), ctxs, terms
 
     def gradient(self, pos, ctxs, free):
@@ -251,6 +289,8 @@ class Problem:
         g += LAMBDA["fair"] * fairness_gradient(pos, self.tri_b)
         lap_d = np.where(self.body[:, None], self.lap @ (pos - self.pos0), 0.0)
         g += 2 * LAMBDA["lap"] / self.nb * (self.lap.T @ lap_d)
+        if LAMBDA["dihedral"]:
+            g += LAMBDA["dihedral"] * dihedral_term(pos, self.tri_b, self.flat)[1]
         return np.where(self.body[:, None], g, 0.0)
 
 
@@ -498,8 +538,10 @@ def main():
     ap.add_argument("--grad", default=GRAD, choices=("soft", "fd"))
     ap.add_argument("--tau", type=float, default=TAU, help="soft raster edge band, px")
     ap.add_argument("--device", default=DEVICE, choices=("cpu", "mps"))
+    ap.add_argument("--dihedral", type=float, default=LAMBDA["dihedral"], help="weight of the dihedral smoothing term, 0 = off")
     a = ap.parse_args()
     GRAD, TAU, DEVICE = a.grad, a.tau, a.device
+    LAMBDA["dihedral"] = a.dihedral
     r = run(a.glb, a.sheet, a.out, tuple(a.views.split(",")), a.iters, a.seconds)
     for v in r["after"]:
         b, f = r["before"][v], r["after"][v]
