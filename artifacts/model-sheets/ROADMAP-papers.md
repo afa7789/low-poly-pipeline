@@ -474,3 +474,6 @@ Ordem: L8-1 → L8-2 → (L8-3, L8-4, L8-5 em paralelo) → L8-6 → L8-7; L8-8 
 dependência, câmera por gradiente, textura por raster suave, redes implícitas, difusão/SDS (05–09 fora de domínio ou vetados).
 
 **Estado L8-1 (2026-10-29):** `soft_sil.py` integrado (PIPELINE §26.L8-1), sem flag, ainda não usado por nada. |IoU suave(τ=0.5) − IoU duro| ≤ 0.0075 vs `Ctx` (≤ 0.0080 vs `silhouette.iou`) nos 5 clays × 6 vistas; forward+backward ~630 tris: CPU mediana 33–59 ms (meta 50: n00U passa, 59), MPS 8–18 ms.
+
+**Estado L8-7 (2026-10-29):** `fit_grad.py` + `--fit-grad` em `fit_spec`/`spec_pipeline` (PIPELINE §26.L8-7), opt-in, Powell segue default (a coluna "Powell fallback `--fit-powell`" da tabela não foi preciso: é o default). IoU duro do clay real f/l/b maior que o Powell em 4 de 5 unidades (n017 +.05/+.02/+.08, n02X +.00..+.01, n00U +.02/+.05/+.02, n005 +.01..+.02) em 20-47 s contra 24-153 s; hfoo perde .015/.064/.018. `fit_accepted` igual em todas. Falta: fechar hfoo (polimento Powell) antes de propor default.
+
