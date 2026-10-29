@@ -1,35 +1,43 @@
 #!/usr/bin/env python3
-"""Guarded QEM retopology of a dense closed shell (PIPELINE 28.L10-3): numpy + heapq, python3.14 and Blender's Python.
+"""Guarded QEM retopology of a dense closed shell (PIPELINE 28.L10-3): numpy only, python3.14 and Blender's Python.
 
     verts, tris, report = reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, floor=0.9)
 
-Garland & Heckbert 1997 edge collapse with what a blind COLLAPSE lacks:
+Garland & Heckbert 1997 edge collapse, with what a blind COLLAPSE lacks:
   * feature quadrics: an edge whose two faces meet at >= `features_deg` (measured on the INPUT mesh) adds a plane through it,
     perpendicular to its faces, with a heavy weight to both ends; a vertex with >= 3 feature edges is a corner and never moves;
-    an edge between two feature vertices that is not itself a feature edge (a chord across a corner) is never collapsed;
+    a feature vertex absorbs a plain one (it keeps its place); two feature vertices join only along a feature edge (a chord
+    across a corner is never collapsed);
   * quality guard: a collapse is refused when a surviving triangle would get a smallest angle under `min_angle` (unless it was
-    that bad already and does not get worse) or its normal would turn (dot < 0) or vanish, or the link condition fails
-    (more than the two opposite vertices shared: the shell would pinch);
-  * `sdf(points (N, 3)) -> d (N,)` (negative inside): after each collapse the new vertex is Newton-projected onto the zero set,
-    p <- p - d(p) grad d / |grad d|^2 (2 steps, central differences) before the guard looks at it; `polish` (default `sdf`)
-    does the same over every non-corner vertex at the end, reverting a vertex whose faces would turn;
+    that bad already and does not get worse), or its normal would turn (dot < 0) or vanish, or the link condition fails
+    (more shared neighbours than the two opposite vertices: the shell would pinch);
+  * `sdf(points (N, 3)) -> d (N,)` (negative inside): the new vertex of a collapse is Newton-projected onto the zero set,
+    p <- p - d(p) grad d / |grad d|^2 (2 steps, central differences), before the guard looks at it; `polish` (default `sdf`)
+    does the same over every non-corner vertex at the end and backs the moves that turn a face;
   * target: stop at F <= B (B = target_faces; V* = (B + 4) / 2 on a closed genus-0 shell, F = 2V - 4) and never go under
-    floor * B (the last collapse that would is not made). If the heap runs dry above B the guard is relaxed in stages
-    (min_angle halves, then 0; the turn guard stays), and the report says so.
-The input must be a welded, closed, manifold triangle shell (a boundary edge is kept in place and never collapsed).
+    floor * B. If nothing collapsible is left above B the guard is relaxed in stages (min_angle halves, then 0; the turn guard
+    stays) and the report says so.
+Not a heap: the collapses go in rounds. Each round costs every edge (vectorized: cost + best position), takes the edges that are
+the cheapest of their 2-ring (an independent set: no two touch, so applying them together equals applying them one after the
+other), projects and guards them all at once and applies the ones that pass; an edge that fails is banned until its
+neighbourhood changes. A python heap with a few numpy calls per collapse measured 9.7 s on 34 k triangles (PIPELINE 28.L10-3).
+The last round is cut to land inside [floor * B, B]. The input must be a welded, closed, manifold triangle shell.
 """
-import heapq
-import math
 import time
 
 import numpy as np
 
 FEATURE_W = 100.0       # weight of a feature plane, x (edge length)^2: a face plane weighs its area
+LEN_REG = 2e-3          # ties between flat edges go to the short one: + (LEN_REG x size)^2 x length^2 on the cost
 CLAMP = 1.0             # the optimum may sit at most this many edge lengths from the edge's midpoint
+DAMP = 1e-4             # Tikhonov damping of the 3x3 solve, x the mean eigenvalue
 NEWTON = 2              # projection steps after each collapse
-TINY = 1e-12            # x (scale^2): a triangle under this area is gone
-RELAX = (0.5, 0.0)      # min_angle factors tried when the heap runs dry above the target
+TINY = 1e-12            # x size^2: a triangle under this area is gone
+RELAX = (0.8, 0.6, 0.4, 0.2, 0.0)   # min_angle factors tried, one after the other, when nothing collapsible is left above the target
+ROUNDS = 2000           # safety stop
+PASSES = 4              # independent sets per round (the edges that fail are banned between them)
 OFFSETS = np.vstack([np.zeros(3), np.eye(3), -np.eye(3)])
+REASONS = ("ok", "degenerate", "turned", "angle", "link")
 
 
 # ---------------------------------------------------------------- numpy helpers
@@ -48,6 +56,18 @@ def min_angles(p):
     return np.degrees(np.arccos(np.clip(cos, -1, 1))).min(1)
 
 
+def edge_faces(T, n):
+    """(sorted unique edge keys a * n + b with a < b, first face, second face or -1, faces on the edge)."""
+    a, b = T.ravel(), T[:, [1, 2, 0]].ravel()
+    key = np.minimum(a, b) * n + np.maximum(a, b)
+    order = np.argsort(key, kind="stable")
+    ks, fs = key[order], (np.arange(len(key)) // 3)[order]
+    start = np.flatnonzero(np.r_[True, ks[1:] != ks[:-1]])
+    count = np.diff(np.r_[start, len(ks)])
+    second = np.where(count >= 2, fs[np.minimum(start + 1, len(ks) - 1)], -1)
+    return ks[start], fs[start], second, count
+
+
 def scatter_quadric(idx, K, n):
     """Sum of the (m, 4, 4) quadrics K into (n, 4, 4) by vertex index idx (m,)."""
     Q = np.zeros((n, 4, 4))
@@ -63,48 +83,36 @@ def plane_quadric(normal, point, weight):
     return weight[:, None, None] * p[:, :, None] * p[:, None, :]
 
 
-def edge_faces(T):
-    """(unique sorted edges (E, 2), faces per edge (E, 2) with -1 where there is no 2nd face, faces per edge count (E,))."""
-    e = np.sort(np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]]), axis=1)
-    face = np.tile(np.arange(len(T)), 3)
-    uniq, inv, count = np.unique(e, axis=0, return_inverse=True, return_counts=True)
-    order = np.argsort(inv.reshape(-1), kind="stable")
-    start = np.concatenate([[0], np.cumsum(count)[:-1]])
-    first = face[order][start]
-    second = np.where(count >= 2, face[order][np.minimum(start + 1, len(order) - 1)], -1)
-    return uniq, np.c_[first, second], count
-
-
 def feature_edges(P, T, deg):
-    """(edges (k, 2), the unit normal averaged over their two faces (k, 3)) with dihedral >= deg on edges of exactly 2 faces."""
-    edges, faces, count = edge_faces(T)
+    """(keys of the edges with dihedral >= deg on exactly 2 faces, their unit normal averaged over the two faces)."""
+    keys, f0, f1, count = edge_faces(T, len(P))
     n, _ = tri_normals(P, T)
     two = count == 2
-    n0, n1 = n[faces[two, 0]], n[faces[two, 1]]
+    n0, n1 = n[f0[two]], n[f1[two]]
     sharp = np.degrees(np.arccos(np.clip(np.einsum("kd,kd->k", n0, n1), -1, 1))) >= deg
     avg = n0 + n1
     avg = avg / np.maximum(np.linalg.norm(avg, axis=1), 1e-300)[:, None]
-    return edges[two][sharp], avg[sharp]
+    return keys[two][sharp], avg[sharp]
 
 
-def initial_quadrics(P, T, feat, feat_n):
-    """Face quadrics (area weighted) + the feature planes of `feat` edges (weight FEATURE_W x length^2)."""
+def initial_quadrics(P, T, keys, feat_n):
+    """Face quadrics (area weighted) + the feature planes of the `keys` edges (weight FEATURE_W x length^2)."""
     n, area = tri_normals(P, T)
-    K = plane_quadric(n, P[T[:, 0]], area)
-    Q = scatter_quadric(T.ravel(), np.repeat(K, 3, axis=0), len(P))
-    if len(feat):
-        d = P[feat[:, 1]] - P[feat[:, 0]]
+    Q = scatter_quadric(T.ravel(), np.repeat(plane_quadric(n, P[T[:, 0]], area), 3, axis=0), len(P))
+    if len(keys):
+        a, b = keys // len(P), keys % len(P)
+        d = P[b] - P[a]
         ln = np.linalg.norm(d, axis=1)
         c = np.cross(d / np.maximum(ln, 1e-300)[:, None], feat_n)
         c /= np.maximum(np.linalg.norm(c, axis=1), 1e-300)[:, None]
-        Kf = plane_quadric(c, P[feat[:, 0]], FEATURE_W * ln * ln)
-        Q += scatter_quadric(feat.ravel(), np.repeat(Kf, 2, axis=0), len(P))
+        Kf = np.repeat(plane_quadric(c, P[a], FEATURE_W * ln * ln), 2, axis=0)
+        Q += scatter_quadric(np.stack([a, b], 1).ravel(), Kf, len(P))
     return Q
 
 
 def grid_sdf(grid, origin, voxel):
-    """d(points) by trilinear interpolation of an (nx, ny, nz) grid (sdf_body.Field.grid): the cheap field for the collapse
-    loop. Outside the grid the nearest cell's value (the field is truncated there anyway)."""
+    """d(points) by trilinear interpolation of an (nx, ny, nz) grid (sdf_body.Field.grid): the cheap field for the loop.
+    Outside the grid the nearest cell's value (the field is truncated there anyway)."""
     top = np.array(grid.shape) - 1.0
 
     def d(points):
@@ -120,8 +128,42 @@ def grid_sdf(grid, origin, voxel):
 
 
 def euler(n_verts, n_tris):
-    """F - 2V + 4: 0 on a closed genus-0 shell (2 per extra handle... -4 per handle, +8 per extra component)."""
+    """F - 2V + 4: 0 on a closed genus-0 shell (-4 per handle, +8 per extra component)."""
     return int(n_tris - 2 * n_verts + 4)
+
+
+def newton_step(sdf, p, h):
+    """One step p - d grad d / |grad d|^2 for the points p (K, 3); the step vectors (K, 3)."""
+    d = sdf((p[:, None, :] + h * OFFSETS[None]).reshape(-1, 3)).reshape(-1, 7)
+    g = np.stack([d[:, 1] - d[:, 4], d[:, 2] - d[:, 5], d[:, 3] - d[:, 6]], 1) / (2 * h)
+    return d[:, :1] * g / np.maximum(np.einsum("kd,kd->k", g, g), 1e-12)[:, None]
+
+
+def project(sdf, p, h, reach):
+    """NEWTON steps toward the zero set, none longer than `reach` (K,)."""
+    for _ in range(NEWTON):
+        step = newton_step(sdf, p, h)
+        p = p - step * np.minimum(1.0, reach / np.maximum(np.linalg.norm(step, axis=1), 1e-300))[:, None]
+    return p
+
+
+def adjacency(keys, n):
+    """CSR of the vertex graph of the sorted unique edge keys: (ptr (n + 1,), neighbours)."""
+    lo, hi = keys // n, keys % n
+    src = np.r_[lo, hi]
+    order = np.argsort(src, kind="stable")
+    return np.r_[0, np.cumsum(np.bincount(src, minlength=n))], np.r_[hi, lo][order]
+
+
+def common_neighbours(keys, n, adj, a, b):
+    """Number of vertices adjacent to both a[k] and b[k] (keys: the sorted unique edge keys, adj: adjacency(keys, n))."""
+    ptr, dst = adj
+    deg = ptr[a + 1] - ptr[a]
+    owner = np.repeat(np.arange(len(a)), deg)
+    w = dst[np.arange(deg.sum()) - np.repeat(np.cumsum(deg) - deg, deg) + ptr[a][owner]]
+    k = np.minimum(w, b[owner]) * n + np.maximum(w, b[owner])
+    hit = (keys[np.minimum(np.searchsorted(keys, k), len(keys) - 1)] == k) & (w != b[owner])
+    return np.bincount(owner[hit], minlength=len(a))
 
 
 # ---------------------------------------------------------------- the reducer
@@ -129,192 +171,172 @@ class Reducer:
     def __init__(self, verts, tris, sdf, features_deg, min_angle, grad_h=None):
         self.P = np.array(verts, float)
         self.n = len(self.P)
-        self.T = [list(map(int, t)) for t in np.asarray(tris)]
-        self.alive = [True] * len(self.T)
-        self.nf = len(self.T)
-        self.v2f = [set() for _ in range(self.n)]
-        for f, t in enumerate(self.T):
-            for v in t:
-                self.v2f[v].add(f)
-        self.version = [0] * self.n
+        self.T = np.asarray(tris, np.int64).copy()
         self.scale = float(np.ptp(self.P, axis=0).max())
         self.sdf, self.min_angle = sdf, min_angle
         self.h = grad_h or 1e-3 * self.scale
-        self.why = {}
-        self.accepted = 0
-        self.fnb = [set() for _ in range(self.n)]
-        feat, feat_n = feature_edges(self.P, np.asarray(self.T), features_deg) if features_deg else (np.zeros((0, 2), int), None)
-        self.n_features = len(feat)
-        for a, b in feat.tolist():
-            self.fnb[a].add(b)
-            self.fnb[b].add(a)
-        self.Q = initial_quadrics(self.P, np.asarray(self.T), feat, feat_n)
-        self.heap = []
+        self.FE, normal = np.zeros(0, np.int64), None
+        if features_deg:
+            self.FE, normal = feature_edges(self.P, self.T, features_deg)
+        self.n_features = len(self.FE)
+        self.Q = initial_quadrics(self.P, self.T, self.FE, normal)
+        self.ban = np.zeros(0, np.int64)
+        self.accepted, self.rounds, self.why = 0, 0, {}
+        self.rules = ("corner", "absorb", "chord")
 
-    # -- feature state
-    def is_corner(self, v):
-        return len(self.fnb[v]) >= 3
+    def feature_count(self):
+        return np.bincount(np.r_[self.FE // self.n, self.FE % self.n], minlength=self.n)
 
-    def feature_flags(self, ws):
-        return np.array([len(self.fnb[w]) for w in ws])
-
-    # -- candidates
-    def evaluate(self, a, ws):
-        """(cost (K,), position (K, 3)) of collapsing a with each w in ws: the quadric optimum within CLAMP edge lengths
-        of the midpoint, or the feature rules' position; inf where the edge must not collapse."""
-        ws = np.asarray(ws)
-        Qs = self.Q[a] + self.Q[ws]
+    # -- costs
+    def evaluate(self, a, b, fcnt):
+        """(cost (K,), position (K, 3)) of collapsing each edge a-b: the quadric optimum within CLAMP edge lengths of the
+        midpoint, or the position the feature rules pin; inf where the edge must not collapse."""
+        Qs = self.Q[a] + self.Q[b]
         A = Qs[:, :3, :3]
-        pa, pw = self.P[a], self.P[ws]
-        mid = (pa + pw) / 2
-        dx = np.einsum("kij,kj->ki", np.linalg.pinv(A, rcond=1e-5, hermitian=True),
-                       -(Qs[:, :3, 3] + np.einsum("kij,kj->ki", A, mid)))
-        reach = CLAMP * np.linalg.norm(pw - pa, axis=1)
-        dx *= np.minimum(1.0, reach / np.maximum(np.linalg.norm(dx, axis=1), 1e-300))[:, None]
-        x = mid + dx
-        bad = self.constrain(a, ws, x, pa, pw)
+        pa, pb = self.P[a], self.P[b]
+        mid = (pa + pb) / 2
+        mu = DAMP * np.einsum("kii->k", A) / 3 + 1e-30
+        rhs = -(Qs[:, :3, 3] + np.einsum("kij,kj->ki", A, mid))
+        dx = np.linalg.solve(A + mu[:, None, None] * np.eye(3), rhs[:, :, None])[:, :, 0]
+        ln = np.linalg.norm(pb - pa, axis=1)
+        dx *= np.minimum(1.0, CLAMP * ln / np.maximum(np.linalg.norm(dx, axis=1), 1e-300))[:, None]
+        never, stay_a, stay_b = self.pin(a, b, fcnt)
+        x = np.where(stay_a[:, None], pa, np.where(stay_b[:, None], pb, mid + dx))
         xh = np.c_[x, np.ones(len(x))]
-        cost = np.einsum("ki,kij,kj->k", xh, Qs, xh)
-        return np.where(bad, np.inf, np.maximum(cost, 0.0)), x
+        cost = np.einsum("ki,kij,kj->k", xh, Qs, xh) + (LEN_REG * self.scale) ** 2 * ln * ln
+        return np.where(never, np.inf, np.maximum(cost, 0.0)), x
 
-    def constrain(self, a, ws, x, pa, pw):
-        """Apply the feature rules in place on x; the mask of the edges that must not collapse. A corner stays where it is,
-        a feature vertex absorbs a plain one, two feature vertices join only along a feature edge."""
-        fa, fw = len(self.fnb[a]), self.feature_flags(ws)
-        pin_a = np.full(len(ws), fa >= 3) | ((fa >= 1) & (fw == 0))
-        pin_w = ((fw >= 3) | ((fw >= 1) & (fa == 0))) & ~pin_a
-        x[pin_a] = pa
-        x[pin_w] = pw[pin_w]
-        chord = np.array([fa > 0 and fw[k] > 0 and ws[k] not in self.fnb[a] for k in range(len(ws))])
-        return ((fa >= 3) & (fw >= 3)) | chord
+    def pin(self, a, b, fcnt):
+        """(must not collapse, keeps a's place, keeps b's place) per edge, from the feature degrees of its two ends."""
+        fa, fb = fcnt[a], fcnt[b]
+        r = self.rules
+        on_feature = np.isin(np.minimum(a, b) * self.n + np.maximum(a, b), self.FE)
+        corner_a, corner_b = (fa >= 3) & ("corner" in r), (fb >= 3) & ("corner" in r)
+        stay_a = corner_a | ((fa >= 1) & (fb == 0) & ("absorb" in r))
+        stay_b = (corner_b | ((fb >= 1) & (fa == 0) & ("absorb" in r))) & ~stay_a
+        return (corner_a & corner_b) | ((fa > 0) & (fb > 0) & ~on_feature & ("chord" in r)), stay_a, stay_b
 
-    def push(self, a, ws):
-        cost, x = self.evaluate(a, ws)
-        va = self.version[a]
-        for k, w in enumerate(ws):
-            if cost[k] < np.inf:
-                heapq.heappush(self.heap, (float(cost[k]), a, w, va, self.version[w], x[k, 0], x[k, 1], x[k, 2]))
+    # -- one round
+    def select(self, lo, hi, cost, ok):
+        """Indices among `ok` of the edges that are the cheapest of their 2-ring (an independent set), cheapest first."""
+        if not len(ok):
+            return ok
+        order = np.argsort(cost[ok], kind="stable")
+        rank = np.empty(len(ok), np.int64)
+        rank[order] = np.arange(len(ok))
+        m1 = np.full(self.n, len(ok))
+        np.minimum.at(m1, lo[ok], rank)
+        np.minimum.at(m1, hi[ok], rank)
+        m2 = m1.copy()
+        np.minimum.at(m2, lo, m1[hi])
+        np.minimum.at(m2, hi, m1[lo])
+        mine = rank == np.minimum(m2[lo[ok]], m2[hi[ok]])
+        return ok[order][mine[order]]
 
-    def rebuild(self):
-        self.heap = []
-        for a in range(self.n):
-            if self.v2f[a]:
-                ws = [w for w in self.neighbours(a) if w > a]
-                if ws:
-                    self.push(a, ws)
-        heapq.heapify(self.heap)
+    def shared(self, e):
+        """Faces that hold both ends of a selected edge (they disappear with it)."""
+        has = e >= 0
+        return ((e[:, 0] == e[:, 1]) & has[:, 0]) | ((e[:, 1] == e[:, 2]) & has[:, 1]) | ((e[:, 0] == e[:, 2]) & has[:, 0])
 
-    def neighbours(self, v):
-        return sorted({u for f in self.v2f[v] for u in self.T[f]} - {v})
-
-    # -- collapse
-    def refuse(self, why):
-        self.why[why] = self.why.get(why, 0) + 1
-        return False
-
-    def project(self, p, reach):
-        for _ in range(NEWTON):
-            d = self.sdf(p + self.h * OFFSETS)
-            g = np.array([d[1] - d[4], d[2] - d[5], d[3] - d[6]]) / (2 * self.h)
-            gg = float(g @ g)
-            if gg < 1e-12:
-                break
-            step = d[0] * g / gg
-            ln = float(np.linalg.norm(step))
-            p = p - step * min(1.0, reach / ln) if ln > 0 else p
-        return p
-
-    def guard(self, a, b, shared, p):
-        """The reason to refuse moving a and b to p, or None."""
-        ids = list((self.v2f[a] | self.v2f[b]) - shared)
-        tri = np.array([self.T[f] for f in ids])
+    def guard(self, a, b, x):
+        """Per selected collapse: 0 if it passes, else 1 degenerate, 2 turned, 3 angle (the worst wins)."""
+        eid = np.full(self.n, -1)
+        eid[a] = eid[b] = np.arange(len(a))
+        e = eid[self.T]
+        touched = np.flatnonzero((e >= 0).any(1) & ~self.shared(e))
+        tri, owner = self.T[touched], e[touched].max(1)
         old = self.P[tri]
-        new = np.where(((tri == a) | (tri == b))[:, :, None], p, old)
+        new = np.where((e[touched] >= 0)[:, :, None], x[owner][:, None, :], old)
         n0, _ = tri_normals(self.P, tri)
         c = np.cross(new[:, 1] - new[:, 0], new[:, 2] - new[:, 0])
-        area = np.linalg.norm(c, axis=1) / 2
-        if (area < TINY * self.scale ** 2).any():
-            return "degenerate"
-        if (np.einsum("fd,fd->f", n0, c) < 0).any():
-            return "turned"
-        worse = min_angles(new)
-        if (worse < np.minimum(self.min_angle, min_angles(old))).any():
-            return "angle"
-        return None
+        why = np.zeros(len(a), np.int8)
+        for code, bad in ((3, min_angles(new) < np.minimum(self.min_angle, min_angles(old))),
+                          (2, np.einsum("fd,fd->f", n0, c) < 0),
+                          (1, np.linalg.norm(c, axis=1) / 2 < TINY * self.scale ** 2)):
+            why[owner[bad]] = code
+        return why
 
-    def try_collapse(self, a, b, p):
-        shared = self.v2f[a] & self.v2f[b]
-        if len(shared) != 2:
-            return self.refuse("edge")
-        opposite = {u for f in shared for u in self.T[f]} - {a, b}
-        if {u for f in self.v2f[a] for u in self.T[f]} & {u for f in self.v2f[b] for u in self.T[f]} != opposite | {a, b}:
-            return self.refuse("link")
-        if self.sdf is not None:
-            p = self.project(p, float(np.linalg.norm(self.P[a] - self.P[b])))
-        why = self.guard(a, b, shared, p)
-        if why:
-            return self.refuse(why)
-        self.merge(a, b, shared, p)
-        return True
+    def step(self, goal):
+        """One round: the number of edges tried (0: nothing is left to try). PASSES times: pick an independent set among the
+        edges not banned and not next to a collapse already taken this round, guard it, ban what fails, take the rest."""
+        keys, _, _, count = edge_faces(self.T, self.n)
+        lo, hi = keys // self.n, keys % self.n
+        cost, x = self.evaluate(lo, hi, self.feature_count())
+        adj = adjacency(keys, self.n)
+        free = (count == 2) & np.isfinite(cost) & ~np.isin(keys, self.ban)
+        blocked, take, tried, need = np.zeros(self.n, bool), [], 0, (len(self.T) - goal + 1) // 2
+        for _ in range(PASSES):
+            pick = self.select(lo, hi, cost, np.flatnonzero(free & ~blocked[lo] & ~blocked[hi]))
+            if not len(pick) or need <= 0:
+                break
+            tried += len(pick)
+            a, b, xs = lo[pick], hi[pick], x[pick]
+            if self.sdf is not None:
+                xs = project(self.sdf, xs, self.h, np.linalg.norm(self.P[b] - self.P[a], axis=1))
+            why = np.where(common_neighbours(keys, self.n, adj, a, b) != 2, 4, self.guard(a, b, xs))
+            for code in np.unique(why[why > 0]):
+                self.why[REASONS[code]] = self.why.get(REASONS[code], 0) + int((why == code).sum())
+            free[pick[why > 0]] = False
+            self.ban = np.union1d(self.ban, keys[pick][why > 0])
+            ok = np.flatnonzero(why == 0)[:need]
+            need -= len(ok)
+            take.append((a[ok], b[ok], xs[ok]))
+            seed = np.zeros(self.n, bool)
+            seed[a[ok]] = seed[b[ok]] = True
+            near = seed[lo] | seed[hi]
+            blocked |= seed
+            blocked[lo[near]] = blocked[hi[near]] = True
+        if take:
+            self.apply(*(np.concatenate(c) for c in zip(*take)))
+        return tried
 
-    def merge(self, a, b, shared, p):
-        for f in shared:
-            self.alive[f] = False
-            for v in self.T[f]:
-                self.v2f[v].discard(f)
-        for f in self.v2f[b]:
-            self.T[f] = [a if v == b else v for v in self.T[f]]
-            self.v2f[a].add(f)
-        self.v2f[b] = set()
-        self.nf -= 2
-        self.P[a] = p
+    def apply(self, a, b, x):
+        rep = np.arange(self.n)
+        rep[b] = a
+        T = rep[self.T]
+        self.T = T[(T[:, 0] != T[:, 1]) & (T[:, 1] != T[:, 2]) & (T[:, 0] != T[:, 2])]
+        self.P[a] = x
         self.Q[a] += self.Q[b]
-        self.version[a] += 1
-        self.version[b] += 1
-        for w in self.fnb[b]:
-            self.fnb[w].discard(b)
-            self.fnb[w].add(a)
-        self.fnb[a] = (self.fnb[a] | self.fnb[b]) - {a, b}
-        self.fnb[b] = set()
-        self.accepted += 1
+        for name in ("FE", "ban"):
+            setattr(self, name, self.renamed(getattr(self, name), rep, a if name == "ban" else None))
+        self.accepted += len(a)
+
+    def renamed(self, keys, rep, lift):
+        """Edge keys after the merges; with `lift` (the surviving vertices) the keys around them are dropped."""
+        u, v = rep[keys // self.n], rep[keys % self.n]
+        keep = u != v
+        if lift is not None and len(lift):
+            near = np.unique(self.T[np.isin(self.T, lift).any(1)])
+            keep &= ~(np.isin(u, near) | np.isin(v, near))
+        return np.unique(np.minimum(u, v)[keep] * self.n + np.maximum(u, v)[keep])
 
     def run(self, goal, lowest):
-        """Pop until nf <= goal; never make nf < lowest. True when the goal is met."""
-        while self.heap and self.nf > goal:
-            cost, a, b, va, vb, x, y, z = heapq.heappop(self.heap)
-            if va != self.version[a] or vb != self.version[b] or not self.v2f[a] or not self.v2f[b]:
-                continue
-            if self.nf - 2 < lowest:
-                return self.nf <= goal
-            if self.try_collapse(a, b, np.array([x, y, z])):
-                self.push(a, self.neighbours(a))
-        return self.nf <= goal
+        """Rounds until F <= goal or nothing is left to try; never F < lowest. True when the goal is met."""
+        while len(self.T) > goal and self.rounds < ROUNDS and len(self.T) - 2 >= lowest:
+            self.rounds += 1
+            if self.step(goal) == 0:
+                break
+        return len(self.T) <= goal
 
     # -- end
     def polish(self, d):
-        """2 Newton steps on every vertex that is not a corner, then back the moves that turn a face."""
-        used = np.array([i for i in range(self.n) if self.v2f[i]])
-        T = np.array([t for f, t in enumerate(self.T) if self.alive[f]])
-        old, move = self.P.copy(), np.array([not self.is_corner(i) for i in range(self.n)])
+        """NEWTON steps on every vertex that is not a corner, then back the moves that turn a face."""
+        used = np.unique(self.T)
+        move = (self.feature_count()[used] < 3)[:, None]
+        old = self.P.copy()
         for _ in range(NEWTON):
-            pts = (self.P[used][:, None, :] + self.h * OFFSETS[None]).reshape(-1, 3)
-            v = d(pts).reshape(-1, 7)
-            g = np.stack([v[:, 1] - v[:, 4], v[:, 2] - v[:, 5], v[:, 3] - v[:, 6]], 1) / (2 * self.h)
-            gg = np.maximum(np.einsum("kd,kd->k", g, g), 1e-12)
-            self.P[used] -= np.where(move[used, None], v[:, :1] * g / gg[:, None], 0.0)
-        n0, _ = tri_normals(old, T)
-        c = np.cross(self.P[T[:, 1]] - self.P[T[:, 0]], self.P[T[:, 2]] - self.P[T[:, 0]])
-        turned = np.einsum("fd,fd->f", n0, c) < 0
-        back = np.unique(T[turned])
+            self.P[used] -= np.where(move, newton_step(d, self.P[used], self.h), 0.0)
+        n0, _ = tri_normals(old, self.T)
+        c = np.cross(self.P[self.T[:, 1]] - self.P[self.T[:, 0]], self.P[self.T[:, 2]] - self.P[self.T[:, 0]])
+        back = np.unique(self.T[np.einsum("fd,fd->f", n0, c) < 0])
         self.P[back] = old[back]
         return len(back)
 
     def result(self):
-        T = np.array([t for f, t in enumerate(self.T) if self.alive[f]])
-        used = np.unique(T)
+        used = np.unique(self.T)
         remap = np.full(self.n, -1)
         remap[used] = np.arange(len(used))
-        return self.P[used], remap[T]
+        return self.P[used], remap[self.T]
 
 
 def reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, floor=0.9, polish=None, grad_h=None):
@@ -323,22 +345,23 @@ def reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, f
     `polish`: the field of the final projection, default `sdf`; `grad_h`: central-difference step (default 1e-3 x size)."""
     t0 = time.perf_counter()
     R = Reducer(verts, tris, sdf, features_deg, min_angle, grad_h)
-    f0, v0 = R.nf, int((np.bincount(np.asarray(tris).ravel(), minlength=R.n) > 0).sum())
+    f0, v0 = len(R.T), len(np.unique(R.T))
     lowest = floor * target_faces
-    R.rebuild()
     met, relaxed = R.run(target_faces, lowest), None
     for k in RELAX:
         if met:
             break
         relaxed = R.min_angle = min_angle * k
-        R.rebuild()
+        R.ban = R.ban[:0]
         met = R.run(target_faces, lowest)
-    flipped_back = R.polish(polish or sdf) if (polish or sdf) is not None else 0
+    final = polish or sdf
+    reverted = R.polish(final) if final is not None else 0
     out_v, out_t = R.result()
+    fcnt = R.feature_count()[np.unique(R.T)]
     report = {"faces_in": f0, "verts_in": v0, "faces": len(out_t), "verts": len(out_v), "euler_in": euler(v0, f0),
-              "euler": euler(len(out_v), len(out_t)), "accepted": R.accepted, "refused": dict(R.why),
-              "features": R.n_features, "corners": sum(R.is_corner(v) for v in range(R.n) if R.v2f[v]),
-              "target_met": bool(met), "relaxed_min_angle": relaxed, "polish_reverted": int(flipped_back),
+              "euler": euler(len(out_v), len(out_t)), "accepted": R.accepted, "refused": dict(R.why), "rounds": R.rounds,
+              "features": R.n_features, "corners": int((fcnt >= 3).sum()), "target_met": bool(met),
+              "relaxed_min_angle": relaxed, "polish_reverted": int(reverted),
               "seconds": round(time.perf_counter() - t0, 3)}
     return out_v, out_t, report
 
