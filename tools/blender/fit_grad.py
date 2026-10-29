@@ -468,13 +468,13 @@ def descend(objective, groups, bounds, parts, extra, proxy, height, seconds):
     scene = Scene(proxy, parts, groups, extra, height, {} if "overlap" in objective.ctx["held"] else objective.ctx["parent_of"], objective.ctx["loose0"],
                   (objective.ctx["targets"], objective.ctx["held"]))
     lo, hi = (torch.tensor([b[k] for b in bounds], dtype=DT) for k in (0, 1))
-    x = torch.zeros(scene.size, dtype=DT, requires_grad=True)
+    x = torch.minimum(torch.maximum(torch.zeros(scene.size, dtype=DT), lo), hi).requires_grad_(True)   # x = 0, or the nearest point of the limits (L11-3)
     good, steps, reverts = x.detach().clone(), 0, 0
     ctx = objective.ctx
     lr = LR
     opt = torch.optim.Adam([x], lr=lr)
     try:
-        objective(np.zeros(scene.size))         # the start point is a candidate too
+        objective(x.detach().double().numpy())  # the start point is a candidate too
         for tau in TAUS:
             for step in range(STEPS):
                 if time.monotonic() > ctx["deadline"]:

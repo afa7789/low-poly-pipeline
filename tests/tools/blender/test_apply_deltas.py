@@ -114,5 +114,39 @@ class ApplyDeltas(unittest.TestCase):
         self.assertEqual(json.dumps(SPEC), before)
 
 
+class FitLimits(unittest.TestCase):
+    """L11-3, via B: deltas as limits of the fit."""
+
+    def limits(self, *deltas):
+        return AD.fit_limits(copy.deepcopy(SPEC), list(deltas), H)
+
+    def test_scale_radius_move_become_intervals_with_the_twin(self):
+        lim = self.limits({"part": "spine#1", "action": "scale", "axis": "x", "value": 0.8},
+                          {"part": "arm.L", "action": "radius", "value": 1.2},
+                          {"part": "head", "action": "move", "axis": "y", "value": 0.1},
+                          {"part": "arm.L", "action": "move", "axis": "x", "value": 0.05})
+        self.assertEqual(lim[2]["dims"], {0: (0.7, 0.9)})
+        self.assertEqual(lim[5]["dims"], {0: (1.1, 1.3), 1: (1.1, 1.3)})
+        self.assertEqual(lim[6]["dims"], lim[5]["dims"])               # the twin
+        self.assertAlmostEqual(lim[4]["at"][1][0], 0.1 - 0.02 * H)
+        self.assertAlmostEqual(lim[5]["at"][0][0], 0.05 - 0.02 * H)
+        self.assertAlmostEqual(lim[6]["at"][0][0], -0.05 - 0.02 * H)   # mirrored x
+
+    def test_add_rotate_unknown_and_out_of_range_have_no_via_b(self):
+        self.assertEqual(self.limits({"part": "head", "action": "add", "kind": "box", "dims": [.1, .1, .1], "at": [0, 2, 0]},
+                                     {"part": "head", "action": "rotate", "axis": "x", "value": 10},
+                                     {"part": "ghost", "action": "scale", "value": 0.8},
+                                     {"part": "head", "action": "scale", "value": 2.0}), {})
+
+    def test_bounds_replace_only_the_named_slots(self):
+        import fit_spec as F
+        part = SPEC["parts"][2]
+        b = F.limit_bounds(part, F.bounds_of(part, False), {"dims": {0: (0.7, 0.9)}, "at": {1: (0.0, 0.03 * 2)}}, 2.0)
+        self.assertAlmostEqual(b[0][0], -3.0)
+        self.assertAlmostEqual(b[0][1], -1.0)
+        self.assertEqual(b[1], (-1, 1))
+        self.assertAlmostEqual(b[4][1], 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()
