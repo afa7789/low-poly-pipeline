@@ -4719,3 +4719,38 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
 - **Não feito.** n005 (sem deltas gravados em L11-1); `--deltas-as fit|spec` (o L11-2 escolhe a via; hoje A = `apply_deltas`,
   B = `--constraints`); `rotate` como limite do extra `rot`; `--fit-grad` na ablação de n02X/n017; 1 rodada por via (sem repetição:
   o Powell é determinístico, o grad não foi repetido).
+
+### 29.L11-2 Laço guardado `--loop N` (diagnose -> um delta por vez -> rebuild -> aceite)
+- **O que mudou.** Novo `tools/blender/loop_stage.py` (orquestração pura, callbacks: testável sem Blender/LLM) e `spec_pipeline.py --loop N`
+  (default 0 = como antes). Após a rodada 0 (stage 1 aprovado, câmeras fixadas por `--tilts`): `diagnose` (1 chamada session:opus por rodada,
+  custo em `loop.json`), deltas ordenados pelo `expected` (nota do delta = maior `expected` entre as vistas que o `why` nomeia; sem vista
+  = 0, mantém a ordem do VLM), até 3 rebuilds por rodada; cada delta é aplicado SOZINHO (`apply_deltas.apply`) sobre o spec corrente e
+  reconstruído pelo MESMO caminho da rodada 0 (`fit_stage` -> `stage_shape`: fit, sdf, deform, fit-verts, silhouette 6 vistas) numa cópia
+  de `args` com `out = loop/round<k>/delta<j>/`. Aceite (`loop_accept`): nenhuma vista cai > 0.01 E (média sobe >= 0.005 OU uma vista abaixo do gate
+  passa). Aceito vira o spec corrente e é copiado para o run (`clay.glb`, `spec.json`, `silhouette.json`, views); rejeitado é descartado.
+  `add`/`remove` aceito encerra a lista da rodada (endereços `osso#k` mudaram). Delta não aplicável (limites) não gasta vaga. Rodada sem
+  aceite encerra o laço. Saída: `loop/round0/` (cópia da rodada 0 para o juiz L11-4), `loop/round<k>/{diagnosis.json,delta<j>/}`, `loop.json`
+  (por delta: status, motivo, IoU antes/depois, Δ por vista, segundos; custo da diagnose) e secção "Laço" no `review.md`. Estágio de cor só no fim, como hoje.
+- **Ruído medido e removido (`--deterministic`, implícito em `--loop`).** hfoo v13, o mesmo spec 3x pelo caminho exato do laço (SOFT_SIL_THREADS=4),
+  sob carga diferente: IoU por vista variou até .013 (left .4272/.4226/.4352; back .8729/.8675/.8680; mean .757-.759). Fonte: o
+  `fit-verts` pára por relógio (PIPELINE_SECONDS = 30 s; 26, 33 e 34 passos nas três); o fit de escalas/`deform` não (o fit usa MAX_EVALS, o
+  deform não tem relógio). Com `--deterministic`: `fit_spec.fit(seconds=1e9)` e `optimize_verts` sem prazo, ritmo só pela iteração, 8 iterações por estágio
+  (`DETERMINISTIC_ITERS`; 30 dava 166 passos e 161 s, 8 dá 44 passos e 33 s). Dois rebuilds: IoU idêntico nas 6 vistas (Δ = 0.000, 2 pares). Ruído medido 0, então o guard
+  fica em 0.01 / 0.005 (`loop.json`: `deterministic`, `noise: 0`). Consequência: a rodada 0 do laço NÃO é o v13 publicado (fit-verts
+  mais curto: hfoo média .7517 contra .745/.758 conforme o caminho); o laço compara sempre contra a sua própria rodada 0.
+- **Prova (3 chamadas VLM no total após o ajuste; antes dele 3 chamadas descartadas, runs renomeados `l11-loop-clock-invalid`).**
+  `--spec runs/draft/<id>/v13-r1/spec.json --body sdf --tilts <câmeras v13> --run l11-loop --no-repair --no-diagnose --shape-only --loop 1`.
+
+| unidade | deltas tentados / aceitos | Δ por vista rodada 0 -> final (fr/le/ba/to/bo/rts) | média | diagnose | s por delta |
+|---|---|---|---|---|---|
+| hfoo | 3 / 1 (`spine#2` scale x) | +.014 -.002 +.013 +.023 +.004 -.004 | .7517 -> .7600 | 69 s, 6.3 k tok saída | 135-169 |
+| n017 | 3 / 0 (+1 não aplicável: scale z em peça from/to) | 0 | .8317 | 46 s, 3.5 k | 119-306 (2 processos pesados em paralelo, quadrúpede) |
+| n02X | 3 / 0 | 0 | .8235 | 55 s, 5.5 k | 85-90 (sozinho) |
+
+  Rejeições (todas por queda de vista, exceto uma): hfoo rts -.031, top/rts -.011/-.019; n017 left -.024 top -.020 bottom -.032, bottom -.018, top/bottom -.011/-.012;
+  n02X front -.015, rts -.028, rts -.023. Sem o guard, o primeiro delta do hfoo teria derrubado o rts em .03. Por construção nenhuma vista do run final cai > .01 (hfoo: a pior é rts -.004).
+- **Leitura / negativo.** 1 aceito em 9 deltas (11 %): o `expected` do VLM (+.01-.03) quase nunca se realiza, o rts é a vista que mais cai (pernas/
+  tronco largos mexem na visão de jogo). Custo: o alvo de <= 3 min por delta só vale com a máquina livre (hfoo 135-169, n02X ~90, n017 até 306 sob carga); uma rodada de 3 deltas custa 6-12 min + diagnose ~1 min.
+  Não feito: `--loop` não corre diagnose final nem o juiz pareado (L11-4); sem `loop_hooks` testado fora da prova real (os testes cobrem `loop_stage`).
+- **Testes.** `tests/tools/blender/test_loop_stage.py` (9: regra de aceite, ordenação, limite de 3, vaga de não-aplicável, paradas, add/remove, tabela). Suíte: 635 OK.
+

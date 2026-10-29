@@ -612,3 +612,7 @@ Detalhe: PIPELINE §29.L11-1.
 **Estado L11-3 (2026-10-29): feito, atrás de flag (`--constraints`); resultado negativo.** `apply_deltas.fit_limits` + `fit_spec.fit(constraints=)` traduzem
 scale/radius/move em limites por peça; ablação A (edição do spec) × B (limites do fit) × base em 4 unidades: nenhuma via sobe a média de forma
 confiável (A +.0072, B +.0042 somadas; quedas > .01 em 3 unidades nas duas). Recomendação ao L11-2: via A como default. Detalhe: PIPELINE §29.L11-3.
+
+**Estado L11-2 (2026-10-29): feito, atrás de `--loop N` (default 0).** `tools/blender/loop_stage.py` + `spec_pipeline --loop`; rebuild pelo caminho da
+rodada 0 com `--deterministic` (fit-verts por iterações: o relógio dava +-.013 por vista; dois rebuilds agora idênticos). Prova hfoo/n017/n02X:
+1 delta aceito em 9 (hfoo média .7517 -> .7600, nenhuma vista cai > .01); n017 e n02X 0 aceitos. 85-306 s por delta. Detalhe: PIPELINE §29.L11-2.

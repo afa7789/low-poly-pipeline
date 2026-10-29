@@ -74,6 +74,7 @@ import deform_to_sheet
 import optimize_verts
 import diagnose
 import lathe_limb
+import loop_stage
 import massing
 import mesh_lint
 import review_pair
@@ -1220,7 +1221,8 @@ def fit_stage(spec, args):
                                stages=fit_spec.STAGES if args.fit_stages else None,
                                partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts,
                                depth=args.depth, grad=args.fit_grad,
-                               constraints=json.loads(args.constraints.read_text()).get("deltas") if args.constraints else None)
+                               constraints=json.loads(args.constraints.read_text()).get("deltas") if args.constraints else None,
+                               **({"seconds": 1e9} if getattr(args, "deterministic", False) else {}))
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if report["changed"]:
         ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
@@ -2098,6 +2100,12 @@ def main():
     ap.add_argument("--no-fit-verts", dest="fit_verts", action="store_false", help="skip the vertex optimisation")
     ap.add_argument("--flip-side", action="store_true",
                     help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0, opt-in); sets CF_FLIP_SIDE for the tools")
+    ap.add_argument("--deterministic", action="store_true",
+                    help="no wall-clock budgets in the fit and fit-verts (iteration counts only): two builds of one spec give the "
+                         "same IoU; implied by --loop")
+    ap.add_argument("--loop", type=int, default=0, metavar="N",
+                    help="guarded VLM loop (L11-2): N rounds of diagnose -> one delta at a time -> rebuild with the round-0 "
+                         "cameras -> keep it only if no view falls > 0.01 and the mean rises >= 0.005 (0 = off)")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2115,6 +2123,7 @@ def main():
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     if args.variants < 1:
         ap.error("--variants must be at least 1")
+    args.deterministic = args.deterministic or args.loop > 0
     args.style = args.texture        # the old name, for stage 2 code that still reads it
     global BODY, SDF_GRID, SDF_K_MODE
     BODY, SDF_GRID, SDF_K_MODE = args.body, args.sdf_grid, args.sdf_k_mode
@@ -2149,6 +2158,7 @@ def main():
                       props=load_props(args.id))
     brief, shots = with_fewshot(brief, args, 2 + len(refs))
     spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs] + shots, tmp, layout)
+    spec, shape = run_loop(args, spec, shape, layout)
     colour = None
     if shape["ok"] and not args.shape_only:
         t0 = time.monotonic()
@@ -2164,6 +2174,61 @@ def main():
           f"preflight {'PASS' if shape['checks'].get('preflight') else 'FAIL'}\t"
           f"stage1 {'PASS' if shape['ok'] else 'FAIL'}\tstage2 {stage2}\t{verdict}")
     return 0 if verdict in OK_VERDICTS else 1
+
+
+def loop_hooks(args, layout):
+    """The callbacks loop_stage.run needs, over this run: a rebuild takes the round-0 path (fit_stage -> stage_shape on a copy
+    of args whose out is the candidate dir, same --tilts), the current best always lives in args.out."""
+    import apply_deltas      # imports this module: lazily
+    import copy
+    import types
+    base = args.out / "loop"
+
+    def rebuild(spec, out):
+        a = copy.copy(args)
+        a.out, a.summary = out, {}
+        out.mkdir(parents=True, exist_ok=True)
+        spec = fit_stage(spec, a)
+        (out / "spec.json").write_text(json.dumps(spec, indent=2))
+        return spec, stage_shape(out / "spec.json", a, layout), a.summary
+
+    def promote(cur):
+        shutil.copytree(cur["dir"], args.out, dirs_exist_ok=True)
+        cur["shape"]["glb"], args.summary = args.out / "clay.glb", cur["summary"]
+
+    def prepare(cur):
+        args.summary, args.pairwise = cur["summary"], None
+        write_review(args, cur["shape"], None, verdict_of(cur["shape"], None))
+
+    def diagnose_run():
+        try:
+            return diagnose.run_diagnosis(args.out, args.id, args.kind, args.model)
+        except (RuntimeError, OSError, *BAD_REPLY) as err:
+            print(f"loop: diagnosis skipped: {err}")
+            return {"deltas": [], "expected": {}, "cost": {"seconds": 0.0, "tokens": {}}}
+
+    return types.SimpleNamespace(
+        loop_dir=base, rebuild=rebuild, promote=promote, prepare=prepare, diagnose=diagnose_run,
+        apply=lambda spec, deltas: apply_deltas.apply(spec, deltas, diagnose.spec_height(spec)))
+
+
+def run_loop(args, spec, shape, layout):
+    """--loop N after the approved round 0: snapshot round 0 in loop/round0/, run loop_stage, leave the best in args.out.
+    Returns (spec, shape); args.summary and args.loop_report are the best's. No-op without --loop or an approved round 0."""
+    args.loop_report = None
+    if not (args.loop and shape["glb"] is not None and args.summary.get("approved")):
+        return spec, shape
+    hooks = loop_hooks(args, layout)
+    r0 = hooks.loop_dir / "round0"
+    r0.mkdir(parents=True, exist_ok=True)
+    for name in ("clay.glb", "spec.json", "silhouette.json"):
+        shutil.copy(args.out / name, r0 / name)
+    shutil.copytree(args.out / "views", r0 / "views", dirs_exist_ok=True)
+    t0 = time.monotonic()
+    spec, shape, args.summary, args.loop_report = loop_stage.run(args.loop, spec, shape, args.summary, hooks)
+    args.times["loop"] = time.monotonic() - t0
+    print(f"loop: mean {args.loop_report['mean'][0]} -> {args.loop_report['mean'][1]} in {args.times['loop']:.0f} s")
+    return spec, shape
 
 
 def run_diagnose(args, verdict):
@@ -2537,7 +2602,7 @@ def write_review(args, shape, colour, verdict):
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
-        f"{massing_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}\n"
+        f"{massing_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{loop_stage.table(args.loop_report)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
