@@ -964,7 +964,7 @@ def clay_args(kind):
     """build_unit.py arguments of a stage 1 build: the chamfer budget (the ceiling the gate
     checks), no fuse, and `clay` = one grey material, no texture, decal or glow."""
     hi = str(BUDGETS[kind][1])
-    return [hi, "nofuse", hi, "clay"]
+    return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else [])]
 
 
 def tilts_of(report):
@@ -2066,6 +2066,9 @@ def main():
                     help="pull the unioned body's sharp edges to the hard sheet's inner edges after the "
                          "deformation (align_features.py, PIPELINE 24.L6-12; off by default: no measured gain)")
     ap.add_argument("--no-align", dest="align", action="store_false", help="the opposite of --align")
+    ap.add_argument("--body", choices=("union", "sdf", "join"), default=DEFAULT_BODY,
+                    help="how the body parts become one shell: union = boolean + decimate (24.L6-4), sdf = distance field + "
+                         "guarded QEM retopology (build_unit sdf_union, PIPELINE 28.L10-7), join = the plates joined, no weld")
     ap.add_argument("--no-deform", dest="deform", action="store_false", default=DEFORM,
                     help="skip the Sketch2Mesh deformation of the unioned body onto the sheet's outlines "
                          "(deform_to_sheet.py, PIPELINE 24.L6-5)")
@@ -2091,7 +2094,9 @@ def main():
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
-    args.union_body = UNION_BODY
+    global BODY
+    BODY = args.body
+    args.union_body = args.body != "join"
 
     resolve_paths(args)
 
@@ -2163,8 +2168,9 @@ FORM_W = 0.5          # fit_accepted / margin_of: form cost (slivers + mean norm
 ALIGN_FEATURES = False  # PIPELINE 24.L6-12: sharp edges go to the hard sheet's inner edges after the deformation (--align); NEGATIVE: off
 DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the sheet's outlines (--no-deform)
 FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ablation gained 6/6 views on 5/5 units. --no-fit-verts turns it off
-# 24.L6-4: the deformation needs the welded body; read build_unit.UNION_BODY from its source (it imports bpy)
-UNION_BODY = bool(re.search(r"^UNION_BODY\s*=\s*True", (ROOT / "tools/blender/build_unit.py").read_text(), re.M))
+# 24.L6-4: the deformation needs the welded body; read build_unit.BODY (union | sdf | join) from its source (it imports bpy)
+DEFAULT_BODY = re.search(r'^BODY\s*=\s*"(\w+)"', (ROOT / "tools/blender/build_unit.py").read_text(), re.M).group(1)
+BODY = DEFAULT_BODY      # main() sets it from --body; clay_args passes it to build_unit when it is not the default
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
 RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status
 

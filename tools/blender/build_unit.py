@@ -18,6 +18,7 @@ import json
 import math
 import pathlib
 import sys
+import time
 
 import bmesh
 import bpy
@@ -934,7 +935,8 @@ CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
 
 
 NOUNION = False
-UNION_BODY = True    # the body (parts that are not props) becomes ONE welded shell (PIPELINE 24.L6-4); False: join
+BODY = "union"       # how the body (parts that are not props) becomes ONE shell: "union" boolean (24.L6-4), "sdf" distance field (28.L10-7), "join" none
+UNION_BODY = True    # BODY != "join" (main() derives it and NOUNION from BODY; spec_pipeline reads this line by regex)
 UNION_FLOOR = 0.9    # the tolerance decimate keeps at least this share of the tri budget (Chen 2023: d bounds the loss)
 TIE_EPS = 1e-4       # two source parts closer than this to a vertex both own it: their weights blend (m)
 
@@ -1916,22 +1918,93 @@ def skin_sdf(obj, field, spec, rig, **bands):
         poly.material_index = slots.index(made[name])
 
 
-def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", **bands):
-    """The skinned, material-labelled body of `spec` (rows [bone, kind, dims, at, material, opts]; props and the flame slit
-    stay out: they are separate components skinned on their anchor, as in a union build): sdf_body.field -> sdf_mesh ->
-    skin_sdf. Returns (object, field). Needs load_spec to have set the rig. main() does not call it yet (L10-7)."""
-    SB = sibling("sdf_body")
-    rig = sibling("lathe_limb").RIG
-    rows = [tuple(r) for r in spec]
-    field = SB.field(rows, CUTS if cuts is None else cuts, rig, k, grid, False)
+def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off"):
+    """(object, field): the unskinned, welded openvdb mesh of the body of `spec` (rows [bone, kind, dims, at, material, opts];
+    props and the flame slit stay out) from sdf_body.field. `thin`: the policy of sdf_body.field for the parts under 2 voxels."""
+    field = sibling("sdf_body").field([tuple(r) for r in spec], CUTS if cuts is None else cuts, sibling("lathe_limb").RIG,
+                                      k, grid, False, thin=thin)
     obj = sdf_mesh(field, adaptivity, name)
     bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
     bm.from_mesh(obj.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=SDF_WELD * field.voxel)
     bm.to_mesh(obj.data)
     bm.free()
-    skin_sdf(obj, field, rows, rig, **bands)
     return obj, field
+
+
+def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", **bands):
+    """The skinned, material-labelled body of `spec`, dense: sdf_dense -> skin_sdf (props and the flame slit are separate
+    components skinned on their anchor, as in a union build). Returns (object, field). Needs load_spec to have set the rig.
+    main() uses sdf_union, which retopologizes between the two."""
+    obj, field = sdf_dense(spec, cuts, grid, adaptivity, k, name, thin)
+    skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG, **bands)
+    return obj, field
+
+
+RETOPO_DEV = 0.02     # sdf_retopo: a collapse may not leave a triangle farther than this share of the height from the zero set (28.L10-3)
+
+
+def sdf_retopo(obj, field, target, lowest=0):
+    """Replace the mesh of `obj` by retopo.reduce of it: at most `target` triangles, at least `lowest` unless the guard stops it,
+    the collapses projected onto the zero set of `field` (the grid for the loop, Field.d for the final polish). Returns the report."""
+    import numpy as np
+    RT = sibling("retopo")
+    mesh = obj.data
+    pos = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", pos)
+    tri = np.array([p.vertices[:] for p in mesh.polygons], int).reshape(-1, 3)
+    height = max(p["hi"][2] for p in field.parts) - min(p["lo"][2] for p in field.parts)
+    verts, tris, report = RT.reduce(pos.reshape(-1, 3), tri, target, sdf=RT.grid_sdf(field.grid, field.origin, field.voxel),
+                                    polish=field.d, grad_h=0.5 * field.voxel, max_dev=RETOPO_DEV * height,
+                                    floor=min(1.0, lowest / target) if target > 0 else 0.0)
+    mesh.clear_geometry()
+    mesh.from_pydata(verts.tolist(), [], tris.tolist())
+    mesh.update()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return report
+
+
+SDF_GRID, SDF_ADAPT, SDF_K, SDF_THIN = 96, 0.0, 1.0, "inflate"     # body=sdf defaults (grid=, adapt=, k=, thin= on the command line)
+
+
+def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None):
+    """body=sdf (PIPELINE 28.L10-7): the SDF body of `spec` retopologized to `budget` minus the triangles of `keep` (props, the
+    flame slit) and of the thin parts the "keep" policy leaves out, then skinned and materialled on the final positions
+    (sdf_dense -> sdf_retopo -> skin_sdf). `parts` = (object, bone) per spec row. Returns (shell, kept thin parts, report, field)."""
+    grid, adaptivity, k, thin = grid or SDF_GRID, SDF_ADAPT if adaptivity is None else adaptivity, SDF_K if k is None else k, thin or SDF_THIN
+    t0 = time.perf_counter()
+    obj, field = sdf_dense(spec, None, grid, adaptivity, k, "sdf", thin)
+    kept = [parts[i] for i in field.kept]
+    spare = sum(len(q.vertices) - 2 for o, _ in keep + kept for q in o.data.polygons)
+    dense = len(obj.data.polygons)
+    rep = sdf_retopo(obj, field, budget - spare, int(UNION_FLOOR * budget) - spare)
+    skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG)
+    report = {"method": "sdf", "grid": grid, "k": k, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
+              "inflated": [p["i"] for p in field.parts if p.get("inflate")], "voxel": round(field.voxel, 5), "dense_tris": dense,
+              "tris": len(obj.data.polygons), "components": components(obj.data), "retopo": rep,
+              "seconds": round(time.perf_counter() - t0, 3)}
+    print(f"sdf body: {dense} -> {report['tris']} tris, {report['components']} shell(s), {len(kept)} thin part(s) kept, "
+          f"{report['seconds']} s")
+    return obj, kept, report, field
+
+
+def sdf_args(rest):
+    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep (absent: the SDF_* defaults)."""
+    return {key: conv(v) for key, flag, conv in (("grid", "sdf_grid=", int), ("adaptivity", "sdf_adapt=", float), ("k", "sdf_k=", float),
+                                                 ("thin", "sdf_thin=", str)) if (v := arg_value(rest, flag))}
+
+
+def body_flags(body, nounion):
+    """(BODY, UNION_BODY, NOUNION) of the command line: `body=` union | sdf | join over the module default; the old word
+    `nounion` is body=join."""
+    body = "join" if nounion else (body or BODY)
+    if body not in ("union", "sdf", "join"):
+        raise ValueError(f"body={body}: union, sdf or join")
+    return body, body != "join", body == "join"
 
 
 def main():
@@ -1941,9 +2014,9 @@ def main():
     atlas_path = None
     global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS, PALETTE_SNAP
     CLAY = "clay" in rest
-    global PROPID, NOUNION
+    global PROPID, NOUNION, BODY, UNION_BODY
     PROPID = "propid" in rest
-    NOUNION = "nounion" in rest      # the join build, for before/after
+    BODY, UNION_BODY, NOUNION = body_flags(arg_value(rest, "body="), "nounion" in rest)     # nounion: the join build, for before/after
     for arg in rest:
         if arg.startswith("style="):  # style=cel|painted
             STYLE = arg[len("style="):]
@@ -2058,7 +2131,18 @@ def main():
         if len(body_parts) > 1:
             budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
             spare = sum(len(q.vertices) - 2 for o, _ in keep for q in o.data.polygons)
-            shell, info = union_body(body_parts, budget, spare)
+            if BODY == "sdf":
+                shell, kept, info, field = sdf_union(spec, parts, budget, keep, **sdf_args(rest))
+                for part in body_parts:
+                    if part not in kept:
+                        bpy.data.objects.remove(part[0], do_unlink=True)
+                keep += kept
+                sdf_name = "clay.sdf.json" if stem in ("clay", "model") else f"{stem}.sdf.json"
+                (pathlib.Path(out).parent / sdf_name).write_text(json.dumps(field.to_json()))
+            else:
+                if stem in ("clay", "model"):
+                    (pathlib.Path(out).parent / "clay.sdf.json").unlink(missing_ok=True)      # not the field of an older sdf build
+                shell, info = union_body(body_parts, budget, spare)
             parts = [(shell, body_parts[0][1])] + keep
             info.update(components_body=info.pop("components"), props=len(keep))
             report["union"] = info

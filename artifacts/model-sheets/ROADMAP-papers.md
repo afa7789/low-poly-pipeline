@@ -552,6 +552,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-5 (2026-10-29): feito** — `sdf_body.weights` / `materials` / `near_distances`, `build_unit.sdf_body_object` + `skin_sdf` (não chamados pelo `main()`, L10-7), `sdf_extract.py skin=1`, testes `Skin`; nas 5 unidades `skins 1`, `components_body 1`, fechada, `max_dup_split 0`, 7 clipes/engine_import ok, zonas dentro de ±0.01 (dois ganhos de +0.012/+0.014); esticão p99.5 ≤ 1.1× a união em 14 de 15 medidas, exceção n017 `walk` 1.22× (PIPELINE §28.L10-5).
 
+**Estado L10-7 (2026-10-29): feito, default segue `union`** — `build_unit.BODY` / `body=` / `sdf_union` (`sdf_dense` → `sdf_retopo` → `skin_sdf`), `sdf_body.thin_inflation` + `field(thin=)`, `spec_pipeline --body`, `colour_stage.body_args`, `tests/tools/blender/test_body_sdf.py` (PIPELINE §28.L10-7). Nas 5 unidades (sem LLM, deform + fit-verts): IoU f/l/b ≥ v12 −0.01 5/5 (left ≥ em 5/5, rts ≥ em 3/5, média 6 vistas +0.002…+0.018), slivers crus 0–2.3 % e finais 0.3–5.7 % (hfoo 5.7: 4/5 < 5 %), nd −6…−12°, build 1–3.6 s, `--body union` byte-idêntico (5/5), esticão ≤ união em 14/15. `unsafe` 0 → 0 (−50 % não mensurável). Peça fina: `inflate` default (n00H/n010), `keep` custa 229 tris; k = 1 (k0/k2 ≤ 0.003 de IoU). Texturizado (T1 compacto, T5 merge) confirmado sobre materiais por face. Default `sdf` recomendado para a v13 (L10-9).
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo
