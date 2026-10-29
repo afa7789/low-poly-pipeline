@@ -48,6 +48,10 @@ import lathe_limb
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
 BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28,
              "dome": 28, "ring": 144, "lathe": 68, "limb": 32}
+# Rules about the sheet's measure or the estimate, not about the model: when the real silhouette
+# covers the sheet (gates met, uncovered within UNCOVERED_MAX) and the GLB is within its triangle
+# gate, spec_pipeline.preflight_ok reports them (soft FAIL) without failing stage 1 (PIPELINE §26.L8-9).
+SOFT_RULES = ("budget", "budget_split", "shoulder_span", "stance")
 CUT_TRIS = 56   # budget of a part cut by the sheet silhouette (cut_hull.py): build_unit.cut_part decimates (QEM) to it
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here

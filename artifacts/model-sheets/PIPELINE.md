@@ -3623,3 +3623,35 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 - Negativo de infraestrutura: 5 processos torch em paralelo (14 núcleos cada) fizeram um passo do optimize_verts levar 227 s e
   1994 s (o orçamento de 30 s é checado entre passos). `soft_sil.THREADS` (env `SOFT_SIL_THREADS`, default 4) limita os threads
   por processo; com 4 processos a rodada ficou em 30–32 s.
+
+### 26.L8-9 Regras de estimativa/medida do sheet não derrubam sozinhas um clay que cobre o sheet (2026-10-29)
+
+**O que mudou.** `preflight.SOFT_RULES = (budget, budget_split, shoulder_span, stance)`; `spec_pipeline.preflight_ok` (usado em
+`stage_shape`): o check `preflight` do estágio 1 passa quando o preflight reprova **apenas** regras de `SOFT_RULES` **e** a
+silhueta passou (`sil_ok`), o GLB está no gate de tris (`tris`, 400-700 +2 %) e nenhuma vista crítica está acima de
+`UNCOVERED_MAX` (`too_red`). Imprime `preflight soft FAIL (...)`. Qualquer outra regra (`bones`, `symmetry`, `joint_place`...)
+continua bloqueando; o preflight em si e o loop de repair não mudam (ainda veem o FAIL). Sem flag: para desligar, `SOFT_RULES = ()`.
+
+**Por que não mudei o teto 700 nem as tolerâncias.** O `budget` do preflight é uma *estimativa* (`part_tris`) e o clay é
+decimado/construído com orçamento próprio: nos 17 runs v10-v12 o GLB final tem 610-630 tris sempre (n005 v11: estimativa 764,
+GLB 630, gate de tris PASS). O teto real é o gate `tris` do GLB, que já existe; a estimativa só serve ao repair. Teto por rig
+(L6-10: biped 400, spider/quadruped 250-400, wyrm/drake 700) não foi aplicado: a ablação mediu só silhueta, e baixá-lo reprovaria
+mais specs; ficou como recomendação. `shoulder_span`: modelo/sheet em 9 runs de biped = 1,02 / 1,11 / 1,11 / 1,13 / 1,13 / 1,13 /
+1,15 / 1,18 / 1,20 (sempre >= 1): a banda 10-30 % do sheet mede estreito (ombro inclinado/capa), a tolerância ±15 % cai na
+cauda; alargar sem a silhueta como juiz esconderia o hfoo v11 (1,20), que a silhueta já reprova (left 0,53 < 0,65).
+
+**Levantamento (17 runs `runs/draft/*/v1{0,1,2}-r1`, preflight re-rodado sem LLM, IoU/uncovered do `silhouette.json`).**
+Só 3 runs têm FAIL de preflight, todos só em regras soft:
+
+| run | regras FAIL | IoU f/l/b | uncovered f/l | veredito antes | depois |
+|---|---|---|---|---|---|
+| n005 v11-r1 | budget (764), budget_split (legs 19 % < 20 %) | .909/.935/.905 | .037/.019 | CHECK | PASS (gates cobertos) |
+| n02X v12-r1 | shoulder_span (.71 vs .60) | .885/.884/.898 | .029/.054 | CHECK | PASS |
+| hfoo v11-r1 | shoulder_span (.55 vs .46), stance (.53 vs .42) | .855/.530/.849 | .083/.311 | CHECK | CHECK (left abaixo do gate, uncovered left > .20) |
+
+Os outros 14 runs não mudam (nenhum FAIL de preflight). 2 de 3 CHECK por preflight viram PASS; nenhum modelo com IoU abaixo do
+gate ou vista vermelha passa. Os outros CHECK da lista (hfoo v10/v12, n00H, n00U, n010, n017 v10) são por silhueta, não por
+estas regras. Provas: `scratchpad/l8-budget/{survey.py,before.json}`.
+
+**Limites.** A prova é offline sobre os `silhouette.json` já gravados (o `preflight_ok` não foi rodado numa bateria nova); os
+verdes de n005 v11 e n02X v12 assumem o mesmo `sil_ok` do run. Teste: `PreflightSoftTest` (8 casos).

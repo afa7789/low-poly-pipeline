@@ -87,7 +87,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring", "lathe", "limb", "chain", "plate"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, bbox, part_tris, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, SOFT_RULES, bbox, part_tris, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -1377,6 +1377,19 @@ def prop_reads(spec_path, args):
     return out
 
 
+def preflight_ok(pre, sil_ok, tris_ok, summary):
+    """The preflight passed, or failed only SOFT_RULES while the clay already covers the sheet
+    (silhouette gates met, no critical view too red) and its GLB is within the tri gate: the model
+    is the evidence, the estimate and the sheet measure are not (PIPELINE §26.L8-9)."""
+    if not pre.returncode:
+        return True
+    failing = failing_rules(pre.stdout)
+    soft = bool(failing) and failing <= set(SOFT_RULES) and sil_ok and tris_ok and not too_red(summary)
+    if soft:
+        print(f"preflight soft FAIL ({', '.join(sorted(failing))}): silhouette and tris hold, not blocking")
+    return soft
+
+
 def stage_shape(spec_path, args, layout):
     """Stage 1: preflight, clay build, rig/budget stats and the shape gates on the spec at
     `spec_path`. Returns a dict: ok, glb (clay GLB or None), tilts (tilts_of), checks
@@ -1425,7 +1438,8 @@ def stage_shape(spec_path, args, layout):
         (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
     # the preflight counts estimated tris; the GLB may land a few over the round ceiling
     # (n005 v5-fit-r2: preflight PASS, GLB 704 vs 700). TRI_SLACK keeps that from failing stage 1.
-    checks = {"preflight": not pre.returncode, "tris": lo <= tris <= hi * (1 + TRI_SLACK), "skins": skins == 1,
+    tris_ok = lo <= tris <= hi * (1 + TRI_SLACK)
+    checks = {"preflight": preflight_ok(pre, sil_ok, tris_ok, args.summary), "tris": tris_ok, "skins": skins == 1,
               "anims": anims == 0 if args.rig in RF.STATIC else CLIPS[0] <= anims <= CLIPS[1],
               "smear": smear_pct <= 0.5, "silhouette": sil_ok}
     failed = [k for k, v in checks.items() if not v]
