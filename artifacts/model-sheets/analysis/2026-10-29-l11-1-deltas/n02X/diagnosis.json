@@ -1,0 +1,130 @@
+{
+  "findings": [
+    {
+      "view": "top",
+      "part": "pelvis#2",
+      "colour": "red",
+      "cause": "The skin box is 1.03 x 0.89 and has square corners. Its edges and corners spill past the round belly outline in the top silhouette, which shows spill of 19%, the worst on this unit.",
+      "fix": "Shrink pelvis#2 in z (about 0.85) so the belly box stops spilling at the front and back edges."
+    },
+    {
+      "view": "top",
+      "part": "forearm.R",
+      "colour": "red",
+      "cause": "The club shaft and brass head (forearm.R#2/#3) sit at z -0.53, which is behind the body. That puts the club in the top-left corner and causes the worst red piece (x -0.83..-0.56). In the sheet the club is held in front of the body at the fist.",
+      "fix": "Move forearm.R#2 and forearm.R#3 forward (+z about 0.2) so the club sits in front of the body at the hand."
+    },
+    {
+      "view": "top",
+      "part": "forearm.L",
+      "colour": "green",
+      "cause": "The big fists at the lower corners of the sheet are not covered. The forearm frustums are too small and sit behind the body (z -0.32).",
+      "fix": "Increase the forearm.L#0 radius (mirrored to R) so the fists reach the sheet's outline."
+    },
+    {
+      "view": "bottom",
+      "part": "forearm.L",
+      "colour": "green",
+      "cause": "Large green lobes on both sides are the fists and forearms, which the model does not cover. Uncovered share is 0.128, the highest of all views.",
+      "fix": "Use bigger fist frustums (radius x1.3) and set them slightly further out to the sides."
+    },
+    {
+      "view": "bottom",
+      "part": "pelvis#2",
+      "colour": "red",
+      "cause": "The square belly box spills at its corners (the worst red is 8% of the sheet).",
+      "fix": "Scale pelvis#2 down in z."
+    },
+    {
+      "view": "left",
+      "part": "forearm.R",
+      "colour": "red",
+      "cause": "The club is behind where the sheet draws it. Red sits right of the shaft and green sits left of it (worst piece x -0.27..-0.16, 6% of the sheet).",
+      "fix": "Move forearm.R#2 and forearm.R#3 by +z about 0.2."
+    },
+    {
+      "view": "rts",
+      "part": "forearm.L",
+      "colour": "green",
+      "cause": "Green around the fist and the shoulder/head rim. The arms and fists are thinner than in the sheet, so the figure reads as a narrow block.",
+      "fix": "Use larger fists (forearm radius)."
+    },
+    {
+      "view": "rts",
+      "part": "foot.L",
+      "colour": "green",
+      "cause": "Green below the feet. The boots in the sheet are larger and reach further down and forward.",
+      "fix": "Make the foot frustum slightly longer in z. This is secondary."
+    }
+  ],
+  "identity": [
+    "goggles and tusks on the face: head#0 is a plain frustum",
+    "club with a round pommel or disc held in front of the body, not slung behind",
+    "oversized clenched fists",
+    "round pot belly: the model has a square box torso",
+    "shoulder pad with an X on one shoulder only"
+  ],
+  "changes": [
+    {
+      "change": "Move the club (forearm.R#2, forearm.R#3) forward by +0.2 z so it sits at the fist in front of the body",
+      "gain": "left IoU +0.02, top IoU +0.02"
+    },
+    {
+      "change": "Increase the forearm.L#0/R#0 fist frustum radius to x1.3",
+      "gain": "bottom IoU +0.02, rts IoU +0.015"
+    },
+    {
+      "change": "Scale pelvis#2 (belly box) to 0.85 in z, or replace it with a lathe for a round belly",
+      "gain": "top IoU +0.015, bottom IoU +0.01"
+    }
+  ],
+  "owner": {
+    "who": "author",
+    "why": "The main errors are placement and size, and the DSL kinds can already express the fixes. The club is behind the body instead of held in front, the fists are undersized, and the belly is a square box where a round shape is needed."
+  },
+  "deltas": [
+    {
+      "part": "forearm.R#2",
+      "action": "move",
+      "axis": "z",
+      "value": 0.2,
+      "why": "Move the club shaft from behind the body to in front at the fist."
+    },
+    {
+      "part": "forearm.R#3",
+      "action": "move",
+      "axis": "z",
+      "value": 0.2,
+      "why": "Move the club head forward with the shaft."
+    },
+    {
+      "part": "forearm.L#0",
+      "action": "radius",
+      "value": 1.3,
+      "why": "The fists are too small; this covers the green lobes in the top and bottom views (mirrored to R)."
+    },
+    {
+      "part": "pelvis#2",
+      "action": "scale",
+      "axis": "z",
+      "value": 0.85,
+      "why": "The square belly box spills in the top and bottom views."
+    }
+  ],
+  "expected": {
+    "left": 0.02,
+    "top": 0.03,
+    "bottom": 0.025,
+    "rts": 0.015
+  },
+  "cost": {
+    "seconds": 48.8,
+    "model": "session:opus",
+    "tokens": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 15032,
+      "cache_read_input_tokens": 26031,
+      "output_tokens": 4689
+    }
+  }
+}

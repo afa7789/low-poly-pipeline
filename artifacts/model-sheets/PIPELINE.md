@@ -4531,3 +4531,56 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   pernas, medir no controle `v13-r1-union`. (2) hfoo sliver 5.4 % e n005 nd −9.5° vêm do deform/fit-verts sobre a malha SDF.
   (3) Peça do spec sem contacto (n00U `leg6`, n01I, n00H): regra de preflight "toda peça do corpo toca o pai" ou ponte SDF.
   (4) `fit_stage`, zonas e propid continuam a usar a união (câmeras/IDs), inofensivo mas duplica build.
+
+## 29. Leva 11 (2026-10-29)
+
+Plano: `analysis/2026-10-29-leva11-vlm-loop.md`. O VLM só entra pelo laço guardado (aceite por rodada sem queda de vista).
+
+### 29.L11-1 Deltas por peça (schema, limites, peças congeladas) e `apply_deltas.py`
+- **O que mudou.** Novo `tools/blender/apply_deltas.py` (json puro, sem Blender): `apply(spec, deltas, height) -> (spec2, log)`;
+  CLI `apply_deltas.py <spec.json> <diagnosis.json> [--out spec2.json]`. `diagnose.py`: o prompt traz a tabela de peças com
+  endereço e pede `deltas` (até 6) e `expected` (`{vista: ganho de IoU}`); `check_reply` valida a forma (lista de objetos;
+  `expected` com vistas e números), `diagnosis.json`/`.md` guardam os dois; o CLI fixa o rig antes de medir as peças.
+- **Endereço de peça** `<osso>#<k>`: k-ésima peça (0-based, ordem do arquivo) ligada ao osso, ex. `spine#2`; osso nu só vale com
+  uma peça (senão "ambígua"). Os endereços valem para o spec que ENTRA (nunca para o meio da rodada: remover `spine#2` não muda
+  `spine#3`). Em `add`, `part` é o osso. Uma peça recebe no máximo um delta por rodada.
+- **Ações e limites.** `scale` [0.7, 1.4] (uniforme; com eixo: box/frustum, comprimento de prism/cyl, altura ou `squash` do lathe;
+  eixo em peça from/to é rejeitado), `radius` [0.7, 1.4] (lathe, cyl, frustum, prism, limb, chain), `move` |v| ≤ 0.08 H por
+  delta, `rotate` ≤ 25° somado ao `rot` (só `preflight.ROT_KINDS` sem from/to/cut), `add` ≤ 2 por rodada, caixa ≤ 10 % do volume
+  da figura (soma das caixas das peças), `remove` só caixa < 2 %. Peça em osso `.L/.R` com gêmea espelhada (mesmo kind e
+  dims) leva o delta espelhado na gêmea (`add` cria o par), para a regra `symmetry` seguir valendo.
+- **Rejeição.** Campo fora do schema, ação/eixo/valor fora do limite, peça inexistente/ambígua, validação da peça
+  (`spec_pipeline.validate`) ou delta repetido na mesma peça rejeitam SÓ aquele delta: `{delta, status, why}` no log. O resultado
+  passa por `spec_pipeline.parse_spec` (grade 1/256, ground fix); se falhar, devolve o spec de entrada e marca tudo rejeitado.
+  Peças não citadas saem byte-iguais (só as editadas são ajustadas à grade); `spec2` não reordena (o `--spec` do pipeline re-normaliza).
+- **Deltas reais (4 chamadas session:opus, 34–57 s, 2.9–5.0 k tokens de saída cada; sobre cópias dos runs v13-r1).**
+
+| unidade | deltas | aplicados | rejeitados | `expected` |
+|---|---|---|---|---|
+| hfoo | 4 | 3 (+gêmeas) | 1: `forearm.R#3` scale z, peça from/to (a lança) | front/back/bottom/rts .01, top .02 |
+| n00U | 6 | 6 | 0 | rts .03, left/top/bottom .02 |
+| n017 | 5 | 5 (1 add) | 0 | left .02, rts .015, back .005, front .003 |
+| n02X | 4 | 4 (+gêmea) | 0 | left .02, top .03, bottom .025, rts .015 |
+
+  Arquivos em `analysis/2026-10-29-l11-1-deltas/<id>/` (`diagnosis.json`, `spec2.json`, `applied.log`).
+- **Reconstrução sem LLM** (`spec_pipeline --spec … --shape-only --no-repair --no-diagnose --body sdf --tilts <câmeras da v13-r1>`,
+  runs `l11-deltas-base` = spec original e `l11-deltas` = spec com deltas, mesmas câmeras). IoU aprovado:
+
+| vista | hfoo base → deltas (Δ) | n02X base → deltas (Δ) |
+|---|---|---|
+| front | .864 → .862 (−.002) | .898 → .883 (−.016) |
+| left | .435 → .448 (+.013) | .834 → .833 (−.001) |
+| back | .868 → .870 (+.002) | .910 → .889 (−.021) |
+| top | .812 → .798 (−.014) | .757 → .749 (−.008) |
+| bottom | .834 → .848 (+.013) | .774 → .751 (−.023) |
+| rts | .733 → .699 (−.034) | .789 → .816 (+.027) |
+| média | .7578 → .7540 (−.004) | .8271 → .8202 (−.007) |
+
+  (O rebuild do spec original difere do `v13-r1` publicado porque o `--spec` pula o fit de estágios: hfoo média .758 vs .745.)
+- **Leitura / negativo.** Aplicar os deltas do VLM às cegas NÃO sobe a média (−.004, −.007) e derruba vistas > .01 (hfoo top e rts,
+  n02X front/back/bottom): o `expected` do VLM (+.01…+.03) não se realiza. Duas rodadas rejeitadas pelo guarda de L11-2 por
+  construção — é o que o guarda existe para fazer; L11-2 tenta o delta seguinte da lista (até 3 por rodada). Em n02X os dois
+  deltas do taco (`move z 0.2`) ficaram no limite 0.08 H = 0.21 e o resto é redimensionamento de fist/cinto: pouco sinal visual.
+- **Testes.** `tests/tools/blender/test_apply_deltas.py` (10, 0.01 s); `test_diagnose.py` atualizado (deltas/expected no REPLY e
+  rejeição de `deltas`/`expected` malformados). Não feito: `--loop` (L11-2), deltas como limites do fit (L11-3).
+

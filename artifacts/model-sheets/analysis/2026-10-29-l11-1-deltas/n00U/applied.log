@@ -1,0 +1,6 @@
+applied  {"part": "leg5.upper", "action": "radius", "value": 0.75, "why": "Thin the rear-left leg w  ok
+applied  {"part": "leg6.upper", "action": "radius", "value": 0.75, "why": "Thin the rear leg wedge   ok
+applied  {"part": "leg7.upper", "action": "radius", "value": 0.75, "why": "Thin the rear leg wedge   ok
+applied  {"part": "leg8.upper", "action": "radius", "value": 0.75, "why": "Thin the rear-right leg   ok
+applied  {"part": "abdomen#0", "action": "radius", "value": 1.3, "why": "The sheet's abdomen is a b  ok
+applied  {"part": "head#2", "action": "move", "axis": "z", "value": 0.05, "why": "Bring the head ou  ok

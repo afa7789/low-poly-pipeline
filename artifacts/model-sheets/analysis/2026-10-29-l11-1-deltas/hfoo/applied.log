@@ -1,0 +1,4 @@
+applied  {"part": "spine#2", "action": "scale", "axis": "x", "value": 0.85, "why": "shoulder bar sp  ok
+applied  {"part": "arm.L#0", "action": "radius", "value": 1.25, "why": "top view has green lobes at  ok (+twin)
+rejected {"part": "forearm.R#3", "action": "scale", "axis": "z", "value": 0.7, "why": "angled spear  axis scale needs a part without from/to
+applied  {"part": "foot.L#0", "action": "scale", "axis": "z", "value": 0.88, "why": "boots spill re  ok (+twin)

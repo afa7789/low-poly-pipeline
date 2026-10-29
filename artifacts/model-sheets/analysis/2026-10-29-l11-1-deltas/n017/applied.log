@@ -1,0 +1,5 @@
+applied  {"part": "spine.1", "action": "add", "kind": "prism", "dims": [0.05, 0.05, 0.45], "at": [0  ok
+applied  {"part": "leg3.lower#1", "action": "radius", "value": 1.4, "why": "rope is too thin to sho  ok
+applied  {"part": "spine.1#0", "action": "radius", "value": 0.9, "why": "rump spill in rts (worst r  ok
+applied  {"part": "head#3", "action": "scale", "axis": "y", "value": 0.9, "why": "ear/head plate sp  ok
+applied  {"part": "head#0", "action": "move", "axis": "z", "value": -0.03, "why": "muzzle spill to   ok

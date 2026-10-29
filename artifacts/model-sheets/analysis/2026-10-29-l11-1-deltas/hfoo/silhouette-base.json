@@ -1,0 +1,302 @@
+{
+  "drift": {
+    "front": 0.9356,
+    "left": 0.9365,
+    "back": 0.9348,
+    "top": 0.9446,
+    "bottom": 0.9512,
+    "rts": 0.5619
+  },
+  "approved": {
+    "front": 0.8643,
+    "left": 0.4352,
+    "back": 0.868,
+    "top": 0.8124,
+    "bottom": 0.8343,
+    "rts": 0.7327
+  },
+  "tilt": {
+    "bottom": 10,
+    "rts": [
+      35,
+      -30
+    ]
+  },
+  "top_orientation": {
+    "top": "head-down",
+    "bottom": "head-up"
+  },
+  "chamfer": {
+    "front": 0.0087,
+    "left": 0.0517,
+    "back": 0.0085,
+    "top": 0.035,
+    "bottom": 0.0355,
+    "rts": 0.0339
+  },
+  "uncovered": {
+    "front": 0.0692,
+    "left": 0.4171,
+    "back": 0.0634,
+    "top": 0.09,
+    "bottom": 0.0292,
+    "rts": 0.0942
+  },
+  "spill": {
+    "front": 0.0763,
+    "left": 0.368,
+    "back": 0.0779,
+    "top": 0.1166,
+    "bottom": 0.1443,
+    "rts": 0.2068
+  },
+  "red": {
+    "front": {
+      "band": 0,
+      "lo": 0.0,
+      "hi": 0.125,
+      "share": 0.0126,
+      "blob": {
+        "x": [
+          -0.266,
+          -0.242
+        ],
+        "y": [
+          0.0,
+          0.324
+        ],
+        "share": 0.0204
+      }
+    },
+    "left": {
+      "band": 6,
+      "lo": 0.75,
+      "hi": 0.875,
+      "share": 0.0816,
+      "blob": {
+        "x": [
+          -0.316,
+          -0.141
+        ],
+        "y": [
+          0.41,
+          0.863
+        ],
+        "share": 0.2117
+      }
+    },
+    "back": {
+      "band": 1,
+      "lo": 0.125,
+      "hi": 0.25,
+      "share": 0.0108,
+      "blob": {
+        "x": [
+          0.25,
+          0.27
+        ],
+        "y": [
+          0.18,
+          0.293
+        ],
+        "share": 0.0067
+      }
+    },
+    "top": {
+      "band": 4,
+      "lo": 0.5,
+      "hi": 0.625,
+      "share": 0.0248,
+      "blob": {
+        "x": [
+          0.496,
+          0.691
+        ],
+        "y": [
+          0.391,
+          0.695
+        ],
+        "share": 0.0306
+      }
+    },
+    "bottom": {
+      "band": 4,
+      "lo": 0.5,
+      "hi": 0.625,
+      "share": 0.0092,
+      "blob": {
+        "x": [
+          0.645,
+          0.73
+        ],
+        "y": [
+          0.52,
+          0.676
+        ],
+        "share": 0.0082
+      }
+    },
+    "rts": {
+      "band": 7,
+      "lo": 0.875,
+      "hi": 1.0,
+      "share": 0.0232,
+      "blob": {
+        "x": [
+          0.145,
+          0.344
+        ],
+        "y": [
+          0.707,
+          0.977
+        ],
+        "share": 0.036
+      }
+    }
+  },
+  "gates": {
+    "front": 0.75,
+    "left": 0.65,
+    "back": 0.7,
+    "top": 0.65,
+    "bottom": 0.65,
+    "rts": 0.7
+  },
+  "sheet": {
+    "rts_cam": [
+      35,
+      -60
+    ],
+    "r_sym": {
+      "front": 0.6611,
+      "left": 0.1464,
+      "back": 0.6635,
+      "top": 0.9507,
+      "bottom": 0.9816
+    },
+    "coherence": {
+      "back": 0.8348,
+      "top": 0.7782,
+      "bottom": 0.7482,
+      "rts": 0.5659
+    },
+    "incoherent": [
+      "rts"
+    ]
+  },
+  "hard": {
+    "front": 0.8567,
+    "left": 0.4338,
+    "back": 0.8574,
+    "top": 0.8093,
+    "bottom": 0.8228,
+    "rts": 0.726
+  },
+  "prop": {
+    "parts": [
+      14,
+      16
+    ],
+    "iou": 0.8979,
+    "view": "left",
+    "component": 2
+  },
+  "turn": {},
+  "edges": {
+    "front": {
+      "drawn": 0.0075,
+      "extra": 0.0241
+    },
+    "left": {
+      "drawn": 0.027,
+      "extra": 0.0357
+    },
+    "back": {
+      "drawn": 0.0133,
+      "extra": 0.0288
+    },
+    "top": {
+      "drawn": 0.0137,
+      "extra": 0.0336
+    },
+    "bottom": {
+      "drawn": 0.0165,
+      "extra": 0.0541
+    }
+  },
+  "form": 0.4628,
+  "zones_clay": {
+    "front": {
+      "mean": 0.3129,
+      "cover": 0.6102,
+      "lost": [
+        "#535554"
+      ]
+    },
+    "left": {
+      "mean": 0.1731,
+      "cover": 0.4476,
+      "lost": [
+        "#535554"
+      ]
+    },
+    "back": {
+      "mean": 0.3398,
+      "cover": 0.6266,
+      "lost": []
+    },
+    "top": {
+      "mean": 0.2109,
+      "cover": 0.4986,
+      "lost": [
+        "#535554"
+      ]
+    },
+    "bottom": {
+      "mean": 0.1307,
+      "cover": 0.3651,
+      "lost": [
+        "#535554",
+        "#7F8489"
+      ]
+    }
+  },
+  "identity": {
+    "total": 4,
+    "ok": 4,
+    "missing": []
+  },
+  "prop_reads": {
+    "belt lantern": {
+      "front": {
+        "share": 0.0131,
+        "whole": 1.0,
+        "reads": true
+      }
+    },
+    "field pack": {
+      "front": {
+        "share": 0.0136,
+        "whole": 0.49,
+        "reads": false
+      },
+      "left": {
+        "share": 0.1823,
+        "whole": 1.0,
+        "reads": true
+      }
+    },
+    "trench pike": {
+      "front": {
+        "share": 0.0491,
+        "whole": 0.57,
+        "reads": true
+      },
+      "left": {
+        "share": 0.0735,
+        "whole": 0.6,
+        "reads": true
+      }
+    }
+  }
+}
