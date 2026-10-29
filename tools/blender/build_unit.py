@@ -935,7 +935,7 @@ CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
 
 
 NOUNION = False
-BODY = "union"       # how the body (parts that are not props) becomes ONE shell: "union" boolean (24.L6-4), "sdf" distance field (28.L10-7), "join" none
+BODY = "sdf"         # how the body (parts that are not props) becomes ONE shell: "union" boolean (24.L6-4), "sdf" distance field (28.L10-7), "join" none
 UNION_BODY = True    # BODY != "join" (main() derives it and NOUNION from BODY; spec_pipeline reads this line by regex)
 UNION_FLOOR = 0.9    # the tolerance decimate keeps at least this share of the tri budget (Chen 2023: d bounds the loss)
 TIE_EPS = 1e-4       # two source parts closer than this to a vertex both own it: their weights blend (m)

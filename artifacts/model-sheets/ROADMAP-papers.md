@@ -540,7 +540,7 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 | L10-6 | `mesh_lint` sdf_dev / normal_consistency / euler | relatório nos 5 clays v12 e SDF |
 | L10-7 | integração `BODY=sdf`, `--body`, peça fina, k | IoU ≥ v12 −0.01; `unsafe` −50 %; build ≤ 60 s; `--body union` idêntico |
 | L10-8 | robustez em lote: 17 specs, por rig | 17/17; build ≤ 15 s médio; critérios por rig |
-| L10-9 | bateria v13 pareada contra v12 | PASS ≥ 3/5; slivers < 5 % ≥ 4/5; default só se tudo passar |
+| L10-9 | bateria v13 pareada contra v12 | PASS ≥ 3/5; slivers < 5 % ≥ 4/5; default só se tudo passar — **feito: PASS 3/5, slivers 4/5, default sdf por decisão (ver Estado)** |
 
 **Estado L10-1 (2026-10-29): feito** — `tools/blender/sdf_body.py` + `part_geom.py` (geometria numpy-pura extraída do `fit_spec`), `tests/tools/blender/test_sdf_body.py`; paridade |d| ≤ 1e-6 nos 14 casos sintéticos e nas 17 specs, 96³ em 0.04–0.39 s nas 5 unidades (PIPELINE §28.L10-1).
 
@@ -559,6 +559,10 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 **Estado L10-8 (2026-10-29): feito** — `tools/blender/sdf_batch.py` (`--units/--body/--jobs/--grid/--collect-only/--compare`, tabela markdown + `l10-batch.json`), `anim_check.py`, `spec_pipeline --tilts/--sdf-grid`, `build_unit.drop_specks` (ilha de 12 tris do n00U), `tests/tools/blender/test_sdf_batch.py` (PIPELINE §28.L10-8). Existem 10 unidades (17 specs = versões de 8 + n01I/n01N), **10/10 constroem**, build médio 1.9 s (máx 3.5 s); slivers finais 0.0–5.7 % (união 8–32 %), nd −2…−13°, componentes ≤ união 10/10, IoU médio das 6 vistas sdf − união +0.002…+0.023 (10/10 ≥ 0), esticão ≤ união em 23/30. Aceite por rig: 5/10 (n005 nd −9.5° em vez de −10; n01X −7.6 e n01I −5.4; hfoo sliver 5.7 % do deform; n00U rts −0.0009 = empate); wyrm/drake: plates todas presentes (a plate 7 do n010 está enterrada no spec, igual na união) e left/top ≥ união −0.01 a 96³ e 128³. Default segue `union` (L10-9).
 
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
+
+**Estado L10-9 (2026-10-29): feito, `BODY = "sdf"` default** — bateria `v13-r1` (5 unidades, session:opus, `--body sdf`, pareada contra v12) + controle `v13-r1-union` no mesmo spec (PIPELINE §28.L10-9, `history/2026-10-29-v13/`). PASS 3/5 (v12 2/5), slivers 0.9–5.4 % (v12 9–32 %), nd −5…−16°, lint limpo 3/5 (v12 0/5), juiz forma pró v13 5/5, artista 4-0 5/5. No mesmo spec a média das 6 vistas sobe em 3/5 (até +.025) e desce ≤ .004 em 2/5; custo real: rts −.03 em hfoo/n017 (smin engorda juntas). hfoo left .415 e n02X left −.048 são do spec (união igual). Critérios estritos 3/5 (comp do n00U é do spec; vista −.03); decisão de líder: default sdf, `--body union` opcional. Bug corrigido: pré-spec de massing sem `rig` para aranha (construía como biped).
+
+**Leva 10 fechada (2026-10-29).** Ficha `IA_gen_paper/melhorias/09-leva10-2026-10-29.md`. Aberto para a Leva 11: `k` por junta, deform/fit-verts sobre a malha SDF (sliver hfoo, nd n005), peças do spec sem contacto, fit_stage/zonas/propid ainda em união.
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo
 

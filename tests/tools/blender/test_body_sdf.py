@@ -34,7 +34,7 @@ def row(kind, dims, at, bone="spine"):
 class Flags(unittest.TestCase):
     def test_body_derives_union_body_and_nounion(self):
         BU = build_unit()
-        self.assertEqual(BU.body_flags(None, False), ("union", True, False))
+        self.assertEqual(BU.body_flags(None, False), (BU.BODY, True, False))     # the default: "sdf" since v13 (28.L10-9)
         self.assertEqual(BU.body_flags("sdf", False), ("sdf", True, False))
         self.assertEqual(BU.body_flags("join", False), ("join", False, True))
         self.assertEqual(BU.body_flags("sdf", True), ("join", False, True))      # the old word wins: the join build
@@ -52,8 +52,8 @@ class Flags(unittest.TestCase):
         self.assertEqual(BU.sdf_args(["body=sdf"]), {})
 
     def test_body_reaches_the_builds(self):
-        with mock.patch.object(SP, "BODY", "sdf"):
-            self.assertEqual(SP.clay_args("mass")[-1], "body=sdf")
+        with mock.patch.object(SP, "BODY", "union"):
+            self.assertEqual(SP.clay_args("mass")[-1], "body=union")
         self.assertEqual(SP.clay_args("mass"), ["700", "nofuse", "700", "clay"])        # the default adds nothing
         self.assertEqual(CS.body_args(mock.Mock(body="sdf")), ["body=sdf"])
         self.assertEqual(CS.body_args(object()), [])

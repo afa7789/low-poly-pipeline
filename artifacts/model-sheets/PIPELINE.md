@@ -3942,7 +3942,19 @@ Textura: atlas compacto, paleta partilhada, 1 material (`analysis/2026-10-29-pap
 
 ## 28. Leva 10 (2026-10-29)
 
-Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologia guardada; esta seção cresce item a item.
+Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologia guardada. Bateria `v13-r1` (5 unidades, autor
+session:opus, `--body sdf`, pareada contra v12) em `history/2026-10-29-v13/`; controle no mesmo spec em `v13-r1-union`; detalhe
+em 28.L10-9. IoU approved f/l/b · rts; slivers e nd do clay final.
+
+| unidade | v12 (união) | v13 (sdf) | veredito | slivers | nd | juiz v13 × v12 (forma) |
+|---|---|---|---|---|---|---|
+| n005 | .909/.942/.917 · .882 | .921/.947/.932 · .878 | **PASS** | 9.0 → 4.3 % | 44.7 → 35.7° | 3-1 |
+| n00U | .859/.777/.858 · .683 | .886/.782/.885 · .665 | CHECK (rts, bottom, comp 2 do spec) | 16.0 → 0.9 % | 50.3 → 45.3° | 4-0 |
+| hfoo | .832/.659/.838 · .645 | .847/.415/.853 · .703 | CHECK (left: spec do autor, união .417) | 21.1 → 5.4 % | 49.4 → 37.9° | 4-0 |
+| n017 | .875/.775/.834 · .692 | .924/.775/.870 · .700 | **PASS** | 32.4 → 4.9 % | 50.5 → 34.3° | 4-0 |
+| n02X | .885/.884/.898 · .784 | .907/.837/.918 · .805 | **PASS** | 17.0 → 4.4 % | 54.9 → 39.7° | 4-0 |
+
+Resultado da leva: `BODY = "sdf"` default; `--body union` opcional. Itens L10-1…L10-9 abaixo.
 
 ### 28.L10-1 `sdf_body.py`: o campo de distância do corpo (numpy puro)
 - **O que mudou.** `tools/blender/sdf_body.py` (novo): `field(parts, cuts, rig, k, grid, owner)` devolve um `Field` com `grid`
@@ -4487,3 +4499,35 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   `test_body_sdf.py` continua OK. Ruff (C901,F,E9, ≤ 10) limpo em `sdf_batch.py`/`spec_pipeline.py`; `build_unit.py` com os mesmos 7 achados antigos.
 - **Recomendação.** O corpo SDF constrói 10/10, em 1–3.5 s, com slivers finais 0.0–5.7 % (união 8–32 %), nd −2…−13° e componentes ≤ união em 10/10; as exceções de aceite são o nd −10° (n005/n01X/n01I)
   e o sliver do hfoo, ambas do estágio de deform/fit, não do corpo. A decisão do default continua no L10-9.
+
+### 28.L10-9 Bateria v13 (autor LLM, `--body sdf`, pareada contra v12) e o default `BODY = "sdf"`
+- **Protocolo.** 5 unidades (n005, n00U, hfoo, n017, n02X), `spec_pipeline.py --model session:opus --kind mass --run v13-r1
+  --pair v12-r1 --body sdf` com os defaults da leva 8/9 (`fit-verts` ligado, `--fit-grad` desligado, atlas compacto, 1 material);
+  4 processos + 1, `SOFT_SIL_THREADS=4`. Controle no mesmo spec: `--spec runs/draft/<id>/v13-r1/spec.json --body union --tilts
+  <câmeras da v13>` → `v13-r1-union`, sem LLM, para separar corpo de spec. Imagens e tabelas completas em
+  `history/2026-10-29-v13/README.md`; linhas v13 em `IA_gen_paper/results.csv`.
+- **Bug achado e corrigido na primeira tentativa.** O pré-spec de massing (`massing_spec`) só levava `"rig"` para
+  quadruped/wyrm/drake; a aranha construía como biped (preflight dizia `bones FAIL biped`), e a união engolia (grupo de vértices
+  sem osso). Com `--body sdf` o `sdf_body.part_bones` estourava em `cols["body"]`, o build caía e `massing_stage` morria em
+  `args.summary`. Correções: o pré-spec leva o rig de qualquer família; osso que o rig não tem cai no `root` (igual ao que a
+  união fazia); `massing_stage` tolera build falhado (`getattr(args, "summary", {})`). Teste
+  `Skin.test_a_bone_the_rig_lacks_rides_the_root`. Pasta da tentativa: `n00U/v13-r1-invalid`.
+- **Resultado contra v12 (specs diferentes).** PASS 3/5 (n005, n017, n02X; v12 2/5). IoU f/l/b: n005 +.012/+.004/+.015, n00U
+  +.026/+.004/+.027, hfoo +.015/−.244/+.015, n017 +.049/0/+.036, n02X +.022/−.048/+.021. Slivers finais 0.9–5.4 % (v12
+  9–32 %), nd −5…−16°, gates de lint PASS em 3/5 (v12 0/5). Juiz (4 votos, A/B trocados): artista 4-0 pró v13 em 5/5, forma
+  4-0 em 4/5 e 3-1 em 1/5, wc3 ≥ 3-1 em 4/5; sheet divide (hfoo 4-0 pró v12).
+- **Controle no mesmo spec (união → sdf).** Média das 6 vistas: n005 −.002, n00U +.025, hfoo −.004, n017 +.003, n02X +.019.
+  O hfoo left .415 é do spec (união .417: tronco e mochila à frente da linha do sheet); n02X left idem (união .838). As quedas
+  reais do corpo SDF: rts −.031 (hfoo) e −.033 (n017), top −.022 (hfoo) — o `smin` engorda as juntas (peito/pernas do lobo:
+  spill 21 → 24 % no rts). Componentes: n017 2 → 1; n00U 2 → 2 porque `leg6` do spec não toca o corpo (ilha de 6 tris no SDF,
+  10 na união). Build do corpo 1.0–3.7 s (união 25–35 s).
+- **Critérios do L10-9 e decisão.** PASS ≥ 3/5 ✓; slivers < 5 % em ≥ 4/5 ✓ (hfoo 5.4); juiz forma ≥ 3-1 em ≥ 3/5 ✓ (5/5);
+  comp 1 em 5/5 ✗ (n00U: spec, igual na união); nenhuma vista cai > 0.01 ✗ (rts −.03 em 2/5 no mesmo spec). Decisão de líder:
+  **`build_unit.BODY = "sdf"` default** — os dois critérios que faltam são um erro de spec e um custo de .03 numa vista
+  oblíqua contra +.02 de média em 2 unidades, slivers 4× menores, nd −10° e lint limpo em 3/5; `--body union` continua
+  disponível e byte-idêntico (L10-7). `spec_pipeline.DEFAULT_BODY` lê a linha por regex; `clay_args` só passa `body=` quando
+  difere do default (testes `Flags` ajustados).
+- **Aberto (Leva 11 ou L10-10).** (1) Engorda das juntas pelo `smin` (rts/top −.02…−.03): `k` por junta ou `k = 0` nas
+  pernas, medir no controle `v13-r1-union`. (2) hfoo sliver 5.4 % e n005 nd −9.5° vêm do deform/fit-verts sobre a malha SDF.
+  (3) Peça do spec sem contacto (n00U `leg6`, n01I, n00H): regra de preflight "toda peça do corpo toca o pai" ou ponte SDF.
+  (4) `fit_stage`, zonas e propid continuam a usar a união (câmeras/IDs), inofensivo mas duplica build.
