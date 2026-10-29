@@ -67,6 +67,7 @@ TAU_SCHEDULE = None       # None = constant TAU; or a tuple of tau px, decreasin
 DIST, AGG = "logistic", "prob"    # soft_sil distribution (logistic | uniform | gamma_inv) and aggregation (prob | yager2)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+DETERMINISTIC_ITERS = 8        # per stage; 30 took 160 s (166 steps), too slow for a rebuild per delta
 DETERMINISTIC_SECONDS = 1e9     # --deterministic: the deadline never comes, run_progress reads the iteration only
 PIPELINE_SECONDS = 30.0   # budget when spec_pipeline calls apply (26.L8-2: soft-30 keeps the L6-7 table on 3 of 5 units); the CLI keeps 120
 
@@ -578,8 +579,9 @@ def apply(glb, args):
     before.write_bytes(glb.read_bytes())
     # --deterministic: no wall clock, the iteration count alone ends and paces the run (L11-2: a 30 s budget gave 26-34 steps
     # under different load, +-0.006 IoU per view on the same spec)
-    seconds = DETERMINISTIC_SECONDS if getattr(args, "deterministic", False) else PIPELINE_SECONDS
-    return run(before, args.sheet, glb, seconds=seconds, layout=layout_of(args.kind))
+    fixed = getattr(args, "deterministic", False)
+    return run(before, args.sheet, glb, seconds=DETERMINISTIC_SECONDS if fixed else PIPELINE_SECONDS,
+               iters=DETERMINISTIC_ITERS if fixed else 30, layout=layout_of(args.kind))
 
 
 def main():

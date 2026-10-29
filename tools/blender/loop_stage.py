@@ -101,7 +101,8 @@ def run(n, spec, shape, summary, hooks, limit=PER_ROUND):
     (spec, shape, summary); diagnose() -> doc; prepare(cur); promote(cur); loop_dir."""
     cur = {"spec": spec, "shape": shape, "summary": summary, "iou": summary["approved"],
            "gates": summary.get("gates", {}), "dir": None}
-    report = {"round0": cur["iou"], "rounds": []}
+    # measured: two --deterministic rebuilds of one spec are equal (hfoo, PIPELINE 29.L11-2); the clocked ones varied up to .013 per view
+    report = {"deterministic": True, "noise": 0.0, "round0": cur["iou"], "rounds": []}
     for k in range(1, n + 1):
         entry, cur = do_round(k, cur, hooks, limit)
         report["rounds"].append(entry)
