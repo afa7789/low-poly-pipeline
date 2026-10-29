@@ -1835,8 +1835,34 @@ def attach_report(parts):
         return {"parts": len(parts), "loose": [], "error": repr(err)}
 
 
+def sdf_mesh(field, adaptivity=0.0, name="sdf"):
+    """The zero set of an sdf_body.Field as a Blender object (PIPELINE 28.L10-2): openvdb level set from `field.grid`
+    -> convertToPolygons(isovalue 0, adaptivity) -> world points (origin + idx * voxel), quads cut to triangles,
+    welded, normals recalculated outward. Not skinned or materialled; the union_body path is untouched (L10-7)."""
+    import numpy as np
+    import openvdb as vdb
+    SB = sibling("sdf_body")
+    grid = vdb.FloatGrid(float(field.margin))
+    grid.copyFromArray(np.ascontiguousarray(field.grid, np.float32))
+    grid.gridClass = vdb.GridClass.LEVEL_SET
+    pts, tris, quads = grid.convertToPolygons(isovalue=0.0, adaptivity=float(adaptivity))
+    world = SB.index_to_world(pts, field.origin, field.voxel)
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(world.tolist(), [], SB.quads_to_tris(world, tris, quads).tolist())
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
+
 def main():
-    target, out = sys.argv[sys.argv.index("--") + 1:][:2]
+    target, out =sys.argv[sys.argv.index("--") + 1:][:2]
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None

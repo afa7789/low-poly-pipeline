@@ -463,6 +463,25 @@ def load(path):
     return Field.from_json(json.loads(pathlib.Path(path).read_text()))
 
 
+def index_to_world(idx, origin, voxel):
+    """Grid index coordinates (openvdb points, fractional ok) -> world: origin + idx * voxel (PIPELINE 28.L10-2)."""
+    return np.asarray(origin, float) + np.asarray(idx, float).reshape(-1, 3) * float(voxel)
+
+
+def quads_to_tris(points, tris, quads):
+    """(m, 3) triangles: openvdb's `tris` plus each quad cut along its shorter diagonal (the fatter triangles)."""
+    points = np.asarray(points, float)
+    tris = np.asarray(tris, np.int64).reshape(-1, 3)
+    quads = np.asarray(quads, np.int64).reshape(-1, 4)
+    if not len(quads):
+        return tris
+    p = points[quads]
+    short02 = np.linalg.norm(p[:, 0] - p[:, 2], axis=1) <= np.linalg.norm(p[:, 1] - p[:, 3], axis=1)
+    a = np.where(short02[:, None], quads[:, [0, 1, 2]], quads[:, [1, 2, 3]])
+    b = np.where(short02[:, None], quads[:, [0, 2, 3]], quads[:, [1, 3, 0]])
+    return np.concatenate([tris, a, b])
+
+
 def stats(f, seconds):
     kinds = {}
     for p in f.parts:
