@@ -60,6 +60,10 @@ class Palette(unittest.TestCase):
         self.assertIn(human[0], SA.hint_text("Human"))
         self.assertEqual(SA.hint_text("nobody"), "")
 
+    def test_snap_new_leaves_a_colour_a_column_already_serves(self):
+        self.assertEqual(SA.snap_new(["#818181:metal"], "#828282:metal", ["#808080"]), "#828282:metal")   # the T2 merge wins
+        self.assertEqual(SA.snap_new([], "#828282:metal", ["#808080"]), "#808080:metal")
+
     def test_snap_moves_a_near_colour_to_the_palette_and_leaves_a_far_one(self):
         palette = ["#808080", "#204060"]
         self.assertEqual(SA.snap("#828282:metal", palette), "#808080:metal")      # dE ~ .008 < SNAP_DE

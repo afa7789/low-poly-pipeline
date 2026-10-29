@@ -2001,8 +2001,8 @@ def main():
     ap.add_argument("--atlas", choices=("own", "shared", "compact", "legacy"), default="own",
                     help="stage 2 cel: own = one atlas per unit (build_unit.COMPACT_ATLAS picks its layout); compact / legacy = "
                          "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
-                         "256 px cells, PIPELINE 27.T1); shared = the race's 64 px gradient atlas, "
-                         "no decals, no ink line (shared_atlas.py, PIPELINE 24.L6-11)")
+                         "256 px cells, PIPELINE 27.T1); shared = the race's 128 px atlas, "
+                         "tone columns + decal cells, ink as a row only (shared_atlas.py, PIPELINE 27.T3)")
     ap.add_argument("--atlas-dir", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/atlas",
                     help="--atlas shared: where the per-race column tables <race>.json live (append only)")
     ap.add_argument("--shape-only", action="store_true",

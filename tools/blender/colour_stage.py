@@ -218,8 +218,8 @@ def build_textured(spec, glb_clay, args, glb, work):
 
 
 def shared_args(args):
-    """["shared=<race table>"] for `--atlas shared` on a cel build: the race's 64 px gradient atlas
-    (shared_atlas.py, PIPELINE 24.L6-11) instead of the unit's own."""
+    """["shared=<race table>"] for `--atlas shared` on a cel build: the race's 128 px atlas
+    (shared_atlas.py, PIPELINE 27.T3) instead of the unit's own."""
     if getattr(args, "atlas", "own") != "shared" or args.texture != "cel":
         return []
     return [f"shared={pathlib.Path(args.atlas_dir) / (args.race.lower() + '.json')}"]

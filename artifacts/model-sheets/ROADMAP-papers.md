@@ -553,3 +553,7 @@ e critério de parada (nenhuma vista cai, forma sobe no juiz).
 **Estado T1 (2026-10-29):** `--atlas compact` (`build_unit.COMPACT_ATLAS`, `surfaces.pack_cells/tone_cell`), opt-in (PIPELINE §27.T1). Imagem ≤ 128² e `atlas_kb` ≤ 8 nas 5 unidades (n005 768² 83.9 KB → 128² 5.2 KB), `uv_out_of_range 0`, olhos legíveis; `zones mean` cai no máximo .011 (n005 left) e `luma_l1` sai de ±.003 em 8 de 15 vistas (6 melhoram, 2 pioram .004/.007): default NÃO virou, falta decisão sobre o decal de figura (32 px).
 
 **Estado T6 (2026-10-29):** `mesh_lint.mip_bleed` (PIPELINE §27.T6): 0 texels mistos em 1/2 e 1/4 nas 5 unidades compactas; 1/8 tem 12-20 (células planas de 4 linhas), zerado com `pack_cells(align=8, pad=2)`. Só relatório.
+
+**Estado T3 (2026-10-29):** `--atlas shared` agora 128² com decais (PIPELINE §27.T3): faixa de tom 64 colunas de 2 px + células de decal first-fit (append-only, hash do decal + coluna). `images == 1`, `luma_l1` ±.008 (14 de 15 vistas; n017 l/b +.006/+.007), `zones mean` ≥ −.0001; juiz sem 4-0 contra no eixo sheet (n005/n02X empate; hfoo/n00U/n017 B 4-0). NÃO atendido: ≤ 4 KB por raça no Human (união ~5 KB com PIL). Segue opt-in.
+
+**Estado T7 (2026-10-29):** `race_palettes.json` (dos ícones) + `palette_hint` no brief de cor (só com `--atlas shared`) + `snap`/`palette_snap` (opt-in, desligado: junta 0 colunas e trocou a cor das botas do hfoo). Simulação: 10-16 unidades/raça em 128², NÃO ≥ 16 (PIPELINE §27.T7).
