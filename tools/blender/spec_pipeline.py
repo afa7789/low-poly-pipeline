@@ -72,6 +72,7 @@ import cut_hull
 import align_features
 import deform_to_sheet
 import optimize_verts
+import overrides
 import diagnose
 import lathe_limb
 import loop_stage
@@ -929,7 +930,8 @@ def glb_stats(path):
 def tool(name, *argv, blender=False):
     cmd = (["blender", "-b", "-P", str(ROOT / "tools/blender" / name), "--"] if blender
            else [sys.executable, str(ROOT / "tools/blender" / name)])
-    return subprocess.run(cmd + [str(a) for a in argv], capture_output=True, text=True)
+    return subprocess.run(cmd + [str(a) for a in argv] + (overrides.build_args() if name == "build_unit.py" else []),
+                          capture_output=True, text=True)
 
 
 def trial(spec, sheet, kind, work, name):
@@ -2123,6 +2125,7 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
+    overrides.apply()          # ablation_matrix.py only (CF_OVERRIDES); nothing without it
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     os.environ["CF_FRAME"] = args.frame or os.environ.get("CF_FRAME", "bbox")
     if args.variants < 1:
