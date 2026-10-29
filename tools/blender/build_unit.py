@@ -47,6 +47,7 @@ RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"
 TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
 SHARED = None    # (arg shared=<table.json>) the race's shared 128 px atlas table (shared_atlas.py, PIPELINE 27.T3); cel only
 POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
+PALETTE_SNAP = False   # (arg palette_snap) shared atlas: snap a slot colour to the race palette within dE .03 (27.T7); off: it moved hfoo's boots to green (judge 4-0 against) and saves no column
 SHARED_PICTURE_FACES = 3   # shared atlas (27.T3): a picture decal cell used by fewer faces than this is 16 px, not 32
 COMPACT_ATLAS = True    # default since 27.T1 (84 KB -> 5 KB, luma_l1 within .008); cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
@@ -1338,9 +1339,10 @@ def texturize_shared(body, meta):
     import numpy as np
     SA = sibling("shared_atlas")
     faces = compact_faces(body, meta)
-    palette = SA.palette_hint(pathlib.Path(SHARED).stem)
+    palette = SA.palette_hint(pathlib.Path(SHARED).stem) if PALETTE_SNAP else []
     bases = list(dict.fromkeys(f[1] for f in faces))
-    keys = {b: SA.snap(SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")), palette) for b in bases}
+    have = SA.load(SHARED)["columns"]
+    keys = {b: SA.snap_new(have, SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")), palette) for b in bases}
     try:
         table = SA.extend(SHARED, keys.values())
         col = {b: SA.find(table["columns"], k) for b, k in keys.items()}
@@ -1840,7 +1842,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, PALETTE_SNAP
     CLAY = "clay" in rest
     global PROPID, NOUNION
     PROPID = "propid" in rest
@@ -1860,6 +1862,7 @@ def main():
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
+    PALETTE_SNAP = "palette_snap" in rest
     SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours

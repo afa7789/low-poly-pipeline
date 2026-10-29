@@ -75,6 +75,11 @@ def snap(k, palette, de=SNAP_DE):
     return palette[best].upper() + ":" + k.split(":")[1] if dist[best] < de else k
 
 
+def snap_new(columns, k, palette, de=SNAP_DE):
+    """Key `k` as it enters a table of `columns`: unchanged when a column already serves it (the T2 merge), else snapped to the palette."""
+    return k if find(columns, k) is not None else snap(k, palette, de)
+
+
 def make_palettes(icons, out=PALETTES, n=8, de=0.06):
     """Write {race: [n most frequent icon colours, > `de` apart in Oklab]} for every <race>.png under `icons` (needs PIL)."""
     from PIL import Image
