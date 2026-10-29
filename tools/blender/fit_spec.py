@@ -800,6 +800,11 @@ def attach_parts(proxy, doc, sheet, parts, height, wide, wanted, parts_path):
     """Give the proxy its colour zones (a palette, or a parts.json to read) and, when `wanted` and the sheet
     has a parts.json (or `parts_path` names one), the part masks and depth pairs (PIPELINE 23.L5-4)."""
     parts_doc = parts_fit.load(sheet, parts_path) if wide and wanted else None
+    if wanted and not parts_doc:
+        print("no-op: --fit-parts/--depth/--parts: no parts.json" + ("" if wide else " (--fit-fast does not use it)"))
+    elif parts_doc and not any(p.get("box3d") for p in parts_doc["parts"]):
+        print("no-op: --fit-parts/--depth/--parts: parts.json has no box3d (every part null), nothing to associate")
+        parts_doc = None
     if wide and pathlib.Path(sheet).exists() and (doc.get("palette") or parts_doc):
         proxy.zones = Zones(sheet, doc, proxy.views)
     if parts_doc:
