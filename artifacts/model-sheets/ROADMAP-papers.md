@@ -587,6 +587,12 @@ com limites, cada rodada só é aceite se nenhuma vista cair > 0.01, N ≤ 2, ju
 
 Ordem: L11-0 → L11-1 → L11-2 → {L11-3 ∥ L11-5} → L11-4.
 
+**Estado L11-1 (2026-10-29): feito, atrás de nada (módulo novo + `deltas`/`expected` no diagnose).** `tools/blender/apply_deltas.py`
+(`apply(spec, deltas, height) -> (spec2, log)`, endereço `<osso>#<k>`), 10 testes sintéticos, diagnose pede `deltas`+`expected`.
+4 diagnoses reais: 18 de 19 deltas aplicam, 1 rejeitado (axis scale em peça from/to). Rebuild sdf sem LLM em hfoo e n02X: média das
+6 vistas −.004 e −.007 contra o rebuild do spec original; o guarda de L11-2 rejeitaria as duas rodadas (vista cai > .01).
+Detalhe: PIPELINE §29.L11-1.
+
 
 **Estado T1 (2026-10-29):** `--atlas compact` (`build_unit.COMPACT_ATLAS`, `surfaces.pack_cells/tone_cell`), opt-in (PIPELINE §27.T1). Imagem ≤ 128² e `atlas_kb` ≤ 8 nas 5 unidades (n005 768² 83.9 KB → 128² 5.2 KB), `uv_out_of_range 0`, olhos legíveis; `zones mean` cai no máximo .011 (n005 left) e `luma_l1` sai de ±.003 em 8 de 15 vistas (6 melhoram, 2 pioram .004/.007): default NÃO virou, falta decisão sobre o decal de figura (32 px).
 

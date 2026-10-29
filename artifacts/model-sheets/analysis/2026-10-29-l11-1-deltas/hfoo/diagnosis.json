@@ -1,0 +1,153 @@
+{
+  "findings": [
+    {
+      "view": "left",
+      "part": "spine",
+      "colour": "red",
+      "cause": "The pack box (spine#1, z=-0.3) shows up as a solid red block on the right of the left render. The sheet's left view draws the pack on the opposite side of the body, so the left sheet is mirrored compared with the renderer. Front, back, top and bottom all agree the pack sits behind the body, so the model has it in the right place.",
+      "fix": "Do not move the pack, because that would break the back, top and bottom views. Redraw or mirror the left sheet so it matches front/back handedness, or have fit test the left view against the mirrored sheet."
+    },
+    {
+      "view": "left",
+      "part": "spine",
+      "colour": "green",
+      "cause": "There is a large green blob where the sheet draws the pack with its rounded bedrolls, on the other side from the model's box. Most of this is the same mirroring problem. Some of it is shape: the sheet pack is rounded rolls on top and bottom, and the model has a flat 0.32-deep box.",
+      "fix": "Fix the sheet's handedness first. After that, add lathe bedrolls above and below spine#1."
+    },
+    {
+      "view": "left",
+      "part": "forearm.R",
+      "colour": "green",
+      "cause": "The left sheet draws the pike as a long diagonal held across the body. The front and back sheets draw it vertical, and the model follows those (forearm.R#1 is a vertical 2.38 prism). The result is a green diagonal stripe and a red vertical stripe. The sheet is inconsistent with itself, and the model is not wrong.",
+      "fix": "Pick one pike pose across all sheets. The vertical pose matches 4 of 6 views, so regenerate the left and rts views with the pike vertical."
+    },
+    {
+      "view": "left",
+      "part": "(none)",
+      "colour": "green",
+      "cause": "A cropped arm from a neighbouring figure sits at the right edge of the left concept. It is a sheet artefact that inflates the sheet area.",
+      "fix": "Crop the left sheet panel to one figure."
+    },
+    {
+      "view": "rts",
+      "part": "spine",
+      "colour": "green",
+      "cause": "The rts sheet shows the rounded pack and bedroll silhouette on the upper left, and the model's flat box falls short of it. The report flags the rts sheet as incoherent (rts-vs-hull 0.57).",
+      "fix": "Add bedroll lathes to the pack. Treat rts as a report only until the sheet is redrawn."
+    },
+    {
+      "view": "rts",
+      "part": "forearm.R",
+      "colour": "red",
+      "cause": "The vertical pike and the right hand spill red because the rts sheet has the pike diagonal. This is the same pose conflict as in the left view.",
+      "fix": "Unify the pike pose on the sheet."
+    },
+    {
+      "view": "rts",
+      "part": "foot.L",
+      "colour": "red",
+      "cause": "The boots and lower legs spill red at the bottom right (band 7). The foot frustums are 0.77 long and 0.4 tall, bulkier than the sheet's boots.",
+      "fix": "Shorten the foot frustums in z by about 0.85."
+    },
+    {
+      "view": "top",
+      "part": "arm.L",
+      "colour": "green",
+      "cause": "The sheet has green lobes at both shoulders and upper arms. The sheet's sleeves are puffy and wider than the 0.14x0.17 arm prisms.",
+      "fix": "Increase the arm radius by about 1.25."
+    },
+    {
+      "view": "top",
+      "part": "spine",
+      "colour": "red",
+      "cause": "The rectangular pack and shoulder bar corners (spine#1 and spine#2, 0.74-0.8 wide) spill red past the sheet's rounded pack outline.",
+      "fix": "Narrow spine#2 in x."
+    },
+    {
+      "view": "front",
+      "part": "forearm.R",
+      "colour": "red",
+      "cause": "A red diagonal runs from the pike tip towards the helmet. The spearhead prism forearm.R#3 sits at an angle and is too long. There is also red beside the lower shaft at x -0.27 H, from the hand and lantern area.",
+      "fix": "Shorten forearm.R#3 and straighten it along the shaft."
+    },
+    {
+      "view": "front",
+      "part": "spine",
+      "colour": "red",
+      "cause": "The shoulder bar spine#2 (0.8 wide, at y 2.2) spills red at both shoulders beside the helmet.",
+      "fix": "Scale spine#2 by 0.85 in x."
+    }
+  ],
+  "identity": [
+    "rolled bedroll/blanket strapped above and below the pack (model has a flat box)",
+    "Brodie-style steel helmet: the brim reads, but the model's crown is too flat",
+    "a face with a nose and chin under the brim",
+    "a glowing lantern hanging from the belt (pelvis#0 is a loose, unattached prism)",
+    "pack shoulder straps and pouches on the front of the chest",
+    "puffy sleeves and gloved fists"
+  ],
+  "changes": [
+    {
+      "change": "Regenerate the approved sheet's left view (and rts) with the same handedness as front/back, the pack behind, and the pike vertical as in the front/back views. Crop out the neighbour figure.",
+      "gain": "left IoU +0.30 or more (0.415 \u2192 about 0.75, past the 0.65 gate), rts +0.05"
+    },
+    {
+      "change": "Replace part of the spine#1 pack box with two olive lathe bedrolls (about r 0.14, length 0.7, running along x) above and below the pack. Shrink spine#1 to depth 0.25.",
+      "gain": "left IoU +0.04 after the sheet fix, top +0.02, rts +0.02"
+    },
+    {
+      "change": "Increase the arm radius to 1.25x, narrow spine#2 to 0.68 wide, and shorten and straighten the spearhead forearm.R#3 along the shaft. Parent pelvis#0 (the lantern) to the pelvis bone.",
+      "gain": "top IoU +0.02, front +0.01, back +0.01"
+    }
+  ],
+  "owner": {
+    "who": "fit",
+    "why": "Only the left view fails, and all 3 variants are stuck at 0.36-0.39 there. The left sheet is mirrored (pack drawn on the far side from where front/back/top put it) and shows the pike diagonal, while the front/back sheets show it vertical. No spec edit can satisfy both sets of views. The sheet and the fit's view pairing need fixing before the author can be blamed."
+  },
+  "deltas": [
+    {
+      "part": "spine#2",
+      "action": "scale",
+      "axis": "x",
+      "value": 0.85,
+      "why": "shoulder bar spills red at both shoulders in front/back and at the top-view corners"
+    },
+    {
+      "part": "arm.L#0",
+      "action": "radius",
+      "value": 1.25,
+      "why": "top view has green lobes at the shoulders and sleeves; mirrored to arm.R"
+    },
+    {
+      "part": "forearm.R#3",
+      "action": "scale",
+      "axis": "z",
+      "value": 0.7,
+      "why": "angled spearhead spills a red diagonal towards the helmet in front/back"
+    },
+    {
+      "part": "foot.L#0",
+      "action": "scale",
+      "axis": "z",
+      "value": 0.88,
+      "why": "boots spill red at the toes in rts and bottom; mirrored to foot.R"
+    }
+  ],
+  "expected": {
+    "front": 0.01,
+    "back": 0.01,
+    "top": 0.02,
+    "bottom": 0.01,
+    "rts": 0.01
+  },
+  "cost": {
+    "seconds": 57.1,
+    "model": "session:opus",
+    "tokens": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 14155,
+      "cache_read_input_tokens": 9208,
+      "output_tokens": 4990
+    }
+  }
+}

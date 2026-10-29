@@ -1,0 +1,297 @@
+{
+  "drift": {
+    "front": 0.9683,
+    "left": 0.9708,
+    "back": 0.9738,
+    "top": 0.974,
+    "bottom": 0.9792,
+    "rts": 0.6713
+  },
+  "approved": {
+    "front": 0.8827,
+    "left": 0.833,
+    "back": 0.8895,
+    "top": 0.749,
+    "bottom": 0.7515,
+    "rts": 0.8157
+  },
+  "tilt": {
+    "top": -20,
+    "bottom": 30,
+    "rts": [
+      35,
+      -30
+    ]
+  },
+  "top_orientation": {
+    "top": "head-down",
+    "bottom": "head-up"
+  },
+  "chamfer": {
+    "front": 0.0157,
+    "left": 0.0183,
+    "back": 0.015,
+    "top": 0.0646,
+    "bottom": 0.0498,
+    "rts": 0.0232
+  },
+  "uncovered": {
+    "front": 0.033,
+    "left": 0.0494,
+    "back": 0.0318,
+    "top": 0.1028,
+    "bottom": 0.1428,
+    "rts": 0.0952
+  },
+  "spill": {
+    "front": 0.0899,
+    "left": 0.1293,
+    "back": 0.0838,
+    "top": 0.1806,
+    "bottom": 0.1409,
+    "rts": 0.1077
+  },
+  "red": {
+    "front": {
+      "band": 2,
+      "lo": 0.25,
+      "hi": 0.375,
+      "share": 0.0174,
+      "blob": {
+        "x": [
+          0.297,
+          0.371
+        ],
+        "y": [
+          0.227,
+          0.359
+        ],
+        "share": 0.0193
+      }
+    },
+    "left": {
+      "band": 4,
+      "lo": 0.5,
+      "hi": 0.625,
+      "share": 0.011,
+      "blob": {
+        "x": [
+          -0.27,
+          -0.219
+        ],
+        "y": [
+          0.465,
+          0.605
+        ],
+        "share": 0.0129
+      }
+    },
+    "back": {
+      "band": 2,
+      "lo": 0.25,
+      "hi": 0.375,
+      "share": 0.017,
+      "blob": {
+        "x": [
+          -0.367,
+          -0.297
+        ],
+        "y": [
+          0.223,
+          0.359
+        ],
+        "share": 0.0181
+      }
+    },
+    "top": {
+      "band": 1,
+      "lo": 0.125,
+      "hi": 0.25,
+      "share": 0.0297,
+      "blob": {
+        "x": [
+          -0.828,
+          -0.517
+        ],
+        "y": [
+          0.052,
+          0.491
+        ],
+        "share": 0.0571
+      }
+    },
+    "bottom": {
+      "band": 3,
+      "lo": 0.375,
+      "hi": 0.5,
+      "share": 0.0455,
+      "blob": {
+        "x": [
+          0.57,
+          0.787
+        ],
+        "y": [
+          0.135,
+          0.709
+        ],
+        "share": 0.0838
+      }
+    },
+    "rts": {
+      "band": 0,
+      "lo": 0.0,
+      "hi": 0.125,
+      "share": 0.0297,
+      "blob": {
+        "x": [
+          0.094,
+          0.25
+        ],
+        "y": [
+          0.0,
+          0.121
+        ],
+        "share": 0.0289
+      }
+    }
+  },
+  "gates": {
+    "front": 0.75,
+    "left": 0.65,
+    "back": 0.7,
+    "top": 0.65,
+    "bottom": 0.65,
+    "rts": 0.7
+  },
+  "sheet": {
+    "rts_cam": [
+      35,
+      60
+    ],
+    "r_sym": {
+      "front": 0.721,
+      "left": 0.4403,
+      "back": 0.7076,
+      "top": 0.7474,
+      "bottom": 0.7979
+    },
+    "coherence": {
+      "back": 0.9109,
+      "top": 0.7289,
+      "bottom": 0.6326,
+      "rts": 0.7142
+    },
+    "incoherent": []
+  },
+  "hard": {
+    "front": 0.8784,
+    "left": 0.8314,
+    "back": 0.8889,
+    "top": 0.7492,
+    "bottom": 0.7555,
+    "rts": 0.764
+  },
+  "prop": {
+    "parts": [
+      15,
+      16
+    ],
+    "iou": 0.7519,
+    "view": "front",
+    "component": 0
+  },
+  "turn": {},
+  "edges": {
+    "front": {
+      "drawn": 0.0108,
+      "extra": 0.0223
+    },
+    "left": {
+      "drawn": 0.008,
+      "extra": 0.0229
+    },
+    "back": {
+      "drawn": 0.0088,
+      "extra": 0.0252
+    },
+    "top": {
+      "drawn": 0.0131,
+      "extra": 0.0287
+    },
+    "bottom": {
+      "drawn": 0.0154,
+      "extra": 0.034
+    }
+  },
+  "form": 0.497,
+  "zones_clay": {
+    "front": {
+      "mean": 0.3919,
+      "cover": 0.6876,
+      "lost": [
+        "#818181"
+      ]
+    },
+    "left": {
+      "mean": 0.2159,
+      "cover": 0.5717,
+      "lost": [
+        "#35302E",
+        "#818181"
+      ]
+    },
+    "back": {
+      "mean": 0.4028,
+      "cover": 0.714,
+      "lost": [
+        "#35302E",
+        "#818181"
+      ]
+    },
+    "top": {
+      "mean": 0.2655,
+      "cover": 0.5587,
+      "lost": [
+        "#818181"
+      ]
+    },
+    "bottom": {
+      "mean": 0.3301,
+      "cover": 0.6168,
+      "lost": [
+        "#818181"
+      ]
+    }
+  },
+  "identity": {
+    "total": 2,
+    "ok": 2,
+    "missing": []
+  },
+  "prop_reads": {
+    "well flame fuse cloth": {
+      "front": {
+        "share": 0.0355,
+        "whole": 1.0,
+        "reads": true
+      },
+      "left": {
+        "share": 0.0244,
+        "whole": 1.0,
+        "reads": true
+      }
+    },
+    "drill-pipe club": {
+      "front": {
+        "share": 0.0949,
+        "whole": 0.99,
+        "reads": true
+      },
+      "left": {
+        "share": 0.2087,
+        "whole": 1.0,
+        "reads": true
+      }
+    }
+  }
+}

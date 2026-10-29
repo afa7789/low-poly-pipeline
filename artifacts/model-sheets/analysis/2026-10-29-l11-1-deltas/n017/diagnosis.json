@@ -1,0 +1,146 @@
+{
+  "findings": [
+    {
+      "view": "rts",
+      "part": "spine.1",
+      "colour": "red",
+      "cause": "The worst red (x -0.64..-0.34 H, y 0.31..0.46 H) is a big wedge above and behind the rump. The rear lathe plus the straight, horizontal tail spike stick out past the sheet, where the tail rises in a curve instead. RTS spill is 24% and IoU is 0.700, right on the 0.70 gate.",
+      "fix": "Slim spine.1 (radius about 0.9). Re-pose tail.1 so it rises up and back instead of pointing straight out. Its chain is at [0,0,0], which looks like a placeholder root."
+    },
+    {
+      "view": "rts",
+      "part": "head",
+      "colour": "red",
+      "cause": "Red past the muzzle and the ear on the right. The head plates (head#3 is 0.43 tall) are too tall and too far forward for the 3/4 read.",
+      "fix": "Shrink head#3 in y (about 0.9) and pull the head back slightly."
+    },
+    {
+      "view": "rts",
+      "part": "leg3.lower",
+      "colour": "green",
+      "cause": "The tow rope loop lying on the ground behind the dog is all green. The only rope is a 0.03 straight prism at ground level, so it gives no silhouette.",
+      "fix": "Model the rope as a visible path from the harness to the ground plus a loop behind the hind legs, not a hairline prism."
+    },
+    {
+      "view": "left",
+      "part": "leg3.lower",
+      "colour": "green",
+      "cause": "Uncovered share is 0.171. The green arc from the chest harness down under the belly, and the rope trailing along the ground to the right, are missing. leg3.lower#1 is too thin and short to register.",
+      "fix": "Thicken and lengthen the rope. Add a ground segment behind the hind feet and a hanging segment from spine.2's harness."
+    },
+    {
+      "view": "left",
+      "part": "leg3.upper",
+      "colour": "red",
+      "cause": "The worst red (x +0.31..+0.86 H, y 0..0.47 H, 11% of the sheet) is the hind thighs and lower belly filling the gap the sheet leaves open behind the rear legs. The hind legs also stand further back than in the sheet. The clay also shows the head on the opposite side to the sheet's left view, so check the sheet/camera handedness too.",
+      "fix": "Move the hind leg group forward about 0.05 and slim the rump. Confirm the left-view facing against the sheet."
+    },
+    {
+      "view": "top",
+      "part": "tail.1",
+      "colour": "red",
+      "cause": "Red at the tail tip and to one side of it. The tail runs straight and slightly off-axis, while the sheet's tail is centred and tapers.",
+      "fix": "Centre the tail on x=0 and taper it."
+    },
+    {
+      "view": "top",
+      "part": "head",
+      "colour": "green",
+      "cause": "Green along both sides of the head and neck. In plan the head is narrower than the sheet's ruff and ears (top uncovered 0.117).",
+      "fix": "Widen head#2/head#3 in x a little, while keeping the y reduction."
+    },
+    {
+      "view": "back",
+      "part": "leg3.lower",
+      "colour": "green",
+      "cause": "Green coil around the left hind foot: the rope wraps there in the sheet.",
+      "fix": "Covered by the rope ground-segment add."
+    }
+  ],
+  "identity": [
+    "snarling face with bared teeth and pale mask (only in UV, unreadable on the mesh)",
+    "orange harness collar with knot hanging on the chest (lost zone #EFA840 in 4 views)",
+    "grey tow rope trailing to a loop on the ground",
+    "raised, curved bushy tail instead of a straight spike",
+    "dark outline/dark grey zone #2D2F33 lost in most views"
+  ],
+  "changes": [
+    {
+      "change": "Replace leg3.lower#1 with a rope made of a hanging segment from the spine.2 harness to the ground plus a looped ground segment behind the hind feet, at least 0.05 thick (chain or prisms).",
+      "gain": "left IoU +0.03, rts +0.02, back +0.01"
+    },
+    {
+      "change": "Re-root tail.1 at the back of spine.1 (about [0,0.75,-0.55]) and curve it upward. Slim spine.1 radius to about 0.9.",
+      "gain": "rts IoU +0.02, top +0.01, left +0.01"
+    },
+    {
+      "change": "Head: head#3 y \u00d70.9, set back 0.03 in z, head#2 x \u00d71.1 for the ruff. Add a harness collar knot (frustum, harness) on the chest at [0,0.55,0.6].",
+      "gain": "rts IoU +0.01, front +0.005, top +0.01"
+    }
+  ],
+  "owner": {
+    "who": "author",
+    "why": "The massing silhouette is fine (stage 0 matched stage 1). What's missing is identity: the rope is a hairline prism at ground level, tail.1 is rooted at the origin and points straight out, and the harness knot was never specified. All of this is expressible with existing kinds (prism/chain/frustum)."
+  },
+  "deltas": [
+    {
+      "part": "spine.1",
+      "action": "add",
+      "kind": "prism",
+      "dims": [
+        0.05,
+        0.05,
+        0.45
+      ],
+      "at": [
+        0.08,
+        0.03,
+        -0.9
+      ],
+      "material": "rope",
+      "why": "ground segment of the tow rope behind the hind feet: green in left/rts/back"
+    },
+    {
+      "part": "leg3.lower#1",
+      "action": "radius",
+      "value": 1.4,
+      "why": "rope is too thin to show in any silhouette"
+    },
+    {
+      "part": "spine.1#0",
+      "action": "radius",
+      "value": 0.9,
+      "why": "rump spill in rts (worst red) and left"
+    },
+    {
+      "part": "head#3",
+      "action": "scale",
+      "axis": "y",
+      "value": 0.9,
+      "why": "ear/head plate spills above and in front of the sheet in front and rts"
+    },
+    {
+      "part": "head#0",
+      "action": "move",
+      "axis": "z",
+      "value": -0.03,
+      "why": "muzzle spill to the right of the head in rts"
+    }
+  ],
+  "expected": {
+    "left": 0.02,
+    "rts": 0.015,
+    "back": 0.005,
+    "front": 0.003
+  },
+  "cost": {
+    "seconds": 56.1,
+    "model": "session:opus",
+    "tokens": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 12049,
+      "cache_read_input_tokens": 11626,
+      "output_tokens": 4395
+    }
+  }
+}
