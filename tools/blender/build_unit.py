@@ -46,6 +46,8 @@ CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
 TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
 SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
+POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
+COMPACT_ATLAS = False   # cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -1292,17 +1294,25 @@ def paint_decals(pixels, SF, x0, y0, size):
         region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
 
 
+def slot_paint(base):
+    """(surface, rgb, cel kwargs) of a material slot: the ramp comes from the command line (ramp=), else from the
+    slot's measured palette ramp, else it is flat (slope left at its default)."""
+    kw = {"tones": TONES.get(base)}
+    if RAMP is not None:
+        kw["slope"] = RAMP
+    elif base in RAMPS:
+        kw["slope"] = ramp_of(base)
+    return SURFACE.get(base, "metal"), MATERIALS[base][:3], kw
+
+
+def ramp_of(base):
+    return sibling("surfaces").ramp_slope(RAMPS[base], MATERIALS[base][:3])
+
+
 def paint_slot(SF, base, size):
-    """The size x size image of one material slot in the current style. A cel ramp comes from the
-    command line (ramp=), else from the slot's measured palette ramp, else it is flat."""
-    surface, rgb = SURFACE.get(base, "metal"), MATERIALS[base][:3]
-    if STYLE != "cel":
-        return SF.paint(surface, rgb, size)
-    tones = TONES.get(base)
-    if RAMP is None and base in RAMPS:
-        return SF.paint_cel(surface, rgb, size, slope=SF.ramp_slope(RAMPS[base], rgb), tones=tones)
-    return (SF.paint_cel(surface, rgb, size, tones=tones) if RAMP is None
-            else SF.paint_cel(surface, rgb, size, slope=RAMP, tones=tones))
+    """The size x size image of one material slot in the current style."""
+    surface, rgb, kw = slot_paint(base)
+    return SF.paint(surface, rgb, size) if STYLE != "cel" else SF.paint_cel(surface, rgb, size, **kw)
 
 
 def arg_value(rest, name):
@@ -1356,6 +1366,122 @@ def texturize_shared(body, meta):
     return len(bases)
 
 
+def compact_faces(body, meta):
+    """One record per polygon for the compact cel atlas: (poly, base, tone, slot, decal index or None,
+    world centre, world normal, nearest part). Same tone / slot / decal tests as atlas_uvs. """
+    SF = sibling("surfaces")
+    world, turn = body.matrix_world, body.matrix_world.to_3x3()
+    slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
+    out = []
+    for poly in body.data.polygons:
+        centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
+        near = nearest_part(meta, centre_w)
+        dec = decal_uv(centre_w, normal_w, centre_w, near)
+        slot = SF.ramp_slot(normal_w.z, relative_height(meta, centre_w), all(abs(c) > 0.3 for c in normal_w))
+        out.append((poly, slot_base[poly.material_index], SF.tone_index(normal_w.z), slot,
+                    dec[0] - 8 if dec else None, centre_w, normal_w, near))
+    return out
+
+
+def tone_rows(base):
+    """Texel rows of the tone cells of material `base`."""
+    surface, _, kw = slot_paint(base)
+    return sibling("surfaces").cell_rows(surface, kw.get("slope", sibling("surfaces").RAMP_SLOPE))
+
+
+def decal_px(i):
+    """Texels a side of decal i's cell: 16 for the procedural dots, 32 for a picture (the sheet's head, a prop crop)."""
+    SF = sibling("surfaces")
+    return SF.DECAL_PX_PICTURE if DECALS[i][2] in ("sheet", "propcrop") else SF.DECAL_PX
+
+
+def compact_layout(faces):
+    """({cell key: (x, y, w, h)}, (W, H)): one tone cell per (material, tone) used and one decal cell per
+    (material, decal) used, shelf-packed. Keys: (base, tone) or (base, "d", decal index)."""
+    SF = sibling("surfaces")
+    keys = list(dict.fromkeys((f[1], "d", f[4]) if f[4] is not None else (f[1], f[2]) for f in faces))
+    sizes = [(decal_px(k[2]),) * 2 if len(k) == 3 else (SF.TONE_W, tone_rows(k[0])) for k in keys]
+    width, height, pos = SF.pack_cells(sizes)
+    return {k: (x, y, *size) for k, (x, y), size in zip(keys, pos, sizes)}, (width, height)
+
+
+def compact_uvs(body, faces, cells, wh):
+    """UVs into the compact atlas, vertices untouched: a decal face into its decal cell, any other face
+    across its tone cell's width and inside its ramp slot's sampled row."""
+    SF = sibling("surfaces")
+    mesh, world = body.data, body.matrix_world
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    if mesh.uv_layers.active is None:
+        mesh.uv_layers.active = mesh.uv_layers[0]
+    uvs = mesh.uv_layers.active.data
+    for poly, base, tone, slot, dec_i, centre_w, normal_w, near in faces:
+        if dec_i is not None:
+            x, y, w, h = cells[(base, "d", dec_i)]
+        else:
+            x, y, w, h = cells[(base, tone)]
+            span = face_span(mesh, poly, max(range(3), key=lambda i: abs(poly.normal[i])))
+        for k, li in enumerate(poly.loop_indices):
+            if dec_i is not None:
+                _, du, dv = decal_uv(centre_w, normal_w, world @ mesh.vertices[mesh.loops[li].vertex_index].co, near)
+                du, dv = min(max(du, 0.0), 1.0), min(max(dv, 0.0), 1.0)    # a face wider than the decal's box stays in its cell
+                fu, row = 0.04 + 0.92 * du, (0.04 + 0.92 * dv) * h
+            else:
+                fu, row = (SF.INK_EDGE_PX + (w - 2 * SF.INK_EDGE_PX) * span[k][0]) / w, SF.face_row(h, slot, span[k][1])
+            uvs[li].uv = ((x + fu * w) / wh[0], (y + row) / wh[1])
+
+
+def paint_compact(SF, cells, wh):
+    """(H, W, 4) pixels of the compact atlas: each tone cell painted by tone_cell, each decal cell the mid
+    tone cell of its material, repeated down the cell, with the decal over it. The rest is white."""
+    import numpy as np
+    pixels = np.ones((wh[1], wh[0], 4))
+    for key, (x, y, w, h) in cells.items():
+        surface, rgb, kw = slot_paint(key[0])
+        if len(key) == 2:
+            pixels[y:y + h, x:x + w, :3] = SF.tone_cell(surface, rgb, key[1], width=w, **kw)
+            continue
+        base = np.tile(SF.tone_cell(surface, rgb, 1, width=w, **kw), (h // tone_rows(key[0]), 1, 1))   # the mid tone cell repeated: ink every 4th row, as the 256 px decal cell
+        paint, alpha = paint_decal(SF, key[2], h)
+        paint = np.round(paint * POSTERIZE) / POSTERIZE
+        pixels[y:y + h, x:x + w, :3] = base * (1 - alpha[..., None]) + paint * alpha[..., None]
+    return pixels
+
+
+def decal_colour(colour, kind):
+    """The (r, g, b) 0..1 of a decal's hex colour, None for no colour or a prop crop."""
+    if not colour or kind == "propcrop":
+        return None
+    hexv = colour.lstrip("#")
+    return tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
+
+
+def paint_decal(SF, i, cell):
+    """(rgb, alpha) of decal i at cell x cell texels."""
+    _, half, kind, colour, _, _ = DECALS[i]
+    if kind == "propcrop":
+        return crop_face(colour, cell, half.z > 1.3 * half.x)
+    return sheet_face(cell) if kind == "sheet" else SF.decal(kind, decal_colour(colour, kind), cell)
+
+
+def texturize_compact(body, meta):
+    """The cel atlas at its smallest: see compact_faces / compact_layout / compact_uvs / paint_compact.
+    Prints the mip report (mesh_lint.mip_bleed) and writes the cell layout beside the GLB."""
+    SF = sibling("surfaces")
+    faces = compact_faces(body, meta)
+    cells, wh = compact_layout(faces)
+    compact_uvs(body, faces, cells, wh)
+    pixels = paint_compact(SF, cells, wh)
+    img = bpy.data.images.new("tex_atlas", width=wh[0], height=wh[1], alpha=False)
+    img.pixels.foreach_set(pixels.astype("float32").ravel())
+    bind_atlas(body, img)
+    bpy.context.scene.render.image_settings.compression = 100   # the glTF exporter encodes the PNG with the scene's setting (default 15)
+    bleed = sibling("mesh_lint").mip_bleed(wh, list(cells.values()))
+    print(f"compact atlas: {wh[0]}x{wh[1]}, {len(cells)} cells, mixed texels at 1/2 1/4 1/8: {bleed}, "
+          f"cells {[(k, c[2:]) for k, c in cells.items()]}")
+    return len(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
+
+
 def texturize(body, meta, size=256):
     """One painted atlas per unit. Each material slot gets a size x size block of the
     atlas, painted by its surface (surfaces.py: metal plates, skin, cloth, scales...)
@@ -1369,6 +1495,8 @@ def texturize(body, meta, size=256):
         done = texturize_shared(body, meta)
         if done:
             return done
+    if COMPACT_ATLAS and STYLE == "cel":
+        return texturize_compact(body, meta)
     bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
     cols, rows = SF.atlas_layout(len(bases))
     block = {b: (i % cols, i // cols) for i, b in enumerate(bases)}
@@ -1712,7 +1840,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP, SHARED
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS
     CLAY = "clay" in rest
     global PROPID, NOUNION
     PROPID = "propid" in rest
@@ -1731,6 +1859,7 @@ def main():
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+    COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
     SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours

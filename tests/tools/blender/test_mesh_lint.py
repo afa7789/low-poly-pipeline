@@ -198,5 +198,16 @@ class Protocol(unittest.TestCase):
         self.assertGreater(CR.chamfer_3d(a, glb(self.tmp / "b.glb", lift=0.5))[0], 0.1)
 
 
+class MipBleed(unittest.TestCase):
+    def test_aligned_cells_do_not_mix(self):
+        self.assertEqual(L.mip_bleed((64, 32), [(0, 0, 32, 16), (32, 0, 16, 16)]), {"1/2": 0, "1/4": 0, "1/8": 0})
+
+    def test_cells_off_the_grid_mix_and_padding_cures_it(self):
+        bad = L.mip_bleed((64, 32), [(0, 0, 30, 16), (30, 0, 16, 16)])
+        self.assertEqual((bad["1/2"], bad["1/4"], bad["1/8"]), (0, 4, 2))
+        self.assertEqual(L.mip_bleed(np.zeros((32, 64, 3)), [(0, 0, 30, 16), (32, 0, 16, 16)]),
+                         {"1/2": 0, "1/4": 0, "1/8": 0})             # a 2 px gutter: nothing mixes
+
+
 if __name__ == "__main__":
     unittest.main()

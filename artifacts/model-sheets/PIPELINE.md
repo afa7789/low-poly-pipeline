@@ -3789,3 +3789,61 @@ tom, logo no mesmo texel. Em `painted`, `TEX_SLOTS` mapeia explicitamente `arm/f
   ganho vem do compartilhamento por tom, não de espelho.
 - Testes: `test_mesh_lint.MirrorOverlap` (gêmeos sintéticos 100 %, mesmo lado 0 %, sem skin `None`, `TEX_SLOTS` com `.L/.R` no
   mesmo slot, lido do fonte porque `build_unit` importa `bpy`). Sem flag nem default novos.
+
+Textura: atlas compacto, paleta partilhada, 1 material (`analysis/2026-10-29-papers-atlas.md`, ROADMAP-papers.md "Leva 9").
+
+### 27.T1 Atlas cel compacto (`--atlas compact`, `build_unit.COMPACT_ATLAS`)
+
+- O que mudou: `texturize` ganhou o caminho `texturize_compact` (só `style=cel`, atlas próprio). Cada (material, tom usado) ganha uma
+  célula de tom `surfaces.tone_cell` de 16 px de largura: 1 coluna de ink por lado (a face começa 0.65 px dentro,
+  `INK_EDGE_PX`, então o ink aparece em ~2.3 % dela, como na célula de 256 px) e **4 linhas** (1 de ink + 3 de cor) quando a rampa é
+  plana (`slope == 0` ou `glow`, o caso padrão: `RAMP_SLOPE = 0`); com rampa medida (`--ramp`, `ramp=`) a célula tem os 8 slots de
+  **2 px** (a linha de baixo de cada slot é o ink, a face amostra só a de cima, `face_row`). Decal procedural (olhos): célula de
+  16 px; decal de figura (`sheet`, `propcrop`): 32 px (a 16 vira mancha; era 64). Só entram as células usadas. `surfaces.pack_cells`
+  (shelf first-fit-decreasing, origens e tamanhos múltiplos de `align` = 4, `pad` opcional) devolve a imagem POT mínima, retangular
+  (64x128, 128x128...). Os UVs são recalculados pelo layout (`compact_uvs`); nenhum vértice se move. A base de uma célula de decal é
+  a célula de tom do meio repetida (ink a cada 4ª linha, como a célula de decal de 256 px antiga). O paint dos decais é arredondado
+  a 16 níveis por canal (`POSTERIZE = 15`): sem isso a figura do decal é o PNG inteiro (n005 8.1 KB, hfoo 8.6 KB; com: 5.2, 6.5).
+  Um decal que passava da caixa da peça é preso à célula (`du, dv` em 0..1): o antigo vazava para a célula vizinha.
+- Flags: `--atlas compact|legacy` (`own` = o que `COMPACT_ATLAS` diz), no build `cel_atlas=compact|legacy`. **Default
+  continua legado (`COMPACT_ATLAS = False`)**: o aceite de fidelidade não passou ao pé da letra (abaixo).
+- Bateria (estágio 2 cel sobre o spec do v12-r1, `deform`/`fit-verts` desligados nos dois braços para o mesmo clay; compare
+  f/l/b; `luma_l1` menor é melhor):
+
+| unit | atlas | size | KB | luma_l1 f/l/b | zones mean f/l/b | uv_overlap % | oob | images |
+|---|---|---|---|---|---|---|---|---|
+| n005 | legacy | 768x768 | 83.9 | 0.053/0.035/0.034 | 0.618/0.692/0.608 | 64.7 | 0 | 1 |
+| n005 | compact | 128x128 | 5.2 | 0.041/0.039/0.024 | 0.616/0.681/0.611 | 2.2 | 0 | 1 |
+| n017 | legacy | 512x512 | 55.5 | 0.137/0.044/0.069 | 0.143/0.221/0.241 | 81.2 | 0 | 1 |
+| n017 | compact | 32x128 | 3.5 | 0.104/0.044/0.076 | 0.140/0.214/0.241 | 0.0 | 0 | 1 |
+| hfoo | legacy | 768x768 | 94.6 | 0.090/0.073/0.118 | 0.267/0.240/0.176 | 68.6 | 0 | 1 |
+| hfoo | compact | 128x128 | 6.5 | 0.089/0.047/0.098 | 0.267/0.241/0.178 | 0.1 | 0 | 1 |
+| n00U | legacy | 768x512 | 13.8 | 0.034/0.045/0.049 | 0.310/0.240/0.292 | 80.8 | 1 | 1 |
+| n00U | compact | 32x64 | 0.7 | 0.036/0.045/0.049 | 0.315/0.238/0.291 | 66.6 | 0 | 1 |
+| n02X | legacy | 768x768 | 62.9 | 0.038/0.052/0.035 | 0.337/0.234/0.291 | 74.7 | 0 | 1 |
+| n02X | compact | 64x128 | 4.1 | 0.034/0.052/0.036 | 0.341/0.237/0.289 | 0.0 | 0 | 1 |
+
+- Aceite: imagem ≤ 128² (5/5, de 768² a 512²), `atlas_kb` ≤ 8 (5/5: 3.5 .. 6.5; n005 83.9 → 5.2), `uv_out_of_range == 0` (5/5; o n00U
+  legado tinha 1), `images == 1`. `zones mean`: pior queda -0.011 (n005 left .692 → .681), as outras ≥ -0.007. `luma_l1` por vista
+  fica em ±0.003 em 7 das 15 células; 6 melhoram (n005 f/b, n017 f, hfoo l/b, n02X f; até -.033) e 2 pioram (n005 left +.004, n017 back +.007): vem
+  da resolução do decal de figura (32 contra 64 px) e do posterize, não do ink. Por isso o default NÃO virou compacto; virar é
+  `COMPACT_ATLAS = True` e `own` passa a compacto (`legacy` fica opt-in).
+- `uv_overlap_pct` não é comparável: `mesh_lint.cover_map` usa a grade 4x4 de blocos de 256 px para excluir as células de decal; no
+  atlas compacto essa exclusão cai em células quaisquer (T4 reescreve a medida).
+- Render pixel-comparado (mesma câmera, 512², n005 front/left, n00U front/top, n02X front): 1.3-2 % dos pixels diferem > 8/255 e
+  0.1-0.3 % > 40; diferenças em cantos de face (ink agora só nas colunas laterais da célula; a linha de cima/baixo da face sumiu:
+  ela caía no slot de 8 linhas, agora o slot é só de cor) e no decal de figura (32 px). Olhos do n005 legíveis (vermelhos, no compare).
+- Negativos: decal de figura dividido entre materiais (um por material que o veste, o fundo transparente mostra a cor do material:
+  dividir entre materiais trocou a cor da mochila do hfoo); 16 px para figura (borrado); compressão PNG 100 do Blender não muda o
+  tamanho (o exportador não a usa).
+- Evidência: `scratchpad/l9-atlas/` (run.py, table.py, cmp-*.png, `<unit>-{legacy,compact}/`).
+
+### 27.T6 `mesh_lint.mip_bleed` (medida mip-safe, só relatório)
+
+- `mip_bleed(image, layout)`: mapa de id de célula por pixel (`layout` = retângulos `(x, y, w, h)`), blocos 2x2 / 4x4 / 8x8
+  (box filter 1/2, 1/4, 1/8) e contagem dos blocos com ≥ 2 células distintas. Pixels fora de qualquer célula (padding) não
+  misturam com nada. Chaves `"1/2" "1/4" "1/8"`. `build_unit` imprime o relatório (`compact atlas: ... mixed texels ...`) e
+  `pack_cells(align=, pad=)` garante células alinhadas; o motor não usa mips hoje (`ModelCook.BuildMaterial` mipmaps=1).
+- Aceite: 0 texels mistos em 1/2 e 1/4 nas 5 unidades (alinhamento 4, sem padding); em 1/8 sobram 12-20 (as células planas têm 4
+  linhas: 1/8 mistura vertical é inevitável sem padding; `pack_cells(align=8, pad=2)` zera, ao custo de área). Teste: atlas sintético
+  fora da grade mistura, com padding de 2 px não.

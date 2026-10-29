@@ -242,6 +242,84 @@ def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE, tones=None):
     return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
 
 
+SLOT_PX = 2        # compact atlas: a ramp slot is 2 texel rows, the lower one is the ink line (Pöyry 2018: no cell sampled across a border)
+TONE_W = 16        # compact atlas: a tone cell is TONE_W wide, 1 ink column per side; a face starts 0.65 px in (INK_EDGE_PX), so the ink shows ~2.3 % of it per side, as in the 256 px cell
+INK_EDGE_PX = 0.65
+DECAL_PX = 16      # compact atlas: a procedural decal (eyes, mouth) cell is 16 x 16
+DECAL_PX_PICTURE = 32   # ... a picture decal (the sheet's head, a prop crop) is 32 x 32 (64 in the 256 px cell; 16 is mush)
+COMPACT_ROWS = RAMP_SLOTS * SLOT_PX
+FLAT_ROWS = 4      # a flat cell (no ramp, or a glow surface) is one slot: an ink row and 3 colour rows
+
+
+def cell_rows(surface, slope):
+    """Texel rows of a compact tone cell: the whole ramp, or FLAT_ROWS when every slot has the same colour."""
+    return FLAT_ROWS if slope == 0 or surface == "glow" else COMPACT_ROWS
+
+
+def tone_cell(surface, rgb, tone, slope=RAMP_SLOPE, tones=None, width=TONE_W):
+    """(cell_rows, width, 3) compact cel cell of tone 0 light / 1 mid / 2 dark: the cell of paint_cel at
+    2 px per ramp slot. Row 2s of slot s (row 0 of a flat cell) and the first and last column are the ink
+    line (a glow surface has none); faces sample the rows between (face_row)."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES) if tones is None or surface == "glow" else tuple(tones)
+    rows = cell_rows(surface, slope)
+    k = np.full((rows, width), float(tones[tone]))
+    if surface != "glow":
+        if rows == COMPACT_ROWS:
+            level = ((np.arange(rows) // SLOT_PX) + 0.5) / RAMP_SLOTS
+            k = k * (1 + slope * (level[:, None] - TONE_V[tone]))
+        ink = np.zeros((rows, width), bool)
+        ink[::SLOT_PX if rows == COMPACT_ROWS else FLAT_ROWS], ink[:, 0], ink[:, -1] = True, True, True
+        k = k * np.where(ink, INK, 1.0)
+    return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
+
+
+def face_row(rows, slot, t):
+    """Cell row (0..rows) of position t (0..1) across a face that sits in ramp slot `slot`: inside the
+    slot's upper texel row (a flat cell: below its ink row), 2 % in from both ends, so nearest sampling
+    never reads the ink row."""
+    if rows == FLAT_ROWS:
+        return 1.02 + (FLAT_ROWS - 1.04) * t
+    return slot * SLOT_PX + 1.02 + 0.96 * t
+
+
+def pack_cells(sizes, align=4, pad=0):
+    """Shelf first-fit-decreasing packing of (w, h) rectangles into the smallest power-of-two image.
+    Each cell takes (w + pad, h + pad) rounded up to `align`, so its origin and size stay multiples of
+    `align` and a mip level up to 1/align never mixes two cells (mesh_lint.mip_bleed).
+    Returns (W, H, [(x, y)] in the order of `sizes`), the image at least 8 x 8 and the cheapest
+    (fewest texels, then squarest) of the power-of-two widths."""
+    boxes = [(-(-(w + pad) // align) * align, -(-(h + pad) // align) * align) for w, h in sizes]
+    order = sorted(range(len(boxes)), key=lambda i: (-boxes[i][1], -boxes[i][0]))
+    widest = max((b[0] for b in boxes), default=8)
+    best = None
+    for width in (8 << n for n in range(8)):
+        if width < widest:
+            continue
+        pos, height = _shelves(boxes, order, width)
+        side = 8
+        while side < height:
+            side *= 2
+        key = (width * side, abs(width - side))
+        if best is None or key < best[0]:
+            best = (key, width, side, pos)
+    return best[1], best[2], best[3]
+
+
+def _shelves(boxes, order, width):
+    """Positions of `boxes` (placed in `order`) on shelves of `width`, and the stack's height."""
+    pos, shelves, top = [None] * len(boxes), [], 0      # a shelf is [y, height, used x]
+    for i in order:
+        w, h = boxes[i]
+        shelf = next((s for s in shelves if s[2] + w <= width and h <= s[1]), None)
+        if shelf is None:
+            shelf = [top, h, 0]
+            shelves.append(shelf)
+            top += h
+        pos[i] = (shelf[2], shelf[0])
+        shelf[2] += w
+    return pos, top
+
+
 def ramp_column(surface, rgb, size):
     """(size, 3) tone ramp of one slot for the shared atlas (shared_atlas.py): row v is the colour times the
     surface's tone at v, interpolated between its dark / mid / light multipliers at TONE_V 0 / .5 / 1, so a

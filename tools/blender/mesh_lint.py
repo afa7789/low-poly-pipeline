@@ -254,6 +254,29 @@ def atlas_kb(doc):
     return round(doc["bufferViews"][doc["images"][0]["bufferView"]]["byteLength"] / 1024, 1)
 
 
+MIP_LEVELS = (2, 4, 8)    # box-filter factors 1/2, 1/4, 1/8
+
+
+def mip_bleed(image, layout):
+    """{"1/2": n, "1/4": n, "1/8": n}: texels of each mip level (a box filter of that many pixels a side)
+    that average pixels of 2 different cells (Halladay 2016, Poyry 2018). `image` is the atlas, an array
+    (H, W[, C]) or a (W, H) size; `layout` the cells as (x, y, w, h) pixels. Pixels outside every cell
+    (gutter, padding) belong to no cell and mix with nothing. Report only: the engine has no mips today."""
+    w, h = (image.shape[1], image.shape[0]) if hasattr(image, "shape") else tuple(image)
+    ids = np.full((h, w), -1, np.int32)
+    for n, (x, y, cw, ch) in enumerate(layout):
+        ids[y:y + ch, x:x + cw] = n
+    out = {}
+    for f in MIP_LEVELS:
+        if h % f or w % f:
+            ids = np.pad(ids, ((0, -h % f), (0, -w % f)), constant_values=-1)
+        blocks = ids.reshape(ids.shape[0] // f, f, ids.shape[1] // f, f).transpose(0, 2, 1, 3).reshape(-1, f * f)
+        top = blocks.max(1)
+        low = np.where(blocks < 0, np.iinfo(np.int32).max, blocks).min(1)
+        out[f"1/{f}"] = int(((top >= 0) & (low != top)).sum())
+    return out
+
+
 def uv_image(glb, scale=2):
     """PIL image of the atlas with every UV triangle outlined and the pixels covered by 2+
     triangles tinted red (Begemann & Hutson 2026 UV screenshot); None without UVs or atlas.

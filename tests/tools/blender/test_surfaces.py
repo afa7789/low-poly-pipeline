@@ -167,5 +167,39 @@ class Layout(unittest.TestCase):
         self.assertEqual(SF.atlas_layout(5), (3, 2))
 
 
+class CompactAtlas(unittest.TestCase):
+    SIZES = [(16, 4)] * 20 + [(32, 32)] * 3 + [(16, 16)] * 2 + [(16, 16)]
+
+    def test_pack_cells_inside_disjoint_pot(self):
+        w, h, pos = SF.pack_cells(self.SIZES)
+        self.assertTrue(all(n & (n - 1) == 0 for n in (w, h)))
+        used = np.zeros((h, w), int)
+        for (x, y), (cw, ch) in zip(pos, self.SIZES):
+            self.assertTrue(x + cw <= w and y + ch <= h)
+            used[y:y + ch, x:x + cw] += 1
+        self.assertEqual(used.max(), 1)                              # no overlap
+
+    def test_pack_cells_padding_and_alignment(self):
+        _, _, pos = SF.pack_cells(self.SIZES, align=8, pad=2)
+        self.assertTrue(all(x % 8 == 0 and y % 8 == 0 for x, y in pos))
+
+    def test_flat_cell_rows_and_ink(self):
+        cell = SF.tone_cell("metal", (0.5, 0.5, 0.5), 1)
+        self.assertEqual(cell.shape, (SF.FLAT_ROWS, SF.TONE_W, 3))
+        self.assertLess(cell[0, 5, 0], cell[2, 5, 0])                # ink row under the colour rows
+        self.assertLess(cell[2, 0, 0], cell[2, 5, 0])                # ink column
+        ramp = SF.tone_cell("metal", (0.5, 0.5, 0.5), 1, slope=0.4)
+        self.assertEqual(ramp.shape[0], SF.COMPACT_ROWS)
+        self.assertGreater(ramp[2 * 7 + 1, 5, 0], ramp[1, 5, 0])     # the ramp climbs slot by slot
+
+    def test_face_row_never_samples_ink(self):
+        for t in (0.0, 0.5, 1.0):
+            self.assertTrue(1 <= int(SF.face_row(SF.FLAT_ROWS, 0, t)) <= 3)
+            for slot in range(SF.RAMP_SLOTS):
+                row = SF.face_row(SF.COMPACT_ROWS, slot, t)
+                self.assertEqual(int(row) % SF.SLOT_PX, 1)           # the slot's upper row, ink is the lower
+                self.assertLess(row, SF.COMPACT_ROWS)
+
+
 if __name__ == "__main__":
     unittest.main()
