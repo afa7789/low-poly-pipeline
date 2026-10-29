@@ -3849,3 +3849,30 @@ Textura: atlas compacto, paleta partilhada, 1 material (`analysis/2026-10-29-pap
 - Aceite: 0 texels mistos em 1/2 e 1/4 nas 5 unidades (alinhamento 4, sem padding); em 1/8 sobram 12-20 (as células planas têm 4
   linhas: 1/8 mistura vertical é inevitável sem padding; `pack_cells(align=8, pad=2)` zera, ao custo de área). Teste: atlas sintético
   fora da grade mistura, com padding de 2 px não.
+
+### 27.T5 Um material por (imagem, emissivo, opacidade) no export (2026-10-29)
+
+Fonte: Android, Optimize textures (https://developer.android.com/games/optimize/textures): menos materiais/texturas = menos draw calls.
+`UnitBatch` faz 1 `DrawMeshInstances` por mesh/primitive, então cada material do GLB custa 1 draw por tipo de unidade.
+- `build_unit.merge_materials(body)` roda após `texturize` em cel (`MERGE_MATERIALS = True`; `materials=split` no `build_unit`,
+  `--materials split` no `spec_pipeline`, restaura 1 material por slot). Agrupa por `surfaces.merge_groups` (função pura, testada):
+  chave `(imagem, cor de emissão ou None, alpha)`. As faces vão para o primeiro slot do grupo, `material_slot_remove_unused` limpa.
+  Forma e UVs intactas (já estão no espaço do atlas único). painted (4 imagens) não é tocado.
+- Slots emissivos (flame/lamp/glow) e translúcidos (glass, alphaMode BLEND) ficam separados: glTF soma `emissiveFactor` sem
+  multiplicar pela textura, então fundir com o iron acenderia o corpo todo. Por isso n005/hfoo/n00U ficam com 2 (corpo + flame/glow).
+
+Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; render_unit 9 vistas, mesma câmera):
+
+| unidade | prims/draws | bufferViews | GLB KB | `mesh_lint` (images, uv_oor, skins, tris) | render |
+|---|---|---|---|---|---|
+| n005 | 7 -> 2 | 215 -> 186 | 166.3 -> 160.6 | 1, 0, 1, 630 iguais | 0 em 9 vistas |
+| hfoo | 8 -> 2 | 279 -> 243 | 200.4 -> 193.3 | iguais | 3/255 em <= 7 px |
+| n017 | 4 -> 1 | 219 -> 201 | 173.3 -> 169.8 | iguais | 7/255 em 16 px |
+| n00U | 5 -> 2 | 267 -> 249 | 218.4 -> 214.9 | iguais | 0 |
+| n02X | 7 -> 1 | 292 -> 256 | 212.5 -> 205.4 | iguais | 0 |
+
+- Clipes idênticos por nome (5 ou 7 por unidade), `mesh_lint.engine_import` ok (meshes 7->2 etc.), `render_anim walk` roda.
+- Diferença de render = ruído de ordem de desenho/AA (<= 16 px de 262144). Default virou merge.
+- Não medido: stage 2 completo (deform/fit_verts pós-build) nem o draw count in-engine; as unidades hfoo/n00U/n02X não têm
+  `spec-colour.json` no v12-r1, então usei `spec.json` sem props crops (como em 27.T4).
+
