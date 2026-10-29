@@ -458,6 +458,114 @@ def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, co
     return f.compute(owner) if compute else f
 
 
+# ---------------------------------------------------------------- bones, weights, materials (PIPELINE 28.L10-5)
+LIMB_RAMP = 0.15        # a limb's upper -> lower weight ramps over +-this share of its from -> knee -> to length
+FREE_SCALE = 10.0       # ... of two parts that are not smooth-joined (siblings: legs of a spider)
+BAND_SCALE = 14.0       # the mixing band of a smooth-joined pair, x its k (ablation: PIPELINE 28.L10-5)
+
+
+def polyline_t(points, joints):
+    """(segment, t, share): the nearest segment of the polyline `joints` (J, 3) to each of the (N, 3) points, the point's
+    foot on it in [0, 1] and its arclength share of the whole polyline, in [0, 1]."""
+    a, b = joints[:-1], joints[1:]
+    e = b - a
+    ln = np.linalg.norm(e, axis=1)
+    w = points[:, None, :] - a[None]
+    t = np.clip((w * e).sum(2) / np.maximum(ln * ln, 1e-18), 0, 1)
+    seg = np.linalg.norm(w - t[..., None] * e, axis=2).argmin(1)
+    t = t[np.arange(len(points)), seg]
+    return seg, t, (np.cumsum(ln)[seg] - ln[seg] + t * ln[seg]) / ln.sum()
+
+
+def part_bones(row, P, cols):
+    """(M, B) bone weights of the (M, 3) points on one spec row: its bone; a limb with an upper / lower pair of bones
+    ramps from the upper to the lower over +-LIMB_RAMP around the knee (build_unit.skin_part's 1 / .5 / 0 per ring); a chain
+    takes the bone of its nearest segment."""
+    bone, kind, _, _, _, opts = row
+    opts = opts or {}
+    out = np.zeros((len(P), len(cols)))
+    if kind == "limb":
+        pair = lathe_limb.limb_bones(bone, set(cols))
+        if pair:
+            joints = to_blender([opts["from"], lathe_limb.knee_of(opts), opts["to"]])
+            _, _, share = polyline_t(P, joints)
+            knee = np.linalg.norm(joints[1] - joints[0]) / (np.linalg.norm(joints[1] - joints[0]) + np.linalg.norm(joints[2] - joints[1]))
+            up = np.clip(0.5 - (share - knee) / (2 * LIMB_RAMP), 0, 1)
+            out[:, cols[pair[0]]], out[:, cols[pair[1]]] = up, 1 - up
+            return out
+    if kind == "chain" and opts.get("bones"):
+        names = lathe_limb.chain_bones(bone, int(opts["bones"]))
+        seg, _, _ = polyline_t(P, to_blender(lathe_limb.chain_joints(bone, int(opts["bones"]))))
+        out[np.arange(len(P)), [cols[names[i]] for i in seg]] = 1.0
+        return out
+    out[:, cols[bone]] = 1.0
+    return out
+
+
+def piece_d(q, P):
+    """One piece's d, raised outside to its box's distance when that is larger: a facet's plane runs on far past the piece, and
+    a mixing band wants the distance a point really is from the part (never used for the grid, which keeps the inside)."""
+    d = EVAL[q["t"]](q, P)
+    out = np.maximum(np.maximum(np.asarray(q["lo"], P.dtype) - P, P - np.asarray(q["hi"], P.dtype)), 0)
+    return np.maximum(d, np.linalg.norm(out, axis=1))
+
+
+def near_distances(field, P):
+    """(parts, N) like Field.distances with piece_d for the pieces: not truncated, tighter outside, same on the surface."""
+    out = []
+    for part in field.parts:
+        d = piece_d(part["pieces"][0], P)
+        for q in part["pieces"][1:]:
+            d = np.minimum(d, piece_d(q, P))
+        for q in part["cut"]:
+            d = np.maximum(d, EVAL[q["t"]](q, P))
+        out.append(d)
+    return np.stack(out)
+
+
+def band_matrix(field, band_scale, free_scale):
+    """(parts, parts) mixing band of every pair: pair_k x band_scale for the smooth-joined ones, x free_scale for the rest."""
+    height = (field.shape[2] - 2 * PAD - 1) * field.voxel
+    joined = {(a, b) for a, b, _ in field.pairs} | {(b, a) for a, b, _ in field.pairs}
+    n = len(field.parts)
+    k = [[pair_k(field.parts[a], field.parts[b], field.voxel, height, field.k_scale)
+          * (band_scale if (a, b) in joined else free_scale) for b in range(n)] for a in range(n)]
+    return np.maximum(k, 1e-9)
+
+
+def weights(points, field, parts, rig, band_scale=BAND_SCALE, free_scale=FREE_SCALE):
+    """(bone names, W (N, len(names))) skin weights of the (N, 3) points (Blender axes) on `field`'s body; rows sum to 1.
+    `parts`: the spec rows the field was made from; `rig`: (family, extras). The owner is the part with the smallest d (weight
+    1); every other part whose d is within its band of the owner's (band_matrix) adds exp(-gap / sigma), sigma = band / 2,
+    faded to 0 at the band's edge by a smoothstep, so the skin is continuous across a junction and does not depend on the
+    mesh's density."""
+    P = np.asarray(points, float).reshape(-1, 3)
+    names = [b[0] for b in RF.with_extras(*rig)]
+    cols = {b: i for i, b in enumerate(names)}
+    dm = near_distances(field, P)
+    own = dm.argmin(0)
+    bands = band_matrix(field, band_scale, free_scale)
+    kept = lathe_limb.RIG
+    lathe_limb.set_rig(*rig)
+    try:
+        W = np.zeros((len(P), len(names)))
+        for m, part in enumerate(field.parts):
+            gap = dm[m] - dm[own, np.arange(len(P))]
+            s = np.clip(gap / bands[own, m], 0, 1)
+            w = np.where(own == m, 1.0, np.exp(-2 * gap / bands[own, m]) * (1 - s * s * (3 - 2 * s)) * (s < 1))
+            sel = w > 1e-3
+            if sel.any():
+                W[sel] += part_bones(parts[part["i"]], P[sel], cols) * w[sel][:, None]
+    finally:
+        lathe_limb.RIG = kept
+    return names, W / W.sum(1, keepdims=True)
+
+
+def materials(points, field, parts):
+    """Material name of the part nearest to each of the (N, 3) points (build_unit's transfer_from_parts: the face's centroid)."""
+    return [parts[field.parts[m]["i"]][4] for m in field.ownership(points)[0]]
+
+
 def load(path):
     """The Field of a clay.sdf.json, ready to evaluate (d, ownership) or compute()."""
     return Field.from_json(json.loads(pathlib.Path(path).read_text()))

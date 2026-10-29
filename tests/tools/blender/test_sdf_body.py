@@ -173,6 +173,45 @@ def spec_parity(path):
         LL.RIG = rig
 
 
+class Skin(unittest.TestCase):
+    """sdf_body.weights / materials (PIPELINE 28.L10-5): bones by ownership, a mixed junction, the limb ramp, the material."""
+    RIG = ("biped", ())
+
+    def setUp(self):
+        self.rig = LL.RIG
+        self.addCleanup(setattr, LL, "RIG", self.rig)
+
+    def weights_at(self, rows, spec_points, grid=48):
+        f = S.field(rows, rig=self.RIG, grid=grid, compute=False)
+        names, W = S.weights(S.to_blender(spec_points), f, rows, self.RIG)
+        return dict(zip(names, W.T))
+
+    def test_parent_child_boxes_own_their_vertices_and_mix_at_the_crease(self):
+        rows = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), row("head", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0))]
+        w = self.weights_at(rows, [(-0.2, 0.8, 0.0), (0.6, 1.6, 0.0), (0.2, 1.2, 0.0)])
+        self.assertTrue(np.allclose(w["spine"][0], 1) and np.allclose(w["head"][1], 1))
+        self.assertGreater(min(w["spine"][2], w["head"][2]), 0.3)               # the crease: both bones
+        self.assertAlmostEqual(sum(float(v[2]) for v in w.values()), 1.0)
+
+    def test_siblings_far_apart_do_not_mix(self):
+        rows = [row("foot.L", "box", (0.2, 0.2, 0.2), (-1, 1, 0)), row("foot.R", "box", (0.2, 0.2, 0.2), (1, 1, 0))]
+        w = self.weights_at(rows, [(-1, 1, 0), (1, 1, 0)])
+        self.assertTrue(np.allclose(w["foot.L"], [1, 0]) and np.allclose(w["foot.R"], [0, 1]))
+
+    def test_limb_ramps_from_upper_to_lower_around_the_knee(self):
+        rows = [row("thigh.L", "limb", (0.2, 0.15, 0.1), (0, 0, 0), **{"from": [0.3, 1, 0], "to": [0.3, 0, 0], "knee": [0.5, 0, 0]})]
+        ys = [0.99, 0.65, 0.5, 0.35, 0.01]               # from, above the ramp, the knee, below the ramp, to
+        w = self.weights_at(rows, [(0.3, y, 0) for y in ys])
+        np.testing.assert_allclose(w["thigh.L"], [1, 1, 0.5, 0, 0], atol=0.02)
+        np.testing.assert_allclose(w["thigh.L"] + w["shin.L"], 1)
+        self.assertTrue(np.all(np.diff(w["thigh.L"]) <= 1e-9))
+
+    def test_material_is_the_nearest_part_s(self):
+        rows = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), ("head", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0), "brass", {})]
+        f = S.field(rows, rig=self.RIG, grid=32, compute=False)
+        self.assertEqual(S.materials(S.to_blender([(-0.1, 1.0, 0.0), (0.5, 1.5, 0.0)]), f, rows), ["iron", "brass"])
+
+
 @unittest.skipUnless(os.environ.get("SLOW") and RUNS.exists(), "SLOW=1: 17 specs, ~10 s")
 class RealSpecs(unittest.TestCase):
     def test_parity_in_the_17_specs(self):
