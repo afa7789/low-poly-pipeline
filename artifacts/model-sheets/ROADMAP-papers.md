@@ -548,6 +548,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-6 (2026-10-29): feito** — `mesh_lint.shape_report`/`sdf_field`, `lint(sdf=True)` em `review.md ### Forma` e `compare_runs` FORM; baseline nos 5 clays v12 (p95 `sdf_dev`: união crua 0.35-1.1 % H, clay final 2.4-3.9 % H; PIPELINE §28.L10-6). Só relatório, sem gate.
 
+**Estado L10-3 (2026-10-29): feito, aceite parcial** — `tools/blender/retopo.py` (QEM em rodadas de conjuntos independentes + guarda 15°/normal/link + reprojeção SDF + guarda de desvio H/50), `retopo_mc.py`, `retopo_blender.py`, `retopo_ablate.py`, `tests/tools/blender/test_retopo.py` (PIPELINE §28.L10-3). 600 tris em 0.8–2.7 s (n00U 123 k tris); sliver 0.0–0.5 % (5/5; COLLAPSE cego 6–24 %), sdf_dev p95 ≤ 1.44 % e máx ≤ 2.87 % de H (5/5), nd −15/−7/−13/−19/−15° vs união (4/5), IoU ≥ raw −0.01 em 4/5 (hfoo left −0.013), euler = o da entrada (0/12/0/0/8). Faixa 60–100° 20.6–27 % (alvo 10–20 %: não). Features de aresta viva (35°) pioram tudo e ficam desligadas por default; heap trocado por rodadas (9.7 s → 0.8 s).
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo

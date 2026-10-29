@@ -4118,3 +4118,85 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   adaptividade por região; GLB do REMESH sem pele (só a malha, para medir).
 - **Testes.** `tests/tools/blender/test_sdf_extract.py`: índice→mundo, quad→tri (diagonal curta, orientação, área) rápidos;
   `SLOW=1` roda o Blender no n005 (fechada, 1 componente, flipped 0, slivers < 4 %, `sdf_dev` p95 ≤ 0.5).
+
+### 28.L10-3 `retopo.py`: QEM com guarda, reprojeção no SDF e rodadas independentes (numpy puro)
+- **O que mudou.** `tools/blender/retopo.py` (novo): `reduce(verts, tris, target_faces, sdf=None, features_deg=None, min_angle=15,
+  floor=0.9, polish=None, grad_h=None, max_dev=None)` → `(verts, tris, report)`; `grid_sdf(grid, origin, voxel)` (d por interpolação
+  trilinear de `Field.grid`, o campo barato do laço). `retopo_mc.py` (novo): `surface_nets(grid, origin, voxel)`, malha densa só
+  para teste em python3.14 (naive surface nets; tem 4 arestas não-manifold no n005 a 96³, o openvdb não). `retopo_blender.py` (novo,
+  Blender): `export` (SDF 96³ das 5 unidades → `convertToPolygons` adaptividade 0 e 0.5, `.npz`) e `collapse` (Decimate COLLAPSE
+  cego, a linha de base). `retopo_ablate.py` (novo): a tabela abaixo. Nada em `build_unit.py`, `mesh_lint.py`, `sdf_body.py`.
+- **Algoritmo.** Garland & Heckbert: quádrica por vértice = soma dos planos das faces (peso = área); custo de uma aresta = v^T (Qa+Qb) v
+  no ponto ótimo (sistema 3x3 amortecido a partir do ponto médio, preso a 1 comprimento de aresta) + `(LEN_REG·tam)²·len²`
+  (`LEN_REG = 1e-2`: empates entre arestas planas vão para a mais curta, senão o QEM faz triângulos longos). Guarda por colapso:
+  ângulo mínimo dos triângulos que sobrevivem ≥ `min_angle` (ou não pior do que já era), normal não vira (dot < 0), área não some,
+  condição de link (vizinhos comuns = 2, senão a casca belisca). Se o ótimo falha, tenta o lugar de a, o de b, o ponto médio, e só
+  aceita se o erro quádrico ≤ `SLACK = 1` × o do ótimo. Reprojeção de Newton `p ← p − d∇d/|∇d|²` (2 passos, diferenças centrais, passo ≤
+  comprimento da aresta) antes da guarda, e passo final (`polish`, o campo exato `Field.d`) em todo vértice, desfeito onde vira uma
+  face. `max_dev`: recusa o colapso que deixa o centróide de um triângulo mais longe do SDF do que isso (e do que já estava).
+  Alvo F ≤ B = `target_faces`, nunca abaixo de `floor·B` (a última rodada é cortada para cair em [0.9 B, B]; V* = (B+4)/2 em casca
+  fechada de gênero 0). Se nada colapsável sobra acima de B, o `min_angle` é relaxado por estágios (×0.8, 0.6, 0.4, 0.2, 0; a guarda de
+  normal fica) e o `report` diz (`stages`, `relaxed_min_angle`): nas 5 unidades a 600 nunca foi preciso. O `euler` de entrada é mantido
+  (nenhuma alça nasce nem some).
+- **Rodadas, não heap (desvio da spec).** O protótipo com `heapq` e poucas chamadas numpy por colapso levou 9.7 s no n005 (34 k tris;
+  18 s com reprojeção): 47 k tentativas × ~200 µs de overhead numpy. Agora cada rodada custa todas as arestas de uma vez (vetorizado),
+  escolhe as arestas mais baratas da sua 2-vizinhança (conjunto independente: aplicar juntas = aplicar uma a uma), projeta e guarda
+  todas de uma vez, aplica as que passam; as que falham ficam banidas até a vizinhança mudar; 4 conjuntos por rodada. n005 34 k → 600 em
+  0.8 s, n00U 123 k → 600 em 2.7 s. O protótipo ficou no histórico git (`4ab27344`).
+- **Entrada.** Malha do openvdb `convertToPolygons` do campo 96³ (`retopo_blender.py export`): a0 = adaptividade 0 (densa: 34 k / 123 k /
+  33 k / 69 k / 57 k tris), a5 = adaptividade 0.5 (6.8 k / 24 k / 7.8 k / 8.4 k / 12.9 k). Mesma malha bruta em todas as linhas; os
+  specs de `runs/draft/{n005,n00U,hfoo,n017,n02X}/v12-r1` com `fit/cuts.json` (n017 não tem), rig do spec escalado e restaurado.
+  Reproduzir: `blender -b -P tools/blender/retopo_blender.py -- export <dir>` e
+  `python3.14 tools/blender/retopo_ablate.py <dir> --src a0|a5 [--target 600] [--json out.json]`.
+- **Ablação (média das 5 unidades, B = 600, a0; sdf_dev em % de H medido em vértices + pontos médios de aresta + centróides com o
+  `Field.d` exato; IoU = pior vista menos o `clay-raw` da união, contra `refs/<id>/sheet.jpg`, câmeras do `silhouette.json`).**
+
+| linha | tris | sliver % (min–max) | nd | faixa 60–100 % | fairness | flipped | borda/nm | sdf_dev p95 (máx unid.) | sdf_dev máx (máx unid.) | IoU pior Δ | tempo soma (máx) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| união v12 `clay.glb` | 527 | 11.3–33.8 | 48.2 | 25.1 | 31.9 | 383 | 244/6 | 2.74 (3.02) | 7.47 (11.73) | −0.055 (deformado ao sheet) | – |
+| união `clay-raw.glb` | 564 | 10.9–34.5 | 41.7 | 32.2 | 31.3 | 99 | 81/6 | 0.87 (1.60) | 5.68 (12.75) | 0 | – |
+| COLLAPSE cego (Blender) | 600 | 6.3–23.5 | 37.2 | 25.0 | 31.2 | 14 | 0/0 | 0.46 (0.97) | 2.06 (4.20) | −0.014 | 0.5 s (0.23) |
+| QEM puro | 600 | 1.3–3.5 | 34.2 | 21.1 | 24.8 | 27 | 0/0 | 0.87 (1.52) | 2.58 (3.99) | −0.020 | 4.9 s (1.87) |
+| + guarda 15° | 600 | 0.0 | 34.9 | 22.2 | 23.9 | 19 | 0/0 | 0.78 (1.37) | 2.35 (3.59) | −0.011 | 5.5 s (2.08) |
+| + reprojeção SDF | 600 | 0.0–0.5 | 34.2 | 22.3 | 24.0 | 16 | 0/0 | 0.83 (1.45) | 2.66 (3.74) | −0.013 | 6.5 s (2.40) |
+| **+ guarda de desvio H/50 (final)** | 600 | 0.0–0.5 | 34.5 | 22.7 | 24.0 | 14 | 0/0 | 0.83 (1.44) | 2.09 (2.87) | −0.013 | 7.5 s (2.69) |
+| + features 35° (pesos 100, regras) | 600 | 0.0–28.0 | 39.8 | 19.8 | 32.7 | 209 | 0/0 | 2.05 (3.46) | 7.48 (13.46) | −0.341 | 31 s (9.7) |
+
+  `flipped` = faces com normal contra o gradiente do SDF no centróide (ruído nas junções: a malha densa tem 4–254). O `euler`
+  (F − 2V + 4) é 0, 12, 0, 0, 8 em todas as linhas COLLAPSE/QEM (= o da malha de entrada: o n00U e o n02X já nascem com alças, ver
+  abaixo). Mesma tabela a5 (entrada adaptividade 0.5): final sliver 0.0–0.8, nd 34.9, p95 1.03 (1.67), máx 2.46 (3.06), tempo 2.7 s
+  somado (1.09 máx); COLLAPSE sliver 4.7–17.5.
+
+- **Linha final por unidade (a0, B = 600).**
+
+| unidade | tris | sliver % | nd (união `clay.glb`) | faixa 60–100 | fairness | sdf_dev p95 / máx % H (máx em voxels) | euler (entrada) | IoU pior Δ vs `clay-raw` | s |
+|---|---|---|---|---|---|---|---|---|---|
+| n005 | 600 | 0.0 | 29.8 (45.0) | 20.9 | 22.3 | 0.46 / 2.00 (1.9) | 0 (0) | −0.003 | 0.83 |
+| n00U | 600 | 0.0 | 41.8 (48.8) | 27.1 | 26.0 | 1.44 / 2.87 (2.8) | 12 (12) | −0.002 | 2.69 |
+| hfoo | 600 | 0.5 | 33.6 (46.3) | 20.6 | 24.6 | 0.62 / 1.83 (1.8) | 0 (0) | −0.013 (left) | 0.93 |
+| n017 | 600 | 0.0 | 29.7 (48.3) | 22.3 | 23.9 | 0.88 / 1.79 (1.7) | 0 (0) | −0.009 | 1.57 |
+| n02X | 600 | 0.0 | 37.8 (52.8) | 22.4 | 23.4 | 0.73 / 1.94 (1.9) | 8 (8) | −0.005 | 1.45 |
+
+- **Aceite do plano.** `sliver_pct < 5`: 5/5. `sdf_dev` p95 ≤ H/64 (1.56 %) e máx ≤ H/32 (3.13 %): 5/5 (sem a guarda de desvio o máx do
+  n00U era 3.58 % e o do n02X 3.74 %; a guarda custa 0.3 s no n00U). tris em [540, 600]: 5/5 (600 exatos). ≤ 3 s: 5/5 (n00U 2.7 s a
+  0 de adaptividade, 1.1 s a 0.5; medido com outros agentes rodando). `normal_diff` ≤ união −10°: 4/5 (−15.2, **−7.0**, −12.7, −18.6,
+  −15.0; o n00U falha por 3°: a aranha tem muito osso fino). IoU 6 vistas ≥ `clay-raw` −0.01: 4/5 (hfoo `left` −0.0126; a malha
+  densa do SDF já está −0.018 nessa vista, a diferença vem do corpo SDF e não da retopologia, que devolve +0.005 sobre a densa).
+  `euler == 0`: 3/5; n00U (12) e n02X (8) mantêm o `euler` da malha de entrada (genus 3 e 2: alças que a união também tem), o que
+  é o critério honesto. **Faixa 60–100° em 10–20 %: 0/5** (20.6–27.1 %; a linha de base cega dá 22.7–31.6 e a união 28–38): perto,
+  não dentro; não foi forçado.
+- **Decisões.** (1) Default da retopologia = QEM + guarda + reprojeção + guarda de desvio, `features_deg=None` (a spec pedia 35°).
+  (2) Entrada recomendada para o L10-2: a0 se o tempo couber (n00U 2.7 s); a5 é 2.5× mais rápida e troca duas coisas: p95 do n00U 1.67 % (> 1.56 %) e IoU 4/5
+  (n017 `bottom` −0.013 em vez do hfoo `left`). (3) Campo do laço = grade trilinear (barato, vetorizado); campo exato só no `polish` e na medida.
+- **Negativos.** *Features (diedro ≥ 35° da entrada, quádrica perpendicular com peso 100, cantos fixos, absorção, sem corda):* pior em
+  tudo (sdf_dev máx 7.5 % vs 2.1 %, slivers até 28 %, IoU −0.34 no n00U). Os corpos são facetados (n005: 1563 arestas ≥ 35° na malha
+  densa, 747 mesmo em 2400 tris; n00U 5767): não cabem em 600 triângulos, a parte lisa é devorada primeiro e as pernas finas somem;
+  em malha de marching cubes o canto vira um friso duplo (a corda entre os dois frisos é proibida). Pesos 1/5/20, só quádrica ou
+  sem regras, limiar 45/60°: nenhum bate "sem features". *Flips de aresta por diedro mínimo* depois dos colapsos (protótipo,
+  removido): fairness 24 → 20 mas sdf_dev ×2–3 (n00U p95 1.44 → 4.13 %) e nd +1–9°. *Posições de fallback sem teto (`SLACK` 1e9):* slivers 0 mas sdf_dev máx
+  +60 % na soma das 5 unidades; teto 1 foi o melhor dos {1, 3, 10, ∞}. `LEN_REG` {2e-3, 5e-3, 1e-2, 3e-2} (a5, SLACK 1): 5e-3–1e-2 melhor equilíbrio de
+  sdf_dev × fairness × tempo (2e-3 é 3× mais lento e piora fairness; 3e-2 sobe o sdf_dev). Fairness 24 (alvo ≤ 20 do plano para QEM) não atingida; é o que a remalhagem do L10-4 deve ganhar.
+  O n00U/n02X a 600 estão no limite do orçamento (pernas de 8-gon): se o L10-7 subir o orçamento para 700 sobra folga. Heap: ver acima.
+- **Testes.** `tests/tools/blender/test_retopo.py` (10, 2 s; `SLOW=1` + n005 96³ → surface nets → 600 em ≤ 3 s, sdf_dev ≤ H/64 / H/32):
+  cubo subdividido (300 tris) → 12 tris exatos com os 8 cantos; esfera densa → alvo, 0 slivers, euler 0, manifold; guarda recusa
+  normal virada e sliver; Newton reduz |d|; reprojeção no laço aproxima da esfera; guarda de desvio; `grid_sdf`; surface nets.
