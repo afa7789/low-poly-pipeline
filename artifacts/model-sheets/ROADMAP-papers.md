@@ -424,7 +424,7 @@ L6-3 props ancorados ──────┘                                    L6
 
 # Leva 7 (2026-10-29) — RTS e laterais
 
-**Estado (2026-10-29):** L7-2 (coerência do rts, `--redo-rts`) e L7-4 (lathe deitado default; `LEAN_PROPS` opt-in) integrados e medidos na bateria v11 (n017 PASS, juiz 4-0); L7-3 integrado opt-in (`TOP_LEGS`, `LEG_SPILL_W`); L7-1 e L7-5 integrados depois da bateria (ver §25). Pendente: recalibrar `budget` com os kinds novos (n005 cai por 764 tris com a melhor forma do projeto).
+**Estado (2026-10-29):** L7-2 (coerência do rts, `--redo-rts`) e L7-4 (lathe deitado default; `LEAN_PROPS` opt-in) integrados e medidos na bateria v11 (n017 PASS, juiz 4-0); L7-3 integrado opt-in (`TOP_LEGS`, `LEG_SPILL_W`); L7-1 e L7-5 integrados depois da bateria (ver §25). Recalibração de `budget`: feita na leva 8 (§26.L8-9, `SOFT_RULES`).
 
 Diagnóstico do v10: front/back passam em 7 de 8; o erro ficou no rts (n00U .617, n017 .692, n00H .232, n010 .547) e
 no left (hfoo .450, n00H .681, n017 .719). Causas: fit/deformação só em front/left/back; rts do sheet gerado à parte
@@ -457,7 +457,7 @@ Aprovada pelo usuário em 2026-10-29.
 
 **Estado (2026-10-29, fim da leva):** L8-1, L8-2 (default), L8-3, L8-4, L8-5, L8-7, L8-8 integrados; L8-6 medido (v12: PASS 2/5,
 left +.03 a +.13 em 5/5, juiz dividido 2×2; `--fit-grad`/`--fit-verts` opt-in). Pendente: ablação grad × verts sem LLM;
-recalibrar `budget`/`shoulder_span` para o autor; limitar threads do torch já feito (`soft_sil.THREADS`).
+~~recalibrar `budget`/`shoulder_span`~~ feito (§26.L8-9: preflight só com regras soft não derruba clay que cobre o sheet; n005 v11 e n02X v12 CHECK -> PASS offline, hfoo v11 segue CHECK); limitar threads do torch já feito (`soft_sil.THREADS`).
 
 Diagnóstico: o pipeline já otimiza por silhueta (fit Powell, deformação, vértices) mas com
 raster duro e gradiente numérico (`optimize_verts.iou_gradient` 1–2 s por gradiente, 120 s/unidade, por isso desligado). Um

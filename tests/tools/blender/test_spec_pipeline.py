@@ -820,3 +820,26 @@ class Identity(unittest.TestCase):
         self.assertIn("must exist as parts or decals", text)
         self.assertIn("2. blue detail #586B87 - a material of exactly this colour", text)
         self.assertEqual(SP.identity_text([]), "")
+
+
+class PreflightSoftTest(unittest.TestCase):
+    """L8-9: only SOFT_RULES failures are forgiven, and only while the clay covers the sheet."""
+
+    @staticmethod
+    def pre(*fails):
+        out = "\n".join(f"  {r}  FAIL  x" for r in fails)
+        return types.SimpleNamespace(returncode=1 if fails else 0, stdout=out)
+
+    def test_cases(self):
+        red = {"uncovered": {"front": 0.5}}
+        cases = [("clean", self.pre(), True, True, {}, True),
+                 ("budget+split, clay fine", self.pre("budget", "budget_split"), True, True, {}, True),
+                 ("shoulder_span, clay fine", self.pre("shoulder_span"), True, True, {}, True),
+                 ("hard rule fails", self.pre("shoulder_span", "bones"), True, True, {}, False),
+                 ("silhouette gate fails", self.pre("shoulder_span"), False, True, {}, False),
+                 ("glb over tri gate", self.pre("budget"), True, False, {}, False),
+                 ("view too red", self.pre("stance"), True, True, red, False),
+                 ("unparsed report", types.SimpleNamespace(returncode=1, stdout="boom"), True, True, {}, False)]
+        for name, pre, sil, tris, summary, want in cases:
+            with self.subTest(name):
+                self.assertEqual(SP.preflight_ok(pre, sil, tris, summary), want)
