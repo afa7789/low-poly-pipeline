@@ -498,6 +498,9 @@ dependência, câmera por gradiente, textura por raster suave, redes implícitas
 
 # Leva 9 (2026-10-29) — textura: atlas compacto, paleta partilhada, 1 material
 
+**Estado (2026-10-29, fechada):** T1/T6/T5 default (atlas 84 KB → 5 KB; 7 → 1–2 materiais); T2/T4 relatório; T3+T7 opt-in
+(`--atlas shared`: juiz prefere em 3/5, falta a imagem única por raça no engine). Detalhe em PIPELINE §27.
+
 Fonte: lista de papers/tutoriais de atlas e packing (`analysis/2026-10-29-papers-atlas.md`; referências em
 `IA_gen_paper/papers/atlas/referencias_atlas.md`). Aprovada pelo usuário em 2026-10-29 ("autorizar execução do plano ao fim").
 Diagnóstico: o cel plano guarda ~40 cores úteis num PNG de 768² (84 KB) com 7 materiais = 7 draws; o `--atlas shared` (64², 1 KB)

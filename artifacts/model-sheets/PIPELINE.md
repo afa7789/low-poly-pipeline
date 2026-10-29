@@ -3729,6 +3729,20 @@ Deltas vs `none` (milésimos, f/l/b/top/bottom/rts):
 
 ## 27. Leva 9 (2026-10-29)
 
+Textura: atlas compacto, paleta partilhada, um material (papers/tutoriais de atlas e packing em
+`analysis/2026-10-29-papers-atlas.md`). Forma não muda. Resultado por item:
+
+| item | antes | depois | default |
+|---|---|---|---|
+| T1 atlas cel compacto (shelf FFD, slots 2 px) | 768² / 84 KB (n005), 7 materiais | ≤ 128² / ≤ 6.5 KB nas 5; `luma_l1` ±.008, `zones` −.011 pior caso | **sim** (`COMPACT_ATLAS`, `--atlas legacy`) |
+| T6 mip-safe (`mesh_lint.mip_bleed`) | — | 0 texels mistos até 1/4 nas 5 | relatório |
+| T2 fusão por ΔE Oklab no atlas partilhado | Human 13 colunas | 12 colunas (fusão rende 1) | sem flag; `--atlas shared` opt-in |
+| T4 espelho L/R | — | gêmeos já partilham célula e tom; `uv_overlap_mirror_pct` 2–3 % | relatório |
+| T5 um material por unidade (`merge_materials`) | 7–8 prims | 1–2 prims (flame emissivo separado); render igual | **sim** (`--materials split`) |
+| T3+T7 atlas partilhado 128² com decais + paleta por raça | sem decais/ink (L6-11 perdia 4-0) | juiz 4-0 pró shared em 3/5, empates nos outros; 10–16 unidades/raça; imagem única por raça ainda não gerada | opt-in (`--atlas shared`, `palette_snap`) |
+
+Pendente de outra leva: sidecar PNG único por raça (engine precisa de bind partilhado) e quantizar `WEIGHTS_0` (25 KB, maior bloco do GLB depois do T1).
+
 ### 27.T2 Paleta mínima partilhada por raça (2026-10-29)
 
 Fontes: Saved Pixel (workflow de paleta), Halladay 2016 (atlas com mips: padding >= 2^níveis). `shared_atlas.py` (`--atlas shared`, §24.L6-11):
