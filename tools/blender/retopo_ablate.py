@@ -44,6 +44,9 @@ ROWS = {
     "remesh + QEM": dict(method="hybrid", project=True, dev=REMESH_DEV),
     "remesh + features": dict(method="remesh", project=True, dev=REMESH_DEV, features=35),
     "QEM -> remesh (guided)": dict(method="guided", project=True, dev=REMESH_DEV),
+    # PIPELINE 29.L11-6: curvature-guided Voronoi / CVT (retopo.cvt); cvt keywords besides method / project / dev go straight to cvt()
+    "cvt": dict(method="cvt", project=True, dev=True),
+    "cvt qef": dict(method="cvt", project=True, dev=True, place="qef"),
 }
 FINAL = ("QEM + guard + proj + dev", "remesh", "remesh + QEM", "remesh + features", "QEM -> remesh (guided)")   # --l10-4: the rows of the 28.L10-4 table
 DEV_FRAC = 0.02          # the deviation guard: a collapse may not leave a triangle's centroid farther than this share of H
@@ -250,12 +253,13 @@ def main():
     ap.add_argument("--units", default=",".join(UNITS))
     ap.add_argument("--no-blender", action="store_true")
     ap.add_argument("--l10-4", action="store_true", help="only the rows of the 28.L10-4 table (QEM final, remesh, remesh + QEM, remesh + features)")
+    ap.add_argument("--rows", help="comma list of ROWS names to run (default all; --l10-4 wins)")
     ap.add_argument("--json", type=pathlib.Path)
     ap.add_argument("--render", type=pathlib.Path, help="folder for <unit>.png: clay of the first two rows of the table, 3 views")
     a = ap.parse_args()
     out = {}
     for unit in a.units.split(","):
-        out[unit] = unit_rows(unit, a.folder, a.src, a.target, not (a.no_blender or a.l10_4), FINAL if a.l10_4 else None, a.render)
+        out[unit] = unit_rows(unit, a.folder, a.src, a.target, not (a.no_blender or a.l10_4 or a.rows), FINAL if a.l10_4 else (a.rows.split(",") if a.rows else None), a.render)
         print(unit, flush=True)
         for name, m in out[unit].items():
             print(f"  {name:32} {m['tris']:>6} sl {m['sliver_pct']:>5} nd {m['nd']:>5} b {m['band60_100']:>5} fair {m['fairness']:>5} "
