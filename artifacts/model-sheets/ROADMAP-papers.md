@@ -456,7 +456,7 @@ Fonte: 12 papers de `~/Desktop/Differentiable_Rendering_DOIs_20261021/`; anális
 Aprovada pelo usuário em 2026-10-29.
 
 **Estado (2026-10-29, fim da leva):** L8-1, L8-2 (default), L8-3, L8-4, L8-5, L8-7, L8-8 integrados; L8-6 medido (v12: PASS 2/5,
-left +.03 a +.13 em 5/5, juiz dividido 2×2; `--fit-grad`/`--fit-verts` opt-in). Pendente: ablação grad × verts sem LLM;
+left +.03 a +.13 em 5/5, juiz dividido 2×2); ablação L8-6b: o ganho é do `--fit-verts` (6/6 vistas em 5/5) → **`FIT_VERTS=True` default**, `--fit-grad` opt-in. Pendente:
 ~~recalibrar `budget`/`shoulder_span`~~ feito (§26.L8-9: preflight só com regras soft não derruba clay que cobre o sheet; n005 v11 e n02X v12 CHECK -> PASS offline, hfoo v11 segue CHECK); limitar threads do torch já feito (`soft_sil.THREADS`).
 
 Diagnóstico: o pipeline já otimiza por silhueta (fit Powell, deformação, vértices) mas com

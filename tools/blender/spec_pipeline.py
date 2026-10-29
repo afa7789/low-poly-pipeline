@@ -2066,7 +2066,9 @@ def main():
                          "(deform_to_sheet.py, PIPELINE 24.L6-5)")
     ap.add_argument("--fit-verts", dest="fit_verts", action="store_true", default=FIT_VERTS,
                     help="after the deformation, optimise the body's vertex positions against the 6 sheet views at a "
-                         "fixed topology (optimize_verts.py, Wiersma 2026; about 2 min; PIPELINE 24.L6-7)")
+                         "fixed topology (optimize_verts.py, Wiersma 2026; 30 s with the soft gradient; default since "
+                         "PIPELINE 26.L8-6b)")
+    ap.add_argument("--no-fit-verts", dest="fit_verts", action="store_false", help="skip the vertex optimisation")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2155,7 +2157,7 @@ RED_SLIP = 0.02       # fit_accepted: the mean uncovered share (the overlay's re
 FORM_W = 0.5          # fit_accepted / margin_of: form cost (slivers + mean normal_diff / 90), PIPELINE 24.L6-6
 ALIGN_FEATURES = False  # PIPELINE 24.L6-12: sharp edges go to the hard sheet's inner edges after the deformation (--align); NEGATIVE: off
 DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the sheet's outlines (--no-deform)
-FIT_VERTS = False     # PIPELINE 24.L6-7: opt-in (--fit-verts); about 2 min a unit, so not a default
+FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ablation gained 6/6 views on 5/5 units. --no-fit-verts turns it off
 # 24.L6-4: the deformation needs the welded body; read build_unit.UNION_BODY from its source (it imports bpy)
 UNION_BODY = bool(re.search(r"^UNION_BODY\s*=\s*True", (ROOT / "tools/blender/build_unit.py").read_text(), re.M))
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins

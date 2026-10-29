@@ -3341,7 +3341,7 @@ Renderização diferenciável como otimizador (papers em `analysis/2026-10-29-pa
 | n017 | .882/.746/.830 · .671 | .875/.775/.834 · .692 | **PASS** | v12 em 3 eixos |
 | n02X | .863/.813/.889 · .724 | .885/**.884**/.898 · .784 | CHECK (preflight shoulder_span) | v10 em 3 eixos |
 
-Defaults depois da leva: `GRAD=soft` (L8-2) e `PIPELINE_SECONDS=30` no optimize_verts; `--fit-grad`, `--fit-verts`, τ anelado,
+Defaults depois da leva: `GRAD=soft` (L8-2), `PIPELINE_SECONDS=30` e **`FIT_VERTS=True`** (L8-6b: `--no-fit-verts` desliga); `--fit-grad`, τ anelado,
 `--dist/--agg`, `--dihedral`, `--loss asym`, `--fit-luma` opt-in.
 
 ### 26.L8-1 Raster suave de silhueta (`tools/blender/soft_sil.py`)
