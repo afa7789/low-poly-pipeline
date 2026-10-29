@@ -624,7 +624,28 @@ rodada 0 com `--deterministic` (fit-verts por iterações: o relógio dava +-.01
 
 - **L11-0b (2026-10-29) Estado:** `--frame body` implementado e medido (5 un., PIPELINE §29.L11-0b), opt-in. NÃO atendido: hfoo left .428 -> .458 (alvo .60), n005 left -.34, n02X front -.19: o corpo do modelo (maior componente) não é o corpo do sheet (props de parts.json). Default segue `bbox`.
 
-# Leva 12 (a planejar depois da Leva 11) — polimento final por Blender MCP, alguns minutos por modelo
+# Leva 12 (revista 2026-10-29 após o peer review) — consertar o que o painel achou, em sequência, antes do polimento MCP
+
+Fonte: `analysis/2026-10-29-peer-review-v14.md` (painel de 7, factos verificados). Critério do usuário: spill (vermelho) ≈ 0 em
+todas as 6 vistas; bare (verde) pouco; "PASS ≠ certo". Aprovado pelo usuário ("arrumar tudo que você achou, sequencialmente").
+Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 + n01X (specs v13-r1, câmaras pinadas,
+`--deterministic`), merge `--no-ff`, só então o seguinte. Tabela de bateria mostra sempre spill/bare por vista ao lado do IoU.
+
+| # | item | aceite |
+|---|---|---|
+| L12-1 | câmara pinada: `optimize_verts`/`deform_to_sheet` usam o tilt+flip que o gate escolheu (`silhouette.pin_tilts`) | \|verts.after − gate\| < .01 em 6 vistas × 6 unidades (hoje .07–.08 em 3) |
+| L12-2 | spill como gate (`SPILL_MAX` ≤ .03/vista, `UNCOVERED_MAX` ≤ .10) e custo assimétrico (spill ≥ 3× bare) no fit e no verts | spill cai em ≥ 4 vistas/unidade sem bare subir > .03; relatório mostra spill por vista |
+| L12-3 | guarda autor-vs-massing: colunas massing/autor/final por vista; spec do autor rejeitado/peça revertida se vista < massing − .01 | hfoo left e n017 top ≥ massing; nenhuma unidade abaixo do massing |
+| L12-4 | stage 2 corre sempre; estágio em falta = FAIL(infra); teste "flag viva" por opt-in (≥ 1 número muda ou log no-op) | 6/6 texturizados; 0 flags mortas |
+| L12-5 | vista `incoherent` → peso 0 no fit, IoU bruto reportado; IoU corpo e prop separados (gate no corpo, prop CHECK) | hfoo left(corpo) ≥ .70; FAIL por sheet vs modelo tabelado |
+| L12-6 | regras da DSL → preflight: `hood_recess`, `prop_axis`/`prop_coverage`, ≥ 1 junta por pata (arthropod) | specs v13 de n005/n017/n00U rejeitados; repair corrige sem LLM |
+| L12-7 | piso de ruído: 3 rebuilds/unidade, σ por vista em `results.csv`; aceite de deltas só > 2σ (substitui GAIN/DROP fixos) | σ publicado; laço e opt-ins usam 2σ |
+| L12-8 | profundidade: `z_err` (marcos triangulados front×left×top com resíduo na 3.ª vista) + `relief_agreement` (tinta vs degraus do z-pass); triangulação por peça (patas pelo top, lança por front×left, capuz pelo top) | z_err ≤ .05 H; n00U/hfoo/n005 melhoram top/bottom/rts sem vista cair > 2σ |
+| L12-9 | look low-poly: snap planar por região + creases onde o sheet-hard desenha faceta + tinta nas arestas | chamfer wire↔tinta cai; juiz forma ≥ 3/5 |
+| L12-10 | bateria v15 (autor + tudo acima) pareada com v13; ficha 11; matriz L11-7 re-executada | spill ≤ 3 % em ≥ 5 vistas/unidade em ≥ 4/6; PASS honesto ≥ 3/6 |
+| L12-11 | polimento MCP (plano antigo abaixo), só depois de L12-1..9 | — |
+
+## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender
 via MCP, com brief fixo, orçamento de tempo, script `polish.py` gravado e os mesmos gates (nenhuma vista cai > 0.01). Plano:
