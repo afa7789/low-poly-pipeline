@@ -3,7 +3,6 @@ import json
 import pathlib
 import sys
 import tempfile
-import types
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
