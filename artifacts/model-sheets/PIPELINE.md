@@ -5081,3 +5081,41 @@ spill (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guar
 - **Aberto.** (a) Atribuição multi-osso (busca por pares ou por grupo de simetria) para o hfoo left; (b) quando `massing_stage` já rodou (sem `--spec`) a medida do massing é refeita em `guard/massing/` (um estágio 1 a mais; reaproveitar `massing_report` exigiria spill nele); (c) `sdf_batch.py` não tem as colunas massing/autor/final: a tabela acima foi montada do `silhouette.json["guard"]`; (d) o autor LLM de verdade (v15) com a guarda ligada não foi medido (sem LLM nesta leva).
 - **Testes.** `test_author_guard.py` (11, sem Blender): `drops` no limite; `revert` reverte o osso da vista caída e mantém props/paleta, nada cai -> nada muda, nenhum osso ajuda; `reject` com e sem props; `guard_stage` com os builds simulados (`off` não faz nada, sem queda deixa o spec, queda -> revert, revert que não resolve -> reject-bare); `guard_fit` (fit mantido / fit descartado). Suite completa: ver commit.
   Runs: `runs/draft/<id>/l12-guard` (final), `l12-guard-plain`, `l12-guard-nofitguard`, `l12-guard-bareprops` (versões descartadas, fora do repo se ignorados).
+
+### 30.L12-4 Stage 2 sempre, FAIL(infra), teste "flag viva" (2026-10-29)
+
+- **Por que.** Com o gate honesto do L12-2 as 6 unidades falham o estágio 1 e `run_colour` só corria com `shape["ok"]`: nenhuma ganhava textura, `model.glb` nem turntable, e o juiz de look (e a ficha) avaliava o clay cinzento, o que invalida qualquer comparação de look entre runs. Um estágio que não escreve o ficheiro virava `None`/"skipped" e o veredito seguia (`CHECK`/`SHAPE-PASS`). Flags opt-in sem teste podiam não fazer nada sem ninguém ver (`--fit-parts`/`--depth` corriam sem efeito).
+- **Mudança** (`tools/blender/spec_pipeline.py`, `fit_spec.py`, `parts_fit.py`, `sdf_batch.py`).
+  1. Stage 2 corre sempre (`wants_colour`: não `--shape-only`, há `clay.glb`, e stage 1 ok **ou** `--colour-on-fail on`, default). `--colour-on-fail off` = regra antiga. A semântica do veredito não muda: stage 1 FAIL + stage 2 ok = `CHECK`, nunca `PASS`. O turntable passa a ser filmado sempre que `model.glb` existe (antes só com o gate de cor ok). `review.md` mostra a secção de cor também nos runs que falharam o estágio 1.
+  2. `infra_check(args, shape, colour) -> list[str]` no fim do run: preflight sem linha "rules pass", `clay.glb` não construído, `clay.deform.json` (deform on, corpo unido), `clay.verts.json` (fit-verts on), `silhouette.json` (sem `--no-silhouette`), `spec.json`, e se o stage 2 era devido: módulo `colour_stage` ausente, `model.glb`, `stage2/colour.json`, `turntable.gif`. Lista não vazia = veredito **`FAIL(infra)`** (linha impressa, secção `## FAIL(infra)` no `review.md`, `infra.json` no run, coluna de veredito do `sdf_batch.py`), **exit 2** (gate = exit 1). `--shape-only`, `--colour-on-fail off` após estágio 1 falho, `--no-silhouette`, `--no-deform`, `--no-fit-verts` e `--body join` justificam a ausência do que cada um não escreve.
+  3. `tests/tools/blender/test_flag_liveness.py` (sem Blender): `SP.build_parser()` (extraído de `main`) é introspectado; cada argumento tem de estar na tabela como `live` (ligar muda uma chamada/número do módulo que o consome: família do fit via `fit_stage` com `fit_spec.fit` falso, `clay_args`/`sdf_body.pair_k`/`retopo.retopo` para `--body/--sdf-*`, `guard_stage`, `run_loop`, `stage_colour` para `--fit-luma`, `silhouette.asym_cost` para `CF_SPILL_W`, `wants_colour`), `noop` (`noop_notes(args)` imprime `no-op: <flag>: <razão>` quando a precondição falta: `--ramp/--fit-luma/--atlas/--materials` fora do `cel`, flags do fit com `--no-fit`, `--colour-pass` com `--shape-only`, `--sdf-*` fora de `--body sdf`, `--align` com `--body join`, `--loop` sem round 0 aprovado, `--author-guard` sem massing, `--fit-parts/--depth/--parts` sem `parts.json` ou sem `box3d`) ou `plain` (entrada/rótulo lido em todo run); mais uma varredura estática: todo `dest` é lido (`args.<dest>`) por algum módulo de `tools/blender`, e todo `CF_*` do código está na tabela `ENV`. Um argumento novo sem linha, uma linha órfã ou um `dest` que ninguém lê falha o teste.
+- **Flags mortas encontradas.**
+
+| flag | achado | ação |
+|---|---|---|
+| `--flat` | nenhum módulo lê `args.flat` (texto: "stage 2: skip the painted texture"; a textura painted já não é o default) | removida do parser |
+| `--fit-parts` / `--depth` / `--parts` | `refs/<id>/parts.json` com `box3d: null` em **7 de 8** ficheiros (hfoo 1/15 partes, n005 3/18, n00H 3/7, n00U 5/13, n010 9/17, n017 6/13, n01X 3/20; só n02X 0/21); `associate` iterava `None` | `parts_fit.associate` pula parte sem `box3d`; `fit_spec.attach_parts` imprime `no-op: ... parts.json has no box3d` e segue sem termos de parte quando **todas** são nulas, e `no-op: ... no parts.json` quando não há ficheiro. Raiz = o dado (a regeneração dos box3d nulos fica aberta), a flag deixou de falhar calada |
+| `--author-guard` sem massing | `guard_stage` voltava em silêncio | imprime `no-op: --author-guard ...: no massing spec` |
+| `--loop` sem round 0 aprovado | `run_loop` voltava em silêncio | imprime `no-op: --loop: no approved round 0` |
+| `--ramp`, `--fit-luma`, `--atlas`, `--materials` com `--texture painted/sheet` | só o `cel` os lê | `noop_notes` |
+| `--sdf-grid/--sdf-k-mode/--sdf-retopo` com `--body union/join` | `clay_args` só os passa com `--body sdf` | `noop_notes` |
+| `CF_SPILL_W`, `--sdf-k-mode`, `--sdf-retopo`, `--fit-grad`, `--fit-luma`, `--loop`, `--author-guard` | vivos: o teste prova que mudam a chamada/o número do consumidor | `live` na tabela |
+
+  Limite do teste: para as flags do fit prova que chegam ao parâmetro de `fit_spec.fit` (a fronteira do módulo), não que o parâmetro mexa no número; isso é dos testes de `fit_spec`/`fit_grad`. Para `--flip-side`/`--frame` e as de `colour_stage` só a leitura estática (lidas por `silhouette.py`/`colour_stage.py` via `args`/`os.environ`).
+- **Medida** (bateria das 6, sem LLM, `--spec v13-r1/spec.json --no-repair --no-diagnose --body sdf --deterministic --tilts` do v13-r1, run `l12-stage2`; controlo `l12-cams` = mesmo estágio 1 sem stage 2).
+
+| un. | veredito antes | veredito depois | stage 1 | stage 2 (gate de cor) | model.glb / turntable | t stage 2 | infra |
+|---|---|---|---|---|---|---|---|
+| n005 | CHECK, sem textura | CHECK com textura | FAIL (gates L12-2) | PASS (front .71 / left .73 / back .68 / top .48 / bottom .31 de média por zona) | sim / sim | 37.6 s | [] |
+| n00U | CHECK, sem textura | CHECK com textura | FAIL | PASS | sim / sim | 38.7 s | [] |
+| hfoo | CHECK, sem textura | CHECK com textura | FAIL | PASS | sim / sim | 45.2 s | [] |
+| n017 | CHECK, sem textura | CHECK com textura | FAIL | PASS | sim / sim | 36.8 s | [] |
+| n02X | CHECK, sem textura | CHECK com textura | FAIL | PASS | sim / sim | 38.3 s | [] |
+| n01X | CHECK, sem textura | CHECK com textura | FAIL | PASS | sim / sim | 35.3 s | [] |
+
+  IoU do estágio 1 igual ao `l12-cams` (|Δ| = 0.000 em 5 de 6; hfoo +.005..+.016 por vista, ruído do fit entre rodadas: não investigado). Exit 1 (CHECK) nas 6, nenhum 2. Custo: ~36-45 s por unidade (o gate de cor, uma build `cel` e o turntable).
+- **Aceite.** 6/6 texturizados com turntable: **sim**. 0 flags mortas (teste verde, `--flat` removida): **sim**. 0 `FAIL(infra)` na bateria: **sim**.
+- **Decisão: default** (`--colour-on-fail on`). Não toquei nos gates do estágio 1 (L12-2), na guarda (L12-3), na câmara (L12-1), nos pesos de vista (L12-5) nem no preflight (L12-6).
+- **Aberto.** (a) Regenerar os `box3d` nulos de `refs/*/parts.json` (7 de 8 ficheiros) para `--fit-parts/--depth` terem efeito; (b) o teste prova a ligação ao consumidor, não o ganho: a ablação de cada opt-in segue sendo medida; (c) o `sdf_batch.py` não gera `results.csv` (só `l10-batch.json` + tabela): a coluna de veredito mostra `FAIL(infra)`; (d) `infra_check` não vê exceção engolida dentro de um estágio que ainda escreve o ficheiro.
+- **Testes.** `test_flag_liveness.py` (10), `test_spec_pipeline.py` (+3: `verdict_of` com infra, `wants_colour`, `infra_check`), `test_sdf_batch.py` (+1). Runs: `runs/draft/<id>/l12-stage2`.
+

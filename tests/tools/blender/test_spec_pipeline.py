@@ -374,11 +374,46 @@ class Stages(unittest.TestCase):
         self.assertEqual(SP.verdict_of(bad, None), "CHECK")
         self.assertEqual(SP.verdict_of(ok, None), "SHAPE-PASS")   # no colour_stage: ends clean
 
+    def test_infra_is_not_a_gate_failure(self):
+        ok = {"ok": True}
+        self.assertEqual(SP.verdict_of(ok, (True, ""), ["model.glb not written"]), "FAIL(infra)")
+        self.assertEqual(SP.verdict_of({"ok": False}, (True, ""), ["x"]), "FAIL(infra)")
+        self.assertEqual(SP.verdict_of({"ok": False}, (True, ""), []), "CHECK")     # a failed stage 1 with its stage 2 is CHECK, never PASS
+
+    def test_stage_2_runs_after_a_failed_stage_1_unless_told_not_to(self):
+        import types
+        args = lambda **kw: types.SimpleNamespace(**{"shape_only": False, "colour_on_fail": "on", **kw})   # noqa: E731
+        failed = {"ok": False, "glb": "clay.glb"}
+        self.assertTrue(SP.wants_colour(args(), failed))
+        self.assertFalse(SP.wants_colour(args(colour_on_fail="off"), failed))
+        self.assertFalse(SP.wants_colour(args(shape_only=True), {"ok": True, "glb": "clay.glb"}))
+        self.assertFalse(SP.wants_colour(args(), {"ok": False, "glb": None}))     # nothing to texture
+
+    def test_infra_check_lists_the_stage_that_left_no_file(self):
+        import tempfile
+        import types
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            args = types.SimpleNamespace(out=out, shape_only=False, colour_on_fail="on", union_body=True, deform=True,
+                                         fit_verts=True, no_silhouette=False)
+            shape = {"ok": False, "glb": out / "clay.glb", "pre": "3/3 rules pass"}
+            self.assertEqual(len(SP.infra_check(args, shape, None)), 6)    # every file and the stage 2 that was due
+            for name in ("spec.json", "clay.glb", "clay.deform.json", "clay.verts.json", "silhouette.json", "model.glb", "turntable.gif"):
+                (out / name).write_text("x")
+            (out / "stage2").mkdir()
+            (out / "stage2" / "colour.json").write_text("{}")
+            self.assertEqual(SP.infra_check(args, shape, (False, "")), [])        # a failed gate with everything written is not infra
+            self.assertEqual(SP.infra_check(types.SimpleNamespace(**{**vars(args), "shape_only": True}), shape, None), [])
+            (out / "turntable.gif").unlink()
+            self.assertEqual(SP.infra_check(args, shape, (False, "")), ["colour stage 2: turntable.gif not written"])
+            self.assertIn("no 'rules pass' line", SP.infra_check(args, {**shape, "pre": ""}, (False, ""))[0])
+            self.assertIn("clay.glb not built", SP.infra_check(args, {**shape, "glb": None, "pre": ""}, None)[-1])
+
     def test_review_says_where_a_failed_run_stopped(self):
         import types
-        args = types.SimpleNamespace(kind="mass", texture="cel")
+        args = types.SimpleNamespace(kind="mass", texture="cel", colour_on_fail="off")
         text = SP.stage2_section(args, {"ok": False, "failed": ["silhouette"]}, None)
-        self.assertIn("stopped at stage 1, failed: silhouette", text)
+        self.assertIn("stage 1 failed (silhouette) and --colour-on-fail off", text)
 
     def test_colour_stage_gets_the_contract_arguments(self):
         import tempfile

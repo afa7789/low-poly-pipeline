@@ -1302,7 +1302,10 @@ def guard_stage(spec, args, layout):
     fit) on the run's pinned cameras, before the numeric fit. A view more than AUTHOR_DROP under the massing's: try the steps of
     guard_steps until none falls (the last one is taken unmeasured). Returns (spec, report or None)."""
     mass = massing_base(args)
-    if args.author_guard == "off" or not mass:
+    if args.author_guard == "off":
+        return spec, None
+    if not mass:
+        print(f"no-op: --author-guard {args.author_guard}: no massing spec to guard against (--no-massing, or --spec without massing/spec.json)")
         return spec, None
     work = args.out / "guard"
     rows = {"massing": guard_measure(mass, args, layout, work, "massing"), "author": guard_measure(spec, args, layout, work, "author")}
@@ -2056,14 +2059,8 @@ def stage_one(args, brief, images, tmp, layout):
     return guard_fit(args, pre_fit, spec, shape, layout)
 
 
-def main():
-    if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
-        for name, n in check_rts().items():
-            print(f"{n} {name}")
-        return
-    if sys.argv[1:2] == ["--redo-rts"]:   # --redo-rts refs/<id>/sheet.jpg: redraw that sheet's rts view
-        print("kept the old rts" if not redo_rts(pathlib.Path(sys.argv[2]).resolve()) else "rts redone")
-        return
+def build_parser():
+    """The argument parser of the pipeline (one definition: main() and tests/tools/blender/test_flag_liveness.py)."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
     ap.add_argument("--race", required=True)
@@ -2099,8 +2096,6 @@ def main():
     ap.add_argument("--height", type=float, default=None,
                     help="unit height in metres (default: the rig's own height)")
     ap.add_argument("--kind", default="mass", choices=BUDGETS.keys())
-    ap.add_argument("--flat", action="store_true",
-                    help="stage 2: skip the procedural painted texture (on by default)")
     ap.add_argument("--texture", "--style", dest="texture", choices=("cel", "painted", "sheet"),
                     default="cel",
                     help="stage 2 texture: cel = flat tone per face like the hard sheet (default); "
@@ -2123,6 +2118,9 @@ def main():
                     help="--atlas shared: where the per-race column tables <race>.json live (append only)")
     ap.add_argument("--shape-only", action="store_true",
                     help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
+    ap.add_argument("--colour-on-fail", choices=("on", "off"), default="on",
+                    help="stage 2 also runs when stage 1 failed (default on: model.glb, texture and turntable exist in every run, "
+                         "the verdict stays CHECK); off = the old rule, stage 2 only after a passing stage 1 (PIPELINE 30.L12-4)")
     ap.add_argument("--colour-pass", type=int, default=0,
                     help="stage 2 colour-pass tries when the zone gate fails (palette/decals only)")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
@@ -2229,6 +2227,42 @@ def main():
                          "(review_pair.py); losing both axes demotes the status one level")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
+    return ap
+
+
+def noop_notes(args):
+    """One line per opt-in the arguments switch on whose precondition is missing, so it would run without effect
+    ("no-op: <flag>: <why>"); main() prints them. The flags whose precondition is in the data (parts.json without box3d,
+    no massing spec, no approved round 0) say so where they find out (fit_spec.attach_parts, guard_stage, run_loop)."""
+    cel_only = [f for f, on in (("--ramp", args.ramp), ("--fit-luma", args.fit_luma), ("--atlas", args.atlas != "own"),
+                                ("--materials", args.materials != "merge")) if on and args.texture != "cel"]
+    fit_only = [f for f, on in (("--fit-edges", args.fit_edges), ("--fit-stages", args.fit_stages), ("--fit-grad", args.fit_grad),
+                                ("--fit-fast", args.fit_fast), ("--fit-parts", args.fit_parts), ("--depth", args.depth),
+                                ("--parts", args.parts), ("--constraints", args.constraints)) if on and not args.fit]
+    stage1_only = [f for f, on in (("--colour-pass", args.colour_pass), ("--ramp", args.ramp), ("--fit-luma", args.fit_luma)) if on and args.shape_only]
+    sdf_only = [f for f, on in (("--sdf-grid", args.sdf_grid), ("--sdf-k-mode", args.sdf_k_mode != "base"),
+                                ("--sdf-retopo", args.sdf_retopo != "qem")) if on and args.body != "sdf"]
+    unioned_only = (["--align"] if args.align and args.body == "join" else [])
+    why = [(cel_only, "stage 2 reads it for --texture cel only"), (fit_only, "--no-fit"), (stage1_only, "--shape-only: no stage 2"),
+           (sdf_only, f"--body {args.body}, it is for --body sdf"), (unioned_only, "--body join: no unioned body to deform"),
+           (["--loop"] if args.loop and args.no_silhouette else [], "--no-silhouette: no approved round 0")]
+    return [f"no-op: {', '.join(flags)}: {reason}" for flags, reason in why if flags]
+
+
+def print_noops(args):
+    for note in noop_notes(args):
+        print(note)
+
+
+def main():
+    if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
+        for name, n in check_rts().items():
+            print(f"{n} {name}")
+        return
+    if sys.argv[1:2] == ["--redo-rts"]:   # --redo-rts refs/<id>/sheet.jpg: redraw that sheet's rts view
+        print("kept the old rts" if not redo_rts(pathlib.Path(sys.argv[2]).resolve()) else "rts redone")
+        return
+    ap = build_parser()
     args = ap.parse_args()
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     os.environ["CF_FRAME"] = args.frame or os.environ.get("CF_FRAME", "bbox")
@@ -2241,6 +2275,7 @@ def main():
     args.union_body = args.body != "join"
 
     resolve_paths(args)
+    print_noops(args)
 
     lo, hi = BUDGETS[args.kind]
     layout = layout_of(args.kind)
@@ -2272,19 +2307,29 @@ def main():
     spec, shape = run_loop(args, spec, shape, layout)
     save_guard(args)
     colour = None
-    if shape["ok"] and not args.shape_only:
+    if wants_colour(args, shape):
         t0 = time.monotonic()
         colour = run_colour(spec, shape, args)
         args.times["colour"] = time.monotonic() - t0
-    verdict = verdict_of(shape, colour)
+    args.infra = infra_check(args, shape, colour)
+    save_infra(args)
+    verdict = verdict_of(shape, colour, args.infra)
     args.pairwise = pairwise_of(args, shape)
     write_review(args, shape, colour, verdict)
     run_diagnose(args, verdict)       # after spec.json, review.md and compare.png: reads them, changes none
-    stage2 ="-" if colour is None else ("PASS" if colour[0] else "FAIL")
+    stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
     print(f"{args.id}\t{args.run}\t{args.tag}\ttris {shape['tris']}/{lo}-{hi}\t"
           f"skins {shape['skins']}\tanims {shape['anims']}\tsmear {shape['smear']} %\t"
           f"preflight {'PASS' if shape['checks'].get('preflight') else 'FAIL'}\t"
           f"stage1 {'PASS' if shape['ok'] else 'FAIL'}\tstage2 {stage2}\t{verdict}")
+    return exit_code(args, verdict)
+
+
+def exit_code(args, verdict):
+    """2 when a stage did not happen (FAIL(infra), listed), 1 for a failed gate (CHECK), 0 for a pass."""
+    if args.infra:
+        print("FAIL(infra): " + "; ".join(args.infra))
+        return 2
     return 0 if verdict in OK_VERDICTS else 1
 
 
@@ -2328,6 +2373,8 @@ def run_loop(args, spec, shape, layout):
     """--loop N after the approved round 0: snapshot round 0 in loop/round0/, run loop_stage, leave the best in args.out.
     Returns (spec, shape); args.summary and args.loop_report are the best's. No-op without --loop or an approved round 0."""
     args.loop_report = None
+    if args.loop and not (shape["glb"] is not None and args.summary.get("approved")):
+        print("no-op: --loop: no approved round 0 (the build failed or the silhouette was not measured)")
     if not (args.loop and shape["glb"] is not None and args.summary.get("approved")):
         return spec, shape
     hooks = loop_hooks(args, layout)
@@ -2387,14 +2434,57 @@ def run_colour(spec, shape, args):
     work = args.out / "stage2"
     work.mkdir(parents=True, exist_ok=True)
     ok, report = stage.stage_colour(spec, shape["glb"], args, shape["tilts"], work)
-    if ok and (args.out / "model.glb").exists():
+    if (args.out / "model.glb").exists():      # whatever the colour gate said: the judge looks at the turntable (L12-4)
         turntable(args, args.out / "model.glb")
     return ok, report
 
 
-def verdict_of(shape, colour):
-    """CHECK when a stage failed; SHAPE-PASS when stage 1 passed and stage 2 did not run;
-    PASS only when both stages passed."""
+def wants_colour(args, shape):
+    """Stage 2 runs unless --shape-only, or (--colour-on-fail off) stage 1 failed, or there is no clay to texture."""
+    return not args.shape_only and shape["glb"] is not None and (shape["ok"] or args.colour_on_fail == "on")
+
+
+def infra_check(args, shape, colour):
+    """What a finished run is missing, one line each: a stage whose file was not written, a module that
+    was not found, a stage 2 that was due and did not run. Empty = the infrastructure held. Not a gate:
+    a gate that fails is CHECK, a stage that did not happen is FAIL(infra) (PIPELINE 30.L12-4).
+    --shape-only, --colour-on-fail off after a failed stage 1, --no-silhouette, --no-deform, --no-fit-verts
+    and a join body justify the files they would have written."""
+    out, missing = args.out, []
+
+    def need(stage, *names):
+        missing.extend(f"{stage}: {n} not written" for n in names if not (out / n).exists())
+
+    need("author/spec", "spec.json")
+    if rules_of(shape["pre"]) == "-":
+        missing.append("preflight: no 'rules pass' line in its output")
+    if shape["glb"] is None:
+        return [*missing, "build/clay: clay.glb not built"]
+    need("build/clay", "clay.glb")
+    if args.union_body and args.deform:
+        need("deform", "clay.deform.json")
+    if args.union_body and args.fit_verts:
+        need("verts", "clay.verts.json")
+    if not args.no_silhouette:
+        need("gate stage 1", "silhouette.json")
+    if wants_colour(args, shape):
+        if colour is None:
+            missing.append("colour stage 2: due and not run (tools/blender/colour_stage.py not found)")
+        else:
+            need("colour stage 2", "model.glb", "stage2/colour.json", "turntable.gif")
+    return missing
+
+
+def save_infra(args):
+    """infra.json beside silhouette.json: the list infra_check returned (sdf_batch.py reads it for its verdict column)."""
+    (args.out / "infra.json").write_text(json.dumps(args.infra, indent=2))
+
+
+def verdict_of(shape, colour, infra=()):
+    """FAIL(infra) when a stage did not happen; CHECK when a stage failed; SHAPE-PASS when stage 1 passed and
+    stage 2 did not run; PASS only when both stages passed."""
+    if infra:
+        return "FAIL(infra)"
     if not shape["ok"] or (colour is not None and not colour[0]):
         return "CHECK"
     return "SHAPE-PASS" if colour is None else "PASS"
@@ -2456,10 +2546,16 @@ def stage1_section(args, shape):
             f"{iou_rows(args.summary)}{prop_row(args.summary)}\n")
 
 
+def infra_section(args):
+    """review.md: the stages that did not happen (infra_check); empty when none."""
+    infra = getattr(args, "infra", None)
+    return "" if not infra else "## FAIL(infra)\n\n" + "".join(f"- {line}\n" for line in infra) + "\n"
+
+
 def stage2_section(args, shape, colour):
-    if not shape["ok"]:
-        return (f"## Stage 2 - colour: not run\n\nstopped at stage 1, failed: "
-                f"{', '.join(shape['failed'])}. No texture, turntable or stage 2.\n")
+    if colour is None and not shape["ok"]:
+        return (f"## Stage 2 - colour: not run\n\nstage 1 failed ({', '.join(shape['failed'])}) and "
+                f"{'--colour-on-fail off' if args.colour_on_fail == 'off' else 'there is no clay'}: no texture or turntable.\n")
     if colour is None:
         return "## Stage 2 - colour: not run\n\nno stage 2 for this run (--shape-only, or no colour_stage.py).\n"
     ok, report = colour
@@ -2744,7 +2840,7 @@ def write_review(args, shape, colour, verdict):
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
-        f"{massing_section(args)}{guard_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{loop_stage.table(args.loop_report)}\n"
+        f"{massing_section(args)}{guard_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{infra_section(args)}{loop_stage.table(args.loop_report)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "

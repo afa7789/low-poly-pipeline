@@ -651,6 +651,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-3 (2026-10-29): guarda feita, opt-in (`--author-guard revert`, default `off`); aceite parcial** — `author_guard.py` + `guard_stage`/`guard_fit`: autor e massing medidos como estágio 1 na mesma câmara, antes do fit; revert por osso (proxy) -> reject (massing + props do autor) -> massing; o fit também não pode empurrar vista > .01 abaixo do massing. hfoo left .406 -> .707 (= massing) e n017 top .847 (massing .849) cumpridos, nenhuma unidade com vista abaixo do massing - .01; **IoU médio .823 -> .817 (hfoo -.040) falha o aceite**, por isso não é default. O `n017 top .920` do peer review era câmara varrida: com o tilt pinado o massing dá .849. Detalhe em PIPELINE 30.L12-3.
 
+**Estado L12-4 (2026-10-29): feito, default** — o stage 2 corre sempre (`--colour-on-fail on`; `off` = regra antiga): 6/6 com `model.glb`, textura e turntable (CHECK com textura, ~36-45 s por unidade); estágio em falta = `FAIL(infra)` (exit 2, `infra.json`, `review.md`, coluna do `sdf_batch`), distinto de CHECK; teste "flag viva" (`test_flag_liveness.py`) introspecta o parser: `--flat` morta removida, `--fit-parts/--depth` avisam `no-op` (7 de 8 `parts.json` têm `box3d` nulo; `associate` pula a parte nula), 0 `FAIL(infra)` na bateria. Detalhes: PIPELINE 30.L12-4.
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

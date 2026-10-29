@@ -117,6 +117,8 @@ def per_view(xs):
 
 
 def verdict(r):
+    if r.get("infra"):          # a stage did not happen (spec_pipeline.infra_check, PIPELINE 30.L12-4): not a gate failure
+        return "FAIL(infra)"
     bad = [*r["lint_fail"], *(f"sil:{v}" for v in r["sil_fail"])]
     return "PASS" if not bad else "FAIL " + ", ".join(bad)
 
@@ -253,8 +255,10 @@ def collect(u, body, grid, total_s, skip_anim):
     lint = ML.lint(run / "clay.glb", sdf=True)
     raw = ML.lint(run / "clay-raw.glb", sdf=True) if (run / "clay-raw.glb").exists() else None
     field = DRAFT / u["unit"] / run_name("sdf", grid if body == "sdf" else 0) / "clay.sdf.json"
-    return make_row(u, body, read_json(run / "silhouette.json"), read_json(run / "attach.json"), lint, raw, anim(run, skip_anim),
-                    plate_tris(run, field), ML.failing(lint, False), total_s, grid)
+    infra = run / "infra.json"
+    return {**make_row(u, body, read_json(run / "silhouette.json"), read_json(run / "attach.json"), lint, raw, anim(run, skip_anim),
+                       plate_tris(run, field), ML.failing(lint, False), total_s, grid),
+            "infra": json.loads(infra.read_text()) if infra.exists() else []}
 
 
 def build(u, body, grid):

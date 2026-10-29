@@ -70,6 +70,11 @@ class Pure(unittest.TestCase):
         self.assertIn("| u1 | wyrm | sdf | 2.0 |", md)
         self.assertIn("| u1 | wyrm | 0.000", B.delta_table(rows))
 
+    def test_infra_is_its_own_verdict(self):
+        r = row("sdf", UNIT)
+        self.assertNotIn("infra", B.verdict(r))
+        self.assertEqual(B.verdict({**r, "infra": ["colour stage 2: model.glb not written"]}), "FAIL(infra)")
+
     def test_acceptance_by_rig(self):
         def get(g, body_kw, union_kw=None):
             u = {**UNIT, "rig": g}
