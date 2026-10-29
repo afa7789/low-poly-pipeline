@@ -56,6 +56,7 @@ own stage ends, every output is still written.
 import argparse
 import base64
 import collections
+import types
 import json
 import os
 import pathlib
@@ -75,6 +76,7 @@ import optimize_verts
 import diagnose
 import lathe_limb
 import loop_stage
+import author_guard
 import massing
 import mesh_lint
 import review_pair
@@ -1247,6 +1249,100 @@ def fit_stage(spec, args):
     return chosen[1]
 
 
+def massing_base(args):
+    """The massing spec the author is guarded against: this run's pre-spec, or with --spec the massing/spec.json next to it."""
+    if args.pre_spec:
+        return args.pre_spec
+    path = args.spec.parent / "massing" / "spec.json" if args.spec else None
+    return {**json.loads(path.read_text()), "rig": args.rig} if path and path.exists() else None
+
+
+def guard_rows(summary):
+    """{view: {iou, spill}} of a stage 1 summary (the approved sheet's)."""
+    return {v: {"iou": iou, "spill": summary.get("spill", {}).get(v, 0.0)} for v, iou in summary.get("approved", {}).items()}
+
+
+def guard_measure(spec, args, layout, work, name):
+    """Stage 1 of `spec` as the massing's is measured (build, deform, vertex fit; no numeric fit) on the run's pinned
+    cameras, in <work>/<name>/: {view: {iou, spill}}, or None when the clay did not build or was not measured."""
+    import copy
+    a = copy.copy(args)
+    a.out, a.summary = work / name, {}
+    a.out.mkdir(parents=True, exist_ok=True)
+    (a.out / "spec.json").write_text(json.dumps(spec, indent=2))
+    stage_shape(a.out / "spec.json", a, layout)
+    return guard_rows(a.summary) or None
+
+
+def proxy_ious(spec, args):
+    """Callable parts -> {view: IoU}: fit_spec's 2D proxy on the run's pinned cameras (no Blender)."""
+    import fit_spec
+    import views
+    RF.scale_rig(spec.get("rig", "biped"), spec.get("rig_measure"))
+    lathe_limb.set_rig(spec.get("rig", "biped"), spec.get("bones"))
+    concept = fit_spec.concept_masks(args.sheet, fit_spec.WIDE_VIEWS, True)
+    proxy = fit_spec.Proxy(concept, tuple(concept), rig=spec.get("rig"))
+    proxy.cams = proxy.pick_cams(fit_spec.baked(spec["parts"], args.sheet), views.parse_tilts(args.tilts))
+    return types.SimpleNamespace(ious=lambda parts: proxy.ious(fit_spec.baked(parts, args.sheet)))
+
+
+def guard_steps(spec, mass, args, report):
+    """[(action, spec or None)] the guard tries in order: revert the bones that explain the drop (mode revert), reject the
+    author's body keeping its props, then the massing's body alone (a prop moves the silhouette too: hfoo's spear in left)."""
+    steps = []
+    if args.author_guard == "revert":
+        gap = {v: report["gap"][v] for v in report["drops"]}
+        guarded, report["reverted"] = author_guard.revert(spec, mass, proxy_ious(spec, args), report["drops"], gap)
+        steps.append(("revert", guarded if report["reverted"] else None))
+    return steps + [("reject", author_guard.reject(spec, mass)), ("reject-bare", author_guard.reject(spec, mass, props=False))]
+
+
+def guard_stage(spec, args, layout):
+    """--author-guard (PIPELINE 30.L12-3): the author's spec against the massing's, both measured as stage 1 (build, deform, vertex
+    fit) on the run's pinned cameras, before the numeric fit. A view more than AUTHOR_DROP under the massing's: try the steps of
+    guard_steps until none falls (the last one is taken unmeasured). Returns (spec, report or None)."""
+    mass = massing_base(args)
+    if args.author_guard == "off" or not mass:
+        return spec, None
+    work = args.out / "guard"
+    rows = {"massing": guard_measure(mass, args, layout, work, "massing"), "author": guard_measure(spec, args, layout, work, "author")}
+    report = {"mode": args.author_guard, "action": "skipped", "rows": rows, "reverted": [], "drops": []}
+    if not all(rows.values()):
+        return spec, report
+    iou = {k: {v: r["iou"] for v, r in row.items()} for k, row in rows.items()}
+    report["drops"] = author_guard.drops(iou["massing"], iou["author"])
+    report["gap"] = {v: iou["massing"][v] - iou["author"][v] for v in report["drops"]}
+    report["action"] = "intact"
+    if not report["drops"]:
+        return spec, report
+    for action, guarded in guard_steps(spec, mass, args, report):
+        if guarded is None:
+            continue
+        report["action"] = action
+        if action == "reject-bare":
+            return guarded, report
+        rows[action] = guard_measure(guarded, args, layout, work, action)
+        if rows[action] and not author_guard.drops(iou["massing"], {v: r["iou"] for v, r in rows[action].items()}):
+            return guarded, report
+    return spec, report
+
+
+def guard_fit(args, pre_fit, spec, shape, layout):
+    """The fit may not push a view under the massing's stage 1 either (PIPELINE 30.L12-3): when it does, the spec stays as it was
+    before the fit and is built again. Returns (spec, shape)."""
+    r = getattr(args, "guard_report", None)
+    if not r or r["action"] == "skipped" or spec is pre_fit:
+        return spec, shape
+    r["fit_drops"] = author_guard.drops({v: x["iou"] for v, x in r["rows"]["massing"].items()}, args.summary.get("approved", {}))
+    if not r["fit_drops"]:
+        return spec, shape
+    r["rows"]["fitted"] = guard_rows(args.summary)
+    (args.out / "spec.json").write_text(json.dumps(pre_fit, indent=2))
+    shape = stage_shape(args.out / "spec.json", args, layout)
+    add_times(args, shape)
+    return pre_fit, shape
+
+
 def run_tilts(args):
     """The top/bottom/rts cameras this run's approved silhouette chose, when it has measured one."""
     path = args.out / "sil" / "approved" / "silhouette.json"
@@ -1933,6 +2029,9 @@ def stage_one(args, brief, images, tmp, layout):
         spec, shape = best_of_n(specs, args, layout)
     else:
         spec = specs[0][1]
+    spec, args.guard_report = guard_stage(spec, args, layout)    # the author's body against the massing's, before anything refits it
+    if args.guard_report and args.guard_report["action"] in ("revert", "reject"):
+        shape = None
     # the repair pass (preflight failures -> patch) runs even without --passes: it is
     # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
     if args.passes or not args.no_repair:
@@ -1943,6 +2042,7 @@ def stage_one(args, brief, images, tmp, layout):
         shape = None         # the spec changed: its stage 1 is measured again below
     # --fit comes last: a numeric fit of dims/at that an LLM repair after it would undo
     # (n005 v5-fit-r1: fit took front 0.72 -> 0.82, the repair pass then put it back at 0.71)
+    pre_fit = spec
     if args.fit:
         spec = fit_stage(spec, args)
         shape = None
@@ -1953,7 +2053,7 @@ def stage_one(args, brief, images, tmp, layout):
     if shape is None:
         shape = stage_shape(spec_path, args, layout)
         add_times(args, shape)
-    return spec, shape
+    return guard_fit(args, pre_fit, spec, shape, layout)
 
 
 def main():
@@ -2090,6 +2190,10 @@ def main():
     ap.add_argument("--tilts", default="",
                     help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
                          "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
+    ap.add_argument("--author-guard", choices=author_guard.MODES, default="off",
+                    help="the author's spec against the massing before the fit (PIPELINE 30.L12-3): a view more than "
+                         "author_guard.AUTHOR_DROP under the massing's plain clay -> revert = the bones that explain it go back to "
+                         "the massing's (reject if it still falls), reject = the massing's body with the author's props, off = nothing")
     ap.add_argument("--body", choices=("union", "sdf", "join"), default=DEFAULT_BODY,
                     help="how the body parts become one shell: union = boolean + decimate (24.L6-4), sdf = distance field + "
                          "guarded QEM retopology (build_unit sdf_union, PIPELINE 28.L10-7), join = the plates joined, no weld")
@@ -2166,6 +2270,7 @@ def main():
     brief, shots = with_fewshot(brief, args, 2 + len(refs))
     spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs] + shots, tmp, layout)
     spec, shape = run_loop(args, spec, shape, layout)
+    save_guard(args)
     colour = None
     if shape["ok"] and not args.shape_only:
         t0 = time.monotonic()
@@ -2309,6 +2414,35 @@ def massing_section(args):
             f"| IoU vs approved (massing alone) | {iou} |\n"
             f"| stage 1 gates | {'PASS' if r['ok'] else 'FAIL: ' + ', '.join(r['failed'])} |\n"
             f"| preflight rules | {r['rules']} |\n| tris | {r['tris']} |\n{edit}\n")
+
+
+def save_guard(args):
+    """The guard's report into silhouette.json (the tables of a battery read it)."""
+    if getattr(args, "guard_report", None) and args.summary.get("approved"):
+        args.summary["guard"] = args.guard_report
+        (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
+
+
+def guard_section(args):
+    """review.md: the author's spec against the massing (PIPELINE 30.L12-3): IoU / spill per view at each stage
+    (stage 1 of the massing, of the author before the fit, of what the guard tried; the final clay), and what was reverted and why."""
+    r = getattr(args, "guard_report", None)
+    if not r:
+        return ""
+    views = ("front", "left", "back", "top", "bottom", "rts")
+    final = args.summary or {}
+    stages = [(k, r["rows"][k]) for k in ("massing", "author", "revert", "reject", "fitted") if r["rows"].get(k)]
+    stages.append(("final", {v: {"iou": final["approved"][v], "spill": final.get("spill", {}).get(v, 0.0)}
+                             for v in final.get("approved", {})}))
+
+    def line(label, key, fmt):
+        return "".join(f"| {k} {label} | " + " / ".join(fmt(row[v][key]) if v in row else "-" for v in views) + " |\n"
+                       for k, row in stages)
+    why = (f"views under the massing by more than {author_guard.AUTHOR_DROP}: {', '.join(r['drops'])}; bones reverted: "
+           f"{', '.join(r['reverted']) or 'none'}" if r["drops"] else "no view under the massing")
+    why += f"; the fit put {', '.join(r['fit_drops'])} under it: spec kept as before the fit" if r.get("fit_drops") else ""
+    return (f"## Author guard (mode {r['mode']}): {r['action']}\n\n| item | {' / '.join(views)} |\n|---|---|\n"
+            f"{line('IoU', 'iou', '{:.3f}'.format)}{line('spill', 'spill', '{:.3f}'.format)}\n{why}\n\n")
 
 
 def stage1_section(args, shape):
@@ -2610,7 +2744,7 @@ def write_review(args, shape, colour, verdict):
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
-        f"{massing_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{loop_stage.table(args.loop_report)}\n"
+        f"{massing_section(args)}{guard_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{loop_stage.table(args.loop_report)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "

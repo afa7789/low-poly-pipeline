@@ -5007,3 +5007,77 @@ contact
   `test_optimize_verts` (`Ctx.cost` = 1 − IoU com pesos 1 e pesa o lado certo com W=3); ajustados `test_soft_sil` (tetos uniformes), `test_sdf_batch` (front agora FAIL), `test_optimize_verts` (IoU sobe com `SPILL_W=1`).
   Regressão do default (W=1, `l12-spill-w1`, n00U / hfoo / n02X): n00U e n02X idênticos ao `l12-cams` (IoU das 6 vistas, diferença 0); hfoo ≤ .016 (orçamento por relógio do `fit-verts`, lição L11-2).
   Runs: `runs/draft/<id>/l12-spill` (W=3, 6 unidades), `l12-spill-w{1.5,5,10}` (3 unidades), `l12-spill-w1` (default, regressão = `l12-cams`).
+
+### 30.L12-3 Guarda autor-vs-massing (2026-10-29)
+
+- **Por que.** O pré-spec determinístico (`massing.py`) já dava 90-100 % do IoU final e o autor LLM piorou vistas (v13-r1: hfoo left .719 -> .415, n017 top .920 -> .822), mas só o final era tabelado. A guarda do laço v14 (`loop_accept`) olha round 0 contra rounds, não o autor contra o massing.
+- **Mudança.** `tools/blender/author_guard.py` (funções puras sobre dicts de spec + um proxy com `ious(parts)`): `drops` (vista do autor > `AUTHOR_DROP` = .01 abaixo do massing), `revert` (guloso sobre o proxy 2D de `fit_spec.Proxy`: reverte ao massing o osso que mais ganha IoU nas vistas caídas, até o ganho estimado cobrir a queda real), `reject` (corpo do massing + props e paleta do autor; `props=False` = o próprio massing).
+  `spec_pipeline.py`: `--author-guard revert|reject|off` (**default `off`**, ver decisão), `guard_stage` (depois do autor/best-of-N, antes do reparo e do fit), `guard_fit` (depois do fit), `guard_section` em `review.md` ("Author guard": IoU e spill por vista em cada estágio: massing, autor pré-fit, o que a guarda tentou, fit descartado, final; ossos revertidos e vistas que caíram), `silhouette.json` ganha `guard` (linhas por estágio, ação, quedas, ossos).
+  Escada: `revert` (modo revert) -> medir de novo -> `reject` (massing + props do autor) -> medir -> `reject-bare` (o massing inteiro, sem medir: é o que o estágio 0 já mediu). Massing e autor são medidos como estágio 1 (build + deform + verts, **sem** fit) nas **mesmas câmaras pinadas** (`--tilts`); com `--spec` o massing vem de `<spec>/../massing/spec.json`. `guard_fit`: se o fit empurra uma vista > .01 abaixo do massing, o spec fica como estava antes do fit e é construído de novo (o fit sobre o massing puro, avaliado em clay liso, piorou hfoo e n02X no final).
+- **Duas medidas descartadas no caminho** (runs `l12-guard-plain`, `-nofitguard`, `-bareprops`, mantidos): (1) comparar o clay liso (só `build_unit`) do massing e do autor: o massing liso é muito pior que o final (hfoo top .49 contra .80), deform/verts só rodam no massing final; não vê o n017 top. (2) o "massing final" tabelado no v13 (n017 top .920) usa o tilt que o massing varreu; com a câmara pinada o massing dá .849 e o autor .854: a queda "n017 top .920 -> .822" do peer review era em boa parte câmara diferente (a mesma lacuna do L12-1), não o autor.
+- **Medida** (6 unidades, sem LLM, `--spec v13-r1/spec.json --tilts` do v13-r1, `--no-repair --no-diagnose --body sdf --deterministic --author-guard revert`; controle `l12-cams`). Vistas front / left / back / top / bottom / rts.
+
+IoU (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guarda = `l12-guard`)
+
+| un. | estágio | front | left | back | top | bottom | rts | média |
+|---|---|---|---|---|---|---|---|---|
+| n005 | massing | .899 | .945 | .921 | .809 | .839 | .831 | .874 |
+|  | autor | .921 | .946 | .933 | .797 | .819 | .878 | .883 |
+|  | sem guarda | .920 | .946 | .933 | .797 | .820 | .878 | .882 |
+|  | guarda (revert) | .925 | .946 | .934 | .799 | .833 | .880 | .886 |
+| n00U | massing | .871 | .747 | .874 | .697 | .638 | .621 | .741 |
+|  | autor | .877 | .793 | .879 | .711 | .677 | .631 | .761 |
+|  | sem guarda | .878 | .818 | .876 | .734 | .709 | .653 | .778 |
+|  | guarda (intact) | .878 | .818 | .876 | .734 | .709 | .653 | .778 |
+| hfoo | massing | .794 | .707 | .791 | .655 | .703 | .619 | .712 |
+|  | autor | .864 | .406 | .868 | .815 | .853 | .709 | .752 |
+|  | sem guarda | .862 | .412 | .865 | .802 | .836 | .733 | .752 |
+|  | guarda (reject-bare) | .794 | .707 | .791 | .655 | .703 | .619 | .712 |
+| n017 | massing | .908 | .793 | .861 | .849 | .897 | .725 | .839 |
+|  | autor | .904 | .792 | .860 | .854 | .858 | .730 | .833 |
+|  | sem guarda | .908 | .831 | .849 | .870 | .861 | .710 | .838 |
+|  | guarda (reject-bare) | .909 | .823 | .857 | .847 | .898 | .720 | .842 |
+| n02X | massing | .877 | .847 | .887 | .791 | .758 | .750 | .818 |
+|  | autor | .898 | .839 | .905 | .779 | .762 | .764 | .825 |
+|  | sem guarda | .900 | .839 | .905 | .780 | .762 | .764 | .825 |
+|  | guarda (reject-bare) | .877 | .843 | .887 | .793 | .758 | .748 | .818 |
+| n01X | massing | .839 | .895 | .841 | .833 | .821 | .838 | .844 |
+|  | autor | .847 | .885 | .850 | .904 | .875 | .838 | .867 |
+|  | sem guarda | .841 | .883 | .845 | .905 | .875 | .838 | .865 |
+|  | guarda (intact) | .841 | .883 | .845 | .905 | .875 | .838 | .865 |
+
+spill (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guarda = `l12-guard`)
+
+| un. | estágio | front | left | back | top | bottom | rts | média |
+|---|---|---|---|---|---|---|---|---|
+| n005 | massing | .059 | .031 | .052 | .107 | .052 | .135 | .073 |
+|  | autor | .053 | .039 | .051 | .116 | .060 | .074 | .066 |
+|  | sem guarda | .053 | .038 | .051 | .116 | .060 | .073 | .065 |
+|  | guarda (revert) | .045 | .038 | .045 | .123 | .057 | .067 | .062 |
+| n00U | massing | .089 | .210 | .092 | .251 | .272 | .287 | .200 |
+|  | autor | .075 | .163 | .079 | .240 | .274 | .310 | .190 |
+|  | sem guarda | .066 | .134 | .072 | .217 | .238 | .272 | .166 |
+|  | guarda (intact) | .066 | .134 | .072 | .217 | .238 | .272 | .166 |
+| hfoo | massing | .129 | .192 | .131 | .037 | .022 | .312 | .137 |
+|  | autor | .064 | .406 | .066 | .108 | .107 | .230 | .163 |
+|  | sem guarda | .078 | .392 | .080 | .097 | .143 | .206 | .166 |
+|  | guarda (reject-bare) | .129 | .192 | .131 | .037 | .022 | .312 | .137 |
+| n017 | massing | .064 | .073 | .107 | .078 | .073 | .221 | .103 |
+|  | autor | .069 | .092 | .110 | .087 | .062 | .202 | .103 |
+|  | sem guarda | .070 | .054 | .119 | .050 | .060 | .218 | .095 |
+|  | guarda (reject-bare) | .065 | .055 | .106 | .075 | .064 | .216 | .097 |
+| n02X | massing | .096 | .081 | .088 | .178 | .154 | .118 | .119 |
+|  | autor | .067 | .096 | .060 | .172 | .121 | .141 | .110 |
+|  | sem guarda | .067 | .096 | .061 | .171 | .123 | .143 | .110 |
+|  | guarda (reject-bare) | .096 | .085 | .088 | .175 | .154 | .121 | .120 |
+| n01X | massing | .136 | .079 | .136 | .046 | .156 | .125 | .113 |
+|  | autor | .113 | .079 | .113 | .041 | .104 | .123 | .096 |
+|  | sem guarda | .111 | .080 | .111 | .040 | .104 | .124 | .095 |
+|  | guarda (intact) | .111 | .080 | .111 | .040 | .104 | .124 | .095 |
+
+- **Ação por unidade.** n005: revert (forearm.L/R; top e bottom do autor caíam .012/.020, +.002/+.014 depois). n00U, n01X: intactos (nenhuma vista abaixo do massing; resultado = `l12-cams`). hfoo: a queda é left (.406 contra .707) e nenhum osso a explica sozinho no proxy (cada reversão ganha <= .01); `revert` e `reject` (com props) seguem caindo (.416 / .383) -> `reject-bare`; o fit sobre o massing derrubava top/bottom/rts -> `guard_fit` descarta -> final = massing. n017: queda bottom (.858 contra .897); revert e reject não resolvem (bottom .851 / .865) -> `reject-bare`, o fit mantém (sem queda). n02X: top .779 contra .791 (-.012); revert/reject não resolvem -> `reject-bare`; o fit derrubava left -> descartado -> final = massing.
+- **Aceite.** hfoo left >= massing - .01: **sim** (.707 = massing). n017 top >= massing - .01: **sim** (.847 contra .849). Nenhuma unidade com vista abaixo do massing - .01 no final: **sim** (n005 top .799 contra .809 é o limite exato). IoU médio não cai: **NÃO**: média das 6 unidades .823 (sem guarda) -> .817; n005 +.004, n017 +.004, n00U/n01X 0, n02X -.007, **hfoo -.040** (o autor ganha .16 em top/bottom/rts e perde .30 em left; o piso por vista abre mão disso). Spill: não é objetivo da guarda; hfoo left .392 -> .192 (por rejeitar o autor), n005 .065 -> .062, n017 .095 -> .097, n02X .110 -> .120; o gate (spill <= .03) segue FAIL nas 6, sem arredondar.
+- **Decisão: opt-in** (`--author-guard revert`; default `off`), porque o aceite do IoU médio falha em hfoo (e n02X -.007). A guarda cumpre o piso por vista; o preço é o autor inteiro nas unidades em que uma vista cai. Para virar default falta atribuir a queda por parte com mais de um osso (hfoo left é global: o autor deslocou o z de todas as peças) ou um `reject` parcial por região.
+- **Aberto.** (a) Atribuição multi-osso (busca por pares ou por grupo de simetria) para o hfoo left; (b) quando `massing_stage` já rodou (sem `--spec`) a medida do massing é refeita em `guard/massing/` (um estágio 1 a mais; reaproveitar `massing_report` exigiria spill nele); (c) `sdf_batch.py` não tem as colunas massing/autor/final: a tabela acima foi montada do `silhouette.json["guard"]`; (d) o autor LLM de verdade (v15) com a guarda ligada não foi medido (sem LLM nesta leva).
+- **Testes.** `test_author_guard.py` (11, sem Blender): `drops` no limite; `revert` reverte o osso da vista caída e mantém props/paleta, nada cai -> nada muda, nenhum osso ajuda; `reject` com e sem props; `guard_stage` com os builds simulados (`off` não faz nada, sem queda deixa o spec, queda -> revert, revert que não resolve -> reject-bare); `guard_fit` (fit mantido / fit descartado). Suite completa: ver commit.
+  Runs: `runs/draft/<id>/l12-guard` (final), `l12-guard-plain`, `l12-guard-nofitguard`, `l12-guard-bareprops` (versões descartadas, fora do repo se ignorados).
