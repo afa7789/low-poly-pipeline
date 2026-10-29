@@ -48,6 +48,7 @@ TONES = {}       # material -> (up, side, down) cel multipliers measured on its 
 SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
 POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
 COMPACT_ATLAS = True    # default since 27.T1 (84 KB -> 5 KB, luma_l1 within .008); cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
+MERGE_MATERIALS = True   # cel: slots sharing the atlas, emission and opacity fold into one material, one draw (27.T5); materials=split on the CLI restores them
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -1252,6 +1253,30 @@ def bind_atlas(body, img):
         seen[base] = slot.material
 
 
+def slot_key(mat):
+    """(image, emission colour or None, alpha) of a material bound to the atlas."""
+    nodes = mat.node_tree.nodes
+    bsdf = nodes["Principled BSDF"]
+    image = next((n.image.name for n in nodes if n.type == "TEX_IMAGE" and n.image), None)
+    glow = tuple(bsdf.inputs["Emission Color"].default_value) if bsdf.inputs["Emission Strength"].default_value > 0 else None
+    return image, glow, bsdf.inputs["Alpha"].default_value
+
+
+def merge_materials(body):
+    """One material per (image, emission, opacity): faces move to the group's first slot and the
+    emptied slots go. Shape and UVs are untouched. Returns the material count."""
+    slots = body.material_slots
+    names = [s.material.name for s in slots]
+    groups = sibling("surfaces").merge_groups([(n, *slot_key(s.material)) for n, s in zip(names, slots)])
+    index = {n: i for i, n in reversed(list(enumerate(names)))}
+    remap = [index[groups[n]] for n in names]
+    for poly in body.data.polygons:
+        poly.material_index = remap[poly.material_index]
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.material_slot_remove_unused()
+    return len(body.material_slots)
+
+
 def sheet_face(cell):
     """(rgb, alpha) of the sheet's head sampled to a cell x cell decal (nearest); FACE is
     already bottom-up, as Blender hands pixels over and the atlas stores them."""
@@ -1840,7 +1865,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS
     CLAY = "clay" in rest
     global PROPID, NOUNION
     PROPID = "propid" in rest
@@ -1860,6 +1885,7 @@ def main():
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
+    MERGE_MATERIALS = (arg_value(rest, "materials=") or ("merge" if MERGE_MATERIALS else "split")) == "merge"
     SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours
@@ -1984,6 +2010,8 @@ def main():
     elif len(cli) > 3 and cli[3] == "tex":
         n = texturize(body, meta)
         print(f"texture: {n} painted tiles + world-space UVs")
+        if MERGE_MATERIALS and STYLE == "cel":
+            print("materials merged:", n, "->", merge_materials(body))
     if len(cli) > 1 and cli[1] == "fuse":
         faces = fuse(body, meta, target=int(cli[2]) if len(cli) > 2 else 650,
                      voxel=float(cli[4]) if len(cli) > 4 else 0.025)

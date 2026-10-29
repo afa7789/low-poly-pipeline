@@ -376,3 +376,14 @@ def atlas_layout(count):
     """(columns, rows) of slot images in the unit's single atlas."""
     cols = int(np.ceil(np.sqrt(count)))
     return cols, int(np.ceil(count / cols))
+
+
+def merge_groups(slots):
+    """{material name: name of the slot it folds into} for T5 (PIPELINE 27.T5). `slots` is
+    [(name, image, emission, alpha)] in slot order; slots sharing image, emission colour and
+    opacity draw identically, so they become one material (the first of the group). A glow or
+    translucent slot differs in one of the last two keys and stays its own material."""
+    first, out = {}, {}
+    for name, image, emission, alpha in slots:
+        out[name] = first.setdefault((image, emission, alpha), name)
+    return out

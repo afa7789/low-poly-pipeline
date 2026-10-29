@@ -207,7 +207,7 @@ def build_textured(spec, glb_clay, args, glb, work):
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
         *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work),
-        *shared_args(args), *atlas_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
+        *shared_args(args), *atlas_args(args), *materials_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
@@ -221,6 +221,11 @@ def shared_args(args):
     if getattr(args, "atlas", "own") != "shared" or args.texture != "cel":
         return []
     return [f"shared={pathlib.Path(args.atlas_dir) / (args.race.lower() + '.json')}"]
+
+
+def materials_args(args):
+    """["materials=split"] for `--materials split` (build_unit.MERGE_MATERIALS, PIPELINE 27.T5)."""
+    return ["materials=split"] if getattr(args, "materials", "merge") == "split" else []
 
 
 def atlas_args(args):
