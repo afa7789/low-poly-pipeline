@@ -586,3 +586,44 @@ class SideMirror(unittest.TestCase):
         self.assertGreater(score, 0.95)
         self.assertFalse(S.best_match(concept, {0: concept}, "left")[3])
         self.assertFalse(S.best_match(concept, {0: np.fliplr(concept)}, "rts")[3])      # the rts is never mirrored
+
+
+class BodyFrame(unittest.TestCase):
+    """29.L11-0b: a Framed panel (box = the body) and a model framed by its body match where the bbox frames do not."""
+
+    @staticmethod
+    def sheet():
+        m = np.zeros((300, 400), bool)
+        m[40:290, 150:190] = True             # body
+        m[90:190, 120:150] = True             # pack behind (image-left)
+        for t in np.linspace(0, 1, 500):      # a diagonal pike running far past the body on the right
+            m[int(290 - 250 * t), int(100 + 200 * t)] = True
+        return m
+
+    @staticmethod
+    def model():
+        m = np.zeros((300, 400), bool)
+        m[40:290, 150:190] = True
+        m[90:190, 120:150] = True
+        m[0:300, 60:66] = True                # a vertical pike (a prop of the model, outside the body box)
+        return m
+
+    def test_body_frame_matches_bbox_does_not(self):
+        sheet, model = self.sheet(), self.model()
+        body = S.framed(sheet, (120, 40, 190, 290))
+        self.assertGreater(S.iou(S.normalize(body), S.normalize(S.framed(model, (120, 40, 190, 290)))), 0.8)
+        self.assertLess(S.iou(S.normalize(sheet), S.normalize(model)), 0.6)
+
+    def test_best_match_takes_the_model_box(self):
+        sheet, model = self.sheet(), self.model()
+        concept = S.normalize(S.framed(sheet, (120, 40, 190, 290)))
+        plain = S.best_match(concept, {0: model}, "left")[0]
+        boxed = S.best_match(concept, {0: model}, "left", {0: (120, 40, 190, 290)})[0]
+        self.assertGreater(boxed, plain + 0.1)
+        self.assertGreater(boxed, 0.8)
+
+    def test_rot180_turns_the_box(self):
+        m = S.framed(self.model(), (120, 40, 190, 290))
+        self.assertEqual(S.rot180(m).box, (210, 10, 280, 260))
+        self.assertIsNone(getattr(S.rot180(np.asarray(m)), "box", None))
+        self.assertIsNone(getattr(m[:10], "box", None))      # a slice frames by its own bbox
