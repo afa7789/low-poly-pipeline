@@ -965,7 +965,8 @@ def clay_args(kind):
     checks), no fuse, and `clay` = one grey material, no texture, decal or glow."""
     hi = str(BUDGETS[kind][1])
     return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else []),
-            *([f"sdf_grid={SDF_GRID}"] if BODY == "sdf" and SDF_GRID else [])]
+            *([f"sdf_grid={SDF_GRID}"] if BODY == "sdf" and SDF_GRID else []),
+            *([f"sdf_k_mode={SDF_K_MODE}"] if BODY == "sdf" and SDF_K_MODE != "base" else [])]
 
 
 def tilts_of(report):
@@ -2070,6 +2071,8 @@ def main():
                          "deformation (align_features.py, PIPELINE 24.L6-12; off by default: no measured gain)")
     ap.add_argument("--no-align", dest="align", action="store_false", help="the opposite of --align")
     ap.add_argument("--sdf-grid", type=int, default=0, help="--body sdf: voxels along the longest side (0 = build_unit.SDF_GRID, 96)")
+    ap.add_argument("--sdf-k-mode", choices=("base", "class", "hard", "ext"), default="base",
+                    help="--body sdf: how each junction's smooth-min k is chosen (sdf_body.K_MODES, PIPELINE 29.L11-5)")
     ap.add_argument("--tilts", default="",
                     help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
                          "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
@@ -2101,8 +2104,8 @@ def main():
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
-    global BODY, SDF_GRID
-    BODY, SDF_GRID = args.body, args.sdf_grid
+    global BODY, SDF_GRID, SDF_K_MODE
+    BODY, SDF_GRID, SDF_K_MODE = args.body, args.sdf_grid, args.sdf_k_mode
     args.union_body = args.body != "join"
 
     resolve_paths(args)
@@ -2177,6 +2180,7 @@ DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the 
 FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ablation gained 6/6 views on 5/5 units. --no-fit-verts turns it off
 # 24.L6-4: the deformation needs the welded body; read build_unit.BODY (union | sdf | join) from its source (it imports bpy)
 DEFAULT_BODY = re.search(r'^BODY\s*=\s*"(\w+)"', (ROOT / "tools/blender/build_unit.py").read_text(), re.M).group(1)
+SDF_K_MODE = "base"      # --sdf-k-mode: build_unit sdf_k_mode= (sdf_body.K_MODES)
 SDF_GRID = 0             # --sdf-grid: build_unit sdf_grid= (0 = its SDF_GRID default)
 BODY = DEFAULT_BODY      # main() sets it from --body; clay_args passes it to build_unit when it is not the default
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins

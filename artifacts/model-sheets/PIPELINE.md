@@ -4584,3 +4584,39 @@ Plano: `analysis/2026-10-29-leva11-vlm-loop.md`. O VLM só entra pelo laço guar
 - **Testes.** `tests/tools/blender/test_apply_deltas.py` (10, 0.01 s); `test_diagnose.py` atualizado (deltas/expected no REPLY e
   rejeição de `deltas`/`expected` malformados). Não feito: `--loop` (L11-2), deltas como limites do fit (L11-3).
 
+
+### 29.L11-5 `k` do smin por junta (`sdf_k_mode`)
+
+**O que mudou.** `sdf_body.field(..., k_mode=)` / `pair_k(a, b, voxel, height, k_scale, mode)` com `K_MODES`: `base` (o k da
+28.L10-1, default, inalterado), `class` (k x `CLASS_K` pela classe dos dois ossos: tronco-tronco 1.0, tronco-membro 0.5,
+membro-membro 0; membro = prefixo `arm forearm hand thigh shin foot leg wing wheel`, `bone_class`), `hard` (k = 0 em todas as
+juntas: união dura no campo) e `ext` (`smin(..., exterior=True)`: o blend só onde d_a > 0 e d_b > 0). O modo vai para
+`clay.sdf.json` (`k_mode`, ausente = `base`; mesh_lint recomputa igual). Flags: `build_unit ... sdf_k_mode=base|class|hard|ext`,
+`spec_pipeline.py --sdf-k-mode`, `sdf_body.py --k-mode`. Os pesos de pele continuam com a banda do k `base` (`band_matrix`): o
+modo muda só a geometria. Testes: `test_sdf_body.py` (`test_k_by_joint_class`, `test_exterior_blend_does_not_fatten_the_inside`).
+
+**Geometria sem pipeline** (grid 96, volume do campo, L): base / class / hard / ext = n005 1599.1 / 1595.7 / 1587.0 / 1599.1;
+n00U 106.7 / 106.5 / 105.4 / 106.7; hfoo 917.2 / 916.4 / 915.3 / 917.2; n017 305.8 / 305.3 / 304.2 / 305.8; n02X 2285.5 /
+2281.7 / 2277.2 / 2285.5. O smin completo engorda 0.2-0.7 % do volume (hard é o piso); **`ext` tem o mesmo conjunto zero que
+`base`** (fora das duas peças o blend é igual; dentro de uma o min já é < 0): só muda o valor interno do campo, não a malha. É um
+no-op geométrico, mantido como controle.
+
+**Pipeline** (`--body sdf --kind mass --no-repair --no-diagnose --shape-only`, câmeras da v13 fixadas por `--tilts`, spec
+v13-r1; runs `l11-smink-{D,A,B,C}`; D = `base` reconstruído com a mesma linha). IoU(variante) − IoU(`v13-r1-union`), f/l/b/top/bot/rts:
+
+| unid. | D base | A class | B hard | C ext |
+|---|---|---|---|---|
+| hfoo | +.018 +.010 +.030 −.009 −.002 +.003 | +.014 +.017 +.029 −.009 +.010 −.015 | +.017 +.081 +.030 −.010 −.001 +.004 | +.013 +.006 +.024 .000 +.018 −.025 |
+| n017 | +.008 +.038 −.009 +.014 +.007 −.011 | +.010 +.023 −.011 +.018 +.003 −.008 | +.004 +.037 −.010 +.007 +.008 −.003 | +.008 +.046 +.007 +.017 −.008 −.006 |
+
+Slivers % / nd (°) nas 5 unidades (n005 n00U hfoo n017 n02X), união 12.2-19.5 % / 44-52°: D 4.4 0.7 2.6 4.4 3.9 / 35.4 43.9 39.4
+37.4 37.4; A 4.3 0.1 6.7 3.9 4.3 / 36.1 45.1 41.5 35.9 40.1; B 4.3 0.1 3.7 3.6 4.7 / 37.8 45.0 39.9 35.9 40.1. C (hfoo, n017):
+4.4 5.6 / 39.7 37.2. IoU dos 5 specs: n005/n00U/n02X variam ≤ .02 entre modos (ruído do fit-verts/deform).
+
+**Leitura.** (1) A premissa "o smin engorda e custa rts −.03" não se reproduz na linha mínima: D está a −.009 (top hfoo) e −.011
+(rts n017) da união; o −.031/−.033 da v13 vinha do pipeline completo (fit-verts etc.), e o ruído entre builds do mesmo spec é de
+± .02 (C, que é geometricamente igual a D, mexe hfoo rts −.025). (2) Aceite: **nenhuma variante passa limpo.** A: hfoo rts
+−.015, hfoo slivers 6.7 %. B: slivers < 5 % em 5/5 e hfoo/n017 dentro de −.01 da união, mas nd piora +2.4° (n005), +2.7° (n02X)
+contra D e n00U top −.015 contra D. C: no-op, hfoo rts −.025 é ruído. (3) Decisão: default continua `base`; `hard` fica
+opt-in (a melhor: hfoo left +.07 contra D, n017 rts +.008), `class` e `ext` sem ganho medido. Para medir de verdade o efeito
+das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; não feito (cada build 2-5 min).
