@@ -3330,6 +3330,20 @@ Slivers: fase 1 igual ao v10; a fase 2 soma 0 a 1.7 pp (n017 27.8 > 29.4 %, n005
 
 ## 26. Leva 8 (2026-10-29)
 
+Renderização diferenciável como otimizador (papers em `analysis/2026-10-29-papers-diffrender.md`). Bateria `v12-r1` (5 unidades,
+`--fit-grad --fit-verts`, pareada contra v11/v10) em `history/2026-10-29-v12/`; detalhe em 26.L8-6. IoU approved f/l/b · rts.
+
+| unidade | antes | v12 | veredito | juiz v12 × antes |
+|---|---|---|---|---|
+| n005 | .909/.935/.905 · .872 | .909/.942/.917 · .882 | **PASS** | antes em 3 eixos |
+| n00U | .843/.700/.840 · .630 | .859/**.777**/.858 · .683 | CHECK (bottom .700, rts .646) | forma v12 4-0 |
+| hfoo | .855/.530/.849 · .652 | .832/**.659**/.838 · .645 | CHECK (left acoplamento, top .687) | v12 em 3 eixos |
+| n017 | .882/.746/.830 · .671 | .875/.775/.834 · .692 | **PASS** | v12 em 3 eixos |
+| n02X | .863/.813/.889 · .724 | .885/**.884**/.898 · .784 | CHECK (preflight shoulder_span) | v10 em 3 eixos |
+
+Defaults depois da leva: `GRAD=soft` (L8-2) e `PIPELINE_SECONDS=30` no optimize_verts; `--fit-grad`, `--fit-verts`, τ anelado,
+`--dist/--agg`, `--dihedral`, `--loss asym`, `--fit-luma` opt-in.
+
 ### 26.L8-1 Raster suave de silhueta (`tools/blender/soft_sil.py`)
 
 - O que é: o gêmeo diferenciável (torch) do raster duro de `optimize_verts.Ctx`, só para o gradiente; gates e vereditos seguem em
@@ -3594,3 +3608,18 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 - Negativos/limites: sem termos de zona/partfit/edges/leg_spill na perda suave (`LEG_SPILL_W = 0`; zonas e partfit entram só no julgamento exato dos checkpoints); metade da chamfer; a bbox dos pontos não é a do preflight (hinges conservadores, 3% de folga nos pés); o ponto fica preso quando uma regra sem hinge (outras bandas biped) bloqueia; sem hinge de `budget`. Tempos da rodada 2 contaminados por carga alheia. CPU, 0.2-0.4 s por passo.
 - Testes: `test_fit_grad.py` (paridade torch x numpy em todos os kinds + 3 specs reais, um passo Adam reduz a loss, gêmeos espelhados, flag nos dois CLIs; lento `SLOW=1`: n005 com margem 0.1 sobe o IoU de proxy nos gates).
 
+### 26.L8-6 Bateria v12: `--fit-grad --fit-verts` nas 5 unidades
+
+- Protocolo: autor session:opus, 1 run, `--pair` contra v11-r1 (n02X: v10-r1), fit por gradiente (26.L8-7) e optimize_verts
+  soft-30 (26.L8-2, `PIPELINE_SECONDS`). A rede caiu no passe de reparo em 4 unidades; elas foram relançadas com `--spec` do
+  próprio spec autorado (pastas `v12-r1-partial` guardadas), n017 saiu de uma vez.
+- Resultado: tabela na abertura do §26 e em `history/2026-10-29-v12/README.md`. PASS 2/5 (v11 1/4; meta ≥ 3/5 não atingida).
+  Left sobe em 5/5 (+.007 n005, +.077 n00U, +.129 hfoo, +.029 n017, +.071 n02X) e rts em 4/5; custo em front/back de hfoo
+  (−.023/−.011) e n017 (−.007) e no top/bottom do hfoo (−.090/−.132). Juiz: v12 vence 3 eixos em n017 e hfoo, perde 3 em n005
+  e n02X (o n005 "antes" já era o melhor modelo do projeto; o n02X cai por `shoulder_span` do autor, não pela forma).
+- Decisão: `--fit-grad` e `--fit-verts` ficam opt-in. Uma rodada não separa o efeito dos dois nem o ruído do autor; próxima
+  tarefa: ablação grad × verts sobre o mesmo spec (sem LLM) nas 5 unidades e, se o top/bottom do hfoo for do fit-grad, pesar
+  as vistas top/bottom no `fit_grad` como o `Proxy` já faz.
+- Negativo de infraestrutura: 5 processos torch em paralelo (14 núcleos cada) fizeram um passo do optimize_verts levar 227 s e
+  1994 s (o orçamento de 30 s é checado entre passos). `soft_sil.THREADS` (env `SOFT_SIL_THREADS`, default 4) limita os threads
+  por processo; com 4 processos a rodada ficou em 30–32 s.

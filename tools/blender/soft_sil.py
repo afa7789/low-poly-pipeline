@@ -17,11 +17,15 @@ raster of optimize_verts.Ctx for the same mesh and view. Everything is different
 import argparse
 import json
 import math
+import os
 import pathlib
 import sys
 
 import numpy as np
 import torch
+
+THREADS = int(os.environ.get("SOFT_SIL_THREADS", 4))   # 26.L8-6: 5 pipelines x 14 cores thrashed (a 30 s budget took 1994 s)
+torch.set_num_threads(THREADS)
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import deform_to_sheet as D  # noqa: E402
