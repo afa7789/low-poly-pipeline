@@ -587,6 +587,8 @@ com limites, cada rodada só é aceite se nenhuma vista cair > 0.01, N ≤ 2, ju
 
 Ordem: L11-0 → L11-1 → L11-2 → {L11-3 ∥ L11-5} → L11-4.
 
+**Estado L11-5 (2026-10-29):** `sdf_k_mode=base|class|hard|ext` / `--sdf-k-mode` (PIPELINE §29.L11-5). Nenhuma variante passa o aceite limpo: `hard` (k = 0) é a melhor (slivers < 5 % em 5/5, hfoo/n017 dentro de −.01 da união) mas piora nd +2.4…2.7° e n00U top −.015; `class` perde hfoo rts −.015; `ext` tem a mesma malha que `base` (no-op). A queda de rts −.03 não se reproduz na linha mínima (D já a −.011 no pior caso; ruído entre builds ±.02). Default segue `base`; `hard` opt-in.
+
 
 **Estado T1 (2026-10-29):** `--atlas compact` (`build_unit.COMPACT_ATLAS`, `surfaces.pack_cells/tone_cell`), opt-in (PIPELINE §27.T1). Imagem ≤ 128² e `atlas_kb` ≤ 8 nas 5 unidades (n005 768² 83.9 KB → 128² 5.2 KB), `uv_out_of_range 0`, olhos legíveis; `zones mean` cai no máximo .011 (n005 left) e `luma_l1` sai de ±.003 em 8 de 15 vistas (6 melhoram, 2 pioram .004/.007): default NÃO virou, falta decisão sobre o decal de figura (32 px).
 
