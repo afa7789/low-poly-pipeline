@@ -296,7 +296,7 @@ class HardFirst(unittest.TestCase):
         rows = SP.iou_rows({"approved": {"front": 0.8}, "zones_clay": z})
         self.assertIn("| zones_clay mean (report) | 0.600 / - / - / - / - / - |", rows)
         self.assertIn("| zones_clay cover (report) | 0.900 / ", rows)
-        args = types.SimpleNamespace(out=pathlib.Path(self.id()), kind="mass", sheet="s", rig=None)
+        args = mock.Mock(out=pathlib.Path(self.id()), kind="mass", sheet="s", rig=None)
         with mock.patch.object(SP, "tool"), mock.patch.object(SP.cut_hull, "args", return_value=[]), \
                 mock.patch.object(pathlib.Path, "read_text", return_value="{}"), \
                 mock.patch.object(pathlib.Path, "mkdir"):
@@ -387,7 +387,7 @@ class Stages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             args = types.SimpleNamespace(out=pathlib.Path(tmp))
             shape = {"glb": "clay.glb", "tilts": {"top": 10}}
-            stub = types.SimpleNamespace(stage_colour=types.SimpleNamespace(return_value=(False, "report")))
+            stub = types.SimpleNamespace(stage_colour=mock.Mock(return_value=(False, "report")))
             with mock.patch.dict(sys.modules, {"colour_stage": stub}):
                 self.assertEqual(SP.run_colour({"parts": []}, shape, args), (False, "report"))
             stub.stage_colour.assert_called_once_with({"parts": []}, "clay.glb", args, {"top": 10},
@@ -558,7 +558,7 @@ if __name__ == "__main__":
 class SessionAuthor(unittest.TestCase):
     def test_session_model_goes_to_claude_cli_with_every_image(self):
         from unittest import mock
-        reply = types.SimpleNamespace(stdout=json.dumps({"result": '{"parts": []}', "is_error": False}), stderr="")
+        reply = mock.Mock(stdout=json.dumps({"result": '{"parts": []}', "is_error": False}), stderr="")
         with mock.patch.object(SP.subprocess, "run", return_value=reply) as run, \
                 mock.patch.object(SP, "ask_api") as api:
             self.assertEqual(SP.ask("session:sonnet", "BRIEF", ["/a/x.png", "/b/y.png"]), '{"parts": []}')
@@ -575,7 +575,7 @@ class SessionAuthor(unittest.TestCase):
         with mock.patch.object(SP, "ask_api", return_value="ok") as api:
             self.assertEqual(SP.ask("google/gemini-4-argon", "B", []), "ok")
         api.assert_called_once()
-        bad = types.SimpleNamespace(stdout=json.dumps({"result": "limit", "is_error": True}), stderr="")
+        bad = mock.Mock(stdout=json.dumps({"result": "limit", "is_error": True}), stderr="")
         with mock.patch.object(SP.subprocess, "run", return_value=bad), self.assertRaises(RuntimeError):
             SP.ask("session:opus", "B", [])
 
@@ -585,7 +585,7 @@ class AuthorSchema(unittest.TestCase):
         from unittest import mock
         out = {"result": "prose", "structured_output": {"set": {}, "add": [], "drop": [], "why": "x"},
                "is_error": False}
-        with mock.patch.object(SP.subprocess, "run", return_value=types.SimpleNamespace(stdout=json.dumps(out), stderr="")) as run:
+        with mock.patch.object(SP.subprocess, "run", return_value=mock.Mock(stdout=json.dumps(out), stderr="")) as run:
             reply = SP.ask("session:opus", "B", [], SP.PATCH_SCHEMA)
         argv = run.call_args.args[0]
         self.assertEqual(json.loads(argv[argv.index("--json-schema") + 1]), SP.PATCH_SCHEMA)
