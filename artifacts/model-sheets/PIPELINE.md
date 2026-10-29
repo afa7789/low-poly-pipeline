@@ -4311,3 +4311,81 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   fairness × desvio é o `max_dev`. Sem pontos de projeção, a malha densa openvdb tem fairness 21 (a grade a 45°): o QEM herda isso, o remesh não.
 - **Testes.** `test_retopo.py::Remesh` (4, +0.8 s): esfera densa → ±10 % do alvo, fairness < 15, 0 slivers, euler 0, manifold; cubo com `features=35` → os 8 cantos
   ficam a ≤ `max_dev`; projeção leva os vértices a |d| < 1e-6 e reduz o |d| médio; `retopo` fecha o orçamento nos 4 métodos com euler 0.
+
+### 28.L10-7 `build_unit.BODY = "sdf"`: o corpo SDF no pipeline (`--body sdf|union|join`)
+- **O que mudou.** `build_unit.BODY = "union" | "sdf" | "join"` (constante + `body=` na linha de comando; `body_flags` deriva `UNION_BODY` e
+  `NOUNION`; a linha `UNION_BODY = True` fica, o `spec_pipeline` lê `BODY` por regex como lia `UNION_BODY`; a palavra antiga `nounion` = `body=join`).
+  `main()`, ramo `sdf` no lugar de `union_body()`: `sdf_union` = `sdf_dense` (campo → openvdb → solda) → `sdf_retopo` (`retopo.reduce` com `grid_sdf` no
+  laço, `Field.d` no polish, `max_dev` H/50, alvo B = orçamento − tris dos props/flame/peças mantidas, piso `UNION_FLOOR` 0.9 do orçamento)
+  → `skin_sdf` **depois** da retopo (pesos e materiais saem das posições finais: um passo só, sem recomputar) → `soften` 35° como na união →
+  props/flame como componentes à parte (lista `keep`) → UVs/atlas/merge (ver abaixo) → export. `sdf_body_object` continua (denso + pele; o `sdf_extract skin=1`).
+  `attach.json["union"]` = `method: sdf`, `grid`, `k`, `adaptivity`, `thin`, `kept`, `inflated`, `voxel`, `dense_tris`, `tris`, `components_body`, `props`,
+  `retopo` (o relatório do `reduce`), `seconds`; grava `clay.sdf.json` (o campo, que o `mesh_lint` lê; uma build `union` apaga um `clay.sdf.json` velho).
+  Argumentos: `sdf_grid=96 sdf_adapt=0 sdf_k=1 sdf_thin=off|inflate|keep` (`SDF_*` em `build_unit.py`). `spec_pipeline --body sdf|union|join`
+  (`args.union_body = BODY != "join"`; `clay_args` passa `body=` só quando difere do default; `colour_stage.build_textured` passa `body=`);
+  deform + optimize_verts rodam sobre a malha SDF sem mudança (pegam o maior componente). **Default continua `union`** (decide a bateria v13 = L10-9).
+- **Peça fina (§3 do plano).** `sdf_body.thin_inflation(parts, voxel)` (pura): peça com `2 r < 2 voxels` → `d − max(0, (2.5·voxel − t)/2)`;
+  `sdf_body.field(..., thin="off"|"inflate"|"keep")`: *inflate* abaixa o `d` da peça (campo e malha), *keep* tira a peça do campo (`Field.kept`) e a
+  build a mantém poligonal e skinada na âncora, como um prop. Medido com `spec_pipeline.trial` (build clay + silhouette, sem deform), specs `v10-r1` (não há v11 de n00H/n010):
+
+| unidade | peças < 2 vox | política | IoU f/l/b/top/bot/rts | média | red | forma (sliver+nd/90) | tris (corpo + mantidas) | sliver % |
+|---|---|---|---|---|---|---|---|---|
+| n00H | 4 (2 anéis, 2 pratos) | união | .824/.647/.814/.697/.663/.484 | .688 | .227 | .667 | 629 | 20.0 |
+| n00H | | off | .846/.666/.841/.710/.662/.512 | .706 | .209 | .419 | 695 | 0.6 |
+| n00H | | **inflate** | .850/.636/.853/.686/.639/.556 | .703 | .220 | .420 | 696 | 1.1 |
+| n00H | | keep | .861/.648/.848/.685/.651/.486 | .697 | .231 | .517 | 471 + 229 | 7.6 |
+| n010 | 1 (prato) | união | .714/.836/.586/.452/.454/.673 | .619 | .273 | .687 | 630 | 16.3 |
+| n010 | | off / **inflate** | .717/.841/.582/.445/.452/.692 | .622 | .277 | .506 | 700 | 0.0 |
+| n010 | | keep | .718/.842/.583/.445/.450/.692 | .622 | .277 | .512 | 684 + 16 | 0.1 |
+
+  **Decisão: `inflate` é o default (`SDF_THIN`).** Mantém a peça no campo (nada de peça que o openvdb perde por amostragem), custa 0 tris, e a
+  forma fica igual à de `off` (sliver ≤ 1.1 %); `keep` gasta 229 de 700 tris em anéis/chain poligonais no n00H e o corpo ficou grosseiro (sliver 7.6 %,
+  forma .517, IoU médio −.009). Os números de IoU entre off/inflate/keep andam ±0.03 por vista sem tendência: a evidência é n00H + n010 (2 unidades) e
+  as 5 do v12 **não têm** peça < 2 voxels (a mais fina: 2.7 voxels, a cabeça-frustum do n017), então no lote das 5 a política não muda nada (`inflated: []`).
+  `off` empatou em IoU no n00H; fica como ablação. Reavaliar com a bateria v13 se houver peça fina (asas do n00H têm 1.9–3.5 voxels).
+- **k por junta (`sdf_k=0 / 1 / 2`, 5 unidades, `trial`, 96³, a0).** IoU médio das 6 vistas (união → k0 / k1 / k2): n005 .816 → .819 / .821 / .819;
+  n00U .722 → .732 / .735 / .734; hfoo .641 → .641 / .632 / .640; n017 .761 → .765 / .763 / .763; n02X .743 → .748 / .748 / .748. nd médio: k2 é
+  0.5–1.5° menor que k1 (n005 30.7 vs 31.9, n00U 39.8 vs 40.6, hfoo 33.1 vs 34.5, n017 31.1 vs 32.6) e a `uncovered` média cai 0–0.003; slivers 0–2.3 % em
+  todos. Diferenças ≤ 0.003 de IoU: **k = 1 fica** (o desenho do L10-1; `k2` é o candidato se a bateria v13 quiser nd menor, `k0` não ganha em nada).
+- **Prova nas 5 unidades (sem LLM)** `spec_pipeline.py --id <id> --rig <rig> --kind mass --spec runs/draft/<id>/v12-r1/spec.json --shape-only --no-repair --no-diagnose
+  --run l10-body-{union,sdf} --body union|sdf` (deform + `--fit-verts` default; 2 processos; runs em `runs/draft/<id>/l10-body-{union,sdf}/`). IoU aprovado, raster duro.
+
+| unidade | corpo | f / l / b | top / bot / rts | uncov / spill (média 6) | sliver % (cru → final) | nd | `sdf_dev` p95 % H (cru → final) | euler | comp | tris | verts: passos / unsafe / worse | build s | total s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | união | .910 / .941 / .914 | .770 / .821 / .877 | .065 / .074 | 8.7 → 10.0 | 43.5 | .35 → 2.26 | 0 | 1 | 630 | 24 / 0 / 51 | – | 102 |
+| n005 | **sdf** | .907 / **.949** / **.926** | .764 / **.841** / **.890** | .062 / .068 | 0.0 → 1.4 | 34.0 | .49 → 2.53 | 0 | 1 | 700 | 27 / 0 / 32 | 1.1 | 103 |
+| n00U | união | .874 / .771 / .877 | .743 / .731 / .693 | .070 / .171 | 18.2 → 17.9 | 51.8 | 1.13 → 2.47 | 40 | 2 | 627 | 24 / 0 / 9 | – | 266 |
+| n00U | **sdf** | **.889 / .805 / .890** | **.764 / .739 / .706** | .063 / .157 | 0.0 → 0.3 | 45.9 | 1.05 → 2.82 | 16 | 2 | 699 | 27 / 0 / 18 | 3.6 | 276 |
+| hfoo | união | .832 / .658 / .839 | .691 / .735 / .644 | .164 / .135 | 21.7 → 21.0 | 49.4 | .35 → 3.89 | 0 | 1 | 630 | 33 / 0 / 43 | – | 118 |
+| hfoo | **sdf** | **.849 / .659 / .853** | .688 / .723 / .639 | .177 / .121 | 2.3 → 5.7 | 38.6 | .40 → 3.90 | 0 | 1 | 700 | 31 / 0 / 57 | 1.0 | 117 |
+| n017 | união | .894 / .760 / .839 | .810 / .880 / .704 | .089 / .115 | 28.3 → 26.3 | 49.4 | .48 → 2.67 | 0 | 1 | 630 | 29 / 0 / 57 | – | 115 |
+| n017 | **sdf** | **.915 / .797 / .865** | .807 / **.889** / .693 | .082 / .106 | 1.7 → 4.6 | 37.6 | .81 → 3.69 | 0 | 1 | 700 | 28 / 0 / 82 | 1.9 | 121 |
+| n02X | união | .884 / .883 / .899 | .752 / .735 / .781 | .082 / .114 | 17.2 → 16.9 | 54.6 | .66 → 3.82 | 7 | 1 | 629 | 27 / 0 / 31 | – | 106 |
+| n02X | **sdf** | **.893 / .896 / .906** | .757 / **.746** / **.804** | .077 / .105 | 1.7 → 4.7 | 43.4 | .69 → 5.83 | 8 | 1 | 700 | 30 / 0 / 39 | 2.0 | 107 |
+
+  `--body union` byte-idêntico ao código anterior: `build_unit` do HEAD (`git archive`) e o atual, mesmos argumentos, `clay.glb` e `attach.json`
+  iguais com `cmp` nas 5 unidades; o `union` do `spec_pipeline` reproduz o v12 (n005 .910/.941/.914 contra .903/.944/.916 da ablação `both`: o spec final já vem do fit).
+  `comp` = `components_body` (n00U: 2 nas duas, as pernas finas da aranha; o `trial` clay sem deform dá 1 no sdf e 2 na união). Tempo total = pipeline inteiro
+  (deform, `--fit-verts` ≈ 31 s, silhouette/render); o build do corpo SDF é 1–3.6 s (60 s de teto).
+
+  Esticão p99.5 dos clipes no clay final (`anim_check`, união → sdf): n005 walk 2.61 → 2.34, attack 2.05 → 1.33, death 2.82 → 1.73; n00U 1.56 → 1.28 /
+  1.63 → 1.41 / 6.20 → 3.66; hfoo 2.24 → 2.06 / 2.12 → 1.93 / 2.16 → 1.95; n017 **1.85 → 1.93** / 2.80 → 1.55 / 3.64 → 2.40; n02X 4.40 → 3.38 / 3.08 → 1.87 / 3.16 → 1.77:
+  sdf ≤ união em 14 de 15 (a exceção, n017 `walk`, 1.04×; os números absolutos são do corpo deformado pelo fit, não do §28.L10-5).
+- **Aceite.** IoU f/l/b ≥ v12 −0.01: 5/5 (o pior, n005 front −0.003; **left ≥ v12 em 5/5**, mais 0.001 a 0.037; rts ≥ em 3/5, n017 −0.011 e hfoo −0.005; IoU médio das 6
+  vistas +0.008 / +0.018 / +0.002 / +0.013 / +0.012). Slivers finais < 5 %: 3/5 (n005 1.4, n00U 0.3, n017 4.6, n02X 4.7) e **hfoo 5.7 %** (2.3 % cru; deform e `optimize_verts` os
+  recriam, união 21 %); todos os crus < 2.3 %. nd −5.9 (n00U) a −11.8° (n017). Build ≤ 60 s: 5/5 (1–3.6 s). `--body union` idêntico: 5/5.
+  **`unsafe` −50 %: não mensurável**, a união já tem `unsafe` 0 nas 5 (0 → 0). O que o `optimize_verts` recusa por piora do objetivo (`worse`) soma 191 (união) → 228 (sdf) e os
+  passos aceitos 137 → 143: **sem melhora medida** no otimizador de vértices (o ganho do sdf está no cru, não no que o fit recupera).
+  `sdf_dev` final p95 igual ou pior (2.5–5.8 % H contra 2.3–3.9): o fit puxa a malha ao sheet, que é o que ele deve fazer; o cru (antes do deform) fica em 0.4–1.0 % H.
+- **UV / atlas (T1, T5) sobre materiais por face: confirmado.** Build `tex style=cel cel_atlas=compact materials=merge body=sdf` (n005 / n017): atlas 32×64 / 16×64
+  (como a união), `materials merged: 7 -> 2` / `4 -> 1`, `images 1`, `uv_out_of_range 0`, `mesh_lint` sem gate falhando (a união falha o gate `sliver_pct < 5` nas duas: 8.7 / 33.1 %). As UVs vêm da
+  geometria (parte mais próxima, normal), não da junção das peças: não dependem de como o corpo foi feito.
+- **Negativos / limites.** (1) O corpo SDF gasta o orçamento todo (700 com props; a união parava em 625–630 pela tolerância); o gate de tris passa (≤ 700) sem folga. (2) `unsafe` não
+  discrimina (0 → 0). (3) A política de peça fina foi medida só em n00H/n010 sem deform; as asas (1.9–3.5 voxels) precisam da bateria v13 com LLM. (4) glTF guarda 4 influências por vértice
+  (o `skin_sdf` pode dar mais; aviso do exportador, mesmo efeito do §28.L10-5). (5) Sem `--body sdf` no `fit_stage` (o `fit_spec` ainda constrói em união) nem nos builds de ID/zonas (`zones_clay`, `propid`): o ID
+  render de zonas e o fit usam a união; só o clay final e o texturizado usam `body=`.
+- **Recomendação de default.** `sdf` como default na v13 (L10-9): IoU ≥ união em f/l/b 5/5, slivers crus ≤ 2.3 % e finais 0.3–5.7 %, nd −6 a −12°, componentes iguais ou menores, esticão ≤ união, build 1–4 s.
+  Condição aberta: hfoo 5.7 % (> 5 %) e `unsafe` sem efeito. **Não mudei o default.**
+- **Testes.** `tests/tools/blender/test_body_sdf.py` (7, < 1 s; `SLOW=1` + Blender: n005 `body=sdf` fecha `mesh_lint`: 1 pele, `components_body` 1, 0 borda/non-manifold/flipped, sliver < 5, tris ≤ 700, `attach.json["union"]` e
+  `clay.sdf.json`): `BODY` deriva `UNION_BODY`/`NOUNION`, a linha `UNION_BODY = True` e o `DEFAULT_BODY` do `spec_pipeline`, `sdf_args`, `--body` chega a `clay_args` e `colour_stage.body_args`, política de peça fina numa cena sintética
+  (caixa + prato de 0.004: `thin_inflation`, off/inflate/keep, voxels internos a mais).

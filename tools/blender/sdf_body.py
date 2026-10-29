@@ -284,7 +284,7 @@ def part_d(part, P):
         d = np.minimum(d, EVAL[q["t"]](q, P))
     for q in part["cut"]:
         d = np.maximum(d, EVAL[q["t"]](q, P))
-    return d
+    return d - part.get("inflate", 0.0)
 
 
 def smin(a, b, k):
@@ -308,6 +308,16 @@ def inradius(part):
             c = np.asarray(q.get("c", (np.asarray(q["lo"]) + q["hi"]) / 2))[None]
             best = max(best, float(-EVAL[q["t"]](q, c)[0]))
     return best or 0.5 * float(np.ptp([part["lo"], part["hi"]], axis=0).min())
+
+
+THIN_VOX = 2.0          # a part thinner than this many voxels (2 x inradius) may vanish from the grid (PIPELINE 28.L10-7)
+THIN_FLOOR_VOX = 2.5    # ... and "inflate" fattens it to this thickness: d - (2.5 voxel - t) / 2
+
+
+def thin_inflation(parts, voxel):
+    """{row i: inflation} of the normalized `parts` thinner than THIN_VOX voxels: (THIN_FLOOR_VOX voxel - t) / 2 with t = 2 r,
+    the amount the part's distance is lowered by. Pure; a "keep" policy uses just the keys."""
+    return {p["i"]: max(0.0, (THIN_FLOOR_VOX * voxel - 2 * p["r"]) / 2) for p in parts if 2 * p["r"] < THIN_VOX * voxel}
 
 
 def part_box(pieces, prisms):
@@ -359,6 +369,7 @@ class Field:
         self.origin, self.voxel, self.shape = np.asarray(origin, float), float(voxel), tuple(int(s) for s in shape)
         self.margin = max(MARGIN_VOX * self.voxel, 2 * max((k for *_, k in self.pairs), default=0.0))
         self.grid = self.owner = None
+        self.kept = []      # rows left out of the field as too thin (field(thin="keep"))
 
     def to_json(self):
         return {"version": 1, "k_scale": self.k_scale, "origin": self.origin.tolist(), "voxel": self.voxel,
@@ -439,10 +450,11 @@ def pair_k(a, b, voxel, height, k_scale):
     return k_scale * min(max(K_FRAC * min(a["r"], b["r"]), K_MIN_VOX * voxel), K_MAX_H * height)
 
 
-def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, compute=True):
+def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, compute=True, thin="off"):
     """The body's Field. `parts`: the spec rows [bone, kind, dims, at, material, opts]; `cuts`: cut_hull's json (by row index);
     `rig`: (family, extras), RF already scaled by the caller; k: scale of every junction's k (0: hard union); grid: voxels
-    along the height."""
+    along the height. `thin` (PIPELINE 28.L10-7), for the parts under THIN_VOX voxels: "off" nothing, "inflate" fatten them
+    (thin_inflation), "keep" leave them out of the field (their rows are in `Field.kept`: the caller builds them as polygons)."""
     body = normalize(parts, cuts, rig)
     if not body:
         raise ValueError("the spec has no body part")
@@ -450,11 +462,18 @@ def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, co
     height = float(hi[2] - lo[2])
     voxel = height / grid
     shape = np.ceil((hi - lo) / voxel).astype(int) + 2 * PAD + 1
+    fat = thin_inflation(body, voxel) if thin != "off" else {}
+    if thin == "keep":
+        body = [p for p in body if p["i"] not in fat]
+    for p in body:
+        if thin == "inflate" and fat.get(p["i"]):
+            p["inflate"] = fat[p["i"]]
     family, extras = rig
     up = RF.parents(family, extras) if family in RF.FAMILIES else {}
     pairs = [(a, b, pair_k(body[a], body[b], voxel, height, k))
              for a, b in itertools.combinations(range(len(body)), 2) if related(up, body[a]["bone"], body[b]["bone"])]
     f = Field(body, pairs, lo - PAD * voxel, voxel, shape, k)
+    f.kept = sorted(fat) if thin == "keep" else []
     return f.compute(owner) if compute else f
 
 

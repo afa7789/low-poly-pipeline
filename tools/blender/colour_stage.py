@@ -209,12 +209,17 @@ def build_textured(spec, glb_clay, args, glb, work):
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
         *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work),
-        *shared_args(args), *atlas_args(args), *materials_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
+        *shared_args(args), *atlas_args(args), *materials_args(args), *body_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
         optimize_verts.apply(glb, args)
     return glb.exists()
+
+
+def body_args(args):
+    """["body=sdf"] for `--body sdf` (build_unit.BODY, PIPELINE 28.L10-7); nothing when args has no body."""
+    return [f"body={args.body}"] if getattr(args, "body", None) else []
 
 
 def shared_args(args):
