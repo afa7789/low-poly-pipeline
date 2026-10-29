@@ -517,7 +517,7 @@ def part_bones(row, P, cols):
         seg, _, _ = polyline_t(P, to_blender(lathe_limb.chain_joints(bone, int(opts["bones"]))))
         out[np.arange(len(P)), [cols[names[i]] for i in seg]] = 1.0
         return out
-    out[:, cols[bone]] = 1.0
+    out[:, cols.get(bone, cols.get("root", 0))] = 1.0     # a bone the rig lacks rides the root (union: a group with no bone)
     return out
 
 

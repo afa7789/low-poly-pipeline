@@ -1847,7 +1847,7 @@ def massing_spec(args):
         return None
     try:
         spec = parse_spec(json.dumps(massing.build(args.sheet, args.rig, args.race, args.build)))
-        return {**spec, "rig": args.rig} if args.rig in RF.SCALABLE else spec    # a chain needs its rig to find its bones
+        return {**spec, "rig": args.rig}    # parse_spec drops it; build_unit reads the rig from the spec (biped otherwise)
     except (ValueError, IndexError, SystemExit) as err:
         print(f"massing: skipped, {err}")
         return None
@@ -1865,7 +1865,8 @@ def massing_stage(args, layout):
         add_times(args, shape)
     finally:
         args.out = saved
-    args.massing_report = {"iou": args.summary.get("approved", {}), "gates": args.summary.get("gates", {}),
+    summary = getattr(args, "summary", {})     # a failed massing build never reaches shape_review
+    args.massing_report = {"iou": summary.get("approved", {}), "gates": summary.get("gates", {}),
                            "ok": shape["ok"], "failed": shape["failed"], "tris": shape["tris"],
                            "rules": rules_of(shape["pre"])}
 

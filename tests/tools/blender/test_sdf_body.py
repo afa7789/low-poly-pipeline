@@ -206,6 +206,11 @@ class Skin(unittest.TestCase):
         np.testing.assert_allclose(w["thigh.L"] + w["shin.L"], 1)
         self.assertTrue(np.all(np.diff(w["thigh.L"]) <= 1e-9))
 
+    def test_a_bone_the_rig_lacks_rides_the_root(self):
+        rows = [row("abdomen", "box", (0.4, 0.4, 0.4), (0, 1, 0))]       # a spider bone on a biped rig (massing pre-spec, v13)
+        w = self.weights_at(rows, [(0, 1, 0)])
+        self.assertTrue(np.allclose(w["root"], [1]))
+
     def test_material_is_the_nearest_part_s(self):
         rows = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), ("head", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0), "brass", {})]
         f = S.field(rows, rig=self.RIG, grid=32, compute=False)
