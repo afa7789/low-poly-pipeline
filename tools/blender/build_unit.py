@@ -1892,6 +1892,36 @@ def sdf_mesh(field, adaptivity=0.0, name="sdf"):
 
 
 SDF_WELD = 0.03       # sdf_body_object welds vertices closer than this many voxels
+SDF_SPECK = 2.0       # sdf_dense drops the pieces (never the biggest) whose bounding box diagonal is under this many voxels (28.L10-8)
+
+
+def drop_specks(bm, size):
+    """Delete the connected pieces of `bm` (never the one with most vertices) whose bounding box diagonal is under `size`:
+    the speck a fitted-away part leaves in the field (n00U part 33: 12 triangles in 0.3 voxel). Returns the triangles removed."""
+    seen, pieces = set(), []
+    bm.verts.index_update()
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        seen.add(v.index)
+        todo, piece = [v], []
+        while todo:
+            piece.append(todo.pop())
+            for e in piece[-1].link_edges:
+                o = e.other_vert(piece[-1])
+                if o.index not in seen:
+                    seen.add(o.index)
+                    todo.append(o)
+        pieces.append(piece)
+    pieces.sort(key=len)
+    gone = []
+    for piece in pieces[:-1]:
+        lo, hi = [min(v.co[a] for v in piece) for a in range(3)], [max(v.co[a] for v in piece) for a in range(3)]
+        if sum((h - l) ** 2 for l, h in zip(lo, hi)) ** 0.5 < size:
+            gone += piece
+    faces = {f for v in gone for f in v.link_faces}
+    bmesh.ops.delete(bm, geom=gone, context="VERTS")
+    return len(faces)
 
 
 def skin_sdf(obj, field, spec, rig, **bands):
@@ -1927,6 +1957,7 @@ def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin=
     bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
     bm.from_mesh(obj.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=SDF_WELD * field.voxel)
+    obj["specks"] = drop_specks(bm, SDF_SPECK * field.voxel)
     bm.to_mesh(obj.data)
     bm.free()
     return obj, field
@@ -1985,7 +2016,7 @@ def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thi
     skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG)
     report = {"method": "sdf", "grid": grid, "k": k, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
               "inflated": [p["i"] for p in field.parts if p.get("inflate")], "voxel": round(field.voxel, 5), "dense_tris": dense,
-              "tris": len(obj.data.polygons), "components": components(obj.data), "retopo": rep,
+              "tris": len(obj.data.polygons), "components": components(obj.data), "specks": obj.get("specks", 0), "retopo": rep,
               "seconds": round(time.perf_counter() - t0, 3)}
     print(f"sdf body: {dense} -> {report['tris']} tris, {report['components']} shell(s), {len(kept)} thin part(s) kept, "
           f"{report['seconds']} s")

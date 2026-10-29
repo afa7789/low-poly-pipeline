@@ -77,7 +77,7 @@ def stat(lint, key):
 
 
 def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, grid=0):
-    """One measurements row (all inputs already parsed) -> flat dict. `plates` = [owned triangles per 'plate' part]."""
+    """One measurements row (all inputs already parsed) -> flat dict. `plates` = [(spec row, owned triangles, buried)] per 'plate' part."""
     un, ap = attach.get("union", {}), sil.get("approved", {})
     gates = sil.get("gates", {})
     return {"unit": u["unit"], "rig": u["rig"], "group": rig_group(u["rig"]), "spec": f"{u['run']}", "body": body, "grid": grid or 96, "ok": True,
@@ -87,7 +87,10 @@ def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, gr
             "iou": [ap.get(v) for v in VIEWS], "unc": mean(sil.get("uncovered", {})), "spill": mean(sil.get("spill", {})),
             "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and ap[v] < gates[v]], "lint_fail": failing,
             "thin": len(un.get("inflated", [])) + len(un.get("kept", [])), "inflated": len(un.get("inflated", [])),
-            "plates": len(plates), "plates_zero": sum(1 for n in plates if n == 0),
+            "plates": len(plates), "plates_zero": sum(1 for _, n, b in plates if n == 0 and not b),
+            "plates_zero_rows": [i for i, n, _ in plates if n == 0], "plates_buried": [i for i, n, b in plates if n == 0 and b],
+            "specks": un.get("specks", 0),
+            "nd_raw": raw["normal_diff"]["mean"] if raw else None,
             "stretch": {k: v["p99.5_stretch"] for k, v in (anim or {}).items() if v}}
 
 
@@ -108,7 +111,7 @@ def verdict(r):
 def table(rows):
     """Markdown: one line per (unit, body)."""
     head = ("| unit | rig | body | build s | total s | tris | sliver % (raw→final) | nd | sdf_dev p95 / max % H | euler | comp | "
-            "IoU f/l/b/top/bot/rts | unc / spill | thin (<2 vox) | plates (0 tris) | walk p99.5 | gates |\n" + "|---" * 17 + "|")
+            "IoU f/l/b/top/bot/rts | unc / spill | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates |\n" + "|---" * 17 + "|")
     out = [head]
     for r in sorted(rows, key=lambda r: (r["unit"], r["body"] != "sdf")):
         if not r["ok"]:
@@ -117,7 +120,7 @@ def table(rows):
         iou = " / ".join(f(x, 3).lstrip("0") for x in r["iou"])
         out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | {f(r['build_s'])} | {r['total_s']} | {r['tris']} | {f(r['sliver_raw'])} → {f(r['sliver'])} "
                    f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {f(r['unc'], 3)} / {f(r['spill'], 3)} "
-                   f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} |")
+                   f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} |")
     return "\n".join(out)
 
 
@@ -179,8 +182,20 @@ def read_json(path):
     return json.loads(path.read_text()) if path.exists() else {}
 
 
+def buried(field, k):
+    """True when part `k` of `field` is inside the others: at 27 points of its box every other part's d is under -1 voxel
+    (the plate cannot show, so 0 triangles are right)."""
+    import itertools
+    import numpy as np
+    lo, hi = np.array(field.parts[k]["lo"]), np.array(field.parts[k]["hi"])
+    pts = np.array([lo + (hi - lo) * np.array(c) for c in itertools.product((0, .5, 1), repeat=3)])
+    dm = field.distances(pts)
+    return len(dm) > 1 and bool((np.delete(dm, k, 0).min(0) < -field.voxel).all())
+
+
 def plate_tris(run, field_path):
-    """Triangles owned (nearest part) per 'plate' part of the body's field in `run`/clay.glb; [] without the field."""
+    """[(spec row, triangles owned by the nearest part, buried)] per 'plate' part of the body's field in `run`/clay.glb;
+    [] without the field."""
     import mesh_lint as ML
     import sdf_body as SB
     if not field_path.exists():
@@ -188,7 +203,7 @@ def plate_tris(run, field_path):
     field = SB.load(field_path)
     pos, _, _, tri = ML.geometry(*ML.read_glb(run / "clay.glb"))
     owner = field.ownership(ML.to_blender(pos[tri].mean(1)))[0]
-    return [int((owner == n).sum()) for n, p in enumerate(field.parts) if p["kind"] == "plate"]
+    return [(p["i"], int((owner == n).sum()), buried(field, n)) for n, p in enumerate(field.parts) if p["kind"] == "plate"]
 
 
 def anim(run, skip):

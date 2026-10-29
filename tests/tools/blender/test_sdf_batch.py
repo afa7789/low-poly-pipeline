@@ -19,7 +19,7 @@ def lint(**kw):
             "sdf_dev": {"pct_h": {"p95": 1.2, "max": 3.0}}, **kw}
 
 
-def row(body="sdf", unit=UNIT, anim=None, plates=(3, 5), **kw):
+def row(body="sdf", unit=UNIT, anim=None, plates=((4, 3, False), (7, 5, False)), **kw):
     sil = {"approved": dict(zip(B.VIEWS, (.9, .8, .9, .7, .7, .6))), "gates": {"front": .75, "left": .65, "rts": .7}, "uncovered": {"front": .1}, "spill": {"front": .2}}
     att = {"union": {"seconds": 2.0, "inflated": [1], "kept": []}}
     return B.make_row(unit, body, sil, att, lint(**kw), lint(sliver_pct=0.0), anim, list(plates), ["sliver_pct < 5"], 12.34)
@@ -54,6 +54,9 @@ class Pure(unittest.TestCase):
     def test_row_fields(self):
         r = row(anim={"walk": {"p99.5_stretch": 1.5}, "death": None})
         self.assertEqual((r["build_s"], r["total_s"], r["thin"], r["plates"], r["plates_zero"], r["stretch"]), (2.0, 12.3, 1, 2, 0, {"walk": 1.5}))
+        self.assertEqual(r["nd_raw"], 35.0)
+        z = row(plates=((4, 0, True), (6, 0, False), (7, 2, False)))
+        self.assertEqual((z["plates_zero_rows"], z["plates_zero"], z["plates_buried"]), ([4, 6], 1, [4]))
         self.assertEqual((r["sil_fail"], r["lint_fail"], r["sliver_raw"], r["dev_p95"]), (["rts"], ["sliver_pct < 5"], 0.0, 1.2))
         self.assertEqual(B.rig_group("spider_high"), "spider")
         self.assertEqual(B.rig_group("serpent"), "outros")
@@ -77,7 +80,7 @@ class Pure(unittest.TestCase):
         self.assertEqual(len(get("quadruped", {"sliver_pct": 6.0})), 1)
         self.assertEqual(len(get("spider", {"components_body": 2}, {})), 1)
         self.assertEqual(get("wyrm", {"plates": ()}, {}), [])
-        self.assertIn("1 of 2 plates", get("drake", {"plates": (0, 4)})[0])
+        self.assertIn("1 of 2 plates", get("drake", {"plates": ((2, 0, False), (3, 4, False))})[0])
         out = B.acceptance([row("sdf", UNIT, build_s=None), B.fail_row({**UNIT, "unit": "u2"}, "sdf", "boom", 1.0)])
         self.assertIn("build failed: boom", out[1][2][0])
 
