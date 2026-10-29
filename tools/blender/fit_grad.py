@@ -26,6 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import fit_spec as F  # noqa: E402
 import lathe_limb as L  # noqa: E402
 import preflight  # noqa: E402
+import silhouette  # noqa: E402
 import soft_sil  # noqa: E402
 
 DT = torch.float32
@@ -304,9 +305,8 @@ def fan(xy, offset):
 def best_variant(mask, concept, view):
     """(mask, soft IoU, flipped): the better of the mask and its mirror, as Proxy.best_variant."""
     options = [mask] if view == "rts" else [mask, torch.flip(mask, [1])]
-    scores = [soft_sil.soft_iou(o, concept) for o in options]
-    k = int(np.argmax([float(s.detach()) for s in scores]))
-    return options[k], scores[k], k == 1
+    k = silhouette.pick_variant(concept.detach().cpu().numpy() > 0.5, [o.detach().cpu().numpy() > 0.5 for o in options], view)
+    return options[k], soft_sil.soft_iou(options[k], concept), k == 1
 
 
 def edge_cost(mask, dist):
