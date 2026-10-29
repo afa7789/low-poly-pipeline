@@ -3789,3 +3789,58 @@ tom, logo no mesmo texel. Em `painted`, `TEX_SLOTS` mapeia explicitamente `arm/f
   ganho vem do compartilhamento por tom, não de espelho.
 - Testes: `test_mesh_lint.MirrorOverlap` (gêmeos sintéticos 100 %, mesmo lado 0 %, sem skin `None`, `TEX_SLOTS` com `.L/.R` no
   mesmo slot, lido do fonte porque `build_unit` importa `bpy`). Sem flag nem default novos.
+
+## 28. Leva 10 (2026-10-29)
+
+Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologia guardada; esta seção cresce item a item.
+
+### 28.L10-1 `sdf_body.py`: o campo de distância do corpo (numpy puro)
+- **O que mudou.** `tools/blender/sdf_body.py` (novo): `field(parts, cuts, rig, k, grid, owner)` devolve um `Field` com `grid`
+  float32 (nx, ny, nz), `origin`, `voxel`, `owner` opcional (int16, índice da peça mais próxima), `d(points)` (campo exato em
+  pontos), `ownership(points)` → (peça mais próxima, menor d, 2º menor d) para a mistura de pesos de L10-5, e `to_json` /
+  `load` (`clay.sdf.json`: peças normalizadas + pares + k + grade, para o `mesh_lint` recomputar em python3.14).
+  `tools/blender/part_geom.py` (novo): a geometria numpy-pura de uma peça (`local_shape`, `part_points`, `placed`, `rings_of`...)
+  que estava em `fit_spec.py`, movida porque o Python do Blender não tem scipy nem PIL (o `fit_spec` re-exporta os nomes; 394
+  peças das 17 specs dão pontos idênticos antes/depois).
+- **Eixos e valor.** Eixos do Blender (x, y = −frente, z cima), metros. O valor é cota inferior da distância euclidiana, exata na
+  superfície, truncada em `margin = max(4 voxels, 2 k)` fora do corpo; dentro é o `max` dos planos.
+- **Por kind.** convexo (box, prism, frustum, cyl, dome, plate convexo) = `max_j(n_j·p + b_j)` dos planos do casco (scipy
+  `ConvexHull` se existir, senão casco por força bruta O(n⁴) em blocos; os dois dão o mesmo campo, testado); lathe (raios ou
+  anéis, `axis z`), limb, chain = pilha de cascos entre anéis consecutivos, `min` duro (o lathe escalar fica facetado como a malha,
+  não revolução suave: 8-gon continua 8-gon, e squash/corner saem exatos); plate côncavo (asas: 9 dos 12 plates das 17 specs) =
+  triangulação por orelhas, um casco por triângulo e par de anéis (o casco único enchia a concavidade, d = −0.007 num vértice);
+  wheel = torus; ring = anulus + raios e cubo como cascos; `cut: sheet` = `max(peça, prisma front, prisma left, prisma top)` com
+  polígono 2D côncavo (a peça é o prisma front quando não é lathe); kind desconhecido = casco de `part_points` (`exact: false`).
+  Props (`opts.prop`) e material `flame` ficam fora.
+- **União.** `smin` polinomial (Quilez) só entre peças cujos ossos são o mesmo ou pai/filho (`rig_families.parents`; o
+  `CHAIN_OF` do `build_unit` não é importável sem bpy e é coberto pelos pais); `k = K_FRAC (0.25) × min(raio_a, raio_b)` com
+  `raio` = profundidade interna da peça, preso a [0.5 voxel, 0.03 H], × `--k`; `--k 0` = união dura. O resto é `min` duro. O campo
+  é `min(todas as peças, smin dos pares ligados)`.
+- **Grade.** bbox do corpo + 3 voxels, voxel cúbico `H/N`, N = 96 (64 e 128 por `--grid`). Cada peça só é avaliada na sua laje
+  (bbox + margem), os pares onde as lajes se cruzam.
+- **CLI.** `python3.14 tools/blender/sdf_body.py spec.json --grid 96 --out campo.npy --json clay.sdf.json [--cuts cuts.json]
+  [--k 1.0] [--owner]`; imprime peças por kind, peças de fallback, nº de pares e tempo. Também importa e roda no Python do Blender
+  5.2 (3.13, sem scipy): hfoo 96³ em 0.16 s lá.
+- **Medida (M4 Pro, numpy, v12-r1 com `fit/cuts.json`, melhor de 3; peças do corpo / peças convexas / pares smin).**
+
+| unidade | rig | peças | cascos | pares | 64³ | 96³ | 128³ | fallback |
+|---|---|---|---|---|---|---|---|---|
+| n005 | biped | 16 | 26 | 23 | 0.019 s | 0.040 s | 0.084 s | 0 |
+| n00U | spider | 35 | 39 | 296 | 0.040 s | 0.079 s | 0.168 s | 0 |
+| hfoo | biped | 15 | 25 | 18 | 0.073 s | 0.161 s | 0.322 s | 0 |
+| n017 | quadruped | 17 | 28 | 31 | 0.035 s | 0.095 s | 0.208 s | 0 |
+| n02X | biped | 16 | 26 | 22 | 0.160 s | 0.388 s | 0.885 s | 0 |
+
+  Por kind nas 5 unidades: frustum 37, prism 34, lathe 13, limb 10, box 3, chain 1, plate 1; nenhum fallback. O n00U passa de
+  1.5 s de folga: 96³ em 0.08 s (o plano estimava 0.6 s com 20 primitivas; as lajes por peça explicam). Torch não implementado
+  (não instalado; `--device torch` só quando a grade 128³ pesar: o pior caso é 0.9 s).
+- **Paridade.** Todo vértice emitido tem |d| ≤ 1e-6 (pior 1.7e-7 sem scipy, arredondamento dos planos em 1e-8) nos 14 casos
+  sintéticos (box, prism, frustum, cyl, dome, ring, wheel, lathe escalar, lathe de anéis `axis z`, limb com knee, chain, plate com
+  bevel, plate côncavo, cut) e nas 17 specs (`SLOW=1`), e o centróide tem d < 0 (menos ring/wheel, cujo centro é o furo). Raios e
+  cubo do ring: só `d ≤ 1e-6` (os cantos ficam dentro da parede). Render rápido do nível zero (openvdb `convertToPolygons`
+  0.5, só inspeção, não é o L10-2): hfoo fechado e conexo, 3.9 k verts.
+- **Negativos / não feito.** Sem torch. `plate` com perfil não-simples (auto-interseção) cai no casco único (não aparece nas
+  specs). Pontos longe da peça valem `margin` (não a distância): L10-3 que reprojetar precisa de `Field.d` (exato) e não da grade.
+  `inradius` de uma peça cortada usa −d no centro da caixa. Sem ligação ao `build_unit` (L10-2).
+- **Testes.** `tests/tools/blender/test_sdf_body.py` (paridade por kind, fallback, props/flame, casco bruto × qhull, smin
+  pai/filho × duro, `k` preso, `k = 0`, grade × exato e JSON ida e volta; `SLOW=1`: 17 specs e 96³ do n00U ≤ 1.5 s).
