@@ -4200,3 +4200,65 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
 - **Testes.** `tests/tools/blender/test_retopo.py` (10, 2 s; `SLOW=1` + n005 96³ → surface nets → 600 em ≤ 3 s, sdf_dev ≤ H/64 / H/32):
   cubo subdividido (300 tris) → 12 tris exatos com os 8 cantos; esfera densa → alvo, 0 slivers, euler 0, manifold; guarda recusa
   normal virada e sliver; Newton reduz |d|; reprojeção no laço aproxima da esfera; guarda de desvio; `grid_sdf`; surface nets.
+
+
+### 28.L10-4 `retopo.remesh`: remalhagem isotrópica com projeção no SDF (alternativa ao QEM; default NÃO muda)
+- **O que mudou.** `tools/blender/retopo.py`: `remesh(verts, tris, target_faces, sdf, iters=10, features=None, polish=None, grad_h=None,
+  max_dev=None, guide=None)` (Botsch & Kobbelt 2004) e `retopo(verts, tris, target, sdf, method=None, features=None, **kw)`, a entrada
+  única: `method` ∈ `METHOD` = `"qem"` (default) | `"remesh"` (aponta a `AIM`=0.96 × alvo) | `"hybrid"` (remesh a 1.2 × alvo + `reduce` curto) |
+  `"guided"` (`reduce`, depois remesh com o comprimento de aresta dele como campo de tamanho); todos menos `qem` fecham com `reduce` se
+  ficarem acima do alvo. `retopo_ablate.py`: linhas novas, `--l10-4` (só as linhas da tabela), `--render <pasta>` (clay 3 vistas em PIL, sem
+  Blender). Nada em `build_unit.py`, `mesh_lint.py`, `sdf_body.py`. A constante `METHOD` registra a recomendação: `"qem"`.
+- **Algoritmo (por iteração, numpy, vetorizado por rodadas como o `reduce`; 600 tris em 1.1–5.2 s).** L0 = √(4A/(√3·F*)); (1) *split* das
+  arestas > 4/3 L no ponto médio projetado, no máximo uma por face (`best_of_faces`: a aresta de maior necessidade em cada face de suas
+  duas); (2) *collapse* das < 4/5 L: `Shorts(Reducer)` reaproveita o `reduce` (conjuntos independentes da 2-vizinhança, link, guarda de
+  ângulo 15°/normal, projeção) com custo = comprimento, e recusa deixar aresta > 4/3 L; (3) *flip* para valência 6 (soma |val−6| cai, val > 3,
+  a aresta nova não existe, normais novas a < 25° da média das duas antigas, ângulo mínimo ≥ 20°, nunca em feature), conjuntos independentes por
+  face; (4) *relax* tangencial (`SMOOTH`=0.6 × (centróide dos vizinhos − p), sem a componente normal), 3 passos com projeção de Newton no SDF
+  (grade trilinear no laço, `Field.d` exato no fim) e as moves que viram ou afastam uma face acima de `max_dev` desfeitas. L segue a
+  contagem: L ← L·√(F/alvo) nas iterações até as 2 últimas (congela). `features` (opt-in, diedro da entrada): cantos (≥ 3 arestas) fixos,
+  vértice com 2 desliza só entre os 2 vizinhos de feature, as regras corner/absorb/chord do `reduce`, flip nunca em feature.
+  `max_dev` = o mesmo parâmetro do `reduce`, mas aqui é o que decide: collapse e relax só valem se o centróide de cada triângulo ficar a
+  ≤ `max_dev` do zero (ou não piorar); com o 2 % do QEM o remesh dá p95 1.5–2.9 % e máx até 5.6 % (a malha isotrópica atravessa as quinas);
+  `REMESH_DEV` = 1.2 % de H na ablação (1.0 %: p95 −0.1, fairness +2; 0.6 %: n00U vira 932 tris).
+- **Entrada e reprodução.** A mesma malha openvdb a0 (96³) do L10-3. `python3.14 tools/blender/retopo_ablate.py <dir> --l10-4 [--target 700]
+  [--render artifacts/model-sheets/history/2026-10-29-l10-remesh] [--json x.json]` (`<dir>` = o `retopo_blender.py export`).
+- **Ablação (média das 5 unidades, a0; sdf_dev em % de H com `Field.d` exato; IoU pior vista Δ vs `clay-raw`; fairness = média |ângulo − 60|).**
+  B = 600:
+
+| linha | tris | sliver % | nd | 60–100 % | fairness (máx unid.) | sdf_dev p95 (máx) | sdf_dev máx (máx) | IoU Δ médio (pior) | euler = entrada | s soma (máx) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| QEM (L10-3 final) | 600 | 0.0–0.5 | 34.5 | 22.7 | 24.0 (26.0) | 0.83 (1.44) | 2.09 (2.87) | −0.006 (−0.013) | 5/5 | 7.8 (2.9) |
+| remesh | 573 (≤ 578) | 0.0 | 29.8 | 13.4 | **12.1 (20.1)** | 1.47 (1.61) | 2.51 (3.31) | −0.014 (−0.056) | 5/5 | 12.8 (5.2) |
+| remesh + QEM curto (1.2 × B → B) | 600 | 0.0–0.3 | 30.7 | 13.7 | 15.4 (21.1) | 1.43 (1.61) | 2.77 (4.10) | −0.009 (−0.022) | 5/5 | 12.1 (4.9) |
+| remesh + features 35° | 583 (≤ 600) | 0.2–6.3 | 36.8 | 19.2 | 20.6 (28.4) | 1.32 (1.44) | 3.21 (3.62) | −0.007 (−0.017) | 5/5 | 16.1 (6.1) |
+| QEM → remesh guiado | 577 (≤ 582) | 0.0 | 31.2 | 14.4 | 13.1 (21.7) | 1.43 (1.54) | 2.59 (3.55) | −0.009 (−0.030) | 5/5 | 70 (27) |
+
+  B = 700 (n00U/n02X no limite a 600): QEM 700, fairness 23.4 (24.7), p95 0.71 (1.18), máx 2.00 (2.74); remesh 673 tris, fairness 10.6 (17.7),
+  p95 1.38 (1.53), máx 2.68 (**4.04**), IoU pior −0.036 (hfoo); remesh + QEM 700, fairness 14.5 (19.4), p95 1.35 (1.54), máx 2.27 (2.78), IoU
+  pior −0.042; + features fairness 19.3, slivers até 6.1 %; guiado fairness 11.7 (19.1). Faixa 60–100° em 10–20 %: remesh 6.2–20.0 % (B 600:
+  4/5 dentro, só o n005 6.2 abaixo; n00U 20.0 na borda), QEM 20.6–27.1 (0/5).
+  Remesh por unidade, B = 600: n005 570 tris, fairness 7.8, p95 1.34 / máx 2.11, IoU −0.007; n00U 578, **20.1**, **1.61 / 3.31**, +0.003; hfoo 574,
+  8.7, 1.34 / 2.15, **−0.056** (left); n017 572, 12.1, 1.55 / 2.72, **−0.014**; n02X 570, 11.7, 1.50 / 2.26, +0.001. Slivers 0 e euler = o da
+  entrada (0/12/0/0/8) em todas.
+- **Aceite do plano (fairness ≤ 15°, slivers < 2 %, p95 ≤ H/64 = 1.56 %, máx ≤ H/32 = 3.13 %, IoU ≥ raw −0.01), remesh a 600.** Slivers 5/5;
+  fairness 4/5 (n00U 20.1); p95 4/5 (n00U 1.61); máx 4/5 (n00U 3.31); IoU 3/5 (hfoo −0.056, n017 −0.014). Passam todos os critérios só
+  n005 e n02X (2/5). O QEM passa tudo menos fairness (24, 0/5) e a faixa de nd. **O híbrido não fecha a conta** (fairness 15.4, máx 4.10 no n00U).
+- **Decisão: `METHOD = "qem"` (default inalterado), remesh/hybrid/guided opt-in via `retopo(method=)`.** O remesh dá o que o QEM não dá
+  (fairness 24 → 12, triângulos equiláteros, sem sliver, nd 34 → 30, faixa 60–100 mais perto de 10–20 %), mas paga com desvio e silhueta: um L uniforme não
+  segue facetas nem ossos finos (n00U: 8 pernas finas, p95/máx acima do teto), arredonda as quinas das armaduras caixa (`history/2026-10-29-l10-remesh/<id>.png`: clay
+  QEM em cima | remesh embaixo; hfoo/n00U mostram o look "caixa facetada" virar "bolha") e o hfoo `left` perde 0.056 de IoU contra a folha. Pelos números
+  é 2/5 unidades no aceite; sem o aceite o default não muda. **Juiz `review_pair` (eixo forma ≥ 3/5) NÃO rodado:** compara duas runs texturizadas e o retopo
+  ainda não está ligado ao `build_unit` (L10-5/L10-7); decisão só pelos números e pela inspeção visual do clay. Se o L10-7 ligar o retopo, repetir com juiz
+  em `remesh + QEM` (candidato) × QEM.
+- **Negativos / experimentos.** (1) *Tamanho adaptativo por curvatura* (L = √(8ε/κ), κ = maior |autovalor| do Hessiano do campo por 19 pontos, ε seguindo a
+  contagem; removido): p95 1.5/3.5/2.9 % em n005/n00U/n017, 4–5 % de slivers no n00U/n017, 6–25× mais lento (as quinas da união fazem κ explodir e comem o orçamento).
+  (2) *Divisão por sag* (dividir a aresta cujo ponto médio está a > ε do zero): n00U 1624–2726 tris a 0.7–1 % de H: o orçamento não aguenta. (3) *Guiado*
+  (campo de tamanho do QEM): sdf_dev igual ao remesh uniforme (o desvio vem de não alinhar com as facetas, não da densidade) e 5× mais lento (distância
+  densa aos vértices do guia, até 27 s no n00U). (4) *QEM + flips/relax com guarda de desvio* (tol 1 %, 4–8 passes, 0.06–0.12 s; não implementado, só experimento):
+  fairness 24 → 14–25 (n005 13.6, hfoo 16.7, n017/n02X 19.5, n00U 24.6), p95 0.46–0.85 → 1.0–1.5 %: está na mesma curva fairness × desvio, e o n00U não sai de 24.
+  (5) *Features 35° no remesh:* igual ao L10-3, mais slivers (até 6.3 %) e máx 3.2 %: corpos facetados têm arestas vivas demais para o orçamento.
+  (6) *Sem a guarda de desvio no collapse/relax* (`max_dev` 2 %): fairness 5–7 (n00U 7.4) mas p95 1.55/2.87/1.64/2.26/2.02 e máx n00U 5.55 %; o botão
+  fairness × desvio é o `max_dev`. Sem pontos de projeção, a malha densa openvdb tem fairness 21 (a grade a 45°): o QEM herda isso, o remesh não.
+- **Testes.** `test_retopo.py::Remesh` (4, +0.8 s): esfera densa → ±10 % do alvo, fairness < 15, 0 slivers, euler 0, manifold; cubo com `features=35` → os 8 cantos
+  ficam a ≤ `max_dev`; projeção leva os vértices a |d| < 1e-6 e reduz o |d| médio; `retopo` fecha o orçamento nos 4 métodos com euler 0.

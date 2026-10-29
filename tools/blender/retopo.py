@@ -24,6 +24,12 @@ the cheapest of their 2-ring (an independent set: no two touch, so applying them
 other), projects and guards them all at once and applies the ones that pass; an edge that fails is banned until its
 neighbourhood changes. A python heap with a few numpy calls per collapse measured 9.7 s on 34 k triangles (PIPELINE 28.L10-3).
 The last round is cut to land inside [floor * B, B]. The input must be a welded, closed, manifold triangle shell.
+
+`remesh` (PIPELINE 28.L10-4, Botsch & Kobbelt 2004): isotropic remeshing, the alternative to the QEM above: split edges over 4/3 L,
+collapse the ones under 4/5 L (the same independent-set rounds, `Shorts`), flip toward valence 6, tangential relaxation, projection
+on the SDF; `retopo(..., method=)` picks `reduce`, `remesh`, `remesh` + a short `reduce` ("hybrid") or `reduce` -> `remesh` guided
+by its own edge lengths ("guided"). It buys fairness (equilateral triangles) and pays in deviation: a uniform L cannot follow the
+facets (see METHOD).
 """
 import time
 
@@ -400,7 +406,8 @@ def reduce(verts, tris, target_faces, sdf=None, features_deg=None, min_angle=15,
 
 
 # ---------------------------------------------------------------- isotropic remeshing (L10-4)
-METHOD = "qem"          # recommended retopology (set from the PIPELINE 28.L10-4 table): "qem" | "remesh" | "hybrid"
+METHOD = "qem"          # the default of retopo(): "qem" | "remesh" | "hybrid" | "guided". PIPELINE 28.L10-4 table: the remesh wins
+                        # fairness (12 vs 24) but fails the sdf_dev / IoU ceilings on n00U, n017, hfoo (spider legs, boxy armour): stays "qem"
 SPLIT_AT = 4 / 3        # Botsch & Kobbelt: split edges longer than 4/3 L, collapse the ones shorter than 4/5 L
 COLLAPSE_AT = 4 / 5
 FLIP_COS = 0.9          # a flip may not leave a new face turned more than ~25 degrees from the two it replaces

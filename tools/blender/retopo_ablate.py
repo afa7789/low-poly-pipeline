@@ -142,6 +142,44 @@ def view_iou(panels, cams, v, t):
     return out
 
 
+# ---------------------------------------------------------------- clay contact sheet
+VIEWS = (("front", 0), ("left", 0), ("rts", (35, 45)))
+CELL = 360
+
+
+def clay(v, t, view, tilt):
+    """PIL image (CELL x CELL) of the mesh, flat-shaded clay with dark edges, painter's order, from one review camera."""
+    from PIL import Image, ImageDraw
+    f, up = look(view, tilt)
+    right = np.cross(f, up)
+    xy = np.stack([v @ right, -(v @ up)], 1)
+    xy = (xy - (xy.min(0) + xy.max(0)) / 2) * ((CELL - 16) / np.ptp(xy, axis=0).max()) + CELL / 2
+    n = np.cross(v[t[:, 1]] - v[t[:, 0]], v[t[:, 2]] - v[t[:, 0]])
+    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-300)[:, None]
+    light = -f + 0.6 * up + 0.4 * right
+    shade = np.clip(n @ light / np.linalg.norm(light), 0, 1) * 0.65 + 0.3
+    img = Image.new("RGB", (CELL, CELL), (236, 236, 232))
+    draw = ImageDraw.Draw(img)
+    facing = n @ f < 0
+    for i in np.argsort(v[t].mean(1) @ f)[::-1]:
+        if facing[i]:
+            g = int(255 * shade[i])
+            draw.polygon([tuple(p) for p in xy[t[i]]], fill=(g, g, int(g * 0.96)), outline=(70, 70, 70))
+    return img
+
+
+def contact_sheet(meshes, path):
+    """PNG: one row per (name, (verts, tris)), one column per review view (front, left, rts)."""
+    from PIL import Image, ImageDraw
+    sheet = Image.new("RGB", (CELL * len(VIEWS), CELL * len(meshes)), (255, 255, 255))
+    for r, (name, (v, t)) in enumerate(meshes.items()):
+        for c, (view, tilt) in enumerate(VIEWS):
+            sheet.paste(clay(v, t, view, tilt), (c * CELL, r * CELL))
+        ImageDraw.Draw(sheet).text((6, r * CELL + 4), f"{name} ({len(t)} tris)", fill=(0, 0, 0))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(path)
+
+
 # ---------------------------------------------------------------- rows
 def union_mesh(f, unit, name="clay.glb"):
     """(verts, tris) of a v12 GLB in Blender axes, the prop components dropped (their vertices sit far from the body's field)."""
@@ -183,7 +221,7 @@ def reduce_row(f, z, target, spec):
     return v, t, rep["seconds"], rep
 
 
-def unit_rows(unit, folder, src, target, blender=True, only=None):
+def unit_rows(unit, folder, src, target, blender=True, only=None, render=None):
     f = sdf_body.load(folder / f"{unit}.sdf.json").compute()
     z = np.load(folder / f"{unit}-{src}.npz")
     panels, cams = sheet_panels(unit), run_cameras(unit)
@@ -194,6 +232,9 @@ def unit_rows(unit, folder, src, target, blender=True, only=None):
     for name, spec in ROWS.items():
         if only is None or name in only:
             rows[name] = reduce_row(f, z, target, spec)
+    if render:
+        shown = [k for k in rows if k in FINAL]
+        contact_sheet({k: rows[k][:2] for k in (shown[0], "remesh")}, render / f"{unit}.png")
     table = {}
     for name, (v, t, seconds, rep) in rows.items():
         table[name] = {**form(f, v, t), "iou": view_iou(panels, cams, v, t), "seconds": round(seconds, 2),
@@ -210,10 +251,11 @@ def main():
     ap.add_argument("--no-blender", action="store_true")
     ap.add_argument("--l10-4", action="store_true", help="only the rows of the 28.L10-4 table (QEM final, remesh, remesh + QEM, remesh + features)")
     ap.add_argument("--json", type=pathlib.Path)
+    ap.add_argument("--render", type=pathlib.Path, help="folder for <unit>.png: clay of the first two rows of the table, 3 views")
     a = ap.parse_args()
     out = {}
     for unit in a.units.split(","):
-        out[unit] = unit_rows(unit, a.folder, a.src, a.target, not (a.no_blender or a.l10_4), FINAL if a.l10_4 else None)
+        out[unit] = unit_rows(unit, a.folder, a.src, a.target, not (a.no_blender or a.l10_4), FINAL if a.l10_4 else None, a.render)
         print(unit, flush=True)
         for name, m in out[unit].items():
             print(f"  {name:32} {m['tris']:>6} sl {m['sliver_pct']:>5} nd {m['nd']:>5} b {m['band60_100']:>5} fair {m['fairness']:>5} "

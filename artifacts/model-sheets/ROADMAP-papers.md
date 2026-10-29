@@ -550,6 +550,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-3 (2026-10-29): feito, aceite parcial** — `tools/blender/retopo.py` (QEM em rodadas de conjuntos independentes + guarda 15°/normal/link + reprojeção SDF + guarda de desvio H/50), `retopo_mc.py`, `retopo_blender.py`, `retopo_ablate.py`, `tests/tools/blender/test_retopo.py` (PIPELINE §28.L10-3). 600 tris em 0.8–2.7 s (n00U 123 k tris); sliver 0.0–0.5 % (5/5; COLLAPSE cego 6–24 %), sdf_dev p95 ≤ 1.44 % e máx ≤ 2.87 % de H (5/5), nd −15/−7/−13/−19/−15° vs união (4/5), IoU ≥ raw −0.01 em 4/5 (hfoo left −0.013), euler = o da entrada (0/12/0/0/8). Faixa 60–100° 20.6–27 % (alvo 10–20 %: não). Features de aresta viva (35°) pioram tudo e ficam desligadas por default; heap trocado por rodadas (9.7 s → 0.8 s).
 
+**Estado L10-4 (2026-10-29): feito, aceite parcial; default NÃO muda** — `retopo.remesh` / `retopo.retopo(method=)` (PIPELINE §28.L10-4): remalhagem isotrópica Botsch–Kobbelt (split/collapse/flip/relax/projeção SDF, rodadas vetorizadas, `Shorts` reaproveita o `Reducer`), 600 tris em 1.1–5.2 s. fairness 24.0 → 12.1 (n00U 20.1), slivers 0, nd 34.5 → 29.8, faixa 60–100° 13.4 %; mas sdf_dev p95 1.47 % / máx até 3.31 % (n00U) e IoU hfoo `left` −0.056: aceite completo só em 2/5 (n005, n02X). Híbrido (remesh + QEM curto) fairness 15.4, máx 4.1 % no n00U. `METHOD = "qem"`; juiz `review_pair` não rodado (retopo ainda fora do `build_unit`).
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo
