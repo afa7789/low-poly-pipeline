@@ -26,6 +26,7 @@ Only POSITION and NORMAL change in the file (as deform_to_sheet.py): skin weight
 """
 import argparse
 import math
+import os
 import pathlib
 import sys
 import time
@@ -67,7 +68,7 @@ TAU_SCHEDULE = None       # None = constant TAU; or a tuple of tau px, decreasin
 DIST, AGG = "logistic", "prob"    # soft_sil distribution (logistic | uniform | gamma_inv) and aggregation (prob | yager2)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
-PIPELINE_SECONDS = 30.0   # budget when spec_pipeline calls apply (26.L8-2: soft-30 keeps the L6-7 table on 3 of 5 units); the CLI keeps 120
+PIPELINE_SECONDS = float(os.environ.get("CF_VERTS_SECONDS", 30.0))   # CF_VERTS_SECONDS=1e6: the 30 steps per stage decide, not the clock (29.L11-0b); budget when spec_pipeline calls apply (26.L8-2: soft-30 keeps the L6-7 table on 3 of 5 units); the CLI keeps 120
 
 
 def stamp(tri_xy):
@@ -106,7 +107,7 @@ class Ctx:
 
     def __init__(self, view, pos, tri, prev=None):
         uv = view.uv(pos)
-        to_canvas, self.s = D.frame(uv, view.mirror)
+        to_canvas, self.s = D.frame(uv, view.mirror, view.frame_on)
         self.view, self.xy, self.tri = view, to_canvas(uv), tri
         zero = np.zeros(2, int)
         if prev is None:
@@ -524,7 +525,7 @@ def rts_view(pos, tri, sheet):
 
 def make_views(pos, tri, sheet, names, layout):
     """Views of the sheet among `names` (front/left/back, top/bottom with their tilt, rts)."""
-    panels = {k: p for k, p in S.concept_panels(pathlib.Path(sheet), layout=layout).items()
+    panels = {k: p for k, p in S.framed_panels(pathlib.Path(sheet), layout=layout).items()
               if k in names and (k in D.FRONT_AXES or k in D.S_TILTED)}
     views = D.make_views(pos, tri, panels, tuple(panels))
     rts = rts_view(pos, tri, sheet) if "rts" in names else None

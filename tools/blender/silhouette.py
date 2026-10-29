@@ -1505,7 +1505,7 @@ HEAD = {"top": ("head-down", "head-up"), "bottom": ("head-up", "head-down")}   #
 
 def oriented(panels, rotate=()):
     """Normalized concept panels, those in `rotate` turned 180 degrees first (before the crop)."""
-    return {k: normalize(np.rot90(v, 2) if k in rotate else v) for k, v in panels.items()}
+    return {k: normalize(rot180(v) if k in rotate else v) for k, v in panels.items()}
 
 
 def head_of(view, rotate):
@@ -1519,18 +1519,21 @@ def detect_rotated(panels, model, forced=""):
     `forced` (--rotate, "top,bottom" or "none") skips the detection."""
     if forced:
         return set(forced.split(","))
-    def score(view, turned):
-        mask = np.rot90(panels[view], 2) if turned else panels[view]
+    def score(view, turned):      # both sides framed by their bbox: the orientation does not depend on the frame
+        mask = np.rot90(np.asarray(panels[view]), 2) if turned else np.asarray(panels[view])
         return best_match(normalize(mask), model[view], view)[0]
     return {v for v in HEAD if v in panels and model.get(v) and score(v, True) - score(v, False) > FLIP_MARGIN}
 
 
-def best_match(concept, tilted, name):
+def best_match(concept, tilted, name, boxes=None):
     """Best IoU over the mirror variants of every rendered tilt: (iou, mask, tilt, flipped). A side view
-    (one tilt) takes the mirror pick_variant chooses; its score is the plain IoU of that mask."""
+    (one tilt) takes the mirror pick_variant chooses; its score is the plain IoU of that mask.
+    `boxes` {tilt: (x0, y0, x1, y1)}: the model's body box in the mask's pixels (model_boxes), framed like the
+    concept's (framed_panels); a tilt without one is framed by its bbox."""
     best = (-1.0, None, 0, False)
     for tilt, mask in tilted.items():
-        options = variants(normalize(mask), name)
+        box = (boxes or {}).get(tilt)
+        options = variants(normalize(mask if box is None else framed(mask, box)), name)
         ks = range(len(options))
         if name in SIDE_VIEWS:
             k = pick_variant(concept, options, name)
@@ -1540,6 +1543,27 @@ def best_match(concept, tilted, name):
             if score > best[0]:
                 best = (score, variant, tilt, k == 1)
     return best
+
+
+def model_boxes(glb, model, panels):
+    """{view: {camera: box}} for best_match(boxes=): the body box (deform_to_sheet.body_fractions: the largest welded
+    component) of the model in the pixels of each rendered mask, for the views whose panel is body-framed. {} otherwise."""
+    views = [v for v in model if getattr(panels.get(v), "box", None) is not None]
+    if not views:
+        return {}
+    import deform_to_sheet as D
+    pos, tri = D.welded_mesh(glb)
+    out = {}
+    for view in views:
+        out[view] = {}
+        for cam, mask in model[view].items():
+            frac = D.body_fractions(pos, tri, *D.view_axes(view, cam))
+            if frac is None or not mask.any():
+                continue
+            ys, xs = np.where(mask)
+            (x0, y0), (w, h) = (xs.min(), ys.min()), (np.ptp(xs) + 1, np.ptp(ys) + 1)
+            out[view][cam] = (x0 + frac[0] * w, y0 + frac[1] * h, x0 + frac[2] * w, y0 + frac[3] * h)
+    return out
 
 
 def pin_tilts(model, tilts):
@@ -1562,7 +1586,65 @@ def crop(mask):
     return mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
 
 
+FRAME = os.environ.get("CF_FRAME", "bbox")   # PIPELINE 29.L11-0b: "bbox" frames a panel by its figure, "body" by the figure less its props
+
+
+class Framed(np.ndarray):
+    """A panel mask that remembers the box (x0, y0, x1, y1, raw pixels) normalize() frames instead of its bbox: the
+    body without its props. Arrays derived from it (slices, ufuncs, rot90) frame by their own bbox."""
+    box = None
+
+    def __array_finalize__(self, obj):
+        self.box = None
+
+
+def framed(mask, box):
+    out = np.asarray(mask).view(Framed)
+    out.box = box
+    return out
+
+
+def rot180(mask):
+    """np.rot90(mask, 2) that keeps the frame box."""
+    out = np.rot90(np.asarray(mask), 2)
+    box = getattr(mask, "box", None)
+    h, w = mask.shape
+    return out if box is None else framed(out, (w - box[2], h - box[3], w - box[0], h - box[1]))
+
+
+def geometry(mask):
+    """((sx, sy), (tx, ty)): normalize()'s map raw pixel -> canvas pixel (canvas = raw * s + t) for the bbox frame, or
+    for the body box a Framed mask carries."""
+    box = getattr(mask, "box", None)
+    if box is not None:
+        x0, y0, x1, y1 = box
+        s = min(CANVAS_H / (y1 - y0), CANVAS_W / (x1 - x0))
+        return (s, s), (CANVAS_W / 2 - (x0 + x1) / 2 * s, CANVAS_H / 2 - (y0 + y1) / 2 * s)
+    ys, xs = np.where(mask)
+    h, w = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
+    th = CANVAS_H
+    tw = max(1, round(w * th / h))
+    if tw > CANVAS_W:
+        th, tw = max(1, round(h * CANVAS_W / w)), CANVAS_W
+    s = (tw / w, th / h)
+    return s, ((CANVAS_W - tw) // 2 - xs.min() * s[0], (CANVAS_H - th) // 2 - ys.min() * s[1])
+
+
+def reframe(mask, src, dst):
+    """`mask` (a canvas mask in the frame `src` = geometry()) in the frame `dst`, nearest pixel."""
+    (sx, sy), (tx, ty) = src
+    (dx, dy), (ux, uy) = dst
+    iy = np.floor(((np.arange(CANVAS_H) + 0.5 - uy) / dy) * sy + ty).astype(int)
+    ix = np.floor(((np.arange(CANVAS_W) + 0.5 - ux) / dx) * sx + tx).astype(int)
+    ok_y, ok_x = (iy >= 0) & (iy < mask.shape[0]), (ix >= 0) & (ix < mask.shape[1])
+    out = np.zeros((CANVAS_H, CANVAS_W), mask.dtype)
+    out[np.ix_(ok_y, ok_x)] = mask[np.ix_(iy[ok_y], ix[ok_x])]
+    return out
+
+
 def normalize(mask, target_h=CANVAS_H, canvas_w=CANVAS_W):
+    if getattr(mask, "box", None) is not None:
+        return reframe(np.asarray(mask), ((1.0, 1.0), (0.0, 0.0)), geometry(mask))
     m = crop(mask)
     h, w = m.shape
     tw = max(1, round(w * target_h / h))
@@ -1715,7 +1797,34 @@ def prop_masks(sheet, view, layout="unit", panels=None):
                 continue         # a compact prop mostly inside the body's boxes (goggles, a belt) is not in the outline
             if m.sum() >= PROP_MIN:
                 out[p["name"]] = binary_dilation(m, iterations=PROP_PAD)
+    if getattr(fig, "box", None) is not None:       # a body-framed panel: the masks follow its frame (parts.json is in the bbox's)
+        src, dst = geometry(np.asarray(fig)), geometry(fig)
+        out = {k: reframe(m, src, dst) for k, m in out.items()}
     return out
+
+
+def body_box(fig, props):
+    """(x0, y0, x1, y1) in the pixels of `fig` (a raw panel) of the figure less `props` (prop_masks of the bbox frame):
+    the box a body-framed panel is normalized by. None without props."""
+    if not props:
+        return None
+    plain = np.asarray(fig)
+    whole = normalize(plain)
+    body = whole & ~np.any(list(props.values()), axis=0)
+    if not body.any():
+        return None
+    (sx, sy), (tx, ty) = geometry(plain)
+    ys, xs = np.where(body)
+    return ((xs.min() - tx) / sx, (ys.min() - ty) / sy, (xs.max() + 1 - tx) / sx, (ys.max() + 1 - ty) / sy)
+
+
+def framed_panels(path, layout="unit", **kw):
+    """concept_panels() with, when FRAME is "body", each panel that has prop masks framed by its body box."""
+    panels = concept_panels(path, layout=layout, **kw)
+    if FRAME != "body":
+        return panels
+    boxes = {v: body_box(p, prop_masks(path, v, layout, panels)) for v, p in panels.items()}
+    return {v: p if boxes[v] is None else framed(p, boxes[v]) for v, p in panels.items()}
 
 
 def body_mask(sheet, view, layout="unit", panels=None):
@@ -1791,6 +1900,15 @@ def write_overlay(concept, model, path):
                     "rgba:-", str(path)], input=rgba.tobytes(), check=True)
 
 
+def bbox_masks(panels, model, rotate, masks):
+    """`masks` ({view: model mask best_match chose}) for the colour stage, which frames by bbox: with FRAME "body" the
+    masks are matched again against the bbox-framed panels (the mirror it picks is against those)."""
+    if FRAME != "body":
+        return masks
+    plain = oriented({k: np.asarray(v) for k, v in panels.items()}, rotate)
+    return {n: best_match(plain[n], model[n], n)[1] for n in masks}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("sheet", type=pathlib.Path)
@@ -1817,10 +1935,13 @@ def main():
                          "(the colour stage reuses the shape stage's cameras)")
     ap.add_argument("--flip-side", action="store_true",
                     help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0), not the plain IoU")
+    ap.add_argument("--frame", choices=("bbox", "body"), default=None,
+                    help="frame the panels by the figure's bbox or by its body without the props (29.L11-0b; default CF_FRAME or bbox)")
     args = ap.parse_args()
-    global ZONE_SPACE, FLIP_SIDE
+    global ZONE_SPACE, FLIP_SIDE, FRAME
     ZONE_SPACE = args.space
     FLIP_SIDE = FLIP_SIDE or args.flip_side
+    FRAME = args.frame or FRAME
     gates = gates_for(args.rig)
     if args.measure:
         print(json.dumps({**measure(args.sheet), "sheet": sheet_report(args.sheet, args.layout)}, indent=2))
@@ -1836,7 +1957,7 @@ def main():
                         "--", str(args.glb), str(renders)], check=True,
                        capture_output=True, text=True)
 
-    panels = concept_panels(args.sheet, layout=args.layout)
+    panels = framed_panels(args.sheet, layout=args.layout)
     model = model_panels(renders, args.glb.stem)
     if args.tilts:
         from views import parse_tilts
@@ -1844,19 +1965,20 @@ def main():
 
     rotate = detect_rotated(panels, model, args.rotate)
     concept = oriented(panels, rotate)
+    boxes = model_boxes(args.glb, model, panels)
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     waived = write_sheet_report(args)    # views where the sheet contradicts itself: measured, not gated
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
-        best, best_mask, tilt, flipped = best_match(concept[name], model[name], name)
+        best, best_mask, tilt, flipped = best_match(concept[name], model[name], name, boxes.get(name))
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
         px = iou(downsample(concept[name]), downsample(best_mask))
         gate = gates.get(name)
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
-                        "tilt": tilt, "flipped": flipped, "gate": gate, **coupling(concept[name], best_mask),
+                        "tilt": tilt, "flipped": flipped, "frame": "body" if getattr(panels.get(name), "box", None) is not None else "bbox", "gate": gate, **coupling(concept[name], best_mask),
                         **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
@@ -1870,7 +1992,7 @@ def main():
         best_masks[name] = best_mask
 
     if not args.shape:
-        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, best_masks, args.layout,
+        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, bbox_masks(panels, model, rotate, best_masks), args.layout,
                                              report_tilts(report),
                                              rotate))
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))

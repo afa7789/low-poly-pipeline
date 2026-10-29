@@ -2094,6 +2094,9 @@ def main():
     ap.add_argument("--no-fit-verts", dest="fit_verts", action="store_false", help="skip the vertex optimisation")
     ap.add_argument("--flip-side", action="store_true",
                     help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0, opt-in); sets CF_FLIP_SIDE for the tools")
+    ap.add_argument("--frame", choices=("bbox", "body"), default=None,
+                    help="frame the sheet panels and the model by the figure's bbox or by its body without the props "
+                         "(29.L11-0b, deform + optimize_verts + silhouette); sets CF_FRAME for the tools")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2109,6 +2112,7 @@ def main():
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
+    os.environ["CF_FRAME"] = args.frame or os.environ.get("CF_FRAME", "bbox")
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
