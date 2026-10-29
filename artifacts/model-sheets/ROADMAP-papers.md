@@ -572,6 +572,21 @@ de a Leva 10 fechar a forma one-shot (BFS). Ideias dos geradores (Meshy T2 e cia
 estruturada por parte (escala/translação/rotação por eixo), N rodadas máximas, juiz pareado contra a rodada 0, custo por unidade,
 e critério de parada (nenhuma vista cai, forma sobe no juiz).
 
+**Plano (2026-10-29, aguarda aprovação do usuário):** `analysis/2026-10-29-leva11-vlm-loop.md`. Laço guardado sobre o que já
+existe (`diagnose.py`, `repair`, `fit_grad`, corpo sdf em 1–4 s, câmeras fixas): o VLM devolve deltas por peça num schema fechado
+com limites, cada rodada só é aceite se nenhuma vista cair > 0.01, N ≤ 2, juiz pareado contra a rodada 0.
+
+| # | item | aceite |
+|---|---|---|
+| L11-0 | flip lateral medido em `silhouette.py` (BFS, pré-requisito: hfoo left é sheet espelhado) | hfoo left .415 → ≥ .60 sem mudar o spec; outras 4 ± 0.005 |
+| L11-1 | schema de deltas + `apply_deltas.py` com peças congeladas e limites | 10 deltas sintéticos aplicam; fora de limite rejeitado |
+| L11-2 | laço guardado `--loop N` (rebuild sdf, aceite por rodada, log por delta) | nenhuma vista cai na rodada aceite; ≤ 3 min/rodada |
+| L11-3 | deltas como restrições do `fit_grad` (ablação contra edição do spec) | vence a via que sobe a média sem queda |
+| L11-4 | bateria v14 (`--loop 2`, pareada contra v13) + ficha 10 | PASS ≥ 4/5; média ≥ v13 5/5; juiz forma ≥ 3-1 em ≥ 3/5; ≤ +4 min/unidade |
+| L11-5 | `k` do smin por junta (custo real do sdf: rts −.03 em hfoo/n017) | rts ≥ união −0.01 no controle `v13-r1-union` |
+
+Ordem: L11-0 → L11-1 → L11-2 → {L11-3 ∥ L11-5} → L11-4.
+
 
 **Estado T1 (2026-10-29):** `--atlas compact` (`build_unit.COMPACT_ATLAS`, `surfaces.pack_cells/tone_cell`), opt-in (PIPELINE §27.T1). Imagem ≤ 128² e `atlas_kb` ≤ 8 nas 5 unidades (n005 768² 83.9 KB → 128² 5.2 KB), `uv_out_of_range 0`, olhos legíveis; `zones mean` cai no máximo .011 (n005 left) e `luma_l1` sai de ±.003 em 8 de 15 vistas (6 melhoram, 2 pioram .004/.007): default NÃO virou, falta decisão sobre o decal de figura (32 px).
 
