@@ -3726,3 +3726,33 @@ Deltas vs `none` (milésimos, f/l/b/top/bottom/rts):
 - Negativos/limites: 1 spec por unidade (sem variação de autor); a aranha e o quadruped têm 1 unidade cada; o Powell `none` em n017
   piora o clay final (fit aceito mas pior depois da deformação), o que torna n017 `grad` (fit recusado) "melhor" por pular o fit.
 - Sem mudança de código: sem testes novos nem ruff. Compares em `history/2026-10-29-l8-abl/<id>.png`.
+
+## 27. Leva 9 (2026-10-29)
+
+### 27.T2 Paleta mínima partilhada por raça (2026-10-29)
+
+Fontes: Saved Pixel (workflow de paleta), Halladay 2016 (atlas com mips: padding >= 2^níveis). `shared_atlas.py` (`--atlas shared`, §24.L6-11):
+- `MERGE_DE = 0.02`: `find(table, key)` devolve a coluna exata, senão a mais próxima em Oklab (`silhouette.oklab`) da MESMA superfície com
+  ΔE < 0.02, senão None. `extend` só anexa chave sem coluna (append-only mantido: coluna nunca move; tabela JSON antiga, lista de chaves, carrega igual).
+  `build_unit.texturize_shared` mapeia material -> `find(table, key)` (antes `table.index`).
+- Coluna de `COL = 2` px (os dois texels iguais; `u_of(i)` = costura entre eles, mip-safe um nível acima): 32 colunas em 64² (antes 64 de 1 px).
+  Estourou 32: ValueError, a unidade volta ao atlas próprio (como antes).
+- Default continua `--atlas own`; nada de flag nova.
+
+Capacidade (specs `runs/draft/*/v12-r1`, raça do compendium; script em scratchpad, `shared_atlas.key`/`find`):
+
+| raça | unidades | slots (soma) | colunas sem fusão | com fusão ΔE<0.02 | unidades em 64² (32 col) |
+|---|---|---|---|---|---|
+| Human | hfoo + n005 | 13 | 13 | 12 | ~5 (6 col/unidade) |
+| Nature | n00U | 5 | 5 | 5 | ~6 |
+| Northern | n017 | 4 | 4 | 4 | ~8 |
+| Desert | n02X | 6 | 6 | 6 | ~5 |
+
+Sensibilidade (hfoo+n005 / as 5 unidades juntas, 28 slots): ΔE .02 -> 12 / 27; .03 -> 12 / 26; .05 -> 11 / 24; .08 -> 11 / 23; .12 -> 7 / 17.
+Render (Blender, `build_unit shared=`, 630 faces, cor da textura no centro de UV de cada face, antes x depois): hfoo 0 faces diferentes; n005
+21 faces diferentes (`z3` #232324 fundiu com `belt` #292725, ΔE .019), delta máximo 6/255. `luma_l1`/zones não remedidos (delta de cor <= 6/255 em 3 %
+das faces).
+- NEGATIVO no aceite: Human 12 -> 12 colunas reais (13 -> 12), não <= 9, e 64² cabe ~5-8 unidades por raça, não >= 16. As paletas
+  autoradas diferem em mais que ΔE .02 (mesma superfície, cores distintas de propósito); só ΔE ~.12 chega a 7 colunas, mas isso muda a cor
+  visivelmente. Para >= 16 unidades: 128² (64 colunas de 2 px, ~10 unidades) ou paleta fixa por raça imposta ao autor (cor do slot escolhida
+  da paleta da raça, não livre) - não feito.

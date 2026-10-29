@@ -512,4 +512,6 @@ já existe mas perde decais e ink. Regras: textura procedural sempre; gates no r
 | T5 | 1 material no export (`merge_materials`) | n005 prims 7 → 1; engine importa; 1 draw/tipo; render pixel-igual |
 | T4 | espelho L/R já partilha célula: prova + `uv_overlap_pct` esperado | linha no PIPELINE + teste |
 
+Estado T2 (2026-10-29): feito atrás do `--atlas shared` (PIPELINE §27.T2): fusão ΔE .02 + coluna 2 px (32 col); aceite NÃO atingido (Human 13 -> 12 col, ~5-8 unidades/raça em 64²).
+
 Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.

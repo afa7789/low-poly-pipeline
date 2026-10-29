@@ -1325,7 +1325,7 @@ def shared_uvs(body, meta, columns):
     slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
     turn = world.to_3x3()
     for poly in mesh.polygons:
-        u = (columns[slot_base[poly.material_index]] + 0.5) / SA.SIZE
+        u = SA.u_of(columns[slot_base[poly.material_index]])
         tone_v = SF.TONE_V[SF.tone_index((turn @ poly.normal).normalized().z)]
         for li in poly.loop_indices:
             height = relative_height(meta, world @ mesh.vertices[mesh.loops[li].vertex_index].co) if slope else 0.5
@@ -1346,13 +1346,13 @@ def texturize_shared(body, meta):
     except ValueError as err:
         print(f"{err}: own atlas instead")
         return 0
-    shared_uvs(body, meta, {b: table.index(k) for b, k in keys.items()})
+    shared_uvs(body, meta, {b: SA.find(table, k) for b, k in keys.items()})
     pixels = np.ones((SA.SIZE, SA.SIZE, 4))
     pixels[..., :3] = SA.image(table)
     img = bpy.data.images.new("tex_atlas", width=SA.SIZE, height=SA.SIZE, alpha=False)
     img.pixels.foreach_set(pixels.astype(np.float32).ravel())
     bind_atlas(body, img)
-    print(f"shared atlas: {len(table)} columns used of {SA.SIZE}, {len(DECALS)} decals not drawn")
+    print(f"shared atlas: {len(table)} columns used of {SA.COLUMNS}, {len(DECALS)} decals not drawn")
     return len(bases)
 
 
