@@ -519,7 +519,7 @@ Estado T4 (2026-10-29): **feito, já existia** — gêmeos `.L/.R` partilham cé
 Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.
 | T7 | paleta por raça: atlas partilhado 128² (64 colunas de 2 px) + paleta fixa da raça (das 14 cores dos ícones/compêndio) oferecida ao autor como restrição suave (`palette_hint`), para caber ≥ 16 unidades/raça (T2 mostrou que fusão por ΔE rende 1 coluna) | 128² por raça ≤ 4 KB; ≥ 16 unidades/raça na simulação; `zones mean` não cai > 0.01 nas 5 unidades |
 
-# Leva 10 (2026-10-29) — CSG → SDF → malha → retopologia guardada (PLANO, aguarda aprovação)
+# Leva 10 (2026-10-29) — CSG → SDF → malha → retopologia guardada (aprovada pelo usuário em 2026-10-29)
 
 Plano completo em `analysis/2026-10-29-leva10-sdf.md`. Diagnóstico: a união booleana deixa 9–33 % de slivers e nd 38–41° já no
 `clay-raw` (v12: `sliver_pct < 5` falha 5/5; n00U 2 corpos), e isso é o que o `optimize_verts` recusa. Rota: SDF analítico por kind
