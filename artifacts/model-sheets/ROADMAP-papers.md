@@ -618,3 +618,10 @@ rodada 0 com `--deterministic` (fit-verts por iterações: o relógio dava +-.01
 1 delta aceito em 9 (hfoo média .7517 -> .7600, nenhuma vista cai > .01); n017 e n02X 0 aceitos. 85-306 s por delta. Detalhe: PIPELINE §29.L11-2.
 
 - **L11-0b (2026-10-29) Estado:** `--frame body` implementado e medido (5 un., PIPELINE §29.L11-0b), opt-in. NÃO atendido: hfoo left .428 -> .458 (alvo .60), n005 left -.34, n02X front -.19: o corpo do modelo (maior componente) não é o corpo do sheet (props de parts.json). Default segue `bbox`.
+
+# Leva 12 (a planejar depois da Leva 11) — polimento final por Blender MCP, alguns minutos por modelo
+
+Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender
+via MCP, com brief fixo, orçamento de tempo, script `polish.py` gravado e os mesmos gates (nenhuma vista cai > 0.01). Plano:
+`analysis/2026-10-29-leva12-mcp-polish.md` (L12-0 instalar/ligar MCP + cena de revisão; L12-1 contrato do estágio; L12-2 prova em 3
+unidades; L12-3 bateria v15). Fonte: Pokorný, WSCG 2026 (`docs/references.md`). Aguarda o fecho da Leva 11 e o "aprovado".
