@@ -24,6 +24,12 @@ the cheapest of their 2-ring (an independent set: no two touch, so applying them
 other), projects and guards them all at once and applies the ones that pass; an edge that fails is banned until its
 neighbourhood changes. A python heap with a few numpy calls per collapse measured 9.7 s on 34 k triangles (PIPELINE 28.L10-3).
 The last round is cut to land inside [floor * B, B]. The input must be a welded, closed, manifold triangle shell.
+
+`remesh` (PIPELINE 28.L10-4, Botsch & Kobbelt 2004): isotropic remeshing, the alternative to the QEM above: split edges over 4/3 L,
+collapse the ones under 4/5 L (the same independent-set rounds, `Shorts`), flip toward valence 6, tangential relaxation, projection
+on the SDF; `retopo(..., method=)` picks `reduce`, `remesh`, `remesh` + a short `reduce` ("hybrid") or `reduce` -> `remesh` guided
+by its own edge lengths ("guided"). It buys fairness (equilateral triangles) and pays in deviation: a uniform L cannot follow the
+facets (see METHOD).
 """
 import time
 
@@ -397,6 +403,267 @@ def reduce(verts, tris, target_faces, sdf=None, features_deg=None, min_angle=15,
               "relaxed_min_angle": relaxed, "stages": stages, "polish_reverted": int(reverted),
               "seconds": round(time.perf_counter() - t0, 3)}
     return out_v, out_t, report
+
+
+# ---------------------------------------------------------------- isotropic remeshing (L10-4)
+METHOD = "qem"          # the default of retopo(): "qem" | "remesh" | "hybrid" | "guided". PIPELINE 28.L10-4 table: the remesh wins
+                        # fairness (12 vs 24) but fails the sdf_dev / IoU ceilings on n00U, n017, hfoo (spider legs, boxy armour): stays "qem"
+SPLIT_AT = 4 / 3        # Botsch & Kobbelt: split edges longer than 4/3 L, collapse the ones shorter than 4/5 L
+COLLAPSE_AT = 4 / 5
+FLIP_COS = 0.9          # a flip may not leave a new face turned more than ~25 degrees from the two it replaces
+FLIP_ANGLE = 20.0       # ... nor with a smallest angle under this
+SMOOTH = 0.6            # tangential relaxation step (share of the way to the neighbours' centroid)
+SMOOTH_PASSES = 3       # relaxation + projection passes after each flip pass
+AIM = 0.96              # remesh / guided aim at this x the target (the count lands within a few % of the aim), reduce closes the rest
+HYBRID_OVER = 1.2       # hybrid: the remesh aims at this x the target, then `reduce` closes the budget
+
+
+def edge_length_for(P, T, faces):
+    """L of a mesh of `faces` equilateral triangles with the area of (P, T): sqrt(4 A / (sqrt(3) F))."""
+    return float(np.sqrt(4 * tri_normals(P, T)[1].sum() / (np.sqrt(3) * faces)))
+
+
+def best_of_faces(n_faces, fa, fb, prio):
+    """Mask over the candidate edges (faces fa, fb): the ones that have the lowest `prio` on both their faces."""
+    order = np.argsort(prio, kind="stable")
+    rank = np.empty(len(prio), np.int64)
+    rank[order] = np.arange(len(prio))
+    best = np.full(n_faces, len(prio))
+    np.minimum.at(best, fa, rank)
+    np.minimum.at(best, fb, rank)
+    return (best[fa] == rank) & (best[fb] == rank)
+
+
+def manifold_edges(T, n):
+    """(a, b, face0, face1) of the edges with exactly two faces, a < b."""
+    keys, f0, f1, count = edge_faces(T, n)
+    two = count == 2
+    return keys[two] // n, keys[two] % n, f0[two], f1[two]
+
+
+def forward(T, f, a, b):
+    """True where face f runs a -> b (False: b -> a)."""
+    t = T[f]
+    return ((t == a[:, None]) & (np.roll(t, -1, 1) == b[:, None])).any(1)
+
+
+def keys_of(pairs, n):
+    return np.unique(np.minimum(pairs[:, 0], pairs[:, 1]) * n + np.maximum(pairs[:, 0], pairs[:, 1])) if len(pairs) else np.zeros(0, np.int64)
+
+
+def guide_size(P, T, k=4):
+    """size(points) from a guide mesh: the mean edge length at its vertices, inverse-distance weighted over the k nearest."""
+    n = len(P)
+    keys = edge_faces(T, n)[0]
+    a, b = keys // n, keys % n
+    ln = np.linalg.norm(P[b] - P[a], axis=1)
+    mean = np.bincount(np.r_[a, b], np.r_[ln, ln], minlength=n) / np.maximum(np.bincount(np.r_[a, b], minlength=n), 1)
+
+    def size(points):
+        q = np.asarray(points, float).reshape(-1, 3)
+        d2 = ((q[:, None, :] - P[None]) ** 2).sum(2)
+        near = np.argpartition(d2, min(k, n - 1), axis=1)[:, :k]
+        w = 1 / (np.take_along_axis(d2, near, 1) + 1e-12)
+        return (w * mean[near]).sum(1) / w.sum(1)
+    return size
+
+
+def split_long(P, T, FE, sdf, h, size):
+    """One pass: split (at the midpoint, projected) the edges longer than 4/3 x size(midpoint), at most one per face.
+    (P, T, FE, count)."""
+    n = len(P)
+    a, b, f0, f1 = manifold_edges(T, n)
+    ln = np.linalg.norm(P[b] - P[a], axis=1)
+    need = ln / (SPLIT_AT * size((P[a] + P[b]) / 2))
+    cand = np.flatnonzero(need > 1)
+    if not len(cand):
+        return P, T, FE, 0
+    cand = cand[best_of_faces(len(T), f0[cand], f1[cand], -need[cand])]
+    a, b, f0, f1, ln = a[cand], b[cand], f0[cand], f1[cand], ln[cand]
+    m = (P[a] + P[b]) / 2
+    if sdf is not None:
+        m = project(sdf, m, h, ln)
+    mid = n + np.arange(len(cand))
+    fs, ends = np.r_[f0, f1], np.r_[np.stack([a, b], 1), np.stack([a, b], 1)]
+    t = T[fs]
+    at = ((t == ends[:, :1]) & (np.roll(t, -1, 1) == ends[:, 1:])) | ((t == ends[:, 1:]) & (np.roll(t, -1, 1) == ends[:, :1]))
+    i = at.argmax(1)
+    u, v, w = (t[np.arange(len(t)), (i + k) % 3] for k in range(3))
+    mm = np.r_[mid, mid]
+    keep = np.ones(len(T), bool)
+    keep[fs] = False
+    T2 = np.vstack([T[keep], np.stack([u, mm, w], 1), np.stack([mm, v, w], 1)])
+    if len(FE):
+        sk, order = a * n + b, np.argsort(a * n + b)
+        ek = np.minimum(FE[:, 0], FE[:, 1]) * n + np.maximum(FE[:, 0], FE[:, 1])
+        pos = np.minimum(np.searchsorted(sk[order], ek), len(sk) - 1)
+        hit = sk[order][pos] == ek
+        m_id = mid[order[pos[hit]]]
+        FE = np.vstack([FE[~hit], np.stack([FE[hit, 0], m_id], 1), np.stack([m_id, FE[hit, 1]], 1)])
+    return np.vstack([P, m]), T2, FE, len(cand)
+
+
+def flip_pass(P, T, FE):
+    """One pass of valence flips (toward 6): the edge a-b of faces (u, v, w) and (v, u, z) becomes w-z. (T, count)."""
+    n = len(P)
+    a, b, f0, f1 = manifold_edges(T, n)
+    val = np.bincount(T.ravel(), minlength=n)
+    fwd = forward(T, f0, a, b)
+    u, v = np.where(fwd, a, b), np.where(fwd, b, a)
+    w, z = T[f0].sum(1) - a - b, T[f1].sum(1) - a - b
+    before = sum(np.abs(val[k] - 6) for k in (a, b, w, z))
+    after = np.abs(val[a] - 7) + np.abs(val[b] - 7) + np.abs(val[w] - 5) + np.abs(val[z] - 5)
+    keys = np.unique(np.minimum(a, b) * n + np.maximum(a, b))
+    nk = np.minimum(w, z) * n + np.maximum(w, z)
+    new1, new2 = np.stack([u, z, w], 1), np.stack([z, v, w], 1)
+    nav = tri_normals(P, T[f0])[0] + tri_normals(P, T[f1])[0]
+    nav /= np.maximum(np.linalg.norm(nav, axis=1), 1e-300)[:, None]
+    ok = (after < before) & (val[a] > 3) & (val[b] > 3) & (w != z) & ~np.isin(nk, keys)
+    if len(FE):
+        fcnt = np.bincount(FE.ravel(), minlength=n)
+        ok &= ~np.isin(a * n + b, keys_of(FE, n)) & ~((fcnt[w] > 0) & (fcnt[z] > 0))
+    for t in (new1, new2):
+        ok &= np.einsum("fd,fd->f", tri_normals(P, t)[0], nav) > FLIP_COS
+        ok &= min_angles(P[t]) >= FLIP_ANGLE
+    cand = np.flatnonzero(ok)
+    cand = cand[best_of_faces(len(T), f0[cand], f1[cand], (before - after)[cand] * -1.0)]
+    T = T.copy()
+    T[f0[cand]], T[f1[cand]] = new1[cand], new2[cand]
+    return T, len(cand)
+
+
+def relax(P, T, FE, sdf, h, reach, step=SMOOTH, tol=None):
+    """One tangential relaxation toward the neighbours' centroid (feature vertices: along their two feature neighbours,
+    corners fixed), projected on the zero set; the moves that turn a face are undone."""
+    n = len(P)
+    a, b, _, _ = manifold_edges(T, n)
+    src, dst = np.r_[a, b], np.r_[b, a]
+    cnt = np.maximum(np.bincount(src, minlength=n), 1)
+    cen = np.stack([np.bincount(src, P[dst, k], minlength=n) for k in range(3)], 1) / cnt[:, None]
+    nrm, area = tri_normals(P, T)
+    vn = np.zeros((n, 3))
+    for c in range(3):
+        np.add.at(vn, T[:, c], nrm * area[:, None])
+    vn /= np.maximum(np.linalg.norm(vn, axis=1), 1e-300)[:, None]
+    move = cen - P
+    move -= np.einsum("kd,kd->k", move, vn)[:, None] * vn
+    if len(FE):
+        fcnt = np.bincount(FE.ravel(), minlength=n)
+        fcen = np.stack([np.bincount(np.r_[FE[:, 0], FE[:, 1]], P[np.r_[FE[:, 1], FE[:, 0]], k], minlength=n) for k in range(3)], 1) / np.maximum(fcnt, 1)[:, None]
+        move = np.where((fcnt == 2)[:, None], fcen - P, np.where((fcnt > 0)[:, None], 0.0, move))
+    used = np.unique(T)
+    Q = P.copy()
+    Q[used] = P[used] + step * move[used]
+    if sdf is not None:
+        Q[used] = project(sdf, Q[used], h, np.full(len(used), reach))
+    n0 = tri_normals(P, T)[0]
+    c = np.cross(Q[T[:, 1]] - Q[T[:, 0]], Q[T[:, 2]] - Q[T[:, 0]])
+    off = np.einsum("fd,fd->f", n0, c) <= 0
+    if tol is not None and sdf is not None:
+        old, new = np.abs(sdf(P[T].mean(1))), np.abs(sdf(Q[T].mean(1)))
+        off |= (new > tol) & (new > old)
+    bad = np.unique(T[off])
+    Q[bad] = P[bad]
+    return Q
+
+
+class Shorts(Reducer):
+    """Reducer whose cost is the edge length: collapses the edges under 4/5 x size(midpoint) (to the midpoint, projected, or
+    the pinned end), never leaving a triangle with an edge over 4/3 x size(centroid) that was not already there."""
+
+    def __init__(self, verts, tris, sdf, FE, size, min_angle, grad_h, max_dev):
+        super().__init__(verts, tris, sdf, None, min_angle, grad_h, max_dev)
+        self.FE, self.size = FE, size
+
+    def evaluate(self, a, b, fcnt):
+        never, stay_a, stay_b = self.pin(a, b, fcnt)
+        pa, pb = self.P[a], self.P[b]
+        ln = np.linalg.norm(pb - pa, axis=1)
+        x = np.where(stay_a[:, None], pa, np.where(stay_b[:, None], pb, (pa + pb) / 2))
+        return np.where(never | (ln >= COLLAPSE_AT * self.size((pa + pb) / 2)), np.inf, ln), x
+
+    def too_far(self, old, new):
+        def longest(p):
+            return np.linalg.norm(p - np.roll(p, 1, 1), axis=2).max(1)
+        over = longest(new) > SPLIT_AT * self.size(new.mean(1))
+        return super().too_far(old, new) | (over & (longest(new) > longest(old)))
+
+
+def collapse_short(P, T, FE, sdf, h, size, max_dev):
+    """(P, T, FE) after collapsing the short edges; the vertices keep their ids (compact() drops the dead ones)."""
+    n = len(P)
+    R = Shorts(P, T, sdf, keys_of(FE, n), size, 15, h, max_dev)
+    R.run(0, 0)
+    return R.P, R.T, np.stack([R.FE // n, R.FE % n], 1) if len(R.FE) else FE[:0]
+
+
+def compact(P, T, FE):
+    used = np.unique(T)
+    remap = np.full(len(P), -1)
+    remap[used] = np.arange(len(used))
+    return P[used], remap[T], remap[FE] if len(FE) else FE
+
+
+def remesh(verts, tris, target_faces, sdf=None, iters=10, features=None, polish=None, grad_h=None, max_dev=None, guide=None):
+    """(verts, tris, report): isotropic remeshing (Botsch & Kobbelt 2004) of a closed shell to ~`target_faces` triangles:
+    per iteration split the edges over 4/3 L, collapse the ones under 4/5 L, flip toward valence 6, relax tangentially and
+    project on the zero set of `sdf` (see the module doc; None = no projection). L starts at the equilateral edge of the target
+    and follows the triangle count (L x sqrt(F / target)) so the count lands near the target. `guide` = (verts, tris) of a
+    coarse mesh of the same shape (e.g. the `reduce` result): L is then a field, the guide's local edge length x a scale that
+    follows the count, so the thin parts keep the small triangles the guide gave them. `features`: dihedral (degrees)
+    of the INPUT edges that become feature lines (corners fixed, the rest slide only along the line). `polish`: exact field of
+    the last projection; `max_dev`: as in reduce. The count is not guaranteed <= target: `reduce` closes it (METHOD "hybrid")."""
+    t0 = time.perf_counter()
+    P, T = np.array(verts, float), np.asarray(tris, np.int64).copy()
+    h = grad_h or 1e-3 * float(np.ptp(P, axis=0).max())
+    FE = np.zeros((0, 2), np.int64)
+    if features:
+        keys = feature_edges(P, T, features)[0]
+        FE = np.stack([keys // len(P), keys % len(P)], 1)
+    f0, e0 = len(T), euler(len(np.unique(T)), len(T))
+    L0, area = edge_length_for(P, T, target_faces), tri_normals(P, T)[1].sum()
+    base = guide_size(*guide) if guide is not None else (lambda p: np.full(len(p), L0))
+    scale, log = 1.0, []
+    for it in range(iters):
+        size = lambda p, s=scale: s * base(p)  # noqa: E731
+        for _ in range(4):
+            P, T, FE, n_split = split_long(P, T, FE, sdf, h, size)
+            if not n_split:
+                break
+        P, T, FE = collapse_short(P, T, FE, sdf, h, size, max_dev)
+        P, T, FE = compact(P, T, FE)
+        for _ in range(2):
+            T = flip_pass(P, T, FE)[0]
+        for _ in range(SMOOTH_PASSES):
+            P = relax(P, T, FE, sdf, h, L0, tol=max_dev)
+        if it < iters - 2:
+            scale *= (len(T) / target_faces) ** 0.5
+        log.append((len(T), round(scale, 4)))
+    if (polish or sdf) is not None:
+        P = relax(P, T, FE, polish or sdf, h, L0, step=0.0)
+    P, T, _ = compact(P, T, FE)
+    report = {"faces_in": f0, "faces": len(T), "verts": len(P), "euler_in": e0, "euler": euler(len(P), len(T)), "iters": log,
+              "area": float(area), "seconds": round(time.perf_counter() - t0, 3)}
+    return P, T, report
+
+
+def retopo(verts, tris, target_faces, sdf=None, method=None, features=None, **kw):
+    """The retopology entry point; `method` (default METHOD): "qem" = reduce; "remesh" = remesh; "remesh" = remesh
+    aimed at AIM x target; "hybrid" = remesh to HYBRID_OVER x target, then reduce to the target; "guided" = reduce, then remesh
+    with that mesh as the size guide. Every method but "qem" ends with a short `reduce` when the count is above the target.
+    kw: polish, grad_h, max_dev (see reduce)."""
+    method = method or METHOD
+    if method == "qem":
+        return reduce(verts, tris, target_faces, sdf, features_deg=features, **kw)
+    if method == "remesh":
+        v, t, rep = remesh(verts, tris, int(AIM * target_faces), sdf, features=features, **kw)
+    elif method == "hybrid":
+        v, t, rep = remesh(verts, tris, int(HYBRID_OVER * target_faces), sdf, features=features, **kw)
+    else:
+        gv, gt, rep = reduce(verts, tris, int(AIM * target_faces), sdf, features_deg=features, **kw)
+        v, t, rep = remesh(verts, tris, int(AIM * target_faces), sdf, features=features, guide=(gv, gt), **kw)
+    v, t, rep2 = reduce(v, t, target_faces, sdf, **kw) if len(t) > target_faces else (v, t, {"seconds": 0.0})
+    return v, t, {**rep2, "remesh": rep, "seconds": round(rep["seconds"] + rep2["seconds"], 3)}
 
 
 def main():

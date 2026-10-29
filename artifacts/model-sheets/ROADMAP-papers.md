@@ -552,6 +552,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-5 (2026-10-29): feito** — `sdf_body.weights` / `materials` / `near_distances`, `build_unit.sdf_body_object` + `skin_sdf` (não chamados pelo `main()`, L10-7), `sdf_extract.py skin=1`, testes `Skin`; nas 5 unidades `skins 1`, `components_body 1`, fechada, `max_dup_split 0`, 7 clipes/engine_import ok, zonas dentro de ±0.01 (dois ganhos de +0.012/+0.014); esticão p99.5 ≤ 1.1× a união em 14 de 15 medidas, exceção n017 `walk` 1.22× (PIPELINE §28.L10-5).
 
+**Estado L10-4 (2026-10-29): feito, aceite parcial; default NÃO muda** — `retopo.remesh` / `retopo.retopo(method=)` (PIPELINE §28.L10-4): remalhagem isotrópica Botsch–Kobbelt (split/collapse/flip/relax/projeção SDF, rodadas vetorizadas, `Shorts` reaproveita o `Reducer`), 600 tris em 1.1–5.2 s. fairness 24.0 → 12.1 (n00U 20.1), slivers 0, nd 34.5 → 29.8, faixa 60–100° 13.4 %; mas sdf_dev p95 1.47 % / máx até 3.31 % (n00U) e IoU hfoo `left` −0.056: aceite completo só em 2/5 (n005, n02X). Híbrido (remesh + QEM curto) fairness 15.4, máx 4.1 % no n00U. `METHOD = "qem"`; juiz `review_pair` não rodado (retopo ainda fora do `build_unit`).
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo

@@ -135,6 +135,41 @@ class Reduce(unittest.TestCase):
         self.assertLess(np.abs(d(pts) - sphere_sdf(pts)).max(), 0.002)
 
 
+class Remesh(unittest.TestCase):
+    def test_dense_sphere_is_fair_closed_and_without_slivers(self):
+        v, t = sphere(5)
+        out_v, out_t, rep = R.remesh(v, t, 300, sdf=sphere_sdf, grad_h=1e-3)
+        self.assertEqual(rep["euler"], 0)
+        self.assertEqual(ML.topology(out_v, out_t), (0, 0, 1))
+        self.assertTrue(270 <= len(out_t) <= 330)
+        p = out_v[out_t]
+        self.assertLess(float(np.abs(ML.angles(p) - 60).mean()), 15)
+        self.assertEqual(float((ML.angles_min(p) < ML.SLIVER_DEG).sum()), 0)
+
+    def test_cube_corners_survive_as_feature_vertices(self):
+        v, t = cube(8)
+        max_dev = 0.02
+        out_v, out_t, rep = R.remesh(v, t, 120, features=35, max_dev=max_dev)
+        self.assertEqual(rep["euler"], 0)
+        for corner in np.ndindex(2, 2, 2):
+            self.assertLessEqual(np.linalg.norm(out_v - np.array(corner), axis=1).min(), max_dev)
+
+    def test_projection_brings_the_remeshed_vertices_onto_the_zero_set(self):
+        v, t = sphere(4)
+        bumpy = v * (1 + 0.05 * np.sin(30 * v[:, :1]))
+        flat = R.remesh(bumpy, t, 150, grad_h=1e-3)[0]
+        proj = R.remesh(bumpy, t, 150, sdf=sphere_sdf, grad_h=1e-3)[0]
+        self.assertLess(np.abs(sphere_sdf(proj)).max(), 1e-6)
+        self.assertLess(np.abs(sphere_sdf(proj)).mean(), np.abs(sphere_sdf(flat)).mean())
+
+    def test_retopo_entry_point_closes_the_budget_for_every_method(self):
+        v, t = sphere(4)
+        for method in ("qem", "remesh", "hybrid", "guided"):
+            out_v, out_t, _ = R.retopo(v, t, 200, sdf=sphere_sdf, method=method, grad_h=1e-3)
+            self.assertLessEqual(len(out_t), 200, method)
+            self.assertEqual(R.euler(len(out_v), len(out_t)), 0, method)
+
+
 class SurfaceNets(unittest.TestCase):
     def test_sphere_grid_gives_a_closed_manifold_on_the_zero_set(self):
         x = np.linspace(-1.5, 1.5, 41)
