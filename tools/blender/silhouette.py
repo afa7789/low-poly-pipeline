@@ -1722,8 +1722,41 @@ BLOB_OPEN = 2          # px an opening removes from the red before its largest p
 COUPLING_BLOCKING = True
 # Proposed caps (best runs n01X v5-fit-r1 / v13, n005 v5-fit-r2 / v6-r4, rounded up +0.03; PIPELINE 21.F7).
 # 10 of the 23 IoU-passing runs would be flagged (> 1/3), so they stay a report.
-UNCOVERED_MAX = {"front": 0.15, "left": 0.20, "back": 0.15, "top": 0.25, "bottom": 0.25, "rts": 0.20}
-SPILL_MAX = {"front": 0.20, "left": 0.15, "back": 0.15, "top": 0.25, "bottom": 0.20, "rts": 0.25}
+# L12-2 (user: "pode ter verde sobrando, e pouco; vermelho não pode, em nenhum ângulo"): one cap per view, no average. Spill is the model's
+# share outside the sheet, bare the sheet's share the model leaves uncovered. Measured before the change: spill .03-.39, bare .02-.44.
+UNCOVERED_MAX = dict.fromkeys(("front", "left", "back", "top", "bottom", "rts"), 0.10)
+SPILL_MAX = dict.fromkeys(("front", "left", "back", "top", "bottom", "rts"), 0.03)
+# Asymmetric cost of the optimizers (fit_spec, optimize_verts, deform_to_sheet): (SPILL_W * spill px + BARE_W * bare px) / union px.
+# SPILL_W = BARE_W = 1 (default) is exactly 1 - IoU. A model INSCRIBED in the sheet and tangent to its edge is the target (CONTACT_*).
+SPILL_W, BARE_W = float(os.environ.get("CF_SPILL_W", 1.0)), 1.0     # opt-in CF_SPILL_W=3: spill -.00..-.02 for bare +.03..+.06, IoU -.01..-.03 (PIPELINE 30.L12-2)
+CONTACT_EPS = 2        # px (canvas of the gate): a model contour pixel this close, inside the sheet, touches the sheet's contour
+CONTACT_MIN = 0.70     # CHECK (report) share of the sheet's contour touched from inside; not a gate yet (L12-2)
+
+
+def asym_cost(concept, model, spill_w=None, bare_w=None):
+    """(spill_w * model px outside the sheet + bare_w * sheet px uncovered) / union px; weights default to SPILL_W / BARE_W.
+    With both 1 it is 1 - iou(concept, model)."""
+    spill_w, bare_w = SPILL_W if spill_w is None else spill_w, BARE_W if bare_w is None else bare_w
+    if spill_w == bare_w == 1:
+        return 1 - iou(concept, model)
+    c, m = concept.astype(bool), model.astype(bool)
+    union = np.logical_or(c, m).sum()
+    return float((spill_w * (m & ~c).sum() + bare_w * (c & ~m).sum()) / union) if union else 0.0
+
+
+def contact(concept, model, eps=None):
+    """Share of the sheet's contour pixels with a contour pixel of the model within `eps` px (CONTACT_EPS) that lies
+    inside the sheet: 1 = the model is inscribed and tangent all round, 0 = it never touches the edge from inside
+    (shrunk away from it, or spilling over it)."""
+    from scipy.ndimage import binary_erosion, distance_transform_edt
+    c, m = concept.astype(bool), model.astype(bool)
+    if not c.any() or not m.any():
+        return 0.0
+    inner = m & ~binary_erosion(m) & c
+    if not inner.any():
+        return 0.0
+    edge = c & ~binary_erosion(c)
+    return float((distance_transform_edt(~inner)[edge] <= (CONTACT_EPS if eps is None else eps)).mean())
 
 
 def coupling_ok(view, r):
@@ -1969,7 +2002,7 @@ def main():
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     waived = write_sheet_report(args)    # views where the sheet contradicts itself: measured, not gated
-    print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
+    print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  {'spill':>5} {'bare':>5} {'cont':>5}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
         best, best_mask, tilt, flipped = best_match(concept[name], model[name], name, boxes.get(name))
@@ -1979,13 +2012,15 @@ def main():
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
                         "tilt": tilt, "flipped": flipped, "frame": "body" if getattr(panels.get(name), "box", None) is not None else "bbox", "gate": gate, **coupling(concept[name], best_mask),
+                        "contact": round(contact(concept[name], best_mask), 4),
                         **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
         report[name]["incoherent"] = name in waived
         ok, verdict = verdict_of(gate, ok, name in waived)
         bad += 0 if ok else 1
-        print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  {verdict}")
+        print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  {report[name]['spill']:5.3f} {report[name]['uncovered']:5.3f} {report[name]['contact']:5.3f}  {verdict}"
+              + ("" if report[name]["contact"] >= CONTACT_MIN else "  (contact CHECK)"))
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))
         write_mask(best_mask, args.outdir / f"mask-model-{name}.png", (80, 255, 80))
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")

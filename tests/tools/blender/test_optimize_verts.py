@@ -104,7 +104,7 @@ class TestOptimizeVerts(unittest.TestCase):
 
     def test_optimize_raises_iou_and_keeps_faces(self):
         panels = {"front": panel(1.15), "left": panel(1.0), "back": panel(1.15)}
-        with mock.patch.object(O, "make_views", return_value=[
+        with mock.patch.object(O.S, "SPILL_W", 1.0), mock.patch.object(O, "make_views", return_value=[
                 D.View(n, *np.array(D.FRONT_AXES[n], float), 1, p, True) for n, p in panels.items()]):
             new, rep = O.optimize(POS, TRI, np.zeros_like(POS), FILE, "unused.jpg", seconds=20, iters=3)
         self.assertGreater(rep["after"]["front"]["iou"], rep["before"]["front"]["iou"] + 0.03)
@@ -112,6 +112,17 @@ class TestOptimizeVerts(unittest.TestCase):
         self.assertEqual(rep["turned"], 0)
         self.assertTrue(np.all(new[:8, 2] == 0))              # the sole stays on the ground
         self.assertLessEqual(rep["slivers_after"], rep["slivers_before"] + 1e-9)
+
+    def test_ctx_cost_prices_spill_dearer_and_is_one_minus_iou_at_one(self):
+        prob = problem()
+        ctx = prob.evaluate(prob.pos0)[1][0]
+        with mock.patch.object(O.S, "SPILL_W", 1.0), mock.patch.object(O.S, "BARE_W", 1.0):
+            self.assertAlmostEqual(ctx.cost, 1 - ctx.iou)
+        spill = (np.maximum(ctx.cov - ctx.c, 0).sum() > 0, np.maximum(ctx.c - ctx.cov, 0).sum() > 0)
+        self.assertNotEqual(*spill)                        # the fixture is all bare or all spill: the weight moves the cost one way
+        with mock.patch.object(O.S, "SPILL_W", 3.0):
+            heavy = ctx.cost
+        self.assertEqual(heavy > ctx.cost + 1e-9, spill[0])
 
     def test_repair_refuses_a_flip(self):
         prob = problem()

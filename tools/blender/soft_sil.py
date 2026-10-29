@@ -149,12 +149,17 @@ def soft_asym(mask, concept, w_red=1.0, w_green=1.0):
 
 def soft_iou(mask, concept, mode="sym", w_red=1.0, w_green=1.0):
     """sum min / sum max of the soft mask and the sheet's panel (what optimize_verts.Ctx.iou computes today).
-    mode "asym": 1 - soft_asym, so that `1 - soft_iou` is the asymmetric loss (the weights only matter there)."""
+    mode "asym": 1 - soft_asym, so that `1 - soft_iou` is the asymmetric loss (the weights only matter there).
+    mode "sym": 1 - (S.SPILL_W * spill + S.BARE_W * bare) / union (L12-2); the plain IoU when both are 1."""
     if mode == "asym":
         return 1 - soft_asym(mask, concept, w_red, w_green)
     if mode != "sym":
         raise ValueError(f"mode {mode!r}: sym | asym")
-    return torch.minimum(mask, concept).sum() / torch.maximum(mask, concept).sum()
+    if S.SPILL_W == S.BARE_W == 1:                                 # the plain IoU, bit for bit
+        return torch.minimum(mask, concept).sum() / torch.maximum(mask, concept).sum()
+    spill = torch.relu(mask - concept).sum()                       # L12-2: 1 - this = (SPILL_W spill + BARE_W bare) / union,
+    bare = torch.relu(concept - mask).sum()                        # exactly 1 - IoU when both weights are 1
+    return 1 - (S.SPILL_W * spill + S.BARE_W * bare) / torch.maximum(mask, concept).sum()
 
 
 def loss(pos, tri, view, tau=0.5, dist="logistic", agg="prob", ss=1, mode="sym", detach=False, w_red=None, w_green=None):

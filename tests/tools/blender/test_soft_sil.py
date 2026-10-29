@@ -56,8 +56,7 @@ class TestSoftSil(unittest.TestCase):
         self.assertAlmostEqual(SS.soft_asym(c, c, 3, 5).item(), 0.0, places=6)
 
     def test_asym_weights_come_from_the_gates(self):
-        self.assertEqual(SS.asym_weights("top"), (1.0, 1.0))
-        red, green = SS.asym_weights("left")        # caps .20 / .15: the green is dearer
+        red, green = SS.asym_weights("left")        # caps .10 / .03 (L12-2): the green is dearer
         self.assertAlmostEqual(red / green, S.SPILL_MAX["left"] / S.UNCOVERED_MAX["left"])
         self.assertAlmostEqual(red + green, 2.0)
 

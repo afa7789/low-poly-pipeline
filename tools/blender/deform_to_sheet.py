@@ -298,17 +298,17 @@ def measure(pos, tri, views):
     for view in views:
         mask = view_state(pos, tri, view)[1]
         c = S.coupling(view.concept, mask)
-        out[view.name] = {"iou": round(S.iou(view.concept, mask), 4), "uncovered": c["uncovered"], "spill": c["spill"]}
+        out[view.name] = {"iou": round(S.iou(view.concept, mask), 4), "score": round(1 - S.asym_cost(view.concept, mask), 4), "uncovered": c["uncovered"], "spill": c["spill"]}
         if view.props:      # body / props told apart (25.L7-5); the gate stays on the totals
             out[view.name].update(S.coupling_split(view.concept, mask, np.any(view.props, axis=0)))
     return out
 
 
 def mean_iou(report, views, weight=None, active=True):
-    """Weighted mean IoU of the pulling (or only watched) views; `weight` {view: w}, 1 where absent."""
+    """Weighted mean score (1 - S.asym_cost, the IoU at SPILL_W = 1; L12-2) of the pulling (or only watched) views; `weight` {view: w}, 1 where absent."""
     chosen = [v.name for v in views if v.active == active]
     w = np.array([(weight or {}).get(n, 1.0) for n in chosen] or [1.0])
-    return float(np.dot(w, [report[n]["iou"] for n in chosen] or [0.0]) / w.sum())
+    return float(np.dot(w, [report[n].get("score", report[n]["iou"]) for n in chosen] or [0.0]) / w.sum())
 
 
 def accept(old, new, tri, views, ref, floor, limit, weight=None):

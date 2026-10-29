@@ -1290,7 +1290,7 @@ def shape_review(args, glb, layout):
         summary["flipped"] = {v: r["flipped"] for v, r in report.items() if "flipped" in r}
         summary["top_orientation"] = {v: report[v]["head"] for v in ("top", "bottom") if v in report}
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
-        for key in ("uncovered", "spill", "red"):     # coupling (PIPELINE 21.F7)
+        for key in ("uncovered", "spill", "red", "contact"):     # coupling (PIPELINE 21.F7)
             summary[key] = {k: r[key] for k, r in report.items() if key in r}
         summary["gates"] = gates_for(args.rig)
         summary["sheet"] = sheet_report(args.sheet, layout)     # r_sym and coherence; incoherent views are not gated
@@ -1740,9 +1740,9 @@ def signal_rows(summary, row, shape):
     if summary.get("chamfer"):
         out += row("contour chamfer (SD, /H)", summary["chamfer"], shape)
         out += f"| SD mean | {sum(summary['chamfer'].values()) / len(summary['chamfer']):.4f} |\n"
-    for key in ("uncovered", "spill"):
+    for key in ("uncovered", "spill", "contact"):
         if summary.get(key):
-            out += row(f"{key} (report, /{'sheet' if key == 'uncovered' else 'model'} area)", summary[key], shape)
+            out += row(f"{key} (report, /{ {'uncovered': 'sheet area', 'spill': 'model area'}.get(key, 'sheet contour') })", summary[key], shape)
     if summary.get("red"):
         from silhouette import red_text
         out += "".join(f"| worst red {v} | {red_text(r)} |\n" for v, r in summary["red"].items())
