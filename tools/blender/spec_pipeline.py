@@ -1218,7 +1218,8 @@ def fit_stage(spec, args):
                                hard=args.build if args.fit_edges else None,
                                stages=fit_spec.STAGES if args.fit_stages else None,
                                partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts,
-                               depth=args.depth, grad=args.fit_grad)
+                               depth=args.depth, grad=args.fit_grad,
+                               **({"seconds": 1e9} if getattr(args, "deterministic", False) else {}))
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if report["changed"]:
         ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
@@ -2085,6 +2086,9 @@ def main():
                          "fixed topology (optimize_verts.py, Wiersma 2026; 30 s with the soft gradient; default since "
                          "PIPELINE 26.L8-6b)")
     ap.add_argument("--no-fit-verts", dest="fit_verts", action="store_false", help="skip the vertex optimisation")
+    ap.add_argument("--deterministic", action="store_true",
+                    help="no wall-clock budgets in the fit and fit-verts (iteration counts only): two builds of one spec give the "
+                         "same IoU; implied by --loop")
     ap.add_argument("--loop", type=int, default=0, metavar="N",
                     help="guarded VLM loop (L11-2): N rounds of diagnose -> one delta at a time -> rebuild with the round-0 "
                          "cameras -> keep it only if no view falls > 0.01 and the mean rises >= 0.005 (0 = off)")
@@ -2104,6 +2108,7 @@ def main():
     args = ap.parse_args()
     if args.variants < 1:
         ap.error("--variants must be at least 1")
+    args.deterministic = args.deterministic or args.loop > 0
     args.style = args.texture        # the old name, for stage 2 code that still reads it
     global BODY, SDF_GRID
     BODY, SDF_GRID = args.body, args.sdf_grid
