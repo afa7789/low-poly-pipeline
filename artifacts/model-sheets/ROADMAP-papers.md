@@ -560,3 +560,7 @@ e critério de parada (nenhuma vista cai, forma sobe no juiz).
 
 **Estado T5 (2026-10-29):** `build_unit.merge_materials` + `surfaces.merge_groups`, default ligado em cel (`--materials split` restaura; PIPELINE §27.T5). Prims 7 -> 2 (n005), 8 -> 2, 4 -> 1, 5 -> 2, 7 -> 1; fica 2 onde há flame/glow (emissivo próprio, não funde); gates e clipes iguais, render com ruído <= 7/255 em <= 16 px. Aceite "1" só onde não há emissivo.
 
+
+**Estado T3 (2026-10-29):** `--atlas shared` agora 128² com decais (PIPELINE §27.T3): faixa de tom 64 colunas de 2 px + células de decal first-fit (append-only, hash do decal + coluna). `images == 1`, `luma_l1` ±.008 (14 de 15 vistas; n017 l/b +.006/+.007), `zones mean` ≥ −.0001; juiz sem 4-0 contra no eixo sheet (n005/n02X empate; hfoo/n00U/n017 B 4-0). NÃO atendido: ≤ 4 KB por raça no Human (união ~5 KB com PIL). Segue opt-in.
+
+**Estado T7 (2026-10-29):** `race_palettes.json` (dos ícones) + `palette_hint` no brief de cor (só com `--atlas shared`) + `snap`/`palette_snap` (opt-in, desligado: junta 0 colunas e trocou a cor das botas do hfoo). Simulação: 10-16 unidades/raça em 128², NÃO ≥ 16 (PIPELINE §27.T7).

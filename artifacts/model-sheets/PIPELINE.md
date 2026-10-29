@@ -3840,6 +3840,82 @@ Textura: atlas compacto, paleta partilhada, 1 material (`analysis/2026-10-29-pap
   tamanho (o exportador não a usa).
 - Evidência: `scratchpad/l9-atlas/` (run.py, table.py, cmp-*.png, `<unit>-{legacy,compact}/`).
 
+### 27.T3 Decais no atlas partilhado, 128² (`--atlas shared`, `shared_atlas.py`, `build_unit.texturize_shared`)
+
+- O que mudou: `shared_atlas.SIZE = 128` (T7), 64 colunas de 2 px. **Faixa inferior** (`TONE_ROWS = 12`): por coluna (cor + superfície) as 3
+  células de tom planas de `surfaces.tone_cell` (4 linhas: 1 de ink + 3 de cor; claro / médio / escuro), cortadas a 2 px (`width=4`,
+  colunas do meio): o ink é só a linha (as colunas laterais de ink não cabem em 2 px). **Faixa superior**: células de decal (16 px procedural,
+  32 px figura/prop crop) na grade de 4 px, **first-fit** sobre as células já na tabela. Tabela JSON `{"columns": [...], "decals": {hash:
+  [x, y, w, h]}}` (a lista de chaves antiga carrega igual), append-only: coluna e célula nunca se movem. Chave do decal =
+  sha1 curto de (tipo, fonte, tamanho, chave da coluna) (`decal_hash`); a fonte de figura é o pixel do rosto / o crop do prop. Duas unidades
+  da raça com o mesmo decal sobre a mesma coluna partilham a célula.
+- Reuso: `compact_faces` / `compact_uvs` / `paint_compact` / `paint_decal` do T1 (UV e pintura do decal iguais ao compacto, nada duplicado); a
+  rampa (`shared_uvs`, RAMP) saiu: era negativa (L6-11) e o tom plano é o do compacto. **Não usa `pack_cells`**: ele reempacota tudo
+  (origens mudam quando uma célula entra), e a tabela é append-only; `place` é o first-fit de grade que não move nada.
+- Célula de figura usada por < 3 faces (`SHARED_PICTURE_FACES`) e que não é o crop do próprio prop (`prop_*`) vira 16 px: 11 células de 32
+  não cabem na faixa (12 de 32 por 116 linhas) com as duas unidades Human; sem a exceção do prop o juiz perdeu a pistola do n005 (4-0 sheet).
+  O decal pintado é posterizado depois do blend (`POSTERIZE`): o PNG cai de 6.8 para 4.5 KB (união Human).
+- Só a imagem DE CADA GLB carrega os decais da própria unidade; a tabela reserva as células das outras (a imagem da raça inteira é a união, `min`
+  das imagens, sem sidecar: **não feito**, adicionar quando o motor carregar uma imagem por raça, T5).
+- Flags: `--atlas shared` continua opt-in (`build_unit shared=<raça>.json`); `palette_snap` no build (T7, desligado).
+- Bateria (`runs/draft/*/v12-r1/spec.json`, estágio 2 cel, `deform`/`fit-verts` desligados; Human: n005 depois hfoo na mesma tabela; compacto =
+  T1 default, mesmo clay; `luma_l1` menor é melhor):
+
+| unit | atlas | size | KB | luma_l1 f/l/b | zones mean f/l/b | oob | images |
+|---|---|---|---|---|---|---|---|
+| n005 | compacto | 128x128 | 5.2 | 0.041/0.039/0.024 | 0.616/0.681/0.611 | 0 | 1 |
+| n005 | shared | 128x128 | 3.6 | 0.044/0.039/0.021 | 0.617/0.682/0.611 | 0 | 1 |
+| hfoo | compacto | 128x128 | 6.5 | 0.089/0.047/0.098 | 0.267/0.241/0.178 | 0 | 1 |
+| hfoo | shared | 128x128 | 4.3 | 0.056/0.047/0.098 | 0.276/0.244/0.177 | 0 | 1 |
+| n00U | compacto | 32x64 | 0.7 | 0.036/0.045/0.049 | 0.315/0.238/0.291 | 0 | 1 |
+| n00U | shared | 128x128 | 1.1 | 0.036/0.045/0.049 | 0.316/0.239/0.289 | 0 | 1 |
+| n017 | compacto | 32x128 | 3.5 | 0.104/0.044/0.076 | 0.140/0.214/0.241 | 0 | 1 |
+| n017 | shared | 128x128 | 2.9 | 0.105/0.050/0.084 | 0.142/0.214/0.240 | 0 | 1 |
+| n02X | compacto | 64x128 | 4.1 | 0.034/0.052/0.036 | 0.341/0.237/0.289 | 0 | 1 |
+| n02X | shared | 128x128 | 3.0 | 0.038/0.054/0.036 | 0.346/0.235/0.289 | 0 | 1 |
+
+- Aceite: `images == 1` (5/5), `uv_out_of_range == 0` (5/5), imagem 128² (5/5; n00U/n017/n02X são maiores que o compacto, mas a imagem é a da raça).
+  `luma_l1` ±.008: 14 de 15 (n005 f +.003, hfoo f −.034 melhora, n017 l/b +.006/+.007; n02X f +.004); `zones mean` (média de f/l/b) de −.0001 a
+  +.0037, nunca perde .011. KB por GLB 1.1..4.3 (Blender codifica ~1.2x o PIL). **NÃO atendido**: ≤ 4 KB por raça no Human (união das duas
+  unidades = 5.0 KB com PIL, ~6 KB no Blender: as imagens de figura pesam); Desert/Nature/Northern (1 unidade) ficam em 1.1..3.0 KB.
+- Juiz `review_pair` (4 votos, A = compacto, B = shared; `scratchpad/l9-decals/pair/`), 3ª rodada, sem rampa nem snap:
+  n005 sheet/artist/wc3 empate 2-2 (viés de posição), form B 3-1; hfoo B 4-0 nos 4 eixos; n00U B 4-0; n017 B 4-0; n02X empate 2-2. **Nenhuma
+  perda de 4-0 no eixo sheet** (o ink só em linha lê mais limpo para o juiz: "carapaça lisa" contra "lajes sobrepostas" no n00U).
+  Rodadas anteriores (negativos): (1) com `palette_snap` ligado o hfoo perdeu o eixo sheet 4-0 (botas cinza escuro viraram o verde escuro da paleta
+  Human, ΔE < .03 mas visível ao juiz); (2) com a célula de 1 face do prop da pistola a 16 px o n005 perdeu o eixo sheet 4-0 (pistola esverdeada).
+- Testes: `test_shared_atlas` (tabela com `decals` carrega/anexa sem mover, hash igual partilha célula, `place` sem sobreposição e banda cheia
+  recusa, 64 colunas, imagem = células do compacto sem ink lateral); `test_colour_stage.RaceHint`.
+- Evidência: `scratchpad/l9-decals/` (`run.py`, `table.py`, `sim.py`, `pair/`, `atlas/*.json`).
+
+### 27.T7 Paleta por raça (`race_palettes.json`, `shared_atlas.palette_hint/snap/snap_new`)
+
+- `race_palettes.json`: 15 raças, as 8 cores mais frequentes (quantizadas a 5 bits, > ΔE .06 entre si, Oklab) do ícone `assets/icons/png/race/<raça>.png`
+  (`shared_atlas.make_palettes`, PIL). `palette_hint(race)` devolve a lista (`[]` para raça desconhecida); `hint_text(race)` é a frase do brief.
+- Brief do estágio de cor (`colour_stage.colour_brief(spec, scores, race)`): só com `--atlas shared`, a linha "Prefer these <raça> palette tones when
+  the sheet allows (soft, not a rule): ..." antes de "Parts with a decal"; o autor pode ignorar, nada bloqueia. Sem `--atlas shared` o brief é o mesmo de antes.
+- Snap: `snap(k, palette)` troca a cor da chave pela da paleta se ΔE < `SNAP_DE = 0.03`; `snap_new(columns, k, palette)` só se nenhuma coluna
+  já serve a chave (a fusão T2 ganha). No build é `palette_snap` (argumento, `PALETTE_SNAP = False`): **desligado**.
+- Simulação de capacidade (`scratchpad/l9-decals/sim.py`; specs v12-r1, v11-r1 onde faltou; n01X/n00H só têm spec v10-r1 com palette): colunas
+  da raça somando as unidades, e unidades por 128² = 64 x unidades / colunas:
+
+| raça | unidades | slots | sem fusão | fusão ΔE .02 (T2) | + snap ΔE .03 (T7) | snap de tudo (limite) | unidades em 128² (T2 / T7 / limite) |
+|---|---|---|---|---|---|---|---|
+| Human | hfoo, n005 | 13 | 13 | 12 | 13 | 9 | 10 / 9 / 14 |
+| Nature | n00U | 5 | 5 | 5 | 5 | 4 | 12 / 12 / 16 |
+| Northern | n017 | 4 | 4 | 4 | 4 | 4 | 16 / 16 / 16 |
+| Desert | n02X | 6 | 6 | 6 | 6 | 6 | 10 / 10 / 10 |
+| Mech | n01X (v10-r1) | 5 | 5 | 5 | 5 | 5 | 12 / 12 / 12 |
+| Naga | n00H (v10-r1) | 5 | 5 | 5 | 5 | 4 | 12 / 12 / 16 |
+
+- NEGATIVO no aceite "≥ 16 unidades/raça": 10-16 unidades por raça em 128² (≥ 16 só no Northern, 1 unidade, e no "limite" de Nature/Naga). O snap
+  ΔE < .03 move 0-3 slots por raça (Human 3 de 13, Nature 1, Naga 2) e não junta colunas (Human 12 -> 13: o slot que a fusão T2 juntava foi para a
+  paleta); as cores autoradas (escuras, sujas) ficam longe das do ícone (vivas, com contorno). Só a paleta imposta ao autor (limite: tudo
+  no snap, ΔE livre) chega a 9 colunas Human (14 unidades) - sem medida de fidelidade e depende do autor seguir a dica, que é suave.
+- `zones mean` (T3, snap desligado) nunca cai > .004 nas 5 unidades; com o snap ligado (rodada 1) caiu ≤ .004 também, mas o juiz viu a cor trocada (acima).
+- Recomendação (`--atlas shared`, decisão de default é do integrador): manter opt-in. 128² com decais fecha o aceite visual (sheet sem 4-0 contra, KB por GLB ≤ 4.3,
+  1 imagem), não fecha 4 KB por raça (Human) nem ≥ 16 unidades/raça; a imagem da raça só ganha quando o motor carregar UMA imagem por raça (T5, `merge_materials`).
+  Quem ligar a dica de paleta ao autor deve medir a cor do slot depois (não medido: sem LLM nesta tarefa).
+
 ### 27.T6 `mesh_lint.mip_bleed` (medida mip-safe, só relatório)
 
 - `mip_bleed(image, layout)`: mapa de id de célula por pixel (`layout` = retângulos `(x, y, w, h)`), blocos 2x2 / 4x4 / 8x8

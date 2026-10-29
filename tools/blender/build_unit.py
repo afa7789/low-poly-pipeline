@@ -45,8 +45,10 @@ CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal 
 CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
 TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
-SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
+SHARED = None    # (arg shared=<table.json>) the race's shared 128 px atlas table (shared_atlas.py, PIPELINE 27.T3); cel only
 POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
+PALETTE_SNAP = False   # (arg palette_snap) shared atlas: snap a slot colour to the race palette within dE .03 (27.T7); off: it moved hfoo's boots to green (judge 4-0 against) and saves no column
+SHARED_PICTURE_FACES = 3   # shared atlas (27.T3): a picture decal cell used by fewer faces than this (and not a prop's own crop) is 16 px, not 32
 COMPACT_ATLAS = True    # default since 27.T1 (84 KB -> 5 KB, luma_l1 within .008); cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
 MERGE_MATERIALS = True   # cel: slots sharing the atlas, emission and opacity fold into one material, one draw (27.T5); materials=split on the CLI restores them
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
@@ -1345,49 +1347,50 @@ def arg_value(rest, name):
     return next((a[len(name):] for a in rest if a.startswith(name)), None)
 
 
-def shared_uvs(body, meta, columns):
-    """UVs for the shared gradient atlas: u = the face material's column, v = the row of its tone
-    (TONE_V of its normal) plus RAMP x (the loop's height in its part - .5): a continuous vertical
-    gradient across the face, 0 = the flat cel tone. Decals are not drawn."""
-    SF, SA = sibling("surfaces"), sibling("shared_atlas")
-    mesh, world = body.data, body.matrix_world
-    if not mesh.uv_layers:
-        mesh.uv_layers.new(name="UVMap")
-    if mesh.uv_layers.active is None:
-        mesh.uv_layers.active = mesh.uv_layers[0]
-    uvs = mesh.uv_layers.active.data
-    slope = SF.RAMP_SLOPE if RAMP is None else RAMP
-    slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
-    turn = world.to_3x3()
-    for poly in mesh.polygons:
-        u = SA.u_of(columns[slot_base[poly.material_index]])
-        tone_v = SF.TONE_V[SF.tone_index((turn @ poly.normal).normalized().z)]
-        for li in poly.loop_indices:
-            height = relative_height(meta, world @ mesh.vertices[mesh.loops[li].vertex_index].co) if slope else 0.5
-            v = min(1.0, max(0.0, tone_v + slope * (height - 0.5)))
-            uvs[li].uv = (u, (v * (SA.SIZE - 1) + 0.5) / SA.SIZE)
+def decal_hash(i, column, size):
+    """Short hash of decal i on the slot `column` (shared_atlas key): what two units of a race must have in common to share its cell.
+    A picture decal adds its source (the sheet's head pixels, the prop crop and its aspect)."""
+    import hashlib
+    _, half, kind, colour, _, _ = DECALS[i]
+    source = FACE.tobytes() if kind == "sheet" and FACE is not None else repr((colour, half.z > 1.3 * half.x)) if kind == "propcrop" else colour
+    return hashlib.sha1(repr((kind, source, size, column)).encode()).hexdigest()[:10]
 
 
 def texturize_shared(body, meta):
-    """The race-wide 64 x 64 atlas (shared_atlas.py) instead of a per-unit one: columns of the table
-    at SHARED, extended with this unit's slots. Returns the slot count, 0 when the table is full (the
-    unit then gets its own atlas, with a line saying so)."""
+    """The race-wide 128 x 128 atlas (shared_atlas.py, PIPELINE 27.T3) instead of a per-unit one: a column per slot (snapped to the
+    race palette, 27.T7), tone and decal cells from the same faces and UV code as the compact atlas, the decal cells at the places the
+    table at SHARED holds (appended when new). Returns the slot count, 0 when the table is full (the unit then gets its own atlas)."""
+    import collections
     import numpy as np
     SA = sibling("shared_atlas")
-    bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
-    keys = {b: SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")) for b in bases}
+    faces = compact_faces(body, meta)
+    palette = SA.palette_hint(pathlib.Path(SHARED).stem) if PALETTE_SNAP else []
+    bases = list(dict.fromkeys(f[1] for f in faces))
+    have = SA.load(SHARED)["columns"]
+    keys = {b: SA.snap_new(have, SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")), palette) for b in bases}
     try:
         table = SA.extend(SHARED, keys.values())
+        col = {b: SA.find(table["columns"], k) for b, k in keys.items()}
+        used = collections.Counter((f[1], f[4]) for f in faces if f[4] is not None)
+        size = {k: decal_px(k[1]) if n >= SHARED_PICTURE_FACES or k[0].startswith("prop_") else sibling("surfaces").DECAL_PX
+                for k, n in used.items()}    # a stray cell of 1-2 faces (not a prop's own crop) gets the 16 px cell: the 128 px band holds 12 of 32
+        hashes = {k: decal_hash(k[1], table["columns"][col[k[0]]], size[k]) for k in used}
+        table = SA.extend(SHARED, keys.values(), [(h, size[k]) for k, h in hashes.items()])
     except ValueError as err:
         print(f"{err}: own atlas instead")
         return 0
-    shared_uvs(body, meta, {b: SA.find(table, k) for b, k in keys.items()})
+    cells = {(b, t): SA.tone_cell_xywh(col[b], t) for b in bases for t in range(3)}
+    cells.update({(b, "d", i): tuple(table["decals"][h]) for (b, i), h in hashes.items()})
+    compact_uvs(body, faces, cells, (SA.SIZE, SA.SIZE))
     pixels = np.ones((SA.SIZE, SA.SIZE, 4))
     pixels[..., :3] = SA.image(table)
+    drawn = paint_compact(sibling("surfaces"), {k: c for k, c in cells.items() if len(k) == 3}, (SA.SIZE, SA.SIZE))
+    for x, y, w, h in (c for k, c in cells.items() if len(k) == 3):
+        pixels[y:y + h, x:x + w] = np.round(drawn[y:y + h, x:x + w] * POSTERIZE) / POSTERIZE    # the blend with the tone is posterized too: it halves the PNG (6.8 -> 4.3 KB, Human)
     img = bpy.data.images.new("tex_atlas", width=SA.SIZE, height=SA.SIZE, alpha=False)
     img.pixels.foreach_set(pixels.astype(np.float32).ravel())
     bind_atlas(body, img)
-    print(f"shared atlas: {len(table)} columns used of {SA.COLUMNS}, {len(DECALS)} decals not drawn")
+    print(f"shared atlas: {len(table['columns'])} columns used of {SA.COLUMNS}, {len(hashes)} decal cells, {len(table['decals'])} in the table")
     return len(bases)
 
 
@@ -1891,7 +1894,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS, PALETTE_SNAP
     CLAY = "clay" in rest
     global PROPID, NOUNION
     PROPID = "propid" in rest
@@ -1912,6 +1915,7 @@ def main():
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
     COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
     MERGE_MATERIALS = (arg_value(rest, "materials=") or ("merge" if MERGE_MATERIALS else "split")) == "merge"
+    PALETTE_SNAP = "palette_snap" in rest
     SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours

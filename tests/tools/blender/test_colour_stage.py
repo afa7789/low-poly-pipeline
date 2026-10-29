@@ -147,5 +147,14 @@ class Stage(unittest.TestCase):
             self.assertEqual(json.loads((tmp / "spec-colour.json").read_text()), SPEC)
 
 
+class RaceHint(unittest.TestCase):
+    def test_brief_carries_the_race_palette_as_a_soft_hint_only_when_asked(self):
+        import shared_atlas as SA
+        plain, hinted = CS.colour_brief(SPEC, {}), CS.colour_brief(SPEC, {}, "Human")
+        self.assertNotIn("Prefer these", plain)
+        self.assertIn(SA.palette_hint("Human")[0], hinted)
+        self.assertIn("soft", hinted)
+
+
 if __name__ == "__main__":
     unittest.main()
