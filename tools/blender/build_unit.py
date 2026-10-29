@@ -46,6 +46,7 @@ CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
 RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
 TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
 SHARED = None    # (arg shared=<table.json>) the race's shared 64 px gradient atlas table (shared_atlas.py); cel only
+POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
 COMPACT_ATLAS = False   # cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
@@ -1367,23 +1368,18 @@ def texturize_shared(body, meta):
 
 def compact_faces(body, meta):
     """One record per polygon for the compact cel atlas: (poly, base, tone, slot, decal index or None,
-    world centre, world normal, nearest part). Same tone / slot / decal tests as atlas_uvs. A picture decal
-    is painted once for all the materials that wear it: its faces carry the first one's `base` (its colour
-    shows through the picture's transparent texels)."""
+    world centre, world normal, nearest part). Same tone / slot / decal tests as atlas_uvs. """
     SF = sibling("surfaces")
     world, turn = body.matrix_world, body.matrix_world.to_3x3()
     slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
-    out, owner = [], {}
+    out = []
     for poly in body.data.polygons:
         centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
         near = nearest_part(meta, centre_w)
         dec = decal_uv(centre_w, normal_w, centre_w, near)
         slot = SF.ramp_slot(normal_w.z, relative_height(meta, centre_w), all(abs(c) > 0.3 for c in normal_w))
-        base = slot_base[poly.material_index]
-        dec_i = dec[0] - 8 if dec else None
-        if dec and decal_px(dec_i) == SF.DECAL_PX_PICTURE:
-            base = owner.setdefault(dec_i, base)
-        out.append((poly, base, SF.tone_index(normal_w.z), slot, dec_i, centre_w, normal_w, near))
+        out.append((poly, slot_base[poly.material_index], SF.tone_index(normal_w.z), slot,
+                    dec[0] - 8 if dec else None, centre_w, normal_w, near))
     return out
 
 
@@ -1401,7 +1397,7 @@ def decal_px(i):
 
 def compact_layout(faces):
     """({cell key: (x, y, w, h)}, (W, H)): one tone cell per (material, tone) used and one decal cell per
-    (material, decal) used (per decal for a picture), shelf-packed. Keys: (base, tone) or (base, "d", decal index)."""
+    (material, decal) used, shelf-packed. Keys: (base, tone) or (base, "d", decal index)."""
     SF = sibling("surfaces")
     keys = list(dict.fromkeys((f[1], "d", f[4]) if f[4] is not None else (f[1], f[2]) for f in faces))
     sizes = [(decal_px(k[2]),) * 2 if len(k) == 3 else (SF.TONE_W, tone_rows(k[0])) for k in keys]
@@ -1437,7 +1433,7 @@ def compact_uvs(body, faces, cells, wh):
 
 def paint_compact(SF, cells, wh):
     """(H, W, 4) pixels of the compact atlas: each tone cell painted by tone_cell, each decal cell the mid
-    tone's colour row of its material (ink columns included) with the decal over it. The rest is white."""
+    tone cell of its material, repeated down the cell, with the decal over it. The rest is white."""
     import numpy as np
     pixels = np.ones((wh[1], wh[0], 4))
     for key, (x, y, w, h) in cells.items():
@@ -1445,8 +1441,9 @@ def paint_compact(SF, cells, wh):
         if len(key) == 2:
             pixels[y:y + h, x:x + w, :3] = SF.tone_cell(surface, rgb, key[1], width=w, **kw)
             continue
-        base = np.broadcast_to(SF.tone_cell(surface, rgb, 1, width=w, **kw)[1], (h, w, 3))   # the mid tone's colour row
+        base = np.tile(SF.tone_cell(surface, rgb, 1, width=w, **kw), (h // tone_rows(key[0]), 1, 1))   # the mid tone cell repeated: ink every 4th row, as the 256 px decal cell
         paint, alpha = paint_decal(SF, key[2], h)
+        paint = np.round(paint * POSTERIZE) / POSTERIZE
         pixels[y:y + h, x:x + w, :3] = base * (1 - alpha[..., None]) + paint * alpha[..., None]
     return pixels
 
@@ -1478,6 +1475,7 @@ def texturize_compact(body, meta):
     img = bpy.data.images.new("tex_atlas", width=wh[0], height=wh[1], alpha=False)
     img.pixels.foreach_set(pixels.astype("float32").ravel())
     bind_atlas(body, img)
+    bpy.context.scene.render.image_settings.compression = 100   # the glTF exporter encodes the PNG with the scene's setting (default 15)
     bleed = sibling("mesh_lint").mip_bleed(wh, list(cells.values()))
     print(f"compact atlas: {wh[0]}x{wh[1]}, {len(cells)} cells, mixed texels at 1/2 1/4 1/8: {bleed}, "
           f"cells {[(k, c[2:]) for k, c in cells.items()]}")
