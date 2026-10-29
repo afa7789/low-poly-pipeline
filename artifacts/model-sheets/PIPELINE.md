@@ -4535,6 +4535,21 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
 ## 29. Leva 11 (2026-10-29)
 
 Plano: `analysis/2026-10-29-leva11-vlm-loop.md`. O VLM só entra pelo laço guardado (aceite por rodada sem queda de vista).
+Bateria `v14-r1` (5 unidades, autor session:opus, corpo sdf, `--loop 2`, pareada contra v13) em `history/2026-10-29-v14/`; controle
+`v14-r1-clock` (mesmo spec, sem `--deterministic`); detalhe em 29.L11-4. IoU approved f/l/b · rts.
+
+| unidade | v13 | v14 | veredito | laço tentados / aceites | juiz v14 × v13 (forma) |
+|---|---|---|---|---|---|
+| n005 | .921/.947/.932 · .878 | .923/.946/.934 · .886 | **PASS** | 3 / 0 | v14 4-0 |
+| n00U | .886/.782/.885 · .665 | .874/.792/.876 · .654 | CHECK | 3 / 0 | v13 4-0 |
+| hfoo | .847/.415/.853 · .703 | .831/.408/.843 · .681 | CHECK | 6 / 1 (+.033) | v13 4-0 |
+| n017 | .924/.775/.870 · .700 | .918/.839/.842 · .685 | **PASS** | 4 / 0 | v14 3-1 |
+| n02X | .907/.837/.918 · .805 | .896/.830/.911 · .759 | **PASS** | 3 / 0 | v13 4-0 |
+
+Resultado da leva: PASS 3/5 (= v13); `--loop` opt-in (1 delta aceite em 19); `--deterministic` custa até .020 de média (8 iterações
+< relógio). Itens: L11-0 flip (opt-in), L11-0b enquadramento pelo corpo (opt-in), L11-1 deltas (default do laço), L11-2 laço
+(opt-in), L11-3 deltas como limites do fit (opt-in, negativo), L11-5 k do smin (opt-in, neutro), L11-6 retopo CVT e L11-7 matriz
+de opt-ins (extras, abaixo quando entrarem).
 
 ### 29.L11-1 Deltas por peça (schema, limites, peças congeladas) e `apply_deltas.py`
 - **O que mudou.** Novo `tools/blender/apply_deltas.py` (json puro, sem Blender): `apply(spec, deltas, height) -> (spec2, log)`;
@@ -4786,3 +4801,24 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   vértices do corpo, não componente) antes de reabrir; sem isso, manter `bbox`. Testes: `BodyFrame` (test_silhouette),
   `TestBodyFrame` (test_deform_to_sheet). Runs: `runs/draft/<un.>/l11-frame-{bbox,body,bodyflip}` (`-bbox-invalid` de hfoo/n00U =
   escrita concorrente, refeitos).
+
+### 29.L11-4 Bateria v14 (autor LLM, `--loop 2`, pareada contra v13) e a decisão do laço
+- **Protocolo.** 5 unidades, `spec_pipeline.py --model session:opus --kind mass --run v14-r1 --pair v13-r1 --loop 2` (corpo sdf default;
+  `--loop` implica `--deterministic`: fit e fit-verts por iterações, 8 por estágio), 3 + 2 processos, `SOFT_SIL_THREADS=4`. Controle
+  `v14-r1-clock`: `--spec runs/draft/<id>/v14-r1/spec.json --tilts <câmeras da v14> --no-repair --no-diagnose` sem `--deterministic`
+  e sem laço. Imagens e tabelas em `history/2026-10-29-v14/README.md`; linhas v14 em `IA_gen_paper/results.csv`.
+- **Resultado.** PASS 3/5 (n005, n017, n02X; v13 3/5). Laço: 19 deltas tentados, 1 aceite (hfoo `foot.L#0` scale z 0.7, média +.033);
+  14 rejeitados por "uma vista cai" (left −.012…−.054, top/bottom −.011…−.029, rts −.024), 2 por média < +.005, 1 não aplicável. Juiz:
+  forma pró-v13 4-0 em n00U/hfoo/n02X, pró-v14 em n005 (4-0) e n017 (3-1); sheet pró-v14 4-0 em n00U/n02X. Custo: 1 chamada VLM por
+  rodada (45–104 s, 3.7–8.8 k tokens) + 85–450 s por delta (n00U 1344 s em 3 deltas, máquina carregada).
+- **Controle do `--deterministic`.** Relógio 30 s − 8 iterações, mesmo spec e câmeras, Δ média: n005 +.001, n00U +.020, hfoo −.002,
+  n017 +.012 (rts +.069), n02X +.003. O orçamento por iterações fica abaixo do pipeline normal onde há mais vértices a mover; o ruído
+  0 do L11-2 custou forma em 2/5.
+- **Critérios do L11-4 e decisão.** PASS ≥ 4/5 ✗ (3/5); média ≥ v13 em 5/5 ✗ (specs novos: n017 +.004, outras −.002…−.013); juiz
+  forma ≥ 3-1 em ≥ 3/5 ✗ (2/5); custo ≤ +4 min/unidade ✗ (+5…+24 min). **`--loop` fica opt-in** e `--deterministic` só para
+  experimentos. O guard está certo (sem ele 14 deltas teriam piorado uma vista); o que falta é a qualidade do delta proposto: o VLM
+  acerta a direção (o `why` nomeia a vista certa) mas não a magnitude, e a vista oblíqua (rts) paga.
+- **Aberto.** (1) `DETERMINISTIC_ITERS` igual aos passos que o relógio dá (~15 por estágio) e remedir o ruído; (2) deltas de magnitude
+  pequena com busca de linha (0.9, 0.8, 0.7) em vez do valor do VLM — 3 rebuilds por delta, caro; melhor como restrição do fit (L11-3
+  mostrou que a via B também cai, mas sem busca de linha); (3) o laço deve vir DEPOIS do polimento MCP (Leva 12) ou substituí-lo —
+  decidir na v15.

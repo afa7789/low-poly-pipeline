@@ -587,6 +587,10 @@ com limites, cada rodada só é aceite se nenhuma vista cair > 0.01, N ≤ 2, ju
 
 Ordem: L11-0 → L11-1 → L11-2 → {L11-3 ∥ L11-5} → L11-4.
 
+**Estado L11-4 (2026-10-29): feito, `--loop` opt-in** — bateria `v14-r1` (5 unidades, session:opus, `--loop 2`, pareada contra v13) + controle `v14-r1-clock` (PIPELINE §29.L11-4, `history/2026-10-29-v14/`). PASS 3/5 (= v13); laço aceitou 1 delta em 19 (hfoo +.033), 14 rejeitados por queda de vista; juiz forma pró-v13 em 3/5 (4-0); `--deterministic` (8 iterações) custa +.020 (n00U) e +.012 (n017) de média contra o relógio. Critérios do L11-4: 0 de 4. Decisão: laço e determinístico opt-in; abertos: iterações = passos do relógio, magnitude dos deltas por busca de linha, laço depois do polimento MCP (Leva 12).
+
+Extras pedidos pelo usuário (2026-10-29): **L11-6** retopologia CVT por curvatura (Chatterjee, Soni, Bhowmick, ICVGIP 2022, DOI 10.1145/3571600.3571623) como 3ª via contra QEM/remesh; **L11-7** matriz de ablação de TODOS os opt-ins (sozinhos, depois vencedores combinados; tabela para o paper em `IA_gen_paper/ablation-matrix-2026-10-29.{csv,md}`).
+
 **Estado L11-1 (2026-10-29): feito, atrás de nada (módulo novo + `deltas`/`expected` no diagnose).** `tools/blender/apply_deltas.py`
 (`apply(spec, deltas, height) -> (spec2, log)`, endereço `<osso>#<k>`), 10 testes sintéticos, diagnose pede `deltas`+`expected`.
 4 diagnoses reais: 18 de 19 deltas aplicam, 1 rejeitado (axis scale em peça from/to). Rebuild sdf sem LLM em hfoo e n02X: média das
