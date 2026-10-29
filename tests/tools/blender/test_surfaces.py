@@ -201,5 +201,17 @@ class CompactAtlas(unittest.TestCase):
                 self.assertLess(row, SF.COMPACT_ROWS)
 
 
+class MergeGroups(unittest.TestCase):
+    def test_same_image_folds_into_first_slot(self):
+        slots = [("iron", "a", None, 1.0), ("brass", "a", None, 1.0), ("skin", "a", None, 1.0)]
+        self.assertEqual(SF.merge_groups(slots), {"iron": "iron", "brass": "iron", "skin": "iron"})
+
+    def test_glow_alpha_and_other_image_stay_apart(self):
+        slots = [("iron", "a", None, 1.0), ("flame", "a", (1, .5, 0, 1), 1.0), ("glass", "a", None, .4),
+                 ("lamp", "a", (1, 1, 0, 1), 1.0), ("cloth", "b", None, 1.0), ("brass", "a", None, 1.0)]
+        got = SF.merge_groups(slots)
+        self.assertEqual([got[n] for n, *_ in slots], ["iron", "flame", "glass", "lamp", "cloth", "iron"])
+
+
 if __name__ == "__main__":
     unittest.main()

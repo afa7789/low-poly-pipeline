@@ -2003,6 +2003,9 @@ def main():
                          "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
                          "256 px cells, PIPELINE 27.T1); shared = the race's 64 px gradient atlas, "
                          "no decals, no ink line (shared_atlas.py, PIPELINE 24.L6-11)")
+    ap.add_argument("--materials", choices=("merge", "split"), default="merge",
+                    help="stage 2 cel: merge = slots sharing the atlas fold into one material, one draw (build_unit.MERGE_MATERIALS, "
+                         "PIPELINE 27.T5); split = one material per palette slot, as before")
     ap.add_argument("--atlas-dir", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/atlas",
                     help="--atlas shared: where the per-race column tables <race>.json live (append only)")
     ap.add_argument("--shape-only", action="store_true",
