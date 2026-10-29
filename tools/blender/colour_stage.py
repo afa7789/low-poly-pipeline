@@ -29,6 +29,7 @@ import cut_hull
 import align_features
 import deform_to_sheet
 import optimize_verts
+import shared_atlas as SA
 import silhouette as SIL
 from preflight import BUDGETS, is_prop, load_props, misplaced_decals
 from surfaces import DECALS, SURFACES
@@ -131,7 +132,7 @@ Image 1 is the approved concept's front, image 2 the model's front render, image
 top, image 4 the model's top (the model is built from the same palette, unlit).
 
 Palette now: {palette}
-Parts with a decal: {decals}
+{hint}Parts with a decal: {decals}
 Colour-zone scores per view (IoU of each sheet colour zone; 1.0 = the model paints that zone where
 the sheet does): {scores}
 
@@ -141,11 +142,12 @@ Only list the slots and parts you change. Surfaces: {surfaces}. Decal kinds: {ki
 Fix the colours the sheet shows and the model does not (hue first, the unit's own lighting is not yours to fix)."""
 
 
-def colour_brief(spec, scores):
+def colour_brief(spec, scores, race=None):
+    """The colour reply's brief; `race` adds the race palette as a soft hint (shared_atlas.hint_text, PIPELINE 27.T7)."""
     decals = {i: {k: p[5][k] for k in COLOUR_OPTS if k in p[5]}
               for i, p in enumerate(spec["parts"]) if isinstance(p[5], dict) and p[5].get("decal")}
     return PROMPT.format(palette=json.dumps(spec.get("palette", {})), decals=json.dumps(decals),
-                         scores=json.dumps(scores), surfaces=", ".join(SURFACES),
+                         scores=json.dumps(scores), hint=SA.hint_text(race) if race else "", surfaces=", ".join(SURFACES),
                          kinds=", ".join(sorted(DECALS)))
 
 
@@ -308,7 +310,7 @@ def colour_pass(spec, zones, best_work, glb_clay, args, tilts, work, k, ask):
               for v, z in zones.items()}
     images = [panels["front"], views / "model-front.png", panels["top"], views / "model-top.png"]
     try:
-        cand = apply_colour(spec, parse_reply(ask(args.model, colour_brief(spec, scores), images)))
+        cand = apply_colour(spec, parse_reply(ask(args.model, colour_brief(spec, scores, args.race if getattr(args, "atlas", "own") == "shared" else None), images)))
     except (ValueError, KeyError, IndexError, TypeError, RuntimeError) as err:
         return spec, zones, None, best_work, f"try {k}: rejected reply: {err}"
     glb, new, new_work = attempt(cand, glb_clay, args, tilts, work, f"try{k}")
