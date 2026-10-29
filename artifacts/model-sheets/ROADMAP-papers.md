@@ -645,6 +645,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 | L12-10 | bateria v15 (autor + tudo acima) pareada com v13; ficha 11; matriz L11-7 re-executada | spill ≤ 3 % em ≥ 5 vistas/unidade em ≥ 4/6; PASS honesto ≥ 3/6 |
 | L12-11 | polimento MCP (plano antigo abaixo), só depois de L12-1..9 | — |
 
+**Estado L12-1 (2026-10-29): feito, default** — o otimizador e o deform pinam a câmara do gate (`--tilts` / `silhouette.json`) e só giram top/bottom com a margem do gate: lacuna `verts.after − gate` top .06/.09/.07 → ≤ .002 (n005/n017/n02X), 34 de 35 células < .01; sobra n00U rts .126 → .030 (máscara do Blender mais larga que o raster, aberto). IoU do gate top +.03…+.07 nas três (PIPELINE §30.L12-1).
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

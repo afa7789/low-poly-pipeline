@@ -33,7 +33,7 @@ from scipy.sparse.linalg import spsolve
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import mesh_lint as ML  # noqa: E402
 import silhouette as S  # noqa: E402
-from views import RTS, TILTS, layout_of, rts_offset, weight_of  # noqa: E402
+from views import RTS, TILTS, layout_of, parse_tilts, rts_offset, weight_of  # noqa: E402
 
 STEP = 0.05           # largest move of a vertex per step, fractions of the model height
 CONTOUR_PX = 1.5      # a vertex this close (canvas px) to the mask's outer boundary is on the contour
@@ -366,6 +366,16 @@ def best_option(name, options, pos, tri, on=None):
     return options[i], m
 
 
+def best_oriented(name, options, pos, tri, on=None):
+    """best_option over `options` = candidates(): the panel as drawn (first half) then turned 180 degrees (second half).
+    Turned only when it matches the model better by S.FLIP_MARGIN, the gate's rule (silhouette.detect_rotated): a free
+    choice picked it on a .02 edge (n017 top .82 -> .86) and the optimiser fitted what the gate never measures."""
+    half = len(options) // 2
+    plain, turned = (best_option(name, options[a:b], pos, tri, on) for a, b in ((0, half), (half, None)))
+    score = lambda best: S.iou(best[0][2], view_state(pos, tri, View(name, best[0][0], best[0][1], best[1], best[0][2], True, frame_on=on))[1])  # noqa: E731
+    return turned if score(turned) - score(plain) > S.FLIP_MARGIN else plain
+
+
 def make_views(pos, tri, panels, pulling, props=None, cams=None):
     """Views of the sheet: the pulling ones (`pulling` names) and the guards (the other top/bottom). The mirror
     of each (and tilt / turn of top/bottom, camera of the rts) is the one whose raster matches the panel best, like
@@ -376,7 +386,7 @@ def make_views(pos, tri, panels, pulling, props=None, cams=None):
         options = [(*np.array(FRONT_AXES[name], float), S.normalize(panel))] if name in FRONT_AXES \
             else list(candidates(name, panel, (cams or {}).get(name)))
         on = owner == main if getattr(panel, "box", None) is not None else None     # body-framed panel: fit the body
-        best = best_option(name, options, pos, tri, on)
+        best = (best_oriented if name in S_TILTED else best_option)(name, options, pos, tri, on)
         (ru, rv, concept), mirror = best
         views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name), on))
     return views
@@ -582,8 +592,11 @@ def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, la
 
 
 def run_cams(args):
-    """The top/bottom/rts cameras the run's silhouette.json chose ("tilt": {"top": -30, "rts": [65, 60]}), else None:
-    before the shape stage has measured one the deformation sweeps."""
+    """The top/bottom/rts cameras the gate measures this run with: --tilts, else the ones the run's silhouette.json
+    chose ("tilt": {"top": -30, "rts": [65, 60]}), else None: before the shape stage has measured one the deformation
+    and the vertex optimiser sweep. One definition for fit, deform, verts, gate and colour (L12-1)."""
+    if getattr(args, "tilts", ""):
+        return parse_tilts(args.tilts)
     path = args.out / "silhouette.json"
     tilt = json.loads(path.read_text()).get("tilt") if path.exists() else None
     return {v: tuple(c) if isinstance(c, list) else c for v, c in tilt.items()} if tilt else None
