@@ -26,7 +26,7 @@ class Table(unittest.TestCase):
             self.assertEqual(cols(["#000002:glow", "#000003:skin", "#000003:skin"]),
                              ["#000001:metal", "#000002:glow", "#000003:skin"])      # nothing moves, no duplicates
             with self.assertRaises(ValueError):
-                SA.extend(path, [f"#{i % 5 * 60:02X}{i // 5 % 5 * 60:02X}{i // 25 * 60:02X}:metal" for i in range(1, 2 + SA.COLUMNS)])
+                SA.extend(path, [f"#{i % 5 * 60:02X}{i // 5 % 5 * 60:02X}{i // 25 * 60:02X}:{SF.SURFACES[i % 3]}" for i in range(1, 2 + SA.COLUMNS)])
             self.assertEqual(len(cols([])), 3)                                       # a refused extension writes nothing
 
 
