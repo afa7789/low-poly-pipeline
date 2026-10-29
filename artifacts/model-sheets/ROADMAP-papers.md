@@ -493,3 +493,5 @@ dependência, câmera por gradiente, textura por raster suave, redes implícitas
 
 **Estado L8-7 (2026-10-29):** `fit_grad.py` + `--fit-grad` em `fit_spec`/`spec_pipeline` (PIPELINE §26.L8-7), opt-in, Powell segue default (a coluna "Powell fallback `--fit-powell`" da tabela não foi preciso: é o default). IoU duro do clay real f/l/b maior que o Powell em 4 de 5 unidades (n017 +.05/+.02/+.08, n02X +.00..+.01, n00U +.02/+.05/+.02, n005 +.01..+.02) em 20-47 s contra 24-153 s; hfoo perde .015/.064/.018. `fit_accepted` igual em todas. Falta: fechar hfoo (polimento Powell) antes de propor default.
 
+
+**Estado L8-6b (2026-10-29):** ablação grad × verts sem LLM (PIPELINE §26.L8-6b, `history/2026-10-29-l8-abl/`): o ganho do left/rts vem do `--fit-verts` (5/5; left +.012..+.046, rts +.012..+.041); `--fit-grad` é nulo em n005/hfoo/n02X, +.01..+.02 em n00U (3x mais rápido), recusado em n017; a perda de top/bottom do hfoo não é de nenhum flag (já em `none`: autor). Recomendação: `--fit-verts` default, `--fit-grad` opt-in (talvez spider); defaults NÃO mudados no código.

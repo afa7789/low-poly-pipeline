@@ -3623,3 +3623,74 @@ Paper: Chen et al. 2021, DIB-R++ (só a ideia de shading diferido: a rasterizaç
 - Negativo de infraestrutura: 5 processos torch em paralelo (14 núcleos cada) fizeram um passo do optimize_verts levar 227 s e
   1994 s (o orçamento de 30 s é checado entre passos). `soft_sil.THREADS` (env `SOFT_SIL_THREADS`, default 4) limita os threads
   por processo; com 4 processos a rodada ficou em 30–32 s.
+
+### 26.L8-6b Ablação `--fit-grad` × `--fit-verts` (sem LLM, 2026-10-29)
+
+- Protocolo: entrada fixa por unidade = spec **pré-fit** do v12-r1 (`runs/draft/<id>/v12-r1/fit/before.json`; é o spec que entrou no
+  `fit_stage`; o `spec.json` final do v12 já vem depois do fit, e refitá-lo contaminaria `none`/`verts`). Câmeras top/bottom/rts do
+  `silhouette.json` do v12-r1 semeadas em `sil/approved/`. Comando: `spec_pipeline.py --id <id> --rig <rig> --kind mass --spec <spec>
+  --shape-only --no-repair --no-diagnose [--fit-grad] [--fit-verts]`; saída `runs/draft/<id>/l8-abl-{none,grad,verts,both}/`. `none` =
+  pipeline default (fit Powell, sem optimize_verts). Autor nunca rodou. 2 processos por vez (`SOFT_SIL_THREADS=4`). Sanidade: `both`
+  reproduz o v12 (hfoo .826/.659/.831 vs .832/.659/.838; n00U .857/.780/.861 vs .859/.777/.858). IoU approved, raster duro do review.
+  `fit s` = tempo do fit (Powell em `none`/`verts`, Adam em `grad`/`both`, sem os 2 builds reais do `fit_stage`); `verts s` = optimize_verts.
+  `fit aceito` = o que `fit_accepted` escolheu (before = fit recusado).
+
+| unidade | cond | front | left | back | top | bottom | rts | sliver % | nd | tris | fit s | verts s | fit aceito |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | none | 0.895 | 0.928 | 0.897 | 0.752 | 0.773 | 0.857 | 11.6 | 41.2 | 630 | 5 | - | before |
+| n005 | grad | 0.895 | 0.928 | 0.897 | 0.752 | 0.773 | 0.857 | 11.6 | 41.2 | 630 | 5 | - | before |
+| n005 | verts | 0.910 | 0.941 | 0.914 | 0.770 | 0.821 | 0.876 | 10.0 | 43.5 | 630 | 5 | 31 | before |
+| n005 | both | 0.903 | 0.944 | 0.916 | 0.774 | 0.837 | 0.883 | 9.8 | 45.0 | 630 | 5 | 31 | before |
+| n00U | none | 0.821 | 0.725 | 0.825 | 0.677 | 0.671 | 0.636 | 22.2 | 49.5 | 630 | 160 | - | after |
+| n00U | grad | 0.832 | 0.745 | 0.835 | 0.688 | 0.667 | 0.638 | 19.5 | 48.8 | 625 | 53 | - | after |
+| n00U | verts | 0.866 | 0.771 | 0.870 | 0.678 | 0.738 | 0.673 | 20.2 | 51.2 | 630 | 160 | 30 | after |
+| n00U | both | 0.857 | 0.780 | 0.861 | 0.731 | 0.693 | 0.682 | 17.8 | 49.7 | 625 | 52 | 30 | after |
+| hfoo | none | 0.770 | 0.635 | 0.779 | 0.625 | 0.664 | 0.631 | 22.5 | 49.4 | 630 | 20 | - | cut |
+| hfoo | grad | 0.770 | 0.635 | 0.779 | 0.625 | 0.664 | 0.631 | 22.5 | 49.4 | 630 | 22 | - | cut |
+| hfoo | verts | 0.826 | 0.659 | 0.831 | 0.695 | 0.739 | 0.644 | 20.8 | 49.5 | 630 | 20 | 30 | cut |
+| hfoo | both | 0.826 | 0.659 | 0.831 | 0.695 | 0.739 | 0.644 | 20.8 | 49.5 | 630 | 23 | 30 | cut |
+| n017 | none | 0.874 | 0.744 | 0.809 | 0.782 | 0.839 | 0.685 | 29.2 | 47.1 | 630 | 30 | - | after |
+| n017 | grad | 0.888 | 0.747 | 0.831 | 0.794 | 0.863 | 0.674 | 33.1 | 48.9 | 622 | 19 | - | before |
+| n017 | verts | 0.895 | 0.765 | 0.849 | 0.816 | 0.873 | 0.720 | 25.6 | 51.4 | 630 | 31 | 36 | after |
+| n017 | both | 0.895 | 0.770 | 0.844 | 0.811 | 0.892 | 0.703 | 30.9 | 50.4 | 622 | 20 | 32 | before |
+| n02X | none | 0.875 | 0.862 | 0.887 | 0.703 | 0.688 | 0.739 | 19.4 | 53.0 | 629 | 5 | - | cut |
+| n02X | grad | 0.875 | 0.862 | 0.887 | 0.703 | 0.688 | 0.739 | 19.4 | 53.0 | 629 | 5 | - | cut |
+| n02X | verts | 0.885 | 0.885 | 0.899 | 0.750 | 0.735 | 0.781 | 16.9 | 54.5 | 629 | 5 | 30 | cut |
+| n02X | both | 0.884 | 0.883 | 0.899 | 0.752 | 0.735 | 0.781 | 16.9 | 54.5 | 629 | 5 | 32 | cut |
+
+
+Uncovered/spill por vista (f/l/b/top/bottom/rts) em `silhouette.json` de cada run; exemplo hfoo `none` unc .12/.22/.11/.36/.32/.15, `verts`
+.08/.20/.07/.28/.23/.11 (spill ±.01); n00U `none` unc .11/.12/.10/.13/.14/.15, `both` .06/.09/.05/.09/.13/.10.
+
+Ruído do `grad`: 2 runs extras (`-r2`) de n00U e n017 (grad e both) dão IoU idênticos ao 3º decimal ao r1 (Adam com seed fixo; só o tempo
+varia: n00U 53/59 s, n017 19/25 s). Faixa de IoU = 0 nessas duas.
+
+Deltas vs `none` (milésimos, f/l/b/top/bottom/rts):
+
+| unidade | grad−none (f/l/b/top/bot/rts) | verts−none | both−none |
+|---|---|---|---|
+| n005 | +0 +0 +0 +0 +0 +0 | +15 +12 +17 +18 +48 +19 | +7 +16 +18 +22 +64 +26 |
+| n00U | +10 +20 +10 +11 -4 +2 | +45 +46 +45 +2 +67 +38 | +36 +56 +36 +54 +21 +46 |
+| hfoo | +0 +0 +0 +0 +0 +0 | +56 +24 +51 +70 +75 +12 | +56 +24 +51 +70 +75 +12 |
+| n017 | +14 +3 +22 +11 +24 -11 | +21 +21 +39 +33 +34 +35 | +21 +26 +34 +29 +53 +18 |
+| n02X | +0 +0 +0 +0 +0 +0 | +10 +23 +12 +48 +46 +41 | +9 +21 +12 +49 +47 +42 |
+
+- (a) Quem dá o ganho do left e do rts: **`--fit-verts`**. Left +.012/+.046/+.024/+.021/+.023 e rts +.019/+.038/+.012/+.035/+.041 nas 5
+  unidades, e também f/b/top/bottom (+.01..+.07) em 5/5; `both` ≈ `verts` (n005, hfoo, n02X ±.01; n00U left .780 vs .771, top .731 vs .678
+  mas bottom .693 vs .738). `--fit-grad` sozinho: efeito nulo em n005, hfoo e n02X (o fit não muda nada; hfoo: 60 passos, 20 reverts, sem
+  ponto aceito; igual ao Powell, que também não muda), +.01/+.02 em n00U (3x mais rápido que o Powell, 53 vs 160 s) e em n017 o fit é
+  recusado por `fit_accepted` (volta ao spec original, +.014/+.003/+.022 vs o Powell aceito que piora o clay final; rts −.011).
+- (b) Perda de top/bottom do hfoo e de front/back do hfoo/n017 **não vem de nenhum flag**. `none` já está em top .625 / bottom .664
+  (v11: .777/.862) e front .770 (v11 .855): vem do spec autorado do v12 (reparo/autor), não do fit nem do optimize_verts. Os dois flags
+  só melhoram o hfoo contra `none` (verts +.070/+.075 em top/bottom, +.056/+.051 em front/back). Logo a correção do top/bottom em
+  `fit_grad.py` não se aplica: nem é causa, e as 6 vistas já entram na perda do Adam com `proxy.weight` (`VIEW_WEIGHTS`, biped rts 1.5).
+  Nada foi mudado em `fit_grad.py`.
+- Custos de `--fit-verts`: +30 s por unidade; `normal_diff` sobe +0.2..+2.3 (n005 41.2 -> 43.5; n02X 53.0 -> 54.5; `both` n005 45.1);
+  slivers caem (-1.4..-3.6 pt) exceto n017 `both` (30.9 vs 29.2 `none`; `grad` sozinho 33.1, tris 622 vs 630).
+- (c) Recomendação (não aplicada no código; um spec por unidade, sem ruído de autor): **`--fit-verts` ligar por default** (todos os
+  rigs: biped n005/hfoo/n02X, spider n00U, quadruped n017; 5/5 ganham em 6/6 vistas); custo: 30 s e `normal_diff` +1..2 (L8-4 não
+  resolveu). **`--fit-grad` manter opt-in**; só vale por rig em spider (n00U: +.01..+.02, 3x mais rápido; 1 unidade) e não muda nada
+  em biped (3 unidades, nula) nem ajuda em quadruped (recusado). Para decidir o default do grad falta mais de uma unidade spider/quadruped.
+- Negativos/limites: 1 spec por unidade (sem variação de autor); a aranha e o quadruped têm 1 unidade cada; o Powell `none` em n017
+  piora o clay final (fit aceito mas pior depois da deformação), o que torna n017 `grad` (fit recusado) "melhor" por pular o fit.
+- Sem mudança de código: sem testes novos nem ruff. Compares em `history/2026-10-29-l8-abl/<id>.png`.
