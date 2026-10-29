@@ -368,7 +368,7 @@ def one_limit(p, d, height):
             return None
         slots = list(range(len(p[2]))) if p[1] == "chain" else dim_slots(p, d)
         slots = list(range(len(p[2]))) if slots is None else slots
-        return {"dims": {k: (v - LIMIT_WIDTH, v + LIMIT_WIDTH) for k in slots}} if slots else None
+        return {"dims": {k: (round(v - LIMIT_WIDTH, 6), round(v + LIMIT_WIDTH, 6)) for k in slots}} if slots else None
     if act == "move" and num(v) and d.get("axis") in AXES and p[1] != "chain" and abs(v) <= MOVE_SHARE * height:
         return {"at": {AXIS_DIM[d["axis"]]: (v - LIMIT_MOVE * height, v + LIMIT_MOVE * height)}}
     return None
