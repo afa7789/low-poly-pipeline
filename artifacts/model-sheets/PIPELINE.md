@@ -3972,16 +3972,16 @@ Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologi
   é o critério honesto. **Faixa 60–100° em 10–20 %: 0/5** (20.6–27.1 %; a linha de base cega dá 22.7–31.6 e a união 28–38): perto,
   não dentro; não foi forçado.
 - **Decisões.** (1) Default da retopologia = QEM + guarda + reprojeção + guarda de desvio, `features_deg=None` (a spec pedia 35°).
-  (2) Entrada recomendada para o L10-2: a0 se o tempo couber (n00U 2.7 s); a5 é 2.5× mais rápida e passa os mesmos critérios exceto
-  p95 do n00U (1.67 % > 1.56 %). (3) Campo do laço = grade trilinear (barato, vetorizado); campo exato só no `polish` e na medida.
+  (2) Entrada recomendada para o L10-2: a0 se o tempo couber (n00U 2.7 s); a5 é 2.5× mais rápida e troca duas coisas: p95 do n00U 1.67 % (> 1.56 %) e IoU 4/5
+  (n017 `bottom` −0.013 em vez do hfoo `left`). (3) Campo do laço = grade trilinear (barato, vetorizado); campo exato só no `polish` e na medida.
 - **Negativos.** *Features (diedro ≥ 35° da entrada, quádrica perpendicular com peso 100, cantos fixos, absorção, sem corda):* pior em
   tudo (sdf_dev máx 7.5 % vs 2.1 %, slivers até 28 %, IoU −0.34 no n00U). Os corpos são facetados (n005: 1563 arestas ≥ 35° na malha
   densa, 747 mesmo em 2400 tris; n00U 5767): não cabem em 600 triângulos, a parte lisa é devorada primeiro e as pernas finas somem;
   em malha de marching cubes o canto vira um friso duplo (a corda entre os dois frisos é proibida). Pesos 1/5/20, só quádrica ou
   sem regras, limiar 45/60°: nenhum bate "sem features". *Flips de aresta por diedro mínimo* depois dos colapsos (protótipo,
-  removido): fairness 24 → 20 mas sdf_dev ×2–4 e nd +3–9°. *Posições de fallback sem teto (`SLACK` 1e9):* slivers 0 mas sdf_dev máx
-  +60 %; teto 1 foi o melhor dos {1, 3, 10, ∞}. `LEN_REG` {0, 5e-4, 2e-3, 5e-3, 1e-2, 3e-2, 5e-2}: 5e-3–1e-2 melhor equilíbrio
-  (0 dá slivers e 3× o tempo). Fairness 24 (alvo ≤ 20 do plano para QEM) não atingida; é o que a remalhagem do L10-4 deve ganhar.
+  removido): fairness 24 → 20 mas sdf_dev ×2–3 (n00U p95 1.44 → 4.13 %) e nd +1–9°. *Posições de fallback sem teto (`SLACK` 1e9):* slivers 0 mas sdf_dev máx
+  +60 % na soma das 5 unidades; teto 1 foi o melhor dos {1, 3, 10, ∞}. `LEN_REG` {2e-3, 5e-3, 1e-2, 3e-2} (a5, SLACK 1): 5e-3–1e-2 melhor equilíbrio de
+  sdf_dev × fairness × tempo (2e-3 é 3× mais lento e piora fairness; 3e-2 sobe o sdf_dev). Fairness 24 (alvo ≤ 20 do plano para QEM) não atingida; é o que a remalhagem do L10-4 deve ganhar.
   O n00U/n02X a 600 estão no limite do orçamento (pernas de 8-gon): se o L10-7 subir o orçamento para 700 sobra folga. Heap: ver acima.
 - **Testes.** `tests/tools/blender/test_retopo.py` (10, 2 s; `SLOW=1` + n005 96³ → surface nets → 600 em ≤ 3 s, sdf_dev ≤ H/64 / H/32):
   cubo subdividido (300 tris) → 12 tris exatos com os 8 cantos; esfera densa → alvo, 0 slivers, euler 0, manifold; guarda recusa
