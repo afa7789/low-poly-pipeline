@@ -3904,3 +3904,54 @@ Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologi
   `inradius` de uma peça cortada usa −d no centro da caixa. Sem ligação ao `build_unit` (L10-2).
 - **Testes.** `tests/tools/blender/test_sdf_body.py` (paridade por kind, fallback, props/flame, casco bruto × qhull, smin
   pai/filho × duro, `k` preso, `k = 0`, grade × exato e JSON ida e volta; `SLOW=1`: 17 specs e 96³ do n00U ≤ 1.5 s).
+
+### 28.L10-2 Extração da malha do campo SDF (openvdb, bruta)
+- **O que mudou.** `build_unit.sdf_mesh(field, adaptivity=0.0)` (função nova, isolada; `main()` e `union_body` intactos, a troca é
+  L10-7): `openvdb.FloatGrid.copyFromArray(field.grid)` (background = `field.margin`, `GridClass.LEVEL_SET`) →
+  `convertToPolygons(isovalue=0, adaptivity)` → pontos em índice → mundo `origin + idx·voxel` → quads cortados em dois triângulos
+  pela diagonal mais curta → `from_pydata`, `remove_doubles` 1e-6, `recalc_face_normals`. As partes puras (numpy) estão em
+  `sdf_body.index_to_world` e `sdf_body.quads_to_tris`. Sem pele, material ou UV (L10-5). Nenhum flag novo no `build_unit`:
+  `tools/blender/sdf_extract.py` (`blender -b -P tools/blender/sdf_extract.py -- <run_dir> <outdir> [grids=96,128]
+  [adapt=0,0.5,0.9] [octree=6,7]`) chama `field` + `sdf_mesh` e grava `clay-sdfraw-g<G>-a<A>.glb`, a coluna REMESH SHARP
+  (`clay-remesh-o<D>.glb`: peças do corpo só juntadas, sem props/flame, modificador Remesh modo SHARP, `scale` 0.99) e
+  `ablation.json`. `tools/blender/sdf_extract_report.py <scratch> <runs>` roda o `mesh_lint` (python3.14) nos GLBs e imprime a
+  tabela. `sdf_dev` provisório = |`Field.d`(vértices)| / voxel (média, p95, máx); L10-6 o move para o `mesh_lint`.
+- **Ablação** (5 unidades v12-r1, `fit/cuts.json` onde existe, 96³ salvo dito; faixa mínimo–máximo nas 5; malha bruta, sem retopo).
+  `flip / borda / non-manifold / comp` = soma nas 5 (comp = máximo).
+
+| config | tris | sliver % | nd média ° | nd p90 ° | flip/borda/non-man/comp | `sdf_dev` p95 (vox) | `sdf_dev` máx (vox) | extração s |
+|---|---|---|---|---|---|---|---|---|
+| união v12 (baseline) | 622–630 | 10–32 | 44–55 | 99–121 | 1/10/7/5 | 3.7–23.7 (a união não é o campo) | 6.3–29.7 | — |
+| SDF adapt 0 | 32 856–123 300 | 0.1–0.6 | 3.8–6.2 | 12.9–20.1 | 0/0/0/1 | 0.16–0.22 | 0.50–0.61 | 0.06–0.23 |
+| **SDF adapt 0.5** | **6 776–24 068** | **1.2–2.2** | 13.7–14.7 | 40–43 | **0/0/0/1** | **0.27–0.35** | 0.53–1.45 | 0.015–0.047 |
+| SDF adapt 0.9 | 4 382–17 086 | 1.4–2.9 | 15.4–16.1 | 45–49 | 0/0/0/1 | 0.31–0.35 | 0.75–1.26 | 0.011–0.034 |
+| SDF adapt 0.5 a 128³ | 9 994–32 818 | 1.4–3.1 | 13.0–14.5 | 39–45 | 0/0/0/1 | 0.29–0.32 | 0.73–1.36 | 0.02–0.07 |
+| REMESH SHARP octree 6 | 14 604–53 280 | 2.0–3.1 | 9.8–11.8 | 44–59 | 625/0/3116/2 | 3.0–34 | 6.6–41 | 0.03–0.08 |
+| REMESH SHARP octree 7 | 60 296–227 752 | 0.9–1.3 | 5.1–5.9 | 0–3.4 (poucas arestas de 2 faces) | 871/0/7731/3 | 2.9–34 | 6.7–41 | 0.07–0.27 |
+
+  Tempo do `field` 96³: 0.05–0.40 s (128³: 0.09–0.88 s); `field` + extração ≤ 0.45 s nas 5 a 96³ (adapt 0.5: 0.07–0.44 s).
+  Por unidade (adapt 0.5, 96³): n005 6 776 tris, n00U 24 068, hfoo 7 754, n017 8 376, n02X 12 946.
+- **Aceite.** Fechada (borda 0, non-manifold 0, flipped 0, 1 componente) nas 5/5 em todas as 6 configurações SDF; slivers brutos
+  ≤ 3.3 % (< 4 %) em todas; `sdf_dev` p95 ≤ 0.35 voxel (≤ 0.5) em todas, máx ≤ 1.45 voxel.
+- **Default escolhido: 96³, adaptividade 0.5.** `adapt 0` dá a melhor fidelidade (p95 0.16–0.22) mas 33 k–123 k tris para o QEM do
+  L10-3 reduzir a ~620 (n00U: 123 k); `adapt 0.9` poupa só ~25 % de tris sobre 0.5 e sobe slivers (até 2.9 %) e nd; 128³ não ganha
+  em p95 (0.29–0.32 vs 0.27–0.35) e custa 1.4–1.6× os tris. 0.5 fica com `sdf_dev` p95 ≤ 0.35 voxel e 6.8 k–24 k tris, ~11–39×
+  o orçamento (reduz o L10-3). nd ainda alto (média 14°, p90 40–43°) porque o adaptativo funde coplanares: é a entrada do retopo,
+  não o resultado.
+- **REMESH SHARP: descartado como substituto.** Sem SDF: arestas non-manifold (3 k–8 k por unidade a 6–7), flipped 625–871, 2–3
+  componentes no n02X e `sdf_dev` p95 3–34 voxels (n00U 14 vox médios: as pernas finas de aranha deformam). Só serve como
+  comparação barata do quanto o SDF ganha.
+- **Peças finas** (`thin_parts`: 2·inradius < 4 voxels a 96³, flag `lt2` = < 2 voxels). Nenhuma peça tem < 2 voxels nas 5 unidades
+  (a mais fina: n017 head frustum 2.7 voxels, as duas "chifres" 0.08 m); as que passam de 4 voxels não são listadas. Triângulos da
+  malha mais próximos de cada peça fina (adapt 0 / 0.5 / 0.9): n005 head prism 3.6 vox 162 / 82 / 64; hfoo pelvis prism 3.4 vox
+  429 / 207 / 98; n017 os 2 frustums de head (2.7 vox) **0 / 0 / 0**: estão inteiros dentro de outra peça da cabeça (d do campo
+  total ≤ −1 voxel em todas as amostras do interior), enterrados e não perdidos pela resolução. n00U e n02X: nenhuma peça < 4 voxels
+  (o único plate, n02X, tem 11.8 voxels). Política de peça fina: L10-7, não implementada.
+- **Renders.** `history/2026-10-29-l10-extract/<id>.png`: união v12 (linha de cima) | SDF bruto 96³ adapt 0.5 (de baixo), front /
+  left / tq (`render_unit.py lit`). Silhuetas coincidem; a superfície bruta é ruidosa (degraus do adaptativo na carapaça do n00U,
+  facetas do n005): é o que o retopo L10-3 resolve.
+- **Negativos / não feito.** Sem pele, material, UV nem separação de props/flame (L10-5); `sdf_mesh` não entra no `main()`;
+  `body=sdf-raw` não é flag do `build_unit` (o `sdf_extract.py` o substitui); `sdf_dev` só neste script (L10-6); sem
+  adaptividade por região; GLB do REMESH sem pele (só a malha, para medir).
+- **Testes.** `tests/tools/blender/test_sdf_extract.py`: índice→mundo, quad→tri (diagonal curta, orientação, área) rápidos;
+  `SLOW=1` roda o Blender no n005 (fechada, 1 componente, flipped 0, slivers < 4 %, `sdf_dev` p95 ≤ 0.5).

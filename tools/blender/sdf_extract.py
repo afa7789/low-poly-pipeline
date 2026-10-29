@@ -24,6 +24,7 @@ import rig_families as RF  # noqa: E402
 import sdf_body as SB  # noqa: E402
 
 THIN_VOX = 2.0      # a part thinner than this many voxels (2 x inradius) at 96^3 may vanish in the mesh
+WATCH_VOX = 4.0     # ... and the ones under this are listed too, with the triangles they keep
 
 
 def arg(rest, name, default):
@@ -55,13 +56,13 @@ def sdf_dev(field, pos):
 
 
 def thin_parts(field, centres):
-    """Per part thinner than THIN_VOX voxels: kind, bone, thickness in voxels, triangles whose centre is nearest to it."""
+    """Per part thinner than WATCH_VOX voxels: kind, bone, thickness in voxels, lt2 (under THIN_VOX), triangles whose centre is nearest to it."""
     owner = field.ownership(centres)[0]
     out = []
     for n, p in enumerate(field.parts):
         thick = 2 * p["r"] / field.voxel
-        if thick < THIN_VOX:
-            out.append({"i": p["i"], "kind": p["kind"], "bone": p["bone"], "thick_vox": round(thick, 3),
+        if thick < WATCH_VOX:
+            out.append({"i": p["i"], "kind": p["kind"], "bone": p["bone"], "thick_vox": round(thick, 3), "lt2": thick < THIN_VOX,
                         "tris_owned": int((owner == n).sum())})
     return out
 

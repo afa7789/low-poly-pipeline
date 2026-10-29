@@ -541,6 +541,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-1 (2026-10-29): feito** — `tools/blender/sdf_body.py` + `part_geom.py` (geometria numpy-pura extraída do `fit_spec`), `tests/tools/blender/test_sdf_body.py`; paridade |d| ≤ 1e-6 nos 14 casos sintéticos e nas 17 specs, 96³ em 0.04–0.39 s nas 5 unidades (PIPELINE §28.L10-1).
 
+**Estado L10-2 (2026-10-29): feito** — `build_unit.sdf_mesh` (openvdb `convertToPolygons`), `tools/blender/sdf_extract.py` + `sdf_extract_report.py`, `tests/tools/blender/test_sdf_extract.py`; malha fechada 5/5, slivers brutos ≤ 3.3 %, `sdf_dev` p95 ≤ 0.35 voxel; default 96³ adapt 0.5 (6.8 k–24 k tris); REMESH SHARP descartado (non-manifold, `sdf_dev` p95 3–34 voxels); nenhuma peça < 2 voxels nas 5 (PIPELINE §28.L10-2).
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo
