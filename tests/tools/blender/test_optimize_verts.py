@@ -147,6 +147,35 @@ class TestOptimizeVerts(unittest.TestCase):
             self.assertEqual(da[2 * 2 * len(POS) * 12:], db[2 * 2 * len(POS) * 12:])      # indices after positions and normals
             self.assertTrue(np.allclose(ML.accessor(jb, db, 0)[:len(POS)], ML.accessor(jb, db, 0)[len(POS):]))
 
+    def test_pinned_cams_are_the_gates(self):
+        """L12-1: the vertex optimiser shoots top and rts from the cameras the gate chose, not from its own sweep."""
+        panels = {"top": panel(1.15, 1.0)}
+        gate = {"top": {"iou": .8, "tilt": 40}, "rts": {"iou": .8, "tilt": [35, -45]}}
+        cams = {v: tuple(r["tilt"]) if isinstance(r["tilt"], list) else r["tilt"] for v, r in gate.items()}
+        with mock.patch.object(O.S, "framed_panels", return_value=panels), mock.patch.object(O, "rts_view") as rts:
+            free = O.make_views(POS, TRI, "unused.jpg", ("top", "rts"), "unit")
+            pinned = O.make_views(POS, TRI, "unused.jpg", ("top", "rts"), "unit", cams)
+        self.assertTrue(np.allclose(pinned[0].rv, D.tilted_axes("top", 40)[1]))
+        self.assertFalse(np.allclose(free[0].rv, D.tilted_axes("top", 40)[1]))
+        self.assertEqual(rts.call_args_list[1].args[3], (35, -45))
+        self.assertIsNone(rts.call_args_list[0].args[3])
+
+    def test_optimize_reports_the_cams_it_used(self):
+        cams = {"top": 40, "rts": (35, -45)}
+        with mock.patch.object(O, "make_views", return_value=[FRONT]) as mv:
+            rep = O.optimize(POS, TRI, np.zeros_like(POS), FILE, "unused.jpg", ("front", "top"), 1, 5.0, "unit", cams)[1]
+        self.assertEqual(mv.call_args.args[-1], cams)
+        self.assertEqual(rep["cams"], {"top": 40})
+
+    def test_rts_view_pins_the_camera(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sheet = pathlib.Path(tmp, "sheet.jpg")
+            pathlib.Path(tmp, "sheet-rts.jpg").write_bytes(b"x")
+            with mock.patch.object(O.S, "rts_path", return_value=pathlib.Path(tmp, "sheet-rts.jpg")), \
+                    mock.patch.object(O.S, "foreground", return_value=panel(1.15)):
+                view = O.rts_view(POS, TRI, sheet, (35, -45))
+        self.assertTrue(np.allclose(view.ru, O.rts_axes(35, -45)[0]))
+
     def test_apply_needs_both_switches(self):
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=True, union_body=False)))
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=False, union_body=True)))

@@ -514,30 +514,32 @@ def rts_axes(elev, azim):
     return right, np.cross(right, fwd)
 
 
-def rts_view(pos, tri, sheet):
-    """The View of the sheet's rts panel at the camera whose raster matches it best (never mirrored), or None."""
+def rts_view(pos, tri, sheet, cam=None):
+    """The View of the sheet's rts panel at the camera whose raster matches it best (never mirrored), or None.
+    `cam` (elevation, azimuth) pins the camera the gate chose."""
     path = S.rts_path(pathlib.Path(sheet))
     if not path.exists():
         return None
     concept = S.normalize(S.foreground(path, 768))
-    best = max((D.View("rts", *rts_axes(e, a), 1, concept, True) for e, a in RTS),
+    best = max((D.View("rts", *rts_axes(e, a), 1, concept, True) for e, a in ([tuple(cam)] if cam else RTS)),
                key=lambda v: S.iou(concept, D.view_state(pos, tri, v)[1]))
     return best
 
 
-def make_views(pos, tri, sheet, names, layout):
-    """Views of the sheet among `names` (front/left/back, top/bottom with their tilt, rts)."""
+def make_views(pos, tri, sheet, names, layout, cams=None):
+    """Views of the sheet among `names` (front/left/back, top/bottom with their tilt, rts). `cams` {view: tilt or
+    (elevation, azimuth)} pins the cameras the gate measured with (L12-1); a view without one sweeps."""
     panels = {k: p for k, p in S.framed_panels(pathlib.Path(sheet), layout=layout).items()
               if k in names and (k in D.FRONT_AXES or k in D.S_TILTED)}
-    views = D.make_views(pos, tri, panels, tuple(panels))
-    rts = rts_view(pos, tri, sheet) if "rts" in names else None
+    views = D.make_views(pos, tri, panels, tuple(panels), cams=cams)
+    rts = rts_view(pos, tri, sheet, (cams or {}).get("rts")) if "rts" in names else None
     return views + [rts] if rts else views
 
 
-def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit"):
+def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None):
     """(new welded Z-up positions, report) for the welded mesh: coarse stage on the anchors, fine on all."""
     start = time.time()
-    views = make_views(pos, tri, sheet, names, layout)
+    views = make_views(pos, tri, sheet, names, layout, cams)
     first = D.measure(pos, tri, views)
     skipped = [v.name for v in views if first[v.name]["iou"] < VIEW_MIN]     # a panel of another pose (a flier's rts)
     views = [v for v in views if v.name not in skipped]
@@ -560,13 +562,13 @@ def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=
               "fairness_before": round(float(tri_fairness(x0[tri]).mean()), 4),
               "fairness_after": round(float(tri_fairness(x[tri]).mean()), 4),
               "turned": int(D.turned(prob.ref, x, tri).sum()), "body_vertices": prob.nb, "vertices": len(pos),
-              "loss": LOSS, "views": [v.name for v in views], "skipped": skipped, "seconds": round(time.time() - start, 1), **log}
+              "loss": LOSS, "views": [v.name for v in views], "cams": {k: v for k, v in (cams or {}).items() if k in names}, "skipped": skipped, "seconds": round(time.time() - start, 1), **log}
     return new, report
 
 
-def run(glb, sheet, out, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit"):
+def run(glb, sheet, out, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None):
     """Optimise `glb` against the sheet and write `out`; returns the report (also written as <out>.verts.json)."""
-    return D.rewrite(glb, out, lambda uniq, tri, nor, file: optimize(uniq, tri, nor, file, sheet, names, iters, seconds, layout),
+    return D.rewrite(glb, out, lambda uniq, tri, nor, file: optimize(uniq, tri, nor, file, sheet, names, iters, seconds, layout, cams),
                      suffix=".verts.json")
 
 
@@ -582,7 +584,7 @@ def apply(glb, args):
     # under different load, +-0.006 IoU per view on the same spec)
     fixed = getattr(args, "deterministic", False)
     return run(before, args.sheet, glb, seconds=DETERMINISTIC_SECONDS if fixed else PIPELINE_SECONDS,
-               iters=DETERMINISTIC_ITERS if fixed else 30, layout=layout_of(args.kind))
+               iters=DETERMINISTIC_ITERS if fixed else 30, layout=layout_of(args.kind), cams=D.run_cams(args))
 
 
 def main():

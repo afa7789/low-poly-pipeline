@@ -4864,3 +4864,71 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   Escolher o sorteio pelo |sdf| médio dos centróides não reduz a variação de IoU. Euler: até 4 sorteios por unidade não recuperam a alça perdida em hfoo/n00U/n02X (melhor sorteio guardado; o `report` traz `tries` e `defects`).
 - **Testes.** `test_retopo.py::Cvt` (4, < 0.1 s): sementes se concentram nas arestas do cubo (α = 1 vs 0), esfera -> fechada, euler 0, V ≈ V*, vértices em |d| < 1e-3 e sem sliver, `retopo(method="cvt")` aceita o `floor` do `build_unit`, duas cascas disjuntas ganham sementes cada.
   Runs: `runs/draft/<id>/l11-cvt-qem` e `l11-cvt` (+ `-invalid*`: runs que o SIGTERM do ambiente interrompeu, mantidos).
+
+
+### 30.L12-1 Câmara pinada: otimizador e deform medem com a câmara do gate (2026-10-29)
+
+- **Diagnóstico (6 unidades, v13-r1).** A lacuna `verts.after − gate` (.06–.09 em n005/n017/n02X top, .13 em n00U rts) tinha **duas** causas, não uma:
+  (1) o tilt: `optimize_verts.make_views` varria o tilt de top/bottom e o azimute/elevação do rts sobre a malha *pré-fit* e escolhia outro que o gate na malha final
+  (n005 top −30 contra −20; n017 +10 → −20; n02X −20 → −10; n01X coincidia e tinha lacuna 0); `--tilts` só pinava o gate; (2) a **orientação do painel**:
+  `deform_to_sheet.candidates` tenta o painel de top/bottom como desenhado *e* girado 180°, e o otimizador escolhia o girado numa vantagem pequena
+  (n017 top: 0.828 como desenhado, 0.864 girado, gate 0.823; n02X top 0.773 contra 0.832, gate 0.771), enquanto o gate só gira com `detect_rotated`
+  (margem `FLIP_MARGIN` = .10). Pinar só o tilt (`l12-cams-pin`) deixou 3 lacunas ≥ .01 (n017 top .041, n02X top .061, n00U rts .030).
+- **Mudança.** `deform_to_sheet.run_cams(args)`: `--tilts` (a câmara do gate, `views.parse_tilts`) primeiro, depois o `silhouette.json` do run, depois varrimento;
+  `optimize_verts.apply/run/optimize/make_views/rts_view` recebem `cams` e o repassam (`rts_view` pina `(elevação, azimute)`; o relatório `.verts.json` ganha `"cams"`);
+  `deform_to_sheet.best_oriented`: top/bottom só giram o painel quando ganham por `silhouette.FLIP_MARGIN` (a regra do gate), com ou sem tilt pinado.
+  Sem flag nova: `--tilts` e o `silhouette.json` já existiam. Primeira rodada sem tilt pinado ainda varre (pela IoU do raster enquadrado, o mesmo score do `best_match`),
+  então a lacuna só fecha quando a câmara é pinada (rodadas seguintes, `--tilts`, laço).
+- **Medida (sem LLM, `spec_pipeline.py --spec v13-r1/spec.json --no-repair --no-diagnose --body sdf --deterministic --tilts <do v13-r1>`; controle = HEAD sem a mudança,
+  `l12-ctl`, num worktree temporário; depois = `l12-cams`; rig e nomes como em `v13.sh`).** Antes → depois, por vista.
+
+lacuna verts.after - gate (antes -> depois)
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | +.002 -> +.004 | +.001 -> +.000 | +.000 -> -.004 | +.060 -> -.002 | -.005 -> -.002 | -.001 -> -.001 |
+| n00U | +.000 -> +.002 | -.001 -> -.001 | +.000 -> +.001 | +.002 -> +.001 | -.001 -> +.000 | +.126 -> +.030 |
+| hfoo | -.001 -> -.001 | - -> - | +.001 -> +.001 | +.002 -> +.002 | -.001 -> -.001 | +.002 -> +.002 |
+| n017 | -.000 -> -.000 | -.003 -> -.006 | -.003 -> +.003 | +.092 -> +.001 | -.008 -> +.001 | +.001 -> +.001 |
+| n02X | -.001 -> +.001 | -.002 -> -.002 | -.001 -> -.001 | +.073 -> +.001 | +.001 -> -.001 | +.001 -> +.001 |
+| n01X | +.003 -> +.003 | +.001 -> +.001 | +.004 -> +.004 | -.001 -> -.001 | +.006 -> +.006 | -.002 -> -.002 |
+
+IoU do gate
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .919 -> .920 | .943 -> .946 | .931 -> .933 | .761 -> .797 | .823 -> .820 | .876 -> .878 |
+| n00U | .882 -> .878 | .823 -> .818 | .878 -> .876 | .732 -> .734 | .707 -> .709 | .624 -> .653 |
+| hfoo | .862 -> .862 | .412 -> .412 | .865 -> .865 | .802 -> .802 | .836 -> .836 | .733 -> .733 |
+| n017 | .911 -> .908 | .831 -> .831 | .848 -> .849 | .803 -> .870 | .878 -> .861 | .719 -> .710 |
+| n02X | .901 -> .900 | .836 -> .839 | .905 -> .905 | .752 -> .780 | .769 -> .762 | .778 -> .764 |
+| n01X | .841 -> .841 | .883 -> .883 | .845 -> .845 | .905 -> .905 | .875 -> .875 | .838 -> .838 |
+
+spill do gate
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .053 -> .053 | .033 -> .038 | .051 -> .051 | .163 -> .116 | .079 -> .060 | .079 -> .073 |
+| n00U | .064 -> .066 | .132 -> .134 | .071 -> .072 | .226 -> .217 | .239 -> .238 | .290 -> .272 |
+| hfoo | .078 -> .078 | .392 -> .392 | .080 -> .080 | .097 -> .097 | .143 -> .143 | .206 -> .206 |
+| n017 | .073 -> .070 | .060 -> .054 | .120 -> .119 | .088 -> .050 | .051 -> .060 | .214 -> .218 |
+| n02X | .067 -> .067 | .096 -> .096 | .062 -> .061 | .205 -> .171 | .130 -> .123 | .131 -> .143 |
+| n01X | .111 -> .111 | .080 -> .080 | .111 -> .111 | .040 -> .040 | .104 -> .104 | .124 -> .124 |
+
+bare do gate
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .031 -> .030 | .026 -> .017 | .020 -> .018 | .108 -> .110 | .114 -> .135 | .054 -> .056 |
+| n00U | .061 -> .064 | .060 -> .065 | .058 -> .060 | .069 -> .079 | .091 -> .090 | .162 -> .136 |
+| hfoo | .070 -> .070 | .439 -> .439 | .065 -> .065 | .122 -> .122 | .028 -> .028 | .095 -> .095 |
+| n017 | .018 -> .026 | .122 -> .128 | .042 -> .041 | .130 -> .088 | .079 -> .089 | .106 -> .115 |
+| n02X | .037 -> .038 | .082 -> .079 | .037 -> .038 | .067 -> .070 | .132 -> .147 | .118 -> .124 |
+| n01X | .060 -> .060 | .043 -> .043 | .056 -> .056 | .059 -> .059 | .026 -> .026 | .049 -> .049 |
+
+- **Aceite |verts.after − gate| < .01 em 6 vistas × 6 unidades: 34 de 35 células medidas** (hfoo left não tem vista no otimizador: sheet incoerente, `VIEW_MIN`; gate .41 nos dois).
+  A que sobra: **n00U rts +.030** (de +.126). Não é câmara: a máscara que o Blender gera (40 549 px, bbox 285 px de largura) é mais larga que o raster do glb nas mesmas
+  coordenadas (35 730 px, 267 px); só o rts da aranha. Aberto: renderizador contra raster em pernas finas / pose do rig no rts.
+- **IoU do gate subiu onde a lacuna era grande**: n005 top .761 → .797, n017 top .803 → .870, n02X top .752 → .780, n00U rts .624 → .653; spill de top cai em n005
+  (.163 → .116), n017 (.088 → .050), n02X (.205 → .171). Custos pequenos: n017 bottom .878 → .861 e n02X rts .778 → .764, n02X bottom .769 → .762, bare de n017 bottom/rts +.01 e de n005 bottom +.02
+  (o otimizador deixou de ganhar vista que o gate não mede; a conta fica honesta).
+- **Decisão: default** (cumpre o aceite exceto uma célula documentada; não há flag). Não toquei em gates, pesos, SPILL/UNCOVERED nem `fit_spec` (L12-2/3).
+- **Testes.** `test_optimize_verts.py` (3: `make_views` devolve a câmara pinada e a varrida difere; `optimize` relata os `cams`; `rts_view` pinado), `test_deform_to_sheet.py`
+  (`best_oriented` só gira com margem; `run_cams` com `--tilts`). Suite completa: 655 testes OK.
+  Runs: `runs/draft/<id>/l12-cams` (final), `l12-cams-pin` (só tilt pinado), controle `l12-ctl` fora do repo.

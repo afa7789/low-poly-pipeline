@@ -155,12 +155,24 @@ class TestDeform(unittest.TestCase):
         _, rep = D.deform(POS, TRI, {"front": panel(1.15), "rts": panel(4.0, 0.3)}, ("front", "rts"), cams={"rts": (45, 45)})
         self.assertEqual(rep["pulled"], ["front"])
 
+    def test_a_turned_panel_needs_the_gates_margin(self):
+        """L12-1: top/bottom take the panel turned 180 degrees only when it wins by S.FLIP_MARGIN, as detect_rotated does."""
+        opts = list(D.candidates("top", panel(1.0), -30))
+        for gain, turned in ((0.05, False), (0.2, True)):
+            with mock.patch.object(D, "best_option", side_effect=[(opts[0], 1), (opts[1], 1)]), \
+                    mock.patch.object(D, "view_state", return_value=(None, None, 1.0)), \
+                    mock.patch.object(D.S, "iou", side_effect=[0.6 + gain, 0.6]):
+                best, _ = D.best_oriented("top", opts, POS, TRI)
+            self.assertIs(best is opts[1], turned)
+
     def test_run_cams(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = SimpleNamespace(out=pathlib.Path(tmp))
             self.assertIsNone(D.run_cams(args))
             pathlib.Path(tmp, "silhouette.json").write_text(json.dumps({"tilt": {"top": -30, "rts": [65, 60]}}))
             self.assertEqual(D.run_cams(args), {"top": -30, "rts": (65, 60)})
+            args.tilts = "top:10,rts:35/-45"                  # the pinned gate wins over the file (L12-1)
+            self.assertEqual(D.run_cams(args), {"top": 10, "rts": (35, -45)})
 
     def test_apply_needs_both_switches(self):
         self.assertIsNone(D.apply("x.glb", SimpleNamespace(deform=True, union_body=False)))
