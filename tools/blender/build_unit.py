@@ -48,7 +48,7 @@ TONES = {}       # material -> (up, side, down) cel multipliers measured on its 
 SHARED = None    # (arg shared=<table.json>) the race's shared 128 px atlas table (shared_atlas.py, PIPELINE 27.T3); cel only
 POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
 PALETTE_SNAP = False   # (arg palette_snap) shared atlas: snap a slot colour to the race palette within dE .03 (27.T7); off: it moved hfoo's boots to green (judge 4-0 against) and saves no column
-SHARED_PICTURE_FACES = 3   # shared atlas (27.T3): a picture decal cell used by fewer faces than this is 16 px, not 32
+SHARED_PICTURE_FACES = 3   # shared atlas (27.T3): a picture decal cell used by fewer faces than this (and not a prop's own crop) is 16 px, not 32
 COMPACT_ATLAS = True    # default since 27.T1 (84 KB -> 5 KB, luma_l1 within .008); cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
@@ -1347,7 +1347,8 @@ def texturize_shared(body, meta):
         table = SA.extend(SHARED, keys.values())
         col = {b: SA.find(table["columns"], k) for b, k in keys.items()}
         used = collections.Counter((f[1], f[4]) for f in faces if f[4] is not None)
-        size = {k: decal_px(k[1]) if n >= SHARED_PICTURE_FACES else sibling("surfaces").DECAL_PX for k, n in used.items()}    # a cell of 1-2 faces gets the 16 px cell: the 128 px band holds 12 of 32
+        size = {k: decal_px(k[1]) if n >= SHARED_PICTURE_FACES or k[0].startswith("prop_") else sibling("surfaces").DECAL_PX
+                for k, n in used.items()}    # a stray cell of 1-2 faces (not a prop's own crop) gets the 16 px cell: the 128 px band holds 12 of 32
         hashes = {k: decal_hash(k[1], table["columns"][col[k[0]]], size[k]) for k in used}
         table = SA.extend(SHARED, keys.values(), [(h, size[k]) for k, h in hashes.items()])
     except ValueError as err:
