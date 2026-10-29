@@ -5,7 +5,7 @@
     python3.14 tools/blender/retopo_ablate.py <dir> [--src a0|a5] [--target 600] [--units n005,...] [--json out.json]
 
 Rows: union (the v12 clay.glb), COLLAPSE (Blender Decimate, blind; needs `blender` on the PATH), QEM (plain), + guard (15 degrees,
-turn), + SDF projection, + features (35 degrees). Columns: tris, sliver_pct, normal_diff (mean, share in 60-100), fairness,
+turn), + SDF projection, + deviation guard (H/50), + features (35 degrees). Columns: tris, sliver_pct, normal_diff (mean, share in 60-100), fairness,
 flipped, boundary / non-manifold edges, euler (F - 2V + 4), sdf_dev (mean, p95, max in % of H and the max in voxels), IoU of the
 6 views against the approved sheet (silhouette.py panels, cameras of the run's silhouette.json), seconds.
 """
@@ -35,8 +35,10 @@ ROWS = {
     "QEM": dict(features_deg=None, min_angle=0, project=False),
     "QEM + guard": dict(features_deg=None, project=False),
     "QEM + guard + proj": dict(features_deg=None, project=True),
+    "QEM + guard + proj + dev": dict(features_deg=None, project=True, dev=True),
     "QEM + guard + proj + features": dict(features_deg=35, project=True),
 }
+DEV_FRAC = 0.02          # the deviation guard: a collapse may not leave a triangle's centroid farther than this share of H
 
 
 # ---------------------------------------------------------------- metrics
@@ -161,7 +163,9 @@ def collapse_row(src, target):
 
 def reduce_row(f, z, target, spec):
     sdf = retopo.grid_sdf(f.grid, f.origin, f.voxel) if spec["project"] else None
-    kw = {k: v for k, v in spec.items() if k != "project"}
+    kw = {k: v for k, v in spec.items() if k not in ("project", "dev")}
+    if spec.get("dev"):
+        kw["max_dev"] = DEV_FRAC * height_of(f)
     v, t, rep = retopo.reduce(z["verts"], z["tris"], target, sdf=sdf, polish=f.d if sdf else None, grad_h=0.5 * f.voxel, **kw)
     return v, t, rep["seconds"], rep
 

@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Guarded QEM retopology of a dense closed shell (PIPELINE 28.L10-3): numpy only, python3.14 and Blender's Python.
 
-    verts, tris, report = reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, floor=0.9)
+    verts, tris, report = reduce(verts, tris, target_faces, sdf=None, features_deg=None, min_angle=15, floor=0.9)
 
 Garland & Heckbert 1997 edge collapse, with what a blind COLLAPSE lacks:
-  * feature quadrics: an edge whose two faces meet at >= `features_deg` (measured on the INPUT mesh) adds a plane through it,
-    perpendicular to its faces, with a heavy weight to both ends; a vertex with >= 3 feature edges is a corner and never moves;
-    a feature vertex absorbs a plain one (it keeps its place); two feature vertices join only along a feature edge (a chord
-    across a corner is never collapsed);
   * quality guard: a collapse is refused when a surviving triangle would get a smallest angle under `min_angle` (unless it was
     that bad already and does not get worse), or its normal would turn (dot < 0) or vanish, or the link condition fails
-    (more shared neighbours than the two opposite vertices: the shell would pinch);
+    (more shared neighbours than the two opposite vertices: the shell would pinch). When the quadric optimum fails, a's place,
+    b's place and the midpoint are tried, and taken only if their quadric error is within SLACK x the optimum's;
   * `sdf(points (N, 3)) -> d (N,)` (negative inside): the new vertex of a collapse is Newton-projected onto the zero set,
     p <- p - d(p) grad d / |grad d|^2 (2 steps, central differences), before the guard looks at it; `polish` (default `sdf`)
-    does the same over every non-corner vertex at the end and backs the moves that turn a face;
+    does the same over every non-corner vertex at the end and backs the moves that turn a face; `max_dev` refuses a collapse
+    that leaves a triangle's centroid farther than that from the zero set (and farther than it was);
+  * features (`features_deg`, OFF by default: the ablation of PIPELINE 28.L10-3 says they hurt on these bodies at 600 triangles):
+    an edge whose two faces meet at >= features_deg on the INPUT mesh adds a plane through it, perpendicular to its faces, with
+    weight FEATURE_W; RULES: a vertex with >= 3 feature edges is a corner and never moves, a feature vertex absorbs a plain one
+    (keeps its place), two feature vertices join only along a feature edge (no chord across a corner);
   * target: stop at F <= B (B = target_faces; V* = (B + 4) / 2 on a closed genus-0 shell, F = 2V - 4) and never go under
-    floor * B. If nothing collapsible is left above B the guard is relaxed in stages (min_angle halves, then 0; the turn guard
-    stays) and the report says so.
+    floor * B. If nothing collapsible is left above B the guard is relaxed in stages (min_angle x RELAX; the turn guard stays) and
+    the report says so. The euler number F - 2V + 4 of the input is kept (a handle is neither made nor lost).
 Not a heap: the collapses go in rounds. Each round costs every edge (vectorized: cost + best position), takes the edges that are
 the cheapest of their 2-ring (an independent set: no two touch, so applying them together equals applying them one after the
 other), projects and guards them all at once and applies the ones that pass; an edge that fails is banned until its
@@ -39,7 +41,7 @@ SLACK = 1.0             # a fallback position is taken when its quadric error is
 ROUNDS = 2000           # safety stop
 PASSES = 4              # independent sets per round (the edges that fail are banned between them)
 OFFSETS = np.vstack([np.zeros(3), np.eye(3), -np.eye(3)])
-REASONS = ("ok", "degenerate", "turned", "angle", "link")
+REASONS = ("ok", "degenerate", "turned", "angle", "link", "deviation")
 
 
 # ---------------------------------------------------------------- numpy helpers
@@ -170,12 +172,12 @@ def common_neighbours(keys, n, adj, a, b):
 
 # ---------------------------------------------------------------- the reducer
 class Reducer:
-    def __init__(self, verts, tris, sdf, features_deg, min_angle, grad_h=None):
+    def __init__(self, verts, tris, sdf, features_deg, min_angle, grad_h=None, max_dev=None):
         self.P = np.array(verts, float)
         self.n = len(self.P)
         self.T = np.asarray(tris, np.int64).copy()
         self.scale = float(np.ptp(self.P, axis=0).max())
-        self.sdf, self.min_angle = sdf, min_angle
+        self.sdf, self.min_angle, self.max_dev = sdf, min_angle, max_dev
         self.h = grad_h or 1e-3 * self.scale
         self.FE, normal = np.zeros(0, np.int64), None
         if features_deg:
@@ -251,7 +253,8 @@ class Reducer:
         n0, _ = tri_normals(self.P, tri)
         c = np.cross(new[:, 1] - new[:, 0], new[:, 2] - new[:, 0])
         why = np.zeros(len(a), np.int8)
-        for code, bad in ((3, min_angles(new) < np.minimum(self.min_angle, min_angles(old))),
+        for code, bad in ((5, self.too_far(old, new)),
+                          (3, min_angles(new) < np.minimum(self.min_angle, min_angles(old))),
                           (2, np.einsum("fd,fd->f", n0, c) < 0),
                           (1, np.linalg.norm(c, axis=1) / 2 < TINY * self.scale ** 2)):
             why[owner[bad]] = code
@@ -278,6 +281,13 @@ class Reducer:
             pos[todo], why[todo] = c, r
             pending[todo[r == 0]] = False
         return why, pos
+
+    def too_far(self, old, new):
+        """Triangles whose centroid is farther than max_dev from the zero set and farther than the old one was."""
+        if self.sdf is None or self.max_dev is None:
+            return np.zeros(len(new), bool)
+        far = np.abs(self.sdf(new.mean(1)))
+        return (far > self.max_dev) & (far > np.abs(self.sdf(old.mean(1))))
 
     def step(self, goal):
         """One round: the number of edges tried (0: nothing is left to try). PASSES times: pick an independent set among the
@@ -360,12 +370,13 @@ class Reducer:
         return self.P[used], remap[self.T]
 
 
-def reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, floor=0.9, polish=None, grad_h=None):
+def reduce(verts, tris, target_faces, sdf=None, features_deg=None, min_angle=15, floor=0.9, polish=None, grad_h=None, max_dev=None):
     """(verts, tris, report) with `target_faces` triangles at most (and at least floor x target_faces unless the guard
     stops it sooner). `sdf`: see the module doc, None = no projection; `features_deg` None / 0 = no feature quadrics;
-    `polish`: the field of the final projection, default `sdf`; `grad_h`: central-difference step (default 1e-3 x size)."""
+    `polish`: the field of the final projection, default `sdf`; `grad_h`: central-difference step (default 1e-3 x size);
+    `max_dev`: refuse a collapse that leaves a triangle's centroid farther than this from the zero set of `sdf`."""
     t0 = time.perf_counter()
-    R = Reducer(verts, tris, sdf, features_deg, min_angle, grad_h)
+    R = Reducer(verts, tris, sdf, features_deg, min_angle, grad_h, max_dev)
     f0, v0 = len(R.T), len(np.unique(R.T))
     lowest = floor * target_faces
     met, relaxed, stages = R.run(target_faces, lowest), None, [(min_angle, len(R.T))]
@@ -395,11 +406,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("npz", help="verts + tris of a dense closed shell")
     ap.add_argument("target", type=int)
-    ap.add_argument("--no-features", action="store_true")
+    ap.add_argument("--features", type=float, default=None, help="dihedral (degrees) that makes an edge a feature")
     ap.add_argument("--out", help="npz of the result")
     a = ap.parse_args()
     z = np.load(a.npz)
-    v, t, rep = reduce(z["verts"], z["tris"], a.target, features_deg=None if a.no_features else 35)
+    v, t, rep = reduce(z["verts"], z["tris"], a.target, features_deg=a.features)
     if a.out:
         np.savez(pathlib.Path(a.out), verts=v, tris=t)
     print(json.dumps(rep))
