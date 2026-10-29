@@ -964,7 +964,8 @@ def clay_args(kind):
     """build_unit.py arguments of a stage 1 build: the chamfer budget (the ceiling the gate
     checks), no fuse, and `clay` = one grey material, no texture, decal or glow."""
     hi = str(BUDGETS[kind][1])
-    return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else [])]
+    return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else []),
+            *([f"sdf_grid={SDF_GRID}"] if BODY == "sdf" and SDF_GRID else [])]
 
 
 def tilts_of(report):
@@ -1250,7 +1251,8 @@ def silhouette_vs(args, glb, layout, sheet, name):
     """(gate passed, per-view report) of the model against one sheet: shape only, the
     colour zones belong to stage 2."""
     sil_dir = args.out / "sil" / name
-    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape", "--rig", args.rig)
+    pin = ["--tilts", args.tilts] if getattr(args, "tilts", "") and name == "approved" else []
+    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape", "--rig", args.rig, *pin)
     print(f"vs {name}:\n{sil.stdout.strip()}")
     return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
 
@@ -2066,6 +2068,10 @@ def main():
                     help="pull the unioned body's sharp edges to the hard sheet's inner edges after the "
                          "deformation (align_features.py, PIPELINE 24.L6-12; off by default: no measured gain)")
     ap.add_argument("--no-align", dest="align", action="store_false", help="the opposite of --align")
+    ap.add_argument("--sdf-grid", type=int, default=0, help="--body sdf: voxels along the longest side (0 = build_unit.SDF_GRID, 96)")
+    ap.add_argument("--tilts", default="",
+                    help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
+                         "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
     ap.add_argument("--body", choices=("union", "sdf", "join"), default=DEFAULT_BODY,
                     help="how the body parts become one shell: union = boolean + decimate (24.L6-4), sdf = distance field + "
                          "guarded QEM retopology (build_unit sdf_union, PIPELINE 28.L10-7), join = the plates joined, no weld")
@@ -2094,8 +2100,8 @@ def main():
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it
-    global BODY
-    BODY = args.body
+    global BODY, SDF_GRID
+    BODY, SDF_GRID = args.body, args.sdf_grid
     args.union_body = args.body != "join"
 
     resolve_paths(args)
@@ -2170,6 +2176,7 @@ DEFORM = True         # PIPELINE 24.L6-5: the unioned body is deformed onto the 
 FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ablation gained 6/6 views on 5/5 units. --no-fit-verts turns it off
 # 24.L6-4: the deformation needs the welded body; read build_unit.BODY (union | sdf | join) from its source (it imports bpy)
 DEFAULT_BODY = re.search(r'^BODY\s*=\s*"(\w+)"', (ROOT / "tools/blender/build_unit.py").read_text(), re.M).group(1)
+SDF_GRID = 0             # --sdf-grid: build_unit sdf_grid= (0 = its SDF_GRID default)
 BODY = DEFAULT_BODY      # main() sets it from --body; clay_args passes it to build_unit when it is not the default
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins
 RED_CRITICAL = ("front", "left", "back", "rts")   # too_red: the views whose red caps the status

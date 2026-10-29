@@ -4389,3 +4389,101 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
 - **Testes.** `tests/tools/blender/test_body_sdf.py` (7, < 1 s; `SLOW=1` + Blender: n005 `body=sdf` fecha `mesh_lint`: 1 pele, `components_body` 1, 0 borda/non-manifold/flipped, sliver < 5, tris ≤ 700, `attach.json["union"]` e
   `clay.sdf.json`): `BODY` deriva `UNION_BODY`/`NOUNION`, a linha `UNION_BODY = True` e o `DEFAULT_BODY` do `spec_pipeline`, `sdf_args`, `--body` chega a `clay_args` e `colour_stage.body_args`, política de peça fina numa cena sintética
   (caixa + prato de 0.004: `thin_inflation`, off/inflate/keep, voxels internos a mais).
+
+### 28.L10-8 Robustez em lote: `sdf_batch.py` (`--body sdf` × `union` em todos os specs, sem LLM)
+- **O que mudou.** `tools/blender/sdf_batch.py` (ferramenta de regressão permanente): `python3.14 tools/blender/sdf_batch.py [--units a,b] [--body sdf,union] [--jobs 2]
+  [--grid 128] [--no-anim] [--collect-only] [--compare DIR] [--json F]`. Descobre o spec mais recente de cada unidade (`runs/draft/<id>/v12-r1`, senão `v11-r1`, `v10-r1`; `n01I`/`n01N`
+  só têm `v2-hard-r2`; `h09B` é building e fica de fora), roda `spec_pipeline.py --kind mass --shape-only --no-repair --no-diagnose --spec <spec> --body <b>` (rig lido do spec,
+  câmeras top/bottom/rts **fixadas** nas do `silhouette.json` da origem com `--tilts`, para sdf e união medirem nas mesmas câmeras) em `runs/draft/<id>/l10-batch-{sdf,union}[g<N>]/`
+  (`batch.log`, `batch.json`; o diretório de uma bateria anterior é apagado antes: o pipeline reusa `fit/` e `spec.json` de um run existente e o resultado deixava de ser o do spec de origem,
+  n00H/n010/n01N se mexeram 0.03–0.2 de IoU entre duas execuções), mede (`silhouette.json`, `attach.json`, `mesh_lint.lint(sdf=True)` do `clay.glb` e do `clay-raw.glb`,
+  `anim_check.py` = esticão p99.5 de `walk/attack/death`, triângulos por `plate` por ownership no campo) e imprime as tabelas em markdown + `runs/draft/l10-batch.json`
+  (`rows` + `acceptance`; 128³: `l10-batch-g128.json`). Falha de build = linha `FAIL` com a causa (última exceção do traceback + frame). Novas flags no `spec_pipeline`:
+  `--tilts top:10,bottom:20,rts:55/-60` (só o silhouette `approved`) e `--sdf-grid N` (`build_unit sdf_grid=`). `tools/blender/anim_check.py` (o script de esticão da sessão, agora versionado).
+  Lotes de ~25 min (2 processos; 96 s–275 s por run, quase tudo é deform + `--fit-verts`).
+- **Unidades.** Existem **10** (não 17): os 17 *specs* são as versões v10/v11/v12 de 8 unidades (hfoo, n005, n00H, n00U, n010, n017, n01X, n02X), mais n01I e n01N (`v2-hard-r2`, sem v1x),
+  que entram como extras; `h09B` (building) não. 10/10 constroem (nenhuma falha de build, nenhuma causa a corrigir).
+- **Bug do pipeline corrigido (n00U).** Uma peça que o fit encolheu a 0.3 voxel (parte 33) deixava uma ilha de 12 triângulos no campo (`components_body` 2 nas duas, e a
+  retopo a reduzia a 1 triângulo solto). `build_unit.drop_specks` (em `sdf_dense`, `SDF_SPECK = 2` voxels de diagonal, nunca a maior peça; `attach.json["union"]["specks"]` = triângulos
+  removidos): n00U 2 → 1 componente; as outras 9 unidades têm `specks` 0 (resultado igual ao da primeira bateria).
+- **Tabela (96³, sdf × união, mesmo spec e mesmas câmeras).** build s = só o corpo SDF; total s = o pipeline todo; sliver = cru → final (deform + `optimize_verts`); thin = peças < 2 voxels
+  (`inflate` em ação); plates (0 tris, enterradas) = triângulos por `plate` por ownership; gates = `mesh_lint.failing` + silhouette `GATES` do rig.
+
+| unit | rig | body | build s | total s | tris | sliver % (raw→final) | nd | sdf_dev p95 / max % H | euler | comp | IoU f/l/b/top/bot/rts | unc / spill | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| hfoo | biped | sdf | 1.0 | 116.5 | 700 | 2.3 → 5.7 | 38.6 | 3.90 / 7.66 | 0 | 1 | .849 / .659 / .853 / .688 / .723 / .635 | 0.171 / 0.126 | 0 (0 inflated) | 0 (0, 0) | 2.06 | FAIL sliver_pct < 5, sil:rts |
+| hfoo | biped | union | – | 117.2 | 630 | 21.7 → 20.8 | 49.5 | 3.90 / 8.42 | 0 | 1 | .826 / .659 / .831 / .695 / .739 / .644 | 0.163 / 0.138 | 0 (0 inflated) | 0 (0, 0) | 2.24 | FAIL flipped == 0, sliver_pct < 5, sil:rts |
+| n005 | biped | sdf | 1.1 | 101.8 | 700 | 0.0 → 1.4 | 34.0 | 2.53 / 5.61 | 0 | 1 | .907 / .949 / .926 / .762 / .841 / .890 | 0.056 / 0.075 | 0 (0 inflated) | 0 (0, 0) | 2.34 | PASS |
+| n005 | biped | union | – | 101.0 | 630 | 8.7 → 10.0 | 43.5 | 2.26 / 4.70 | 0 | 1 | .910 / .941 / .914 / .764 / .821 / .876 | 0.059 / 0.080 | 0 (0 inflated) | 0 (0, 0) | 2.61 | FAIL sliver_pct < 5 |
+| n00H | wyrm | sdf | 1.0 | 159.3 | 700 | 0.0 → 0.1 | 37.9 | 5.56 / 8.60 | 8 | 3 | .857 / .851 / .858 / .762 / .694 / .407 | 0.170 / 0.146 | 4 (4 inflated) | 5 (0, 0) | 1.84 | FAIL components_body == 1, sil:rts |
+| n00H | wyrm | union | – | 155.0 | 629 | 13.7 → 16.2 | 49.4 | 4.80 / 8.59 | 7 | 4 | .868 / .760 / .872 / .728 / .699 / .415 | 0.162 / 0.174 | 0 (0 inflated) | 5 (0, 0) | 2.51 | FAIL components_body == 1, sliver_pct < 5, sil:rts |
+| n00U | spider | sdf | 3.5 | 274.6 | 700 | 0.0 → 0.1 | 46.4 | 2.48 / 7.65 | 16 | 1 | .888 / .783 / .892 / .743 / .740 / .689 | 0.067 / 0.165 | 0 (0 inflated) | 0 (0, 0) | 1.34 | FAIL abs(min_y) <= 0.01 H, sil:rts |
+| n00U | spider | union | – | 265.0 | 626 | 18.4 → 17.3 | 53.4 | 2.35 / 6.90 | 41 | 2 | .874 / .779 / .877 / .748 / .729 / .690 | 0.076 / 0.164 | 0 (0 inflated) | 0 (0, 0) | 1.69 | FAIL abs(min_y) <= 0.01 H, components_body == 1, sliver_pct < 5, sil:rts |
+| n010 | drake | sdf | 1.6 | 249.8 | 700 | 0.0 → 0.1 | 40.6 | 1.98 / 3.80 | 4 | 1 | .863 / .910 / .677 / .450 / .469 / .457 | 0.275 / 0.172 | 1 (1 inflated) | 5 (0, 1) | 2.12 | FAIL sil:back, sil:top, sil:bottom, sil:rts |
+| n010 | drake | union | – | 249.2 | 630 | 12.7 → 11.1 | 50.2 | 1.80 / 5.74 | 16 | 1 | .818 / .907 / .676 / .449 / .462 / .470 | 0.277 / 0.177 | 0 (0 inflated) | 5 (0, 1) | 2.01 | FAIL sliver_pct < 5, sil:back, sil:top, sil:bottom, sil:rts |
+| n017 | quadruped | sdf | 1.9 | 120.1 | 700 | 1.7 → 4.6 | 37.7 | 3.70 / 7.50 | 0 | 1 | .920 / .797 / .859 / .805 / .889 / .694 | 0.082 / 0.107 | 0 (0 inflated) | 0 (0, 0) | 1.93 | FAIL sil:rts |
+| n017 | quadruped | union | – | 116.1 | 630 | 28.3 → 26.3 | 49.5 | 2.67 / 6.19 | 0 | 1 | .896 / .760 / .841 / .799 / .881 / .704 | 0.088 / 0.117 | 0 (0 inflated) | 0 (0, 0) | 1.85 | FAIL sliver_pct < 5 |
+| n01I | biped | sdf | 2.0 | 163.4 | 700 | 1.4 → 0.0 | 44.4 | 2.73 / 7.05 | 0 | 2 | .885 / .765 / .816 / .806 / .739 / .800 | 0.092 / 0.128 | 0 (0 inflated) | 0 (0, 0) | 3.47 | FAIL components_body == 1 |
+| n01I | biped | union | – | 160.6 | 630 | 18.1 → 15.2 | 49.7 | 1.96 / 5.24 | 0 | 2 | .857 / .743 / .810 / .775 / .746 / .802 | 0.101 / 0.134 | 0 (0 inflated) | 0 (0, 0) | 3.12 | FAIL components_body == 1, sliver_pct < 5 |
+| n01N | spider_high | sdf | 3.4 | 268.9 | 700 | 0.3 → 0.1 | 52.4 | 3.56 / 6.68 | 4 | 1 | .784 / .469 / .781 / .602 / .611 / .634 | 0.185 / 0.251 | 0 (0 inflated) | 0 (0, 0) | 1.66 | FAIL sil:left, sil:top, sil:bottom, sil:rts |
+| n01N | spider_high | union | – | 257.6 | 630 | 32.5 → 31.9 | 54.7 | 4.50 / 7.75 | 0 | 1 | .746 / .478 / .743 / .598 / .602 / .577 | 0.180 / 0.283 | 0 (0 inflated) | 0 (0, 0) | 2.85 | FAIL sliver_pct < 5, sil:left, sil:top, sil:bottom, sil:rts |
+| n01X | biped | sdf | 1.1 | 99.9 | 700 | 0.3 → 0.7 | 40.5 | 2.66 / 6.10 | 4 | 1 | .880 / .922 / .883 / .893 / .901 / .859 | 0.042 / 0.074 | 1 (1 inflated) | 0 (0, 0) | 2.20 | PASS |
+| n01X | biped | union | – | 96.5 | 629 | 11.6 → 8.3 | 48.1 | 2.93 / 5.55 | 13 | 2 | .870 / .908 / .872 / .900 / .891 / .846 | 0.045 / 0.081 | 0 (0 inflated) | 0 (0, 0) | 2.21 | FAIL components_body == 1, sliver_pct < 5 |
+| n02X | biped | sdf | 2.0 | 109.1 | 700 | 1.7 → 4.7 | 43.4 | 5.79 / 9.46 | 8 | 1 | .889 / .896 / .905 / .744 / .748 / .805 | 0.081 / 0.105 | 0 (0 inflated) | 1 (0, 0) | 3.38 | PASS |
+| n02X | biped | union | – | 107.8 | 629 | 17.2 → 16.5 | 54.7 | 3.88 / 7.27 | 7 | 1 | .880 / .884 / .896 / .749 / .738 / .787 | 0.078 / 0.116 | 0 (0 inflated) | 1 (0, 0) | 4.36 | FAIL sliver_pct < 5 |
+
+  sdf − união (IoU por vista, slivers finais, nd, componentes, esticão walk p99.5):
+
+| unit | rig | ΔIoU f/l/b/top/bot/rts | Δ mean | Δ sliver % | Δ nd ° | comp (union → sdf) | walk p99.5 (union → sdf) |
+|---|---|---|---|---|---|---|---|
+| hfoo | biped | 0.023 / -0.000 / 0.022 / -0.007 / -0.016 / -0.009 | 0.002 | -15.1 | -10.9 | 1 → 1 | 2.24 → 2.06 |
+| n005 | biped | -0.003 / 0.008 / 0.012 / -0.002 / 0.020 / 0.014 | 0.008 | -8.6 | -9.5 | 1 → 1 | 2.61 → 2.34 |
+| n00H | wyrm | -0.012 / 0.091 / -0.014 / 0.034 / -0.005 / -0.007 | 0.015 | -16.1 | -11.4 | 4 → 3 | 2.51 → 1.84 |
+| n00U | spider | 0.014 / 0.004 / 0.016 / -0.005 / 0.011 / -0.001 | 0.006 | -17.2 | -7.1 | 2 → 1 | 1.69 → 1.34 |
+| n010 | drake | 0.045 / 0.003 / 0.001 / 0.001 / 0.007 / -0.013 | 0.008 | -11.0 | -9.6 | 1 → 1 | 2.01 → 2.12 |
+| n017 | quadruped | 0.024 / 0.037 / 0.018 / 0.006 / 0.008 / -0.010 | 0.014 | -21.7 | -11.8 | 1 → 1 | 1.85 → 1.93 |
+| n01I | biped | 0.028 / 0.022 / 0.006 / 0.031 / -0.008 / -0.002 | 0.013 | -15.2 | -5.4 | 2 → 2 | 3.12 → 3.47 |
+| n01N | spider_high | 0.038 / -0.009 / 0.038 / 0.003 / 0.008 / 0.057 | 0.023 | -31.8 | -2.2 | 1 → 1 | 2.85 → 1.66 |
+| n01X | biped | 0.010 / 0.014 / 0.011 / -0.007 / 0.010 / 0.013 | 0.009 | -7.6 | -7.6 | 2 → 1 | 2.21 → 2.20 |
+| n02X | biped | 0.009 / 0.012 / 0.008 / -0.005 / 0.011 / 0.018 | 0.009 | -11.8 | -11.3 | 1 → 1 | 4.36 → 3.38 |
+
+  Esticão p99.5 `attack` / `death` (união → sdf): hfoo 2.12 → 1.93 / 2.16 → 1.95; n005 2.05 → 1.33 / 2.82 → 1.73; n00H 2.94 → 2.57 / 1.79 → 1.74; n00U 1.75 → 1.39 / 7.19 → 4.17;
+  n010 2.35 → 2.19 / 3.49 → 2.94; n017 2.80 → 1.54 / 3.64 → 2.40; n01I 2.34 → 2.98 / 4.17 → 4.56; n01N 21.5 → 9.3 / 19.0 → 11.2; n01X 2.35 → 2.49 / 1.64 → 1.89; n02X 3.07 → 1.87 / 3.07 → 1.77.
+  sdf ≤ união em 23 de 30 (walk 7/10; as 7 exceções: n010 walk +6 %, n017 walk +4 %, n01I walk +11 % / attack +27 % / death +9 %, n01X attack +6 % / death +15 %); n01N attack/death 9–11× nas duas
+  é do rig `spider_high` (clipes), não do corpo.
+- **Aceite (por rig).** Build médio **1.9 s** (máx 3.5 s, n00U) contra ≤ 15 / 30 s: ok. 10/10 constroem.
+
+| unit | rig | acceptance |
+|---|---|---|
+| hfoo | biped | sliver 5.7 % >= 5.0 |
+| n005 | biped | nd 33.99 > union 43.49 - 10 |
+| n00H | wyrm | ok |
+| n00U | spider | rts 0.6888 < union 0.6897 |
+| n010 | drake | ok |
+| n017 | quadruped | ok |
+| n01I | biped | nd 44.36 > union 49.71 - 10 |
+| n01N | spider_high | ok |
+| n01X | biped | nd 40.46 > union 48.06 - 10 |
+| n02X | biped | ok |
+| * | all | ok |
+
+- **Causas (uma linha por unidade fora do aceite).**
+  - **hfoo** (biped, sliver 5.7 % ≥ 5): *deform / optimize_verts*. Cru 2.3 %; o fit puxa vértices ao sheet e recria os slivers (já em §28.L10-7; união 20.8 %).
+  - **n005** (biped, nd −9.5° em vez de −10°): *retopo (QEM) + deform*. nd cru 31.9 contra 37.9 da união (−6.1°); o fit reabre o gap; falta 0.5°. Alavanca conhecida: `sdf_k=2` (−0.5…−1.5° de nd, §28.L10-7), não ligada ao `spec_pipeline`.
+  - **n01X** (biped, nd −7.6°) e **n01I** (biped, nd −5.4°): *retopo + deform*, idem n005 (nd cru 36.4 / 41.9 contra 41.5 / 44.4 da união: o ganho cru já é só −5.1 / −2.6°). O aceite de nd −10° foi medido nas 5 unidades do v12 (L10-3), não é uma propriedade de qualquer spec.
+  - **n00U** (spider, rts .6888 contra .6897 da união, −0.0009): empate dentro do ruído do fit (`components_body` 1, passou depois do `drop_specks`); falha só pela comparação estrita. IoU médio +0.006.
+  - Passam: n00H (wyrm: 5/5 plates com triângulos, left +0.091, top +0.034), n010 (drake: 5 plates, 1 enterrada, left −0.000, top +0.001), n017 (quadruped: sliver 4.6 %), n01N (spider: comp 1, rts +0.057), n02X, e
+    os gates de forma só de silhueta (rts, top/bottom do n010/n01N) que **a união também falha** (spec do autor, não o corpo).
+  - Não são do corpo SDF (a união tem o mesmo): **n010 plate 7 = 0 triângulos** (a peça está dentro das outras: d das outras < −1 voxel nos 27 pontos da sua caixa; é *spec*, 1 enterrada e nenhuma
+    perdida por amostragem); **n01I `components_body` 2** (a peça 0, 240 triângulos densos, está solta no spec); **n00H `components_body` 3** a 96³ (as duas asas, `wing1/wing2`, não tocam o corpo
+    no spec; união 4); **n00U `abs(min_y) <= 0.01 H`** (pivô do spec/fit).
+- **96³ × 128³ (wyrm / drake, sdf).** `l10-batch-g128.json`: n00H 128³ f/l/b/top/bot/rts .899/.777/.892/.761/.685/.401, comp **1** (as asas passam a tocar), slivers 0.0 → 0.0, nd 36.1, build 1.6 s,
+  2 peças < 2 voxels (4 a 96³); 96³ .857/.851/.858/.762/.694/.407, comp 3. n010 128³ .846/.914/.663/.459/.480/.479 contra 96³ .863/.910/.677/.450/.469/.457, build 2.6 s contra 1.6 s, a mesma plate enterrada.
+  Left/top ≥ união −0.01 nos dois tamanhos (união n00H left .760 / top .728; n010 .907 / .449). 128³ junta as asas do n00H (comp 1), top igual (.761), mas left cai de .851 para .777 (ainda +.017 sobre a união)
+  e rts .401 (união .415, 96³ .407): **96³ fica**; 128³ é o botão quando um wyrm precisa de 1 componente.
+- **Peças finas.** `inflate` em ação: n00H 4 peças < 2 voxels (2 anéis, 2 pratos; slivers 0.1 %, todas as 5 plates com triângulos), n010 1 (o prato), n01X 1 (sliver 0.7 %). Nenhuma
+  peça perdida. Os outros 7 não têm peça < 2 voxels.
+- **Testes.** `tests/tools/blender/test_sdf_batch.py` (7 sem Blender, < 0.1 s: `discover`, `tilts_arg`/`command`, `cause_of`, `make_row`, tabelas, aceite por rig, regra de tempo; `SLOW=1`: n010 de ponta a ponta, 1 unidade).
+  `test_body_sdf.py` continua OK. Ruff (C901,F,E9, ≤ 10) limpo em `sdf_batch.py`/`spec_pipeline.py`; `build_unit.py` com os mesmos 7 achados antigos.
+- **Recomendação.** O corpo SDF constrói 10/10, em 1–3.5 s, com slivers finais 0.0–5.7 % (união 8–32 %), nd −2…−13° e componentes ≤ união em 10/10; as exceções de aceite são o nd −10° (n005/n01X/n01I)
+  e o sliver do hfoo, ambas do estágio de deform/fit, não do corpo. A decisão do default continua no L10-9.
