@@ -50,6 +50,18 @@ class Blender(unittest.TestCase):
         self.assertLess(m["sliver_pct"], 4)
         self.assertLessEqual(row["sdf_dev"]["p95"], 0.5)
 
+    def test_skin_is_one_skin_one_body_with_the_clips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/sdf_extract.py"), "--", str(RUN), tmp, "skin=1", "clay=0"],
+                           check=True, capture_output=True)
+            m = ML.lint(pathlib.Path(tmp) / "clay-sdfskin.glb")
+            info = json.loads((pathlib.Path(tmp) / "clay-sdfskin.json").read_text())
+            imported = ML.engine_import(pathlib.Path(tmp) / "clay-sdfskin.glb")
+        self.assertEqual((m["skins"], m["components_body"], m["boundary_edges"], m["nonmanifold_edges"]), (1, 1, 0, 0))
+        self.assertTrue(imported.startswith("ok"))
+        self.assertTrue({"pelvis", "thigh.L", "shin.L", "spine", "head"} <= set(info["groups"]))
+        self.assertGreater(len(info["materials"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -131,6 +131,7 @@ def sdf_column(doc, cuts, grids, adapts, outdir):
 def skin_unit(run, outdir, rest):
     """<name>.glb: the SDF body (skin, materials) + props / flame + armature + clips, exported like main()."""
     BU.CLAY = arg(rest, "clay", "1") == "1"
+    BU.SDF_WELD = float(arg(rest, "weld", BU.SDF_WELD))
     BU.wipe()
     BU._MAT_CACHE.clear()        # wipe() frees the materials the cache holds
     cuts_path = run / "fit" / "cuts.json"
@@ -168,6 +169,8 @@ def skin_unit(run, outdir, rest):
             "groups": groups, "materials": [m.name for m in body.data.materials], "voxel": round(field.voxel, 5),
             "seconds": round(time.perf_counter() - t0, 3)}
     (outdir / f"{name}.json").write_text(json.dumps(info, indent=1))
+    union = {"method": "sdf", "tris": tris, "components_body": comps, "props": len(keep), "voxel": info["voxel"]}
+    (outdir / f"{name}-attach.json").write_text(json.dumps({"parts": len(parts), "loose": [], "union": union}, indent=1))      # mesh_lint reads it
     print("sdf_extract skin:", json.dumps(info))
 
 

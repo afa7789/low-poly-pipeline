@@ -3982,3 +3982,52 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   adaptividade por região; GLB do REMESH sem pele (só a malha, para medir).
 - **Testes.** `tests/tools/blender/test_sdf_extract.py`: índice→mundo, quad→tri (diagonal curta, orientação, área) rápidos;
   `SLOW=1` roda o Blender no n005 (fechada, 1 componente, flipped 0, slivers < 4 %, `sdf_dev` p95 ≤ 0.5).
+
+### 28.L10-5 Osso, pesos e material da malha SDF (`sdf_body.weights`, `build_unit.sdf_body_object`)
+- **O que mudou.** `sdf_body.weights(points, field, parts, rig)` (numpy puro) → (nomes de ossos, W (N, ossos), linhas somam 1) e
+  `sdf_body.materials(points, field, parts)`. O dono do ponto é a peça de menor d; toda outra peça com d dentro da faixa do par
+  soma `exp(−2 gap / faixa)` (σ = faixa/2) com fade `smoothstep` até 0 na borda, então a pele é contínua (a mistura de 2 do plano
+  truncava em duas peças e dava degrau com a terceira) e não depende da densidade da malha. `faixa = pair_k × BAND_SCALE (14)`
+  para peças ligadas por `smin` (pai/filho), `× FREE_SCALE (10)` para as demais (pernas da aranha). As distâncias vêm de
+  `near_distances` (cada casco com `max(plano, distância à caixa)`: o plano de uma face segue longe da peça e misturava a perna
+  oposta; o grid continua com `part_d`). Limb com par upper/lower: `share` do arco from→joelho→to, `upper = clip(0.5 − (share − joelho)/0.3)`
+  (rampa ±0.15, 1 / .5 / 0 como o `skin_part`); chain: osso do segmento mais próximo; resto: o osso da peça.
+  `build_unit.sdf_body_object(spec, cuts, grid=96, adaptivity=0.5, k=1, **bands)` → `(objeto, field)`: `field` → `sdf_mesh` → solda
+  de vértices a < 0.03 voxel (`SDF_WELD`; a extração adaptativa deixa arestas de 1e-3 voxel que um vértice de dois ossos estica) →
+  `skin_sdf` (vertex groups por osso com peso ≥ 0.01, uma ranhura por material único, material da face = peça mais próxima do
+  centróide, como `transfer_from_parts`). Props e `flame` seguem componentes separados, pele 100 % na âncora. `main()` NÃO chama
+  (L10-7). `sdf_extract.py -- <run> <out> skin=1 [clay=0|1] [grid=96] [adapt=0.5] [name=clay-sdfskin] [band=] [free=] [weld=]`
+  grava `<name>.glb` (armadura, clipes, props), `<name>.json` e `<name>-attach.json` (`union.components_body`, para o `mesh_lint`).
+- **Ablação da faixa** (anterior ao `near_distances` e à solda; esticão p99.5 das arestas, `walk` / `attack` / `death`, 12 quadros, relativo à união v12; n005 e n00U;
+  `walk_check.py` da L6-5 por ação): faixa 1×k (só a mistura de 2): n005 5.54 / 2.83 / 4.10 (união 2.53 / 2.05 / 2.84); o esticão
+  vem de arestas curtas (2–8 mm) em degraus de peso (o mesmo ∇w dá a mesma razão em qualquer comprimento), logo a faixa tem que
+  ser larga: 4×: 3.94 / 2.16 / 2.89; 10×: 2.77 / 1.84 / 3.16; 16×: 2.20 / 1.98 / 3.29. Suavização topológica dos pesos (n passos no 1-anel)
+  ajudava na malha bruta, mas depende da densidade (o retopo L10-3 a estragaria): removida. Misturar longe demais piora a aranha
+  (faixa livre 32×: n00U `death` 17 vs união 4.97) e a distância de plano sem a caixa misturava a perna oposta (n017 `death` 7.9 com 16×).
+  Escolha: 14× (pares ligados) e 10× (livres), a que deixa as 5 ≤ 1.1× exceto o `walk` do n017.
+- **Prova** (v12-r1, `fit/cuts.json`, 96³ adapt 0.5, solda 0.03 voxel; esticão = `anim_check.py` na scratchpad, o `walk_check.py` da
+  L6-5 por ação; zonas = `silhouette.py --ids` das mesmas câmeras sobre o rebuild em cores chapadas, `spec.json`, união
+  `build_unit nofuse 700` × `sdf_extract skin=1 clay=0`):
+
+| unidade | tris | `skins` / `images` / mats (união) | `components_body` (união) | fechada | engine_import | esticão `walk` união→SDF | `attack` | `death` | `max_dup_split` | zonas Δ máx (união→SDF) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | 6 912 | 1 / 0 / 7 (7) | 1 (1) | 0 / 0 | ok, 5 clipes | 2.53→2.40 (0.95×) | 2.05→1.43 (0.70×) | 2.84→1.82 (0.64×) | 0 | +0.012 front (.653→.665) |
+| n00U | 24 028 | 1 / 0 / 5 (5) | 1 (2) | 0 / 0 | ok, 5 | 1.47→1.40 (0.95×) | 1.85→1.59 (0.86×) | 4.97→3.71 (0.75×) | 0 | −0.005 bottom |
+| hfoo | 7 810 | 1 / 0 / 8 (8) | 1 (1) | 0 / 0 | ok, 7 | 2.24→1.98 (0.88×) | 2.12→1.90 (0.90×) | 2.16→2.08 (0.96×) | 0 | +0.004 front |
+| n017 | 8 480 | 1 / 0 / 4 (4) | 1 (1) | 0 / 0 | ok, 5 | **1.82→2.23 (1.22×)** | 6.34→1.52 (0.24×) | 3.98→2.41 (0.61×) | 0 | −0.007 left |
+| n02X | 12 990 | 1 / 0 / 7 (7) | 1 (1) | 0 / 0 | ok, 7 | 4.39→3.40 (0.77×) | 3.04→1.88 (0.62×) | 3.14→2.01 (0.64×) | 0 | +0.014 back |
+
+  `fechada` = boundary / non-manifold do `mesh_lint`. `skins == 1`, `uv_out_of_range 0`, slivers 1.1–2.0 %, 0 flipped. Mesmo número de
+  materiais da união em cada unidade. A união do n00U tem 2 componentes de corpo; o SDF, 1. Zonas por view em
+  `scratchpad/l10-skin/zones/*/{union,sdf}/zones_clay.json`; o maior desvio negativo é −0.007 (n017 left), os dois acima de +0.01
+  (n005 front +0.012, n02X back +0.014) são ganhos. Renders: `render_anim` n005 walk/attack/death em 12 quadros roda.
+- **Não passou.** `walk` do n017 fica em 1.22× a união (2.23 vs 1.82; a união é baixa nessa unidade): o resto do esticão é o
+  gradiente de peso na junção tronco/perna/cauda (três ossos), mais largo piora `death` (faixa 16×: 3.58, 1.29× no `walk`). As outras
+  14 medidas ficam em 0.24–0.96×.
+- **Negativos / não feito.** Sem textura (a UV/atlas do SDF é L10-7: o `texturize` usa `parts_meta` das peças originais, que o
+  `sdf_extract` não monta); `main()` e `union_body` intactos; sem metrica `sdf_dev` aqui (L10-6). O esticão é de uma malha bruta
+  de 7–24 k tris: o retopo (L10-3) muda a razão das arestas, repetir a medida depois dele. Mais de 4 influências por vértice
+  possíveis (o exportador glTF guarda as 4 maiores). Chain com degrau duro entre segmentos (só o n017 tem; sem rampa).
+- **Testes.** `tests/tools/blender/test_sdf_body.py::Skin` (boxes pai/filho: osso certo e mistura no vinco; irmãos distantes não
+  misturam; limb sintético: rampa upper→lower monótona 1/.5/0; material da peça mais próxima) e, `SLOW=1`,
+  `test_sdf_extract.py::test_skin_is_one_skin_one_body_with_the_clips` (n005: `skins 1`, `components_body 1`, fechada, grupos, importa).

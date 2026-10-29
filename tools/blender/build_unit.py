@@ -1886,7 +1886,7 @@ def sdf_mesh(field, adaptivity=0.0, name="sdf"):
     return obj
 
 
-SDF_WELD = 0.1        # sdf_body_object welds vertices closer than this many voxels
+SDF_WELD = 0.03       # sdf_body_object welds vertices closer than this many voxels
 
 
 def skin_sdf(obj, field, spec, rig, **bands):
@@ -1904,12 +1904,13 @@ def skin_sdf(obj, field, spec, rig, **bands):
     groups = {b: obj.vertex_groups.new(name=b) for b in (names[c] for c in np.nonzero(W.any(0))[0])}
     for v, col in zip(*np.nonzero(W)):
         groups[names[col]].add([int(v)], float(W[v, col]), "REPLACE")
-    mats = list(dict.fromkeys(spec[field.parts[m]["i"]][4] for m in range(len(field.parts))))
-    for name in mats:
-        mesh.materials.append(material(name))
+    made = {spec[part["i"]][4]: material(spec[part["i"]][4]) for part in field.parts}       # clay: every name is one material
+    slots = list(dict.fromkeys(made.values()))
+    for mat in slots:
+        mesh.materials.append(mat)
     centres = np.array([tuple(p.center) for p in mesh.polygons]).reshape(-1, 3)
     for poly, name in zip(mesh.polygons, SB.materials(centres, field, spec)):
-        poly.material_index = mats.index(name)
+        poly.material_index = slots.index(made[name])
 
 
 def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", **bands):
