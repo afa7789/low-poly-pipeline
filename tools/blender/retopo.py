@@ -28,12 +28,14 @@ import time
 import numpy as np
 
 FEATURE_W = 100.0       # weight of a feature plane, x (edge length)^2: a face plane weighs its area
-LEN_REG = 2e-3          # ties between flat edges go to the short one: + (LEN_REG x size)^2 x length^2 on the cost
+LEN_REG = 1e-2          # ties between flat edges go to the short one: + (LEN_REG x size)^2 x length^2 on the cost
 CLAMP = 1.0             # the optimum may sit at most this many edge lengths from the edge's midpoint
 DAMP = 1e-4             # Tikhonov damping of the 3x3 solve, x the mean eigenvalue
 NEWTON = 2              # projection steps after each collapse
 TINY = 1e-12            # x size^2: a triangle under this area is gone
 RELAX = (0.8, 0.6, 0.4, 0.2, 0.0)   # min_angle factors tried, one after the other, when nothing collapsible is left above the target
+RULES = ("corner", "absorb", "chord")   # the feature rules that apply (corners fixed / a feature vertex absorbs a plain one / no chords)
+SLACK = 1.0             # a fallback position is taken when its quadric error is within this factor of the optimum's
 ROUNDS = 2000           # safety stop
 PASSES = 4              # independent sets per round (the edges that fail are banned between them)
 OFFSETS = np.vstack([np.zeros(3), np.eye(3), -np.eye(3)])
@@ -182,7 +184,6 @@ class Reducer:
         self.Q = initial_quadrics(self.P, self.T, self.FE, normal)
         self.ban = np.zeros(0, np.int64)
         self.accepted, self.rounds, self.why = 0, 0, {}
-        self.rules = ("corner", "absorb", "chord")
 
     def feature_count(self):
         return np.bincount(np.r_[self.FE // self.n, self.FE % self.n], minlength=self.n)
@@ -209,7 +210,7 @@ class Reducer:
     def pin(self, a, b, fcnt):
         """(must not collapse, keeps a's place, keeps b's place) per edge, from the feature degrees of its two ends."""
         fa, fb = fcnt[a], fcnt[b]
-        r = self.rules
+        r = RULES
         on_feature = np.isin(np.minimum(a, b) * self.n + np.maximum(a, b), self.FE)
         corner_a, corner_b = (fa >= 3) & ("corner" in r), (fb >= 3) & ("corner" in r)
         stay_a = corner_a | ((fa >= 1) & (fb == 0) & ("absorb" in r))
@@ -256,6 +257,28 @@ class Reducer:
             why[owner[bad]] = code
         return why
 
+    def settle(self, a, b, best, link):
+        """(why, position) per picked edge: the quadric optimum, else a's place, b's, the midpoint: the first one the guard
+        passes (why 0) and whose quadric error is within SLACK x the optimum's (+ the length term), else the last reason.
+        `link` flags the edges that fail the link condition (why 4, not tried)."""
+        pa, pb = self.P[a], self.P[b]
+        Qs, ln = self.Q[a] + self.Q[b], np.linalg.norm(pb - pa, axis=1)
+        err = lambda p: np.einsum("ki,kij,kj->k", np.c_[p, np.ones(len(p))], Qs, np.c_[p, np.ones(len(p))])  # noqa: E731
+        cap = SLACK * err(best) + (LEN_REG * self.scale) ** 2 * ln * ln
+        pos, why, pending = best.copy(), np.where(link, 4, 0).astype(np.int8), ~link
+        for k, cand in enumerate((best, pa, pb, (pa + pb) / 2)):
+            todo = np.flatnonzero(pending)
+            if not len(todo):
+                break
+            c = cand[todo]
+            if self.sdf is not None:
+                c = project(self.sdf, c, self.h, ln[todo])
+            r = self.guard(a[todo], b[todo], c)
+            r[(r == 0) & (err(cand)[todo] > cap[todo])] = 3
+            pos[todo], why[todo] = c, r
+            pending[todo[r == 0]] = False
+        return why, pos
+
     def step(self, goal):
         """One round: the number of edges tried (0: nothing is left to try). PASSES times: pick an independent set among the
         edges not banned and not next to a collapse already taken this round, guard it, ban what fails, take the rest."""
@@ -270,10 +293,8 @@ class Reducer:
             if not len(pick) or need <= 0:
                 break
             tried += len(pick)
-            a, b, xs = lo[pick], hi[pick], x[pick]
-            if self.sdf is not None:
-                xs = project(self.sdf, xs, self.h, np.linalg.norm(self.P[b] - self.P[a], axis=1))
-            why = np.where(common_neighbours(keys, self.n, adj, a, b) != 2, 4, self.guard(a, b, xs))
+            a, b = lo[pick], hi[pick]
+            why, xs = self.settle(a, b, x[pick], common_neighbours(keys, self.n, adj, a, b) != 2)
             for code in np.unique(why[why > 0]):
                 self.why[REASONS[code]] = self.why.get(REASONS[code], 0) + int((why == code).sum())
             free[pick[why > 0]] = False
@@ -347,13 +368,14 @@ def reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, f
     R = Reducer(verts, tris, sdf, features_deg, min_angle, grad_h)
     f0, v0 = len(R.T), len(np.unique(R.T))
     lowest = floor * target_faces
-    met, relaxed = R.run(target_faces, lowest), None
+    met, relaxed, stages = R.run(target_faces, lowest), None, [(min_angle, len(R.T))]
     for k in RELAX:
         if met:
             break
         relaxed = R.min_angle = min_angle * k
         R.ban = R.ban[:0]
         met = R.run(target_faces, lowest)
+        stages.append((relaxed, len(R.T)))
     final = polish or sdf
     reverted = R.polish(final) if final is not None else 0
     out_v, out_t = R.result()
@@ -361,7 +383,7 @@ def reduce(verts, tris, target_faces, sdf=None, features_deg=35, min_angle=15, f
     report = {"faces_in": f0, "verts_in": v0, "faces": len(out_t), "verts": len(out_v), "euler_in": euler(v0, f0),
               "euler": euler(len(out_v), len(out_t)), "accepted": R.accepted, "refused": dict(R.why), "rounds": R.rounds,
               "features": R.n_features, "corners": int((fcnt >= 3).sum()), "target_met": bool(met),
-              "relaxed_min_angle": relaxed, "polish_reverted": int(reverted),
+              "relaxed_min_angle": relaxed, "stages": stages, "polish_reverted": int(reverted),
               "seconds": round(time.perf_counter() - t0, 3)}
     return out_v, out_t, report
 
