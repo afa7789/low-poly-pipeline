@@ -1948,11 +1948,11 @@ def skin_sdf(obj, field, spec, rig, **bands):
         poly.material_index = slots.index(made[name])
 
 
-def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off"):
+def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", k_mode="base"):
     """(object, field): the unskinned, welded openvdb mesh of the body of `spec` (rows [bone, kind, dims, at, material, opts];
-    props and the flame slit stay out) from sdf_body.field. `thin`: the policy of sdf_body.field for the parts under 2 voxels."""
+    props and the flame slit stay out) from sdf_body.field. `thin`: the policy of sdf_body.field for the parts under 2 voxels; `k_mode`: its K_MODES."""
     field = sibling("sdf_body").field([tuple(r) for r in spec], CUTS if cuts is None else cuts, sibling("lathe_limb").RIG,
-                                      k, grid, False, thin=thin)
+                                      k, grid, False, thin=thin, k_mode=k_mode)
     obj = sdf_mesh(field, adaptivity, name)
     bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
     bm.from_mesh(obj.data)
@@ -1963,11 +1963,11 @@ def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin=
     return obj, field
 
 
-def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", **bands):
+def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", k_mode="base", **bands):
     """The skinned, material-labelled body of `spec`, dense: sdf_dense -> skin_sdf (props and the flame slit are separate
     components skinned on their anchor, as in a union build). Returns (object, field). Needs load_spec to have set the rig.
     main() uses sdf_union, which retopologizes between the two."""
-    obj, field = sdf_dense(spec, cuts, grid, adaptivity, k, name, thin)
+    obj, field = sdf_dense(spec, cuts, grid, adaptivity, k, name, thin, k_mode)
     skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG, **bands)
     return obj, field
 
@@ -2002,19 +2002,19 @@ def sdf_retopo(obj, field, target, lowest=0):
 SDF_GRID, SDF_ADAPT, SDF_K, SDF_THIN = 96, 0.0, 1.0, "inflate"     # body=sdf defaults (grid=, adapt=, k=, thin= on the command line)
 
 
-def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None):
+def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None, k_mode="base"):
     """body=sdf (PIPELINE 28.L10-7): the SDF body of `spec` retopologized to `budget` minus the triangles of `keep` (props, the
     flame slit) and of the thin parts the "keep" policy leaves out, then skinned and materialled on the final positions
     (sdf_dense -> sdf_retopo -> skin_sdf). `parts` = (object, bone) per spec row. Returns (shell, kept thin parts, report, field)."""
     grid, adaptivity, k, thin = grid or SDF_GRID, SDF_ADAPT if adaptivity is None else adaptivity, SDF_K if k is None else k, thin or SDF_THIN
     t0 = time.perf_counter()
-    obj, field = sdf_dense(spec, None, grid, adaptivity, k, "sdf", thin)
+    obj, field = sdf_dense(spec, None, grid, adaptivity, k, "sdf", thin, k_mode)
     kept = [parts[i] for i in field.kept]
     spare = sum(len(q.vertices) - 2 for o, _ in keep + kept for q in o.data.polygons)
     dense = len(obj.data.polygons)
     rep = sdf_retopo(obj, field, budget - spare, int(UNION_FLOOR * budget) - spare)
     skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG)
-    report = {"method": "sdf", "grid": grid, "k": k, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
+    report = {"method": "sdf", "grid": grid, "k": k, "k_mode": k_mode, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
               "inflated": [p["i"] for p in field.parts if p.get("inflate")], "voxel": round(field.voxel, 5), "dense_tris": dense,
               "tris": len(obj.data.polygons), "components": components(obj.data), "specks": obj.get("specks", 0), "retopo": rep,
               "seconds": round(time.perf_counter() - t0, 3)}
@@ -2024,9 +2024,9 @@ def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thi
 
 
 def sdf_args(rest):
-    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep (absent: the SDF_* defaults)."""
+    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep sdf_k_mode=base|class|hard|ext (absent: the SDF_* defaults)."""
     return {key: conv(v) for key, flag, conv in (("grid", "sdf_grid=", int), ("adaptivity", "sdf_adapt=", float), ("k", "sdf_k=", float),
-                                                 ("thin", "sdf_thin=", str)) if (v := arg_value(rest, flag))}
+                                                 ("thin", "sdf_thin=", str), ("k_mode", "sdf_k_mode=", str)) if (v := arg_value(rest, flag))}
 
 
 def body_flags(body, nounion):

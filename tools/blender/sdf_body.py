@@ -36,6 +36,10 @@ PAD = 3                 # voxels of air around the body's box
 K_FRAC = 0.25           # smooth-min width, x the smaller radius of the two parts
 K_MAX_H = 0.03          # ... at most this share of the height
 K_MIN_VOX = 0.5         # ... at least this many voxels
+K_MODES = ("base", "class", "hard", "ext")     # PIPELINE 29.L11-5: base = the k above; class = x CLASS_K of the joint; hard = k 0 (union
+                                               # in the field); ext = base k blended only where both parts are outside (no fattening)
+CLASS_K = {("trunk", "trunk"): 1.0, ("limb", "trunk"): 0.5, ("limb", "limb"): 0.0}    # class mode: k x this, by the joint's classes
+LIMB_BONES = ("arm", "forearm", "hand", "thigh", "shin", "foot", "leg", "wing", "wheel")    # a bone's prefix before the first '.' / digit
 MARGIN_VOX = 4          # the field is truncated this many voxels (at least 2 k) outside the body
 EPS = 1e-9              # plane tolerance of the brute-force hull, x the scale of the points
 NO_SDF = ("flame",)     # materials kept out of the body (build_unit: the lit slit)
@@ -287,11 +291,14 @@ def part_d(part, P):
     return d - part.get("inflate", 0.0)
 
 
-def smin(a, b, k):
-    """Polynomial smooth minimum (Quilez); a hard min for k <= 0."""
+def smin(a, b, k, exterior=False):
+    """Polynomial smooth minimum (Quilez); a hard min for k <= 0. `exterior`: the blend only where a and b are both > 0 (outside
+    both parts), so the inside of a joint stays the plain min and the blend fills only the crease (PIPELINE 29.L11-5)."""
     if k <= 0:
         return np.minimum(a, b)
     h = np.maximum(k - np.abs(a - b), 0) / k
+    if exterior:
+        h = h * ((a > 0) & (b > 0))
     return np.minimum(a, b) - h * h * k * 0.25
 
 
@@ -364,20 +371,21 @@ class Field:
     """parts (normalized) + pairs [(a, b, k)] smooth-joined + the grid. `grid` float32 (nx, ny, nz), `origin`, `voxel`; `owner`
     int16 (part index in `parts`, -1 where no part is within `margin`) after compute(owner=True)."""
 
-    def __init__(self, parts, pairs, origin, voxel, shape, k_scale=1.0):
-        self.parts, self.pairs, self.k_scale = parts, [tuple(p) for p in pairs], k_scale
+    def __init__(self, parts, pairs, origin, voxel, shape, k_scale=1.0, k_mode="base"):
+        self.parts, self.pairs, self.k_scale, self.k_mode = parts, [tuple(p) for p in pairs], k_scale, k_mode
         self.origin, self.voxel, self.shape = np.asarray(origin, float), float(voxel), tuple(int(s) for s in shape)
         self.margin = max(MARGIN_VOX * self.voxel, 2 * max((k for *_, k in self.pairs), default=0.0))
         self.grid = self.owner = None
         self.kept = []      # rows left out of the field as too thin (field(thin="keep"))
 
     def to_json(self):
-        return {"version": 1, "k_scale": self.k_scale, "origin": self.origin.tolist(), "voxel": self.voxel,
+        return {"version": 1, "k_scale": self.k_scale, "k_mode": self.k_mode, "origin": self.origin.tolist(), "voxel": self.voxel,
                 "shape": list(self.shape), "pairs": [list(p) for p in self.pairs], "parts": self.parts}
 
     @classmethod
     def from_json(cls, doc):
-        return cls(doc["parts"], doc["pairs"], doc["origin"], doc["voxel"], doc["shape"], doc.get("k_scale", 1.0))
+        return cls(doc["parts"], doc["pairs"], doc["origin"], doc["voxel"], doc["shape"], doc.get("k_scale", 1.0),
+                   doc.get("k_mode", "base"))
 
     def slab(self, part):
         """Index ranges ((i0, i1), ..) of the grid within `margin` of the part's box, or None."""
@@ -410,19 +418,19 @@ class Field:
                 self.owner[sl] = np.where(win, n, self.owner[sl])
         for a, b, k in self.pairs:
             if k > 0 and a in slabs and b in slabs:
-                self.join(grid, slabs[a], slabs[b], k)
+                self.join(grid, slabs[a], slabs[b], k, self.k_mode == "ext")
         self.grid = grid
         return self
 
     @staticmethod
-    def join(grid, sa, sb, k):
+    def join(grid, sa, sb, k, exterior=False):
         (ra, da), (rb, db) = sa, sb
         rng = [(max(x0, y0), min(x1, y1)) for (x0, x1), (y0, y1) in zip(ra, rb)]
         if any(hi <= lo for lo, hi in rng):
             return
         cut = lambda r, d: d[tuple(slice(lo - r0, hi - r0) for (lo, hi), (r0, _) in zip(rng, r))]  # noqa: E731
         sl = tuple(slice(lo, hi) for lo, hi in rng)
-        grid[sl] = np.minimum(grid[sl], smin(cut(ra, da), cut(rb, db), k))
+        grid[sl] = np.minimum(grid[sl], smin(cut(ra, da), cut(rb, db), k, exterior))
 
     def distances(self, points):
         """(parts, N) hard distance of each part to the (N, 3) points."""
@@ -434,7 +442,7 @@ class Field:
         dm = self.distances(points)
         out = dm.min(0)
         for a, b, k in self.pairs:
-            out = np.minimum(out, smin(dm[a], dm[b], k))
+            out = np.minimum(out, smin(dm[a], dm[b], k, self.k_mode == "ext"))
         return out
 
     def ownership(self, points):
@@ -446,15 +454,30 @@ class Field:
         return idx, two[0], two[1]
 
 
-def pair_k(a, b, voxel, height, k_scale):
-    return k_scale * min(max(K_FRAC * min(a["r"], b["r"]), K_MIN_VOX * voxel), K_MAX_H * height)
+def bone_class(bone):
+    """"limb" for an arm / leg / wing / wheel bone (arm.L, thigh.R, leg3.upper, wing1.lower), else "trunk" (pelvis, spine.1, head,
+    body, abdomen, tail.1, neck)."""
+    return "limb" if bone.split(".")[0].rstrip("0123456789") in LIMB_BONES else "trunk"
 
 
-def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, compute=True, thin="off"):
+def pair_k(a, b, voxel, height, k_scale, mode="base"):
+    """The smooth-min width of two joined parts. `mode` (K_MODES): "hard" 0; "class" x CLASS_K of the two bones' classes; else base."""
+    if mode == "hard":
+        return 0.0
+    k = k_scale * min(max(K_FRAC * min(a["r"], b["r"]), K_MIN_VOX * voxel), K_MAX_H * height)
+    if mode == "class":
+        k *= CLASS_K[tuple(sorted((bone_class(a["bone"]), bone_class(b["bone"]))))]
+    return k
+
+
+def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, compute=True, thin="off", k_mode="base"):
     """The body's Field. `parts`: the spec rows [bone, kind, dims, at, material, opts]; `cuts`: cut_hull's json (by row index);
     `rig`: (family, extras), RF already scaled by the caller; k: scale of every junction's k (0: hard union); grid: voxels
     along the height. `thin` (PIPELINE 28.L10-7), for the parts under THIN_VOX voxels: "off" nothing, "inflate" fatten them
-    (thin_inflation), "keep" leave them out of the field (their rows are in `Field.kept`: the caller builds them as polygons)."""
+    (thin_inflation), "keep" leave them out of the field (their rows are in `Field.kept`: the caller builds them as polygons). `k_mode`: how the junctions' k is chosen
+    (K_MODES, PIPELINE 29.L11-5)."""
+    if k_mode not in K_MODES:
+        raise ValueError(f"k_mode={k_mode}: {', '.join(K_MODES)}")
     body = normalize(parts, cuts, rig)
     if not body:
         raise ValueError("the spec has no body part")
@@ -470,9 +493,9 @@ def field(parts, cuts=None, rig=("biped", ()), k=1.0, grid=GRID, owner=False, co
             p["inflate"] = fat[p["i"]]
     family, extras = rig
     up = RF.parents(family, extras) if family in RF.FAMILIES else {}
-    pairs = [(a, b, pair_k(body[a], body[b], voxel, height, k))
+    pairs = [(a, b, pair_k(body[a], body[b], voxel, height, k, k_mode))
              for a, b in itertools.combinations(range(len(body)), 2) if related(up, body[a]["bone"], body[b]["bone"])]
-    f = Field(body, pairs, lo - PAD * voxel, voxel, shape, k)
+    f = Field(body, pairs, lo - PAD * voxel, voxel, shape, k, k_mode)
     f.kept = sorted(fat) if thin == "keep" else []
     return f.compute(owner) if compute else f
 
@@ -623,6 +646,7 @@ def main():
     ap.add_argument("spec")
     ap.add_argument("--grid", type=int, default=GRID, help="voxels along the height (64 / 96 / 128)")
     ap.add_argument("--k", type=float, default=1.0, help="scale of the junctions' k (0: hard union)")
+    ap.add_argument("--k-mode", choices=K_MODES, default="base", help="how each junction's k is chosen (PIPELINE 29.L11-5)")
     ap.add_argument("--cuts", help="cuts.json of cut_hull (parts with cut: sheet, sheet profiles)")
     ap.add_argument("--out", help="the grid, .npy float32 (x, y, z)")
     ap.add_argument("--json", help="clay.sdf.json: parts + k + grid, for mesh_lint")
@@ -633,7 +657,7 @@ def main():
     RF.scale_rig(family, doc.get("rig_measure"))
     cuts = json.loads(pathlib.Path(a.cuts).read_text()) if a.cuts else {}
     t0 = time.perf_counter()
-    f = field([tuple(r) for r in doc["parts"]], cuts, (family, doc.get("bones") or ()), a.k, a.grid, a.owner)
+    f = field([tuple(r) for r in doc["parts"]], cuts, (family, doc.get("bones") or ()), a.k, a.grid, a.owner, k_mode=a.k_mode)
     seconds = time.perf_counter() - t0
     if a.out:
         np.save(a.out, f.grid)

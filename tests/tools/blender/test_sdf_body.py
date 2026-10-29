@@ -135,6 +135,33 @@ class Union(unittest.TestCase):
         self.assertGreaterEqual(k, 0.5 * f.voxel - 1e-12)
         self.assertLessEqual(k, 0.03 * f.shape[2] * f.voxel)
 
+    def test_k_by_joint_class(self):
+        """trunk-trunk x1, trunk-limb x0.5, limb-limb 0; hard = 0 whatever the pair (PIPELINE 29.L11-5)."""
+        r = lambda bone, thick: row(bone, "box", (thick, 0.4, 0.4), (0, 1, 0))      # noqa: E731
+        ks = {}
+        for mode in ("base", "class", "hard"):
+            f = S.field([r("pelvis", 0.4), r("spine", 0.4), r("arm.L", 0.4)] + [r("forearm.L", 0.4)], rig=("biped", ()), grid=32,
+                        compute=False, k_mode=mode)
+            ks[mode] = {(f.parts[a]["bone"], f.parts[b]["bone"]): k for a, b, k in f.pairs}
+        k0 = ks["base"][("pelvis", "spine")]
+        self.assertAlmostEqual(ks["class"][("pelvis", "spine")], k0)
+        self.assertAlmostEqual(ks["class"][("spine", "arm.L")], 0.5 * k0)
+        self.assertEqual(ks["class"][("arm.L", "forearm.L")], 0.0)
+        self.assertEqual(set(ks["hard"].values()), {0.0})
+        with self.assertRaises(ValueError):
+            S.field(self.ROWS, rig=("biped", ()), grid=32, compute=False, k_mode="nope")
+
+    def test_exterior_blend_does_not_fatten_the_inside(self):
+        rows = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), row("head", "box", (0.4, 0.4, 0.4), (0.2, 1.0, 0))]
+        base = S.field(rows, rig=("biped", ()), grid=32, compute=False)
+        ext = S.field(rows, rig=("biped", ()), grid=32, compute=False, k_mode="ext")
+        inside = np.array([[0.1, 0.0, 1.0]])             # d = -0.1 in both boxes
+        self.assertLess(float(base.d(inside)[0]), -0.1 - 1e-6)
+        self.assertAlmostEqual(float(ext.d(inside)[0]), -0.1, 9)
+        crease = np.array([[0.3, 0.0, 1.3]])             # outside both: the fillet is still there
+        self.assertAlmostEqual(float(ext.d(crease)[0]), float(base.d(crease)[0]), 9)
+        self.assertEqual(S.Field.from_json(json.loads(json.dumps(ext.to_json()))).k_mode, "ext")
+
     def test_grid_matches_the_exact_field_and_json_roundtrips(self):
         f = S.field(self.ROWS, rig=("biped", ()), grid=32, owner=True)
         g = S.Field.from_json(json.loads(json.dumps(f.to_json()))).compute(True)
