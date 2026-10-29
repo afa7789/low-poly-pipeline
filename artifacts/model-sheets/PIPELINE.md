@@ -4531,3 +4531,60 @@ Medição (`spec.json` v12-r1 -> `build_unit ... tex style=cel`, split x merge; 
   pernas, medir no controle `v13-r1-union`. (2) hfoo sliver 5.4 % e n005 nd −9.5° vêm do deform/fit-verts sobre a malha SDF.
   (3) Peça do spec sem contacto (n00U `leg6`, n01I, n00H): regra de preflight "toda peça do corpo toca o pai" ou ponte SDF.
   (4) `fit_stage`, zonas e propid continuam a usar a união (câmeras/IDs), inofensivo mas duplica build.
+
+## 29. Leva 11 (2026-10-29)
+
+### 29.L11-0 Flip lateral medido (hfoo left)
+
+- **Pergunta.** `diagnosis.md` do hfoo v13 diz que a figura "left" do sheet está espelhada (pack do lado oposto) e o left fica em
+  .415 (união .417: não é o corpo). `silhouette.variants` já testa `np.fliplr` no left. Causa (a) o espelho é escolhido e o problema é
+  outro, (b) a escolha não chega ao fit/deform/verts, ou (c) escolha por vista contradiz o rts?
+- **Medida (clay `v13-r1`, rasterização de `deform_to_sheet.view_state`, sheet.jpg; vale igual para sheet-hard.jpg).**
+  (b) e (c) descartadas: `fit_spec.best_variant`, `fit_grad.best_variant`, `deform_to_sheet.make_views` (e `optimize_verts` via
+  `make_views`) escolhem o espelho pelo mesmo critério (melhor IoU de bbox enquadrado) que `silhouette.best_match`; o rts nunca
+  espelha. A decisão é consistente e **errada**:
+
+  | left | IoU normal | IoU espelho | escolhe | IoU normal, melhor deslocamento | espelho, melhor deslocamento | só corpo (sem props) deslocado n/e |
+  |---|---|---|---|---|---|---|
+  | hfoo | .344 | .409 | espelho | **.664** | .530 | .699 / .693 |
+  | n005 | .944 | .596 | normal | .944 | .617 | .834 / .626 |
+  | n00U | .610 | .780 | espelho | .694 | .783 | .685 / .776 |
+  | n017 | .564 | .773 | espelho | .565 | .781 | .568 / .775 |
+  | n02X | .837 | .436 | normal | .837 | .579 | .771 / .635 |
+
+  Imagem: `scratchpad/l11-flip/hfoo-left-both.png` (vermelho sheet, verde modelo; esquerda normal, direita espelho). No normal o pack
+  (atrás, image-left) e o rosto (image-right) batem com o sheet; o espelho "ganha" porque o bbox do sheet inclui a diagonal do
+  pique (alarga a figura e desloca o corpo), então o corpo espelhado cai por cima do contorno deslocado e o pack vai ao lado
+  errado. Causa: **(d) enquadramento por bbox** (`silhouette.normalize`) com um prop desenhado fora da coluna do corpo.
+- **O que mudou (atrás de flag, desligada).** `silhouette.side_iou` (IoU no melhor deslocamento, correlação por FFT, grade a cada
+  4 px: só decide o lado) e `silhouette.pick_variant`: nas vistas front/left/back com `FLIP_SIDE`, o espelho é o que `side_iou`
+  separa por `SIDE_MARGIN = 0.05`; empate/quase-simetria (frente de aranha) e as outras vistas ficam no IoU simples. Usado por
+  `best_match` (retorna agora `(iou, máscara, tilt, flipped)`), `fit_spec.Proxy.best_variant`/`failing_band`,
+  `fit_grad.best_variant`, `deform_to_sheet.best_option` (`make_views`). `silhouette.json` ganha `"flipped": {view: bool}`
+  (por vista no relatório de `silhouette.py`, resumo na run) e o `review.md` a linha "side view mirrored". Flags:
+  `--flip-side` em `silhouette.py` e `spec_pipeline.py` (este exporta `CF_FLIP_SIDE=1` aos subprocessos). Teste
+  `SideMirror` (sheet sintético com pique diagonal, sem Blender).
+- **Antes × depois (rebuild `--body sdf --tilts <v13> --shape-only --no-repair --no-diagnose`, IoU f/l/b/top/bot/rts).**
+
+  | un. | v13-r1 | `--flip-side` desligado (controle) | `--flip-side` ligado |
+  |---|---|---|---|
+  | hfoo | .847/.415/.853/.796/.859/.703 | .857/.430/.861/.816/.853/.711 | .864/**.324**/.868/.812/.834/.733 |
+  | n005 | .921/.947/.932/.764/.833/.878 | .924/.946/.925/.763/.829/.877 | .922/.944/.930/.762/.827/.877 |
+  | n00U | .886/.782/.885/.738/.704/.665 | .899/.779/.893/.683/.737/.619 | .895/.791/.897/.736/.690/.611 |
+  | n017 | .924/.775/.870/.822/.871/.700 | .905/.796/.866/.814/.861/.744 | .909/.823/.850/.800/.870/.718 |
+  | n02X | .907/.837/.918/.766/.774/.805 | .899/.836/.913/.764/.776/.800 | .900/.832/.912/.755/.771/.785 |
+
+  Acima de ±.005 nas 4 unidades NÃO é efeito da flag: a decisão do lado é idêntica ao IoU simples em 12/12 vistas (clay v13 e clay
+  do controle), e o `optimize_verts` para por relógio (`--seconds 120`), então rebuilds com a máquina carregada variam .02–.05
+  (n00U top .683/.738/.736). Só o hfoo left muda de decisão (espelho → normal) e piora: .430 → .324.
+- **Por que a orientação certa não dá ≥ .60.** Com o lado certo o IoU enquadrado continua .32–.34: o sheet tem o pique diagonal
+  (do chão atrás até acima do ombro, bbox largo) e o modelo o tem vertical (bbox estreito), então os dois enquadramentos diferem
+  em ~40 px e nenhum passo (fit/deform/verts, todos contra a máscara enquadrada) consegue encostar corpo e pack. Mesma figura
+  deslocada daria .66 (corpo .70). Teste de spec (cópia em `scratchpad/l11-flip/hfoo-pike-spec.json`: pique de (z −.55, y .09) a
+  (z 1.0, y 2.47) em vez de vertical, run `hfoo/l11-flip-pike`, `--flip-side` desligado): left .321 → **.464**, front/back
+  iguais (.851/.857), mas rts .711 → **.588** (o sheet rts já era incoerente: .56) e top .816 → .749. Não passa de .60.
+- **Correção real, para L11-1/2.** (1) delta de spec: pose do pique, base atrás (z ≈ −.55) e ponta à frente/acima do ombro
+  (z ≈ +1), conciliando com o rts (sheet incoerente entre left e rts: não dá para satisfazer os dois); profundidade do pack
+  (z −.30, caixa) como no sheet. (2) enquadrar o left pelo corpo (bbox sem os props de `prop_masks`) em vez do bbox da figura,
+  mudança em `silhouette.normalize`/`concept_panels` que mexe em todas as unidades (próprio item, medir 15 vistas).
+  Enquanto isso `--flip-side` fica opt-in: só vale ligar junto com (1) ou (2).

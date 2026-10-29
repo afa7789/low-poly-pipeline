@@ -15,6 +15,7 @@ background bands of the 3+2 template, so the same code works for every unit shee
 import argparse
 import json
 import math
+import os
 import pathlib
 import subprocess
 import sys
@@ -1525,13 +1526,19 @@ def detect_rotated(panels, model, forced=""):
 
 
 def best_match(concept, tilted, name):
-    """Best IoU over the mirror variants of every rendered tilt: (iou, mask, tilt)."""
-    best = (-1.0, None, 0)
+    """Best IoU over the mirror variants of every rendered tilt: (iou, mask, tilt, flipped). A side view
+    (one tilt) takes the mirror pick_variant chooses; its score is the plain IoU of that mask."""
+    best = (-1.0, None, 0, False)
     for tilt, mask in tilted.items():
-        for variant in variants(normalize(mask), name):
+        options = variants(normalize(mask), name)
+        ks = range(len(options))
+        if name in SIDE_VIEWS:
+            k = pick_variant(concept, options, name)
+            options, ks = [options[k]], [k]
+        for variant, k in zip(options, ks):
             score = iou(concept, variant)
             if score > best[0]:
-                best = (score, variant, tilt)
+                best = (score, variant, tilt, k == 1)
     return best
 
 
@@ -1578,6 +1585,34 @@ def variants(mask, name):
     The RTS view is never mirrored: the azimuth sweep already covers both sides, and a
     mirrored match renders the model from the opposite side of the concept."""
     return [mask] if name == "rts" else [mask, np.fliplr(mask)]
+
+
+FLIP_SIDE = os.environ.get("CF_FLIP_SIDE") == "1"   # PIPELINE 29.L11-0 (opt-in: hfoo left .43 -> .32): front/left/back pick the mirror by the shift-tolerant IoU
+SIDE_VIEWS = ("front", "left", "back")
+SIDE_MARGIN = 0.05     # side_iou must separate the mirrors by this much to overrule the plain IoU
+SIDE_STEP = 4          # the shift search runs on every 4th pixel: it only decides the side, the score stays the plain IoU
+
+
+def side_iou(a, b):
+    """IoU of the masks at the best translation of b (coarse FFT cross-correlation). The panels are framed by their
+    bbox, and a drawn prop (a diagonal pike) widens the sheet's bbox but not the model's: the plain IoU then
+    prefers the mirror whose body lands on the shifted outline, even with the pack on the wrong side."""
+    from scipy.signal import fftconvolve
+    a, b = (np.asarray(m)[::SIDE_STEP, ::SIDE_STEP].astype(float) for m in (a, b))
+    inter = fftconvolve(a, b[::-1, ::-1], mode="full")
+    return float((inter / np.maximum(a.sum() + b.sum() - inter, 1.0)).max())
+
+
+def pick_variant(concept, options, name):
+    """Index of the option (variants(): the mask, its mirror) that matches `concept`. The side views go by side_iou
+    when it separates the options by SIDE_MARGIN and FLIP_SIDE is on (opt-in); a near-symmetric figure (a spider's
+    front) or any other view keeps the plain IoU."""
+    plain = [iou(concept, o) for o in options]
+    if FLIP_SIDE and name in SIDE_VIEWS and len(options) > 1:
+        shifted = [side_iou(concept, o) for o in options]
+        if max(shifted) - min(shifted) >= SIDE_MARGIN:
+            return int(np.argmax(shifted))
+    return int(np.argmax(plain))
 
 
 def iou(a, b):
@@ -1780,9 +1815,12 @@ def main():
     ap.add_argument("--tilts", default="",
                     help="pin the top/bottom/rts cameras, e.g. top:10,bottom:20,rts:35/30 "
                          "(the colour stage reuses the shape stage's cameras)")
+    ap.add_argument("--flip-side", action="store_true",
+                    help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0), not the plain IoU")
     args = ap.parse_args()
-    global ZONE_SPACE
+    global ZONE_SPACE, FLIP_SIDE
     ZONE_SPACE = args.space
+    FLIP_SIDE = FLIP_SIDE or args.flip_side
     gates = gates_for(args.rig)
     if args.measure:
         print(json.dumps({**measure(args.sheet), "sheet": sheet_report(args.sheet, args.layout)}, indent=2))
@@ -1812,13 +1850,13 @@ def main():
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
-        best, best_mask, tilt = best_match(concept[name], model[name], name)
+        best, best_mask, tilt, flipped = best_match(concept[name], model[name], name)
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
         px = iou(downsample(concept[name]), downsample(best_mask))
         gate = gates.get(name)
         report[name] = {"iou": round(best, 4), "width_l1": round(l1, 4),
                         "iou_32": round(px, 4), "chamfer": round(chamfer(concept[name], best_mask), 4),
-                        "tilt": tilt, "gate": gate, **coupling(concept[name], best_mask),
+                        "tilt": tilt, "flipped": flipped, "gate": gate, **coupling(concept[name], best_mask),
                         **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
         ok = (gate is None or best >= gate) and coupling_ok(name, report[name])

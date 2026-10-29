@@ -57,6 +57,7 @@ import argparse
 import base64
 import collections
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -1281,6 +1282,7 @@ def shape_review(args, glb, layout):
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
+        summary["flipped"] = {v: r["flipped"] for v, r in report.items() if "flipped" in r}
         summary["top_orientation"] = {v: report[v]["head"] for v in ("top", "bottom") if v in report}
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
         for key in ("uncovered", "spill", "red"):     # coupling (PIPELINE 21.F7)
@@ -1767,6 +1769,9 @@ def iou_rows(summary):
             out += row("gates", summary["gates"], shape)
         if summary.get("top_orientation"):
             out += "| sheet top / bottom drawn | " + " / ".join(summary["top_orientation"].values()) + " |\n"
+        if summary.get("flipped"):
+            out += "| side view mirrored (front / left / back) | " + " / ".join(
+                str(summary["flipped"].get(v, "-")) for v in ("front", "left", "back")) + " |\n"
         if summary.get("tilt"):
             out += "| camera (tilt, rts elev/azim) | " + ", ".join(
                 f"{v} {'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}"
@@ -2084,6 +2089,8 @@ def main():
                          "fixed topology (optimize_verts.py, Wiersma 2026; 30 s with the soft gradient; default since "
                          "PIPELINE 26.L8-6b)")
     ap.add_argument("--no-fit-verts", dest="fit_verts", action="store_false", help="skip the vertex optimisation")
+    ap.add_argument("--flip-side", action="store_true",
+                    help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0, opt-in); sets CF_FLIP_SIDE for the tools")
     ap.add_argument("--no-repair", action="store_true",
                     help="skip the pass-0 repair of preflight failures (on by default)")
     ap.add_argument("--passes", default="",
@@ -2098,6 +2105,7 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     args = ap.parse_args()
+    os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.style = args.texture        # the old name, for stage 2 code that still reads it

@@ -555,3 +555,34 @@ class BodyOnly(unittest.TestCase):
         got, tot = S.coupling_split(concept, model, props), S.coupling(concept, model)
         self.assertAlmostEqual(got["uncovered_body"] + got["uncovered_prop"], tot["uncovered"], places=3)
         self.assertAlmostEqual(got["spill_body"] + got["spill_prop"], tot["spill"], places=3)
+
+
+class SideMirror(unittest.TestCase):
+    """29.L11-0: a prop that widens the sheet's bbox must not decide which mirror a side view takes."""
+
+    @staticmethod
+    def figure(pike):
+        m = np.zeros((256, 384), bool)
+        m[10:250, 150:190] = True             # body
+        m[60:160, 120:150] = True             # pack behind (image-left)
+        if pike:                              # a diagonal pike running far past the body on the right
+            for t in np.linspace(0, 1, 400):
+                m[int(250 - 240 * t), int(100 + 150 * t)] = True
+        return S.normalize(m)
+
+    def test_pike_does_not_flip_the_pick(self):
+        concept, model = self.figure(True), self.figure(False)
+        options = S.variants(model, "left")
+        self.assertGreater(S.iou(concept, options[1]), S.iou(concept, options[0]))     # the premise: plain IoU says mirror
+        self.assertEqual(S.pick_variant(concept, options, "left"), 1)                    # opt-in: off by default
+        with unittest.mock.patch.object(S, "FLIP_SIDE", True):
+            self.assertEqual(S.pick_variant(concept, options, "left"), 0)
+            self.assertEqual(S.pick_variant(concept, S.variants(model, "rts"), "rts"), 0)    # other views: plain
+
+    def test_best_match_reports_flipped(self):
+        concept = self.figure(False)
+        score, mask, tilt, flipped = S.best_match(concept, {0: np.fliplr(concept)}, "left")
+        self.assertTrue(flipped)
+        self.assertGreater(score, 0.95)
+        self.assertFalse(S.best_match(concept, {0: concept}, "left")[3])
+        self.assertFalse(S.best_match(concept, {0: np.fliplr(concept)}, "rts")[3])      # the rts is never mirrored

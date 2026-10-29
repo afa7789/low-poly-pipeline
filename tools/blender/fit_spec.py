@@ -295,10 +295,9 @@ class Proxy:
 
     def best_variant(self, view, mask, concept=None):
         """(mask, IoU, flipped): the better of the mask and its mirror, like silhouette.variants."""
-        options = silhouette.variants(mask, view)
-        scores = [silhouette.iou(self.concept[view] if concept is None else concept, m) for m in options]
-        k = int(np.argmax(scores))
-        return options[k], scores[k], k == 1
+        options, concept = silhouette.variants(mask, view), self.concept[view] if concept is None else concept
+        k = silhouette.pick_variant(concept, options, view)
+        return options[k], silhouette.iou(concept, options[k]), k == 1
 
     def view_score(self, view, mask, split=None):
         """(IoU, chamfer, flipped) against the concept (`split`: self.split[view], against its body mask)."""
@@ -377,7 +376,8 @@ class Proxy:
 def failing_band(proxy, mask, view):
     """Boolean per canvas row: where the proxy's error is concentrated (>= BAND_SHARE of the worst
     smoothed row). Sketch2Mesh Eq. 6: only the region that fails is allowed to move."""
-    concept = max(silhouette.variants(mask, view), key=lambda m: silhouette.iou(proxy.concept[view], m))
+    options = silhouette.variants(mask, view)
+    concept = options[silhouette.pick_variant(proxy.concept[view], options, view)]
     err = np.logical_xor(proxy.concept[view], concept).sum(axis=1).astype(float)
     err = np.convolve(err, np.ones(BAND_SMOOTH) / BAND_SMOOTH, mode="same")
     return err >= BAND_SHARE * err.max() if err.max() > 0 else np.zeros_like(err, bool)

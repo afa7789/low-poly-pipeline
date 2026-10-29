@@ -353,6 +353,17 @@ def candidates(name, panel, cam=None):
             yield (*tilted_axes(name, tilt), concept)
 
 
+def best_option(name, options, pos, tri):
+    """(option, mirror) whose raster matches the panel best; the side views pick the mirror of that option by the
+    shift-tolerant IoU (silhouette.pick_variant: a prop that widens the sheet's bbox must not decide the side)."""
+    rasters = {(i, m): view_state(pos, tri, View(name, o[0], o[1], m, o[2], True))[1]
+               for i, o in enumerate(options) for m in ((1,) if name == "rts" else (1, -1))}
+    i, m = max(rasters, key=lambda k: S.iou(options[k[0]][2], rasters[k]))
+    if name in S.SIDE_VIEWS and S.FLIP_SIDE:
+        m = (1, -1)[S.pick_variant(options[i][2], [rasters[i, 1], rasters[i, -1]], name)]
+    return options[i], m
+
+
 def make_views(pos, tri, panels, pulling, props=None, cams=None):
     """Views of the sheet: the pulling ones (`pulling` names) and the guards (the other top/bottom). The mirror
     of each (and tilt / turn of top/bottom, camera of the rts) is the one whose raster matches the panel best, like
@@ -361,8 +372,7 @@ def make_views(pos, tri, panels, pulling, props=None, cams=None):
     for name, panel in panels.items():
         options = [(*np.array(FRONT_AXES[name], float), S.normalize(panel))] if name in FRONT_AXES \
             else list(candidates(name, panel, (cams or {}).get(name)))
-        score = lambda o, m: S.iou(o[2], view_state(pos, tri, View(name, o[0], o[1], m, o[2], True))[1])  # noqa: E731
-        best = max(((o, m) for o in options for m in ((1,) if name == "rts" else (1, -1))), key=lambda om: score(*om))
+        best = best_option(name, options, pos, tri)
         (ru, rv, concept), mirror = best
         views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name)))
     return views
