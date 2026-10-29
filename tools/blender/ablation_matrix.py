@@ -158,7 +158,7 @@ def command(unit, name, v, tilts):
     """The spec_pipeline.py command line of one (unit, variant); a `{deltas}` word is the unit's L11-1 diagnosis.json."""
     flags = [str(DELTAS / unit / "diagnosis.json") if w == "{deltas}" else w for g in v["flags"] for w in g]
     return [sys.executable, str(ROOT / "tools/blender/spec_pipeline.py"), "--id", unit, "--race", "Human", "--name", unit, "--kind", "mass",
-            "--spec", str(DRAFT / unit / ORIGIN / "spec.json"), "--no-repair", "--no-diagnose", "--deterministic", "--run", run_name(name),
+            "--rig", json.loads((DRAFT / unit / ORIGIN / "spec.json").read_text()).get("rig", "biped"), "--spec", str(DRAFT / unit / ORIGIN / "spec.json"), "--no-repair", "--no-diagnose", "--deterministic", "--run", run_name(name),
             *([] if "--body" in flags else ["--body", "sdf"]), *([] if v["colour"] else ["--shape-only"]),
             *(["--tilts", tilts] if tilts else []), *flags]
 
@@ -407,7 +407,7 @@ def one(unit, name, args):
         return skip_row(unit, name, "not applicable (unit not listed or its input file missing)")
     run = DRAFT / unit / run_name(name)
     done = read_json(run / "batch.json")
-    if args.collect_only or (done and not args.rebuild):
+    if args.collect_only or (done.get("returncode") == 0 and not args.rebuild):
         total = done.get("total_s", 0.0)
     else:
         guard = DRAFT / unit / f"{run_name(name)}.lock"

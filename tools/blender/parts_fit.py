@@ -61,6 +61,8 @@ def associate(spec_parts, centres, parts_doc, height, zone_of=None, zone_idx=Non
     for part, c in zip(spec_parts, centres):
         best = None
         for k, p in enumerate(parts_doc["parts"]):
+            if not p.get("box3d"):      # hidden in the sheet (a prop behind the body, a leg under it): nothing to associate to
+                continue
             box = [np.asarray(b, float) * scale for b in p["box3d"]]
             gap = box_gap(np.asarray(c, float), box) / height
             if gap > ASSOC_REACH:
