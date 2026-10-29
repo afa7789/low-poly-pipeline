@@ -540,3 +540,11 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 | L10-9 | bateria v13 pareada contra v12 | PASS ≥ 3/5; slivers < 5 % ≥ 4/5; default só se tudo passar |
 
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
+
+# Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo
+
+Decisão do usuário (2026-10-29): a fase D da proposta externa (renderizar clay/wire/overlay → VLM compara com o sheet → deltas
+semânticos `{"part","action","value"}` aplicados como restrições de volume → mais passos de otimização) vira a Leva 11, só depois
+de a Leva 10 fechar a forma one-shot (BFS). Ideias dos geradores (Meshy T2 e cia) continuam só como ideias. Planejar com: saída
+estruturada por parte (escala/translação/rotação por eixo), N rodadas máximas, juiz pareado contra a rodada 0, custo por unidade,
+e critério de parada (nenhuma vista cai, forma sobe no juiz).
