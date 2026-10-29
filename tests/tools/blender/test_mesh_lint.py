@@ -108,6 +108,33 @@ class Lint(unittest.TestCase):
         self.assertAlmostEqual(m["normal_diff"]["mean"], 48.64, 1)
 
 
+class MirrorOverlap(unittest.TestCase):
+    """Knodt & Gao 2025 symmetric overlap: .L/.R twins on the same texels (PIPELINE 27.T4)."""
+    UV = np.array([[.1, .9], [.2, .9], [.1, .8]] * 2)       # two identical triangles in cell 0
+    TRI = np.array([[0, 1, 2], [3, 4, 5]])
+
+    def test_twins_share_texels(self):
+        self.assertEqual(L.raster_uv(self.UV, self.TRI, 64, 1, 1)[0], 100.0)
+        self.assertEqual(L.mirror_overlap_pct(self.UV, self.TRI, ["arm.L", "arm.R"], 64, 1, 1), 100.0)
+
+    def test_same_side_overlap_is_not_mirror(self):
+        self.assertEqual(L.mirror_overlap_pct(self.UV, self.TRI, ["arm.L", "forearm.L"], 64, 1, 1), 0.0)
+
+    def test_no_skin_no_report(self):
+        self.assertIsNone(L.mirror_overlap_pct(self.UV, self.TRI, [None, None], 64, 1, 1))
+
+    def test_twin_bones_share_an_atlas_slot(self):
+        """build_unit imports bpy: read TEX_SLOTS from its source."""
+        import ast
+        tree = ast.parse((ROOT / "tools/blender/build_unit.py").read_text())
+        slots = next(ast.literal_eval(n.value) for n in tree.body
+                     if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "TEX_SLOTS")
+        twins = [b for b in slots if b.endswith(".L")]
+        self.assertTrue(twins)
+        for left in twins:
+            self.assertEqual(slots[left], slots[left[:-2] + ".R"], left)
+
+
 class Status(unittest.TestCase):
     def test_four_levels(self):
         sm = {"approved": {"front": 0.80}, "gates": {"front": 0.85}}

@@ -514,5 +514,7 @@ já existe mas perde decais e ink. Regras: textura procedural sempre; gates no r
 
 Estado T2 (2026-10-29): feito atrás do `--atlas shared` (PIPELINE §27.T2): fusão ΔE .02 + coluna 2 px (32 col); aceite NÃO atingido (Human 13 -> 12 col, ~5-8 unidades/raça em 64²).
 
+Estado T4 (2026-10-29): **feito, já existia** — gêmeos `.L/.R` partilham célula e tom (25-36 % dos pixels cobertos em n005/hfoo); `mesh_lint.uv_overlap_mirror_pct` (relatório) = 2-3 %, o resto da sobreposição (64-81 %) é o cel "1 texel por tom". Único par desigual: `forearm` com prop na mão. PIPELINE §27.T4.
+
 Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.
 | T7 | paleta por raça: atlas partilhado 128² (64 colunas de 2 px) + paleta fixa da raça (das 14 cores dos ícones/compêndio) oferecida ao autor como restrição suave (`palette_hint`), para caber ≥ 16 unidades/raça (T2 mostrou que fusão por ΔE rende 1 coluna) | 128² por raça ≤ 4 KB; ≥ 16 unidades/raça na simulação; `zones mean` não cai > 0.01 nas 5 unidades |

@@ -3756,3 +3756,36 @@ das faces).
   autoradas diferem em mais que ΔE .02 (mesma superfície, cores distintas de propósito); só ΔE ~.12 chega a 7 colunas, mas isso muda a cor
   visivelmente. Para >= 16 unidades: 128² (64 colunas de 2 px, ~10 unidades) ou paleta fixa por raça imposta ao autor (cor do slot escolhida
   da paleta da raça, não livre) - não feito.
+
+### 27.T4 Espelho L/R: o symmetric overlap já está feito (Knodt & Gao, TOG 2025)
+
+Prova, sem mudar UV/células. Knodt & Gao sobrepõem charts espelhados no atlas (a metade espelhada reusa os mesmos texels) e cortam
+texels vazios. Aqui: em `build_unit.atlas_uvs` a célula de cada face em cel NÃO vem do osso (`TEX_SLOTS` só vale para
+`painted`): é `tone_index(normal.z)` e o slot de rampa (`ramp_slot`) sai de normal + altura relativa na peça; o bloco é o do
+material. Peças `.L/.R` são gêmeas do spec (mesmo material, geometria espelhada, normal.z igual) → caem na mesma célula, no mesmo
+tom, logo no mesmo texel. Em `painted`, `TEX_SLOTS` mapeia explicitamente `arm/forearm/thigh/shin/foot.L/.R` → mesmo slot (3..7).
+- `mesh_lint.uv_report` ganha `uv_overlap_mirror_pct` (só relatório, sem gate; `tri_bones` = osso dominante por triângulo pelo
+  skin; `mirror_overlap_pct`): % dos pixels cobertos cuja sobreposição some ao tratar `.L` e `.R` como uma camada só. `None`
+  sem skin.
+- Medição (raster 1024, v12-r1; hfoo e n00U re-texturizados com `build_unit.py ... tex style=cel` sobre o `spec.json`, pois o
+  v12-r1 só tem clay):
+
+| unidade | atlas | tris L / R / outros | `uv_overlap_pct` | `uv_overlap_mirror_pct` | pixels cobertos por L **e** R | pares gêmeos com célula+tom iguais |
+|---|---|---|---|---|---|---|
+| n005 | 768² | 122 / 110 / 398 | 64.7 | 2.1 | 25.3 % | arm, foot, shin 100 %; forearm 50 % |
+| hfoo | 768² | 124 / 156 / 350 | 74.7 | 2.7 | 35.6 % | arm, foot, shin, thigh 100 %; forearm 45 % |
+| n00U (spider) | 768×512 | 0 / 0 / 625 | 80.8 | 0.0 | n/a (sem `.L/.R`) | n/a |
+| n017 (quadruped) | 512² | 0 / 0 / 626 | 81.2 | 0.0 | n/a (sem `.L/.R`) | n/a |
+
+- Conclusão: **já feito.** Os gêmeos partilham célula, tom e texel (25-36 % dos pixels cobertos recebem L e R). Mas o espelho é
+  a menor parte da sobreposição: 64-81 % dos pixels cobertos têm 2+ triângulos porque o cel já é "1 texel por tom" — toda face
+  do mesmo material, tom e rampa cai no mesmo slot, de qualquer osso, inclusive no mesmo lado. Por isso `mirror_pct` (só o que
+  é explicado pelos gêmeos) fica em 2-3 %: sobreposição "não simétrica" ≈ 97 %, por projeto e esperada. O carving de Knodt & Gao
+  ("1 texel por tom", cortar texels vazios) é o que T1 faz (slot de rampa 2 px); nada a fazer em T4.
+- Gêmeos que NÃO partilham célula/tom (não corrigidos; T1/T2 mexem no atlas): só `forearm.L/.R` em n005 e hfoo, por conteúdo
+  assimétrico legítimo, não por mapeamento: o prop na mão (n005 `prop_vaporiser` na `forearm.L`; hfoo `steel`/
+  `prop_trench_pike` na `forearm.R`) é skinado no antebraço e usa material/bloco próprio. O corpo (`z1/z2/z3`, `tunic`, `skin`...)
+  do antebraço é idêntico dos dois lados. n00U e n017 (spider/quadruped, ossos `leg1..4`) não têm gêmeos `.L/.R`: o mesmo
+  ganho vem do compartilhamento por tom, não de espelho.
+- Testes: `test_mesh_lint.MirrorOverlap` (gêmeos sintéticos 100 %, mesmo lado 0 %, sem skin `None`, `TEX_SLOTS` com `.L/.R` no
+  mesmo slot, lido do fonte porque `build_unit` importa `bpy`). Sem flag nem default novos.
