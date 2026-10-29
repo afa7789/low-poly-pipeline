@@ -584,6 +584,7 @@ com limites, cada rodada só é aceite se nenhuma vista cair > 0.01, N ≤ 2, ju
 | L11-3 | deltas como restrições do `fit_grad` (ablação contra edição do spec) | vence a via que sobe a média sem queda |
 | L11-4 | bateria v14 (`--loop 2`, pareada contra v13) + ficha 10 | PASS ≥ 4/5; média ≥ v13 5/5; juiz forma ≥ 3-1 em ≥ 3/5; ≤ +4 min/unidade |
 | L11-5 | `k` do smin por junta (custo real do sdf: rts −.03 em hfoo/n017) | rts ≥ união −0.01 no controle `v13-r1-union` |
+| L11-6 | retopologia Voronoi/CVT guiada por curvatura (`retopo.cvt`, Chatterjee et al. ICVGIP'22) | slivers finais < 5 % 5/5, nd ≤ qem +1°, IoU ≥ qem −0.01 em todas as vistas, euler = entrada, ≤ 5 s |
 
 Ordem: L11-0 → L11-1 → L11-2 → {L11-3 ∥ L11-5} → L11-4.
 
@@ -629,3 +630,5 @@ Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de m
 via MCP, com brief fixo, orçamento de tempo, script `polish.py` gravado e os mesmos gates (nenhuma vista cai > 0.01). Plano:
 `analysis/2026-10-29-leva12-mcp-polish.md` (L12-0 instalar/ligar MCP + cena de revisão; L12-1 contrato do estágio; L12-2 prova em 3
 unidades; L12-3 bateria v15). Fonte: Pokorný, WSCG 2026 (`docs/references.md`). Aguarda o fecho da Leva 11 e o "aprovado".
+
+**Estado L11-6 (2026-10-29): feito, atrás de `--sdf-retopo cvt` / `retopo(method="cvt")`; aceite NÃO atendido.** `retopo.cvt` (Lloyd geodésico, ρ = (ε+κ)^α, dual das células, qef + projeção no SDF; numpy puro, 0.2–2 s). Contra o rebuild qem nas 5 unidades: slivers finais < 5 % 5/5, nd −3…−5°, fairness 24–27 → 17–19; mas 6 vistas caem > .01 (até −.028) e o euler muda em 3/5 (alças finas se perdem). Default segue `qem`. Detalhe: PIPELINE §29.L11-6.

@@ -1975,9 +1975,10 @@ def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf",
 RETOPO_DEV = 0.02     # sdf_retopo: a collapse may not leave a triangle farther than this share of the height from the zero set (28.L10-3)
 
 
-def sdf_retopo(obj, field, target, lowest=0):
+def sdf_retopo(obj, field, target, lowest=0, method="qem"):
     """Replace the mesh of `obj` by retopo.reduce of it: at most `target` triangles, at least `lowest` unless the guard stops it,
-    the collapses projected onto the zero set of `field` (the grid for the loop, Field.d for the final polish). Returns the report."""
+    the collapses projected onto the zero set of `field` (the grid for the loop, Field.d for the final polish). `method`: RT.retopo's ("qem" = RT.reduce;
+    "cvt", PIPELINE 29.L11-6). Returns the report."""
     import numpy as np
     RT = sibling("retopo")
     mesh = obj.data
@@ -1985,7 +1986,7 @@ def sdf_retopo(obj, field, target, lowest=0):
     mesh.vertices.foreach_get("co", pos)
     tri = np.array([p.vertices[:] for p in mesh.polygons], int).reshape(-1, 3)
     height = max(p["hi"][2] for p in field.parts) - min(p["lo"][2] for p in field.parts)
-    verts, tris, report = RT.reduce(pos.reshape(-1, 3), tri, target, sdf=RT.grid_sdf(field.grid, field.origin, field.voxel),
+    verts, tris, report = RT.retopo(pos.reshape(-1, 3), tri, target, sdf=RT.grid_sdf(field.grid, field.origin, field.voxel), method=method,
                                     polish=field.d, grad_h=0.5 * field.voxel, max_dev=RETOPO_DEV * height,
                                     floor=min(1.0, lowest / target) if target > 0 else 0.0)
     mesh.clear_geometry()
@@ -2002,7 +2003,7 @@ def sdf_retopo(obj, field, target, lowest=0):
 SDF_GRID, SDF_ADAPT, SDF_K, SDF_THIN = 96, 0.0, 1.0, "inflate"     # body=sdf defaults (grid=, adapt=, k=, thin= on the command line)
 
 
-def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None, k_mode="base"):
+def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None, k_mode="base", retopo="qem"):
     """body=sdf (PIPELINE 28.L10-7): the SDF body of `spec` retopologized to `budget` minus the triangles of `keep` (props, the
     flame slit) and of the thin parts the "keep" policy leaves out, then skinned and materialled on the final positions
     (sdf_dense -> sdf_retopo -> skin_sdf). `parts` = (object, bone) per spec row. Returns (shell, kept thin parts, report, field)."""
@@ -2012,7 +2013,7 @@ def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thi
     kept = [parts[i] for i in field.kept]
     spare = sum(len(q.vertices) - 2 for o, _ in keep + kept for q in o.data.polygons)
     dense = len(obj.data.polygons)
-    rep = sdf_retopo(obj, field, budget - spare, int(UNION_FLOOR * budget) - spare)
+    rep = sdf_retopo(obj, field, budget - spare, int(UNION_FLOOR * budget) - spare, retopo)
     skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG)
     report = {"method": "sdf", "grid": grid, "k": k, "k_mode": k_mode, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
               "inflated": [p["i"] for p in field.parts if p.get("inflate")], "voxel": round(field.voxel, 5), "dense_tris": dense,
@@ -2024,9 +2025,9 @@ def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thi
 
 
 def sdf_args(rest):
-    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep sdf_k_mode=base|class|hard|ext (absent: the SDF_* defaults)."""
+    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep sdf_k_mode=base|class|hard|ext sdf_retopo=qem|cvt (absent: the SDF_* defaults)."""
     return {key: conv(v) for key, flag, conv in (("grid", "sdf_grid=", int), ("adaptivity", "sdf_adapt=", float), ("k", "sdf_k=", float),
-                                                 ("thin", "sdf_thin=", str), ("k_mode", "sdf_k_mode=", str)) if (v := arg_value(rest, flag))}
+                                                 ("thin", "sdf_thin=", str), ("k_mode", "sdf_k_mode=", str), ("retopo", "sdf_retopo=", str)) if (v := arg_value(rest, flag))}
 
 
 def body_flags(body, nounion):

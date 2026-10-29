@@ -647,12 +647,243 @@ def remesh(verts, tris, target_faces, sdf=None, iters=10, features=None, polish=
     return P, T, report
 
 
+# ---------------------------------------------------------------- curvature-guided CVT (L11-6)
+CVT_EPS = 0.3           # density rho = (CVT_EPS + kappa)^CVT_ALPHA, kappa = smoothed mean dihedral angle (rad) at the dense vertex
+CVT_ALPHA = 1.0
+CVT_ITERS = 30          # Lloyd iterations (stops sooner when no seed moves)
+CVT_SMOOTH = 2          # rings of averaging over kappa (the openvdb mesh has a 45 degree staircase: the raw dihedral is noise)
+CVT_SEED = 0
+CVT_TRIES = 4           # seed draws: the best one is kept (fewest defects, then smallest mean |sdf| at the face centroids); a draw is skipped past CVT_SECONDS
+CVT_SECONDS = 2.0
+CVT_PLACE = "qef"  # "centroid" (weighted cell centroid, projected) | "qef" (quadric minimiser of the cell's face planes, projected)
+CVT_QEF_REG = 0.5       # qef: Tikhonov pull to the centroid, x the mean eigenvalue
+
+
+def vertex_curvature(P, T, smooth=CVT_SMOOTH):
+    """(kappa (n,), vertex area (n,), sorted unique edge keys): kappa = mean dihedral angle (radians) of the incident edges,
+    averaged over `smooth` more rings. The dihedral is a 1-ring estimate that needs no cotan weights and is 0 on a plane."""
+    n = len(P)
+    keys, f0, f1, count = edge_faces(T, n)
+    nrm, area = tri_normals(P, T)
+    two = count == 2
+    theta = np.zeros(len(keys))
+    theta[two] = np.arccos(np.clip(np.einsum("kd,kd->k", nrm[f0[two]], nrm[f1[two]]), -1, 1))
+    a, b = keys // n, keys % n
+    deg = np.maximum(np.bincount(np.r_[a, b], minlength=n), 1)
+    kappa = np.bincount(np.r_[a, b], np.r_[theta, theta], minlength=n) / deg
+    for _ in range(smooth):
+        kappa = (np.bincount(np.r_[a, b], np.r_[kappa[b], kappa[a]], minlength=n) + kappa) / (deg + 1)
+    return kappa, np.bincount(T.ravel(), np.repeat(area / 3, 3), minlength=n), keys
+
+
+def seed_counts(label, weight, total):
+    """Seeds per connected component: 4 each (a tetrahedron is the smallest shell), the rest in proportion to the weight."""
+    k = label.max() + 1
+    size, w = np.bincount(label, minlength=k), np.bincount(label, weight, minlength=k)
+    extra = max(total - 4 * k, 0) * w / w.sum()
+    count = 4 + np.floor(extra).astype(int)
+    count[np.argsort(extra - np.floor(extra))[::-1][:max(total - count.sum(), 0)]] += 1
+    return np.minimum(count, size)
+
+
+def initial_seeds(label, weight, count, rng):
+    return np.concatenate([rng.choice(np.flatnonzero(label == c), count[c], replace=False, p=weight[label == c] / weight[label == c].sum())
+                           for c in range(len(count))])
+
+
+def components(src, dst, n):
+    """Connected-component label per vertex of the graph with directed edges src -> dst (both directions present): min-label
+    propagation with pointer jumping (a handful of rounds, no scipy: Blender's Python has none)."""
+    lab = np.arange(n)
+    while True:
+        new = lab.copy()
+        np.minimum.at(new, src, lab[dst])
+        new = new[new]
+        if (new == lab).all():
+            return np.unique(lab, return_inverse=True)[1]
+        lab = new
+
+
+def voronoi(adj, length, seeds, n):
+    """Cell (index into `seeds`) of every vertex: multi-source Dijkstra along the edges, as label-correcting rounds over the
+    frontier (numpy, ~the cost of a few passes over the edges; Blender's Python has no scipy.sparse.csgraph). adj = adjacency(...),
+    length = edge length per entry of adj[1]."""
+    ptr, dst = adj
+    dist, cell = np.full(n, np.inf), np.full(n, -1)
+    dist[seeds], cell[seeds] = 0.0, np.arange(len(seeds))
+    active = seeds
+    while len(active):
+        deg = ptr[active + 1] - ptr[active]
+        owner = np.repeat(np.arange(len(active)), deg)
+        idx = np.arange(deg.sum()) - np.repeat(np.cumsum(deg) - deg, deg) + ptr[active][owner]
+        tgt, cand = dst[idx], dist[active][owner] + length[idx]
+        better = cand < dist[tgt]
+        if not better.any():
+            break
+        tgt, cand, who = tgt[better], cand[better], cell[active][owner][better]
+        order = np.lexsort((cand, tgt))
+        tgt, cand, who = tgt[order], cand[order], who[order]
+        first = np.r_[True, tgt[1:] != tgt[:-1]]
+        dist[tgt[first]], cell[tgt[first]] = cand[first], who[first]
+        active = tgt[first]
+    return cell
+
+
+def lloyd(P, adj, length, weight, seeds, iters):
+    """Discrete Lloyd relaxation: cells = `voronoi` (the geodesic Voronoi diagram of the seeds, approximated along the edges),
+    seed <- the cell's vertex nearest to its weighted centroid. (seeds, cell label per vertex)."""
+    n, N = len(P), len(seeds)
+    for _ in range(iters):
+        label = voronoi(adj, length, seeds, n)
+        cw = np.maximum(np.bincount(label, weight, minlength=N), 1e-300)
+        centre = np.stack([np.bincount(label, weight * P[:, k], minlength=N) for k in range(3)], 1) / cw[:, None]
+        order = np.lexsort((np.linalg.norm(P - centre[label], axis=1), label))
+        first = order[np.r_[True, label[order][1:] != label[order][:-1]]]
+        moved = seeds.copy()
+        moved[label[first]] = first
+        if (moved == seeds).all():
+            break
+        seeds = moved
+    return seeds, voronoi(adj, length, seeds, n)
+
+
+def dual_faces(T, label, N):
+    """Triangles of the cell adjacency: each dense triangle whose three vertices lie in three different cells (a Voronoi vertex)
+    is one face on those cells, once, with the orientation of the dense triangle."""
+    L = label[T]
+    L = L[(L[:, 0] != L[:, 1]) & (L[:, 1] != L[:, 2]) & (L[:, 0] != L[:, 2])]
+    key = np.sort(L, axis=1) @ np.array([N * N, N, 1])
+    return L[np.unique(key, return_index=True)[1]]
+
+
+def half_edges(F, N):
+    return (F.ravel() * N + F[:, [1, 2, 0]].ravel()).reshape(-1, 3)
+
+
+def drop_overloaded(F, X):
+    """F without the faces that repeat a directed edge (a cell pair that touches in two places): of the faces on such an edge,
+    the largest stays. (F, number dropped)."""
+    N, dropped = len(X), 0
+    while True:
+        h = half_edges(F, N)
+        u, cnt = np.unique(h, return_counts=True)
+        if cnt.max() < 2:
+            return F, dropped
+        on = np.flatnonzero((h == u[cnt > 1][0]).any(1))
+        F = np.delete(F, on[np.argsort(tri_normals(X, F[on])[1])[:-1]], axis=0)
+        dropped += len(on) - 1
+
+
+def fill_holes(F, N):
+    """Close the loops of boundary edges with a triangle fan whose chords are new edges. (F, number of loops left open)."""
+    h = half_edges(F, N)
+    und = np.minimum(h // N, h % N) * N + np.maximum(h // N, h % N)
+    keys, inv, cnt = np.unique(und, return_inverse=True, return_counts=True)
+    bd = h.ravel()[(cnt == 1)[inv.ravel()]]
+    start, end = bd // N, bd % N
+    into = {int(e): int(s_) for s_, e in zip(start, end)}
+    taken, new, open_loops = set(), [], 0
+    for b in map(int, end):
+        if b in taken:
+            continue
+        loop, v = [], b
+        while v not in taken and v in into:
+            taken.add(v)
+            loop.append(v)
+            v = into[v]
+        if v != b or len(loop) < 3:
+            open_loops += 1
+            continue
+        for apex in range(len(loop)):
+            w = loop[apex:] + loop[:apex]
+            chords = [min(w[0], x) * N + max(w[0], x) for x in w[2:-1]]
+            if not np.isin(chords, keys).any():
+                new += [[w[0], w[i], w[i + 1]] for i in range(1, len(w) - 1)]
+                break
+        else:
+            open_loops += 1
+    return (np.vstack([F, new]) if new else F), open_loops
+
+
+def defects(F, N, euler_in):
+    """(boundary edges, edges on more than 2 faces, euler - euler_in) of the face set F over N vertices."""
+    keys, _, _, cnt = edge_faces(F, N)
+    used = len(np.unique(F))
+    return int((cnt == 1).sum()), int((cnt > 2).sum()), euler(used, len(F)) - euler_in
+
+
+def cell_positions(P, T, label, weight, N, place, sdf, h, reach):
+    """One vertex per cell: the weighted centroid (or, place="qef", the minimiser of the cell's quadric damped toward it),
+    Newton-projected on the zero set of `sdf`."""
+    cw = np.maximum(np.bincount(label, weight, minlength=N), 1e-300)
+    X = np.stack([np.bincount(label, weight * P[:, k], minlength=N) for k in range(3)], 1) / cw[:, None]
+    if place == "qef":
+        Qc = np.zeros((N, 4, 4))
+        Qv = initial_quadrics(P, T, np.zeros(0, np.int64), None)
+        for i, j in np.ndindex(4, 4):
+            Qc[:, i, j] = np.bincount(label, Qv[:, i, j], minlength=N)
+        A, b = Qc[:, :3, :3], Qc[:, :3, 3]
+        mu = CVT_QEF_REG * np.einsum("kii->k", A) / 3 + 1e-30
+        X = np.linalg.solve(A + mu[:, None, None] * np.eye(3), (mu[:, None] * X - b)[:, :, None])[:, :, 0]
+    return project(sdf, X, h, np.full(N, reach)) if sdf is not None else X
+
+
+def cvt(verts, tris, target_faces, sdf=None, polish=None, grad_h=None, max_dev=None, eps=CVT_EPS, alpha=CVT_ALPHA, iters=CVT_ITERS,
+        smooth=CVT_SMOOTH, place=None, seed=CVT_SEED, tries=CVT_TRIES, **_):
+    """(verts, tris, report): curvature-guided Voronoi / CVT retopology (Chatterjee, Soni, Bhowmick 2022; Valette & Chassery 2004,
+    Valette, Chassery & Prost 2008) of a dense closed shell to ~`target_faces` triangles. N = (B + 4 - euler_in) / 2 seeds are drawn
+    on the dense vertices with probability ~ area x (eps + kappa)^alpha (kappa: `vertex_curvature`), relaxed by `lloyd`
+    (geodesic cells along the edges: unlike a kd-tree it never joins two legs that touch in space), each cell becomes one vertex
+    (`cell_positions`, projected on `sdf`; `polish` the exact field of the last projection) and each dense triangle on three cells one
+    face (`dual_faces`). A cell pair that touches twice repeats a directed edge: `drop_overloaded` keeps the largest face, `fill_holes` fans
+    the loops that leaves. Up to `tries` seed draws (stopping once CVT_SECONDS have passed): the one with the fewest `defects` (report:
+    boundary edges, overloaded edges, euler - euler_in), then the smallest mean |sdf| at its face centroids, is kept. `max_dev` is only reported
+    (`dev_over`, triangles with the centroid farther): the dual has no per-operation guard like `reduce`. Faces = 2N - 4 + euler_in."""
+    t0 = time.perf_counter()
+    P, T = np.array(verts, float), np.asarray(tris, np.int64)
+    n, e_in = len(P), euler(len(np.unique(T)), len(T))
+    h = grad_h or 1e-3 * float(np.ptp(P, axis=0).max())
+    kappa, area, keys = vertex_curvature(P, T, smooth)
+    weight = np.maximum(area * (eps + kappa) ** alpha, 1e-300)
+    a, b = keys // n, keys % n
+    adj = adjacency(keys, n)
+    length = np.linalg.norm(P[adj[1]] - P[np.repeat(np.arange(n), np.diff(adj[0]))], axis=1)
+    comp = components(np.r_[a, b], np.r_[b, a], n)
+    N = max(int((target_faces + 4 - e_in) // 2), 4)
+    best = None
+    for k in range(tries):
+        seeds, label = lloyd(P, adj, length, weight, initial_seeds(comp, weight, seed_counts(comp, weight, N), np.random.default_rng(seed + k)), iters)
+        X = cell_positions(P, T, label, weight, len(seeds), place or CVT_PLACE, sdf, h, float(np.ptp(P, axis=0).max()) * 0.05)
+        F, dropped = drop_overloaded(dual_faces(T, label, len(seeds)), X)
+        F, open_loops = fill_holes(F, len(seeds))
+        score = defects(F, len(seeds), e_in)
+        rank = (sum(map(abs, score)), float(np.abs(sdf(X[F].mean(1))).mean()) if sdf is not None else 0.0)
+        if best is None or rank < best[0]:
+            best = (rank, score, F, X, dropped, open_loops, k + 1)
+        if time.perf_counter() - t0 > CVT_SECONDS:
+            break
+    _, score, F, X, dropped, open_loops, tried = best
+    N = len(X)
+    if (polish or sdf) is not None:
+        X = project(polish or sdf, X, h, np.full(N, float(np.ptp(P, axis=0).max()) * 0.02))
+    used = np.unique(F)
+    remap = np.full(N, -1)
+    remap[used] = np.arange(len(used))
+    out_v, out_t = X[used], remap[F]
+    over = int((np.abs((polish or sdf)(out_v[out_t].mean(1))) > max_dev).sum()) if max_dev is not None and (polish or sdf) is not None else None
+    return out_v, out_t, {"faces_in": len(T), "faces": len(out_t), "verts": len(out_v), "seeds": N, "euler_in": e_in, "tries": tried,
+                          "euler": euler(len(out_v), len(out_t)), "dropped": dropped, "open_loops": open_loops, "defects": score, "dev_over": over, "target_met": len(out_t) <= target_faces,
+                          "seconds": round(time.perf_counter() - t0, 3)}
+
+
 def retopo(verts, tris, target_faces, sdf=None, method=None, features=None, **kw):
     """The retopology entry point; `method` (default METHOD): "qem" = reduce; "remesh" = remesh; "remesh" = remesh
     aimed at AIM x target; "hybrid" = remesh to HYBRID_OVER x target, then reduce to the target; "guided" = reduce, then remesh
     with that mesh as the size guide. Every method but "qem" ends with a short `reduce` when the count is above the target.
     kw: polish, grad_h, max_dev (see reduce)."""
     method = method or METHOD
+    if method == "cvt":
+        return cvt(verts, tris, target_faces, sdf, **kw)
     if method == "qem":
         return reduce(verts, tris, target_faces, sdf, features_deg=features, **kw)
     if method == "remesh":

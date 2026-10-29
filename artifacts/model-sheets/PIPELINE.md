@@ -4822,3 +4822,45 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   pequena com busca de linha (0.9, 0.8, 0.7) em vez do valor do VLM — 3 rebuilds por delta, caro; melhor como restrição do fit (L11-3
   mostrou que a via B também cai, mas sem busca de linha); (3) o laço deve vir DEPOIS do polimento MCP (Leva 12) ou substituí-lo —
   decidir na v15.
+
+### 29.L11-6 `retopo.cvt`: retopologia por Voronoi/CVT guiada por curvatura -- opt-in, aceite NÃO atendido
+- **O que mudou.** `tools/blender/retopo.py`: `cvt(verts, tris, target_faces, sdf, polish, grad_h, max_dev, eps, alpha, iters, smooth, place, seed, tries)` e
+  `retopo(method="cvt")` (Chatterjee, Soni, Bhowmick, ICVGIP 2022; Valette & Chassery 2004; Valette, Chassery & Prost 2008). `build_unit sdf_retopo=qem|cvt`
+  (`sdf_retopo(..., method=)` chama `RT.retopo`), `spec_pipeline --sdf-retopo qem|cvt` (default `qem`, nada muda). `retopo_ablate.py`: linhas `cvt`, `cvt qef` e `--rows`.
+  numpy puro: o Python do Blender não tem scipy, então `voronoi` (Dijkstra multi-fonte por rodadas de fronteira) e `components` são próprios.
+- **Algoritmo.** (1) curvatura por vértice da malha densa openvdb = ângulo diédrico médio das arestas incidentes, suavizado 2 anéis (`CVT_SMOOTH`; o diédrico cru
+  tem mediana 0.09 rad só pelo degrau de 45° da grade); densidade ρ = (ε + κ)^α, `CVT_EPS` = 0.3 rad, `CVT_ALPHA` = 1; (2) N = (B + 4 − euler_in)/2 sementes por
+  amostragem ponderada por área·ρ (mínimo 4 por componente conexa, resto proporcional ao peso); (3) Lloyd discreto até 30 iterações (para quando nenhuma semente mexe):
+  células = Voronoi **geodésico ao longo das arestas** (não kd-tree euclidiano: ele junta duas pernas que se tocam no espaço e funde alças que o corpo tem), semente <-
+  vértice da célula mais perto do centróide ponderado; (4) um vértice por célula = minimizador da quádrica das faces da célula, amortecido ao centróide
+  (`place="qef"`, `CVT_QEF_REG` = 0.5; `"centroid"` = só o centróide), projetado no SDF (Newton, `polish` = `Field.d` no fim); (5) faces = cada triângulo denso com 3 células
+  distintas vira uma face (`dual_faces`, orientação do denso). Células que se tocam em dois lugares repetem uma aresta orientada: `drop_overloaded` deixa a maior face,
+  `fill_holes` fecha os laços com leque (cordas novas). Até `CVT_TRIES` = 4 sorteios de semente (para após `CVT_SECONDS` = 2 s): vence o de menos `defects`
+  (bordas, arestas sobrecarregadas, euler − euler_in) e depois o de menor |sdf| médio nos centróides das faces. `max_dev` só é relatado (`dev_over`): o dual não tem guarda por operação.
+- **Ablação rápida (malha densa v12 a0, B = 600, `retopo_ablate.py --rows`, QEM = L10-3 final).** Lloyd converge em 11–19 iterações; 0.17 s (n005, hfoo), 0.5 (n017), 1–2.5 s (n00U, 4 sorteios).
+  centróide × qef: centróide dá fairness 13–15 e p95 1.3–3.0 % H; qef reg 0.5 dá fairness 14–16 e p95 1.1–2.9 (reg 0.02: p95 1.0 mas slivers até 1.9 %); ε 0.1 → 1.0 e α 0.5 → 2
+  mexem fairness ±2 e p95 ±0.2 (α 2: slivers até 1.4 %, nd +4). A pior vista de IoU contra o QEM varia −0.002…−0.047 só pela semente (n017): um sorteio não decide.
+- **Prova no pipeline (v13, câmeras fixadas, sem LLM, 5 un.; controle = rebuild qem `l11-cvt-qem`, cvt = `l11-cvt`; `--body sdf --shape-only --no-repair --no-diagnose`, `CF_VERTS_SECONDS=1e6`).**
+  IoU cvt − qem por vista (f / l / b / top / bot / rts):
+
+| un. | f | l | b | top | bot | rts | média | slivers % cru→final qem / cvt | nd final qem / cvt | fairness final qem / cvt | euler entrada / qem / cvt | sdf_dev p95 % H final qem / cvt | retopo s qem / cvt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | −.004 | −.002 | +.001 | +.020 | **−.012** | +.012 | +.003 | 0.0→4.3 / 0.0→3.1 | 36.4 / 31.4 | 25.6 / 18.0 | 0 / 0 / 0 | 2.43 / 2.42 | 1.0 / 0.6 |
+| n00U | −.001 | +.005 | .000 | +.069 | −.006 | **−.018** | +.008 | 0.0→1.1 / 0.1→0.3 | 46.2 / 41.8 | 27.0 / 17.2 | 4 / 4 / 2 | 4.77 / 4.66 | 2.9 / 2.1 |
+| hfoo | −.005 | **−.025** | +.002 | +.004 | +.044 | +.009 | +.005 | 2.6→2.7 / 2.6→4.0 | 40.9 / 38.3 | 24.3 / 19.1 | 8 / 8 / 0 | 1.60 / 2.77 | 0.9 / 0.6 |
+| n017 | +.013 | −.005 | +.023 | .000 | **−.026** | +.001 | +.001 | 1.7→3.7 / 1.7→3.6 | 38.8 / 35.0 | 25.7 / 19.3 | 0 / 0 / 0 | 2.99 / 4.13 | 1.5 / 1.9 |
+| n02X | +.013 | **−.027** | +.008 | −.010 | +.008 | **−.028** | −.006 | 1.7→3.6 / 1.7→3.0 | 39.3 / 33.2 | 23.7 / 17.5 | 4 / 4 / 2 | 5.97 / 4.53 | 1.3 / 1.1 |
+
+  (euler = o do `report` do retopo, só do corpo; o `mesh_lint` do glb cru soma os props e dá outros números.)
+- **Aceite do plano.** Slivers finais < 5 % em 5/5: **sim** (3.1 / 0.3 / 4.0 / 3.6 / 3.0). nd ≤ qem + 1°: **sim** (−3…−5° em 5/5). ≤ 5 s: **sim** (≤ 2.1 s no pipeline). Fairness 24–27 → 17–19
+  em 5/5 (o que o QEM não dá). IoU ≥ qem − 0.01 em todas as vistas: **não**: 6 vistas abaixo (n005 bot −.012, n00U rts −.018, hfoo left −.025, n017 bot −.026, n02X left −.027 e rts −.028);
+  médias por unidade +.003 +.008 +.005 +.001 −.006 (ruído de ±.03 por sorteio, ver acima). Euler = entrada: **não** em 3/5 (hfoo 8 → 0, n00U 4 → 2, n02X 4 → 2) e o n00U fecha com 4 arestas de borda
+  (`defects (4, 0, −2)`).
+- **Decisão: `METHOD = "qem"` (default inalterado), `cvt` opt-in (`retopo(method="cvt")`, `--sdf-retopo cvt`).** Onde perde: (a) **topologia**: alças finas (pernas do n00U/n02X, o anel do hfoo) ficam abaixo da resolução da célula,
+  e o dual as perde (menos 4 a 8 de euler); a guarda de link do QEM as mantém; (b) **desvio**: p95 do `sdf_dev` cru 1.0–2.3 % H contra 0.5–1.0 do QEM (o vértice da célula projetado no SDF não vê a corda da face; o QEM controla por `max_dev`),
+  o que custa IoU em uma vista por unidade; (c) sorteio de semente: um único Lloyd varia −0.002…−0.047 na pior vista. Ganhos reais: fairness −7…−10°, nd −3…−5°, slivers finais iguais ou menores, sem LLM, ≤ 2 s.
+  Candidato a revisitar: cvt como malha inicial do `fit_grad`/`optimize_verts` (fairness boa, desvio a ser consertado pelo fit) ou cvt só em unidades sem alças finas.
+- **Negativos.** Kd-tree euclidiano não foi implementado (a geodésica é barata: 30 ms por Voronoi a 60 k vértices). Mais iterações de Lloyd (60) não mudam nada (converge antes de 30). `place="centroid"`: melhor fairness (−2) e pior p95 (+0.2).
+  Escolher o sorteio pelo |sdf| médio dos centróides não reduz a variação de IoU. Euler: até 4 sorteios por unidade não recuperam a alça perdida em hfoo/n00U/n02X (melhor sorteio guardado; o `report` traz `tries` e `defects`).
+- **Testes.** `test_retopo.py::Cvt` (4, < 0.1 s): sementes se concentram nas arestas do cubo (α = 1 vs 0), esfera -> fechada, euler 0, V ≈ V*, vértices em |d| < 1e-3 e sem sliver, `retopo(method="cvt")` aceita o `floor` do `build_unit`, duas cascas disjuntas ganham sementes cada.
+  Runs: `runs/draft/<id>/l11-cvt-qem` e `l11-cvt` (+ `-invalid*`: runs que o SIGTERM do ambiente interrompeu, mantidos).

@@ -182,6 +182,50 @@ class SurfaceNets(unittest.TestCase):
         self.assertAlmostEqual(vol, 4 / 3 * np.pi, delta=0.15)
 
 
+class Cvt(unittest.TestCase):
+    def seeds_near_edges(self, alpha, band=0.12):
+        """Share of the Lloyd seeds of a subdivided cube within `band` of a cube edge (two coordinates near 0 or 1)."""
+        v, t = cube(10)
+        kappa, area, keys = R.vertex_curvature(v, t)
+        weight = area * (0.1 + kappa) ** alpha
+        n = len(v)
+        adj = R.adjacency(keys, n)
+        length = np.linalg.norm(v[adj[1]] - v[np.repeat(np.arange(n), np.diff(adj[0]))], axis=1)
+        count = np.array([60])
+        seeds, label = R.lloyd(v, adj, length, weight, R.initial_seeds(np.zeros(n, int), weight, count, np.random.default_rng(0)), 20)
+        near = np.minimum(v[seeds], 1 - v[seeds]) < band
+        return float((near.sum(1) >= 2).mean()), kappa
+
+    def test_seeds_gather_on_the_cube_edges(self):
+        flat, _ = self.seeds_near_edges(0.0)
+        curved, kappa = self.seeds_near_edges(1.0)
+        self.assertGreater(curved, flat + 0.1)
+        self.assertGreater(kappa.max(), 0.3)                      # the edge vertices carry the dihedral ...
+        self.assertLess(float(kappa.min()), 0.01)           # ... the faces' interior none
+
+    def test_sphere_is_a_closed_manifold_of_the_budgeted_size(self):
+        v, t = sphere()
+        out_v, out_t, rep = R.cvt(v, t, 200, sdf=sphere_sdf)
+        self.assertEqual(rep["euler"], 0)
+        self.assertEqual(ML.topology(out_v, out_t), (0, 0, 1))
+        self.assertLessEqual(len(out_t), 200)
+        self.assertGreaterEqual(len(out_t), 180)
+        self.assertLess(float(np.abs(sphere_sdf(out_v)).max()), 1e-3)         # every cell vertex projected onto the zero set
+        self.assertLess(float((ML.angles_min(out_v[out_t]) < ML.SLIVER_DEG).mean()), 0.05)
+
+    def test_retopo_dispatches_cvt(self):
+        v, t = sphere(3)
+        out_v, out_t, rep = R.retopo(v, t, 100, sdf=sphere_sdf, method="cvt", floor=0.9)     # floor: the kw build_unit passes to every method
+        self.assertEqual(rep["euler"], rep["euler_in"])
+        self.assertLessEqual(len(out_t), 100)
+
+    def test_disconnected_shells_each_get_seeds(self):
+        v, t = sphere(3)
+        out_v, out_t, rep = R.cvt(np.vstack([v, v + 5]), np.vstack([t, t + len(v)]), 200)
+        self.assertEqual(ML.topology(out_v, out_t)[2], 2)
+        self.assertEqual(rep["defects"], (0, 0, 0))
+
+
 @unittest.skipUnless(os.environ.get("SLOW") and RUNS.exists(), "SLOW=1: n005 96^3 -> 600 triangles, ~3 s")
 class Unit(unittest.TestCase):
     def test_n005_600_triangles(self):
