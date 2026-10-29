@@ -22,13 +22,16 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import apply_deltas as AD  # noqa: E402
+import preflight as PF  # noqa: E402
+
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 COLOURS = ("red", "green")
 OWNERS = ("author", "massing", "fit", "dsl")
 HEADING = "## Diagnosis (LLM, not fed back)"
 SKIP_SECTIONS = ("Avalia", "Readiness", "Timing", "Few-shot")     # no signal for the reviewer
 DIAG_SCHEMA = {
-    "type": "object", "required": ["findings", "identity", "changes", "owner"],
+    "type": "object", "required": ["findings", "identity", "changes", "owner", "deltas", "expected"],
     "properties": {
         "findings": {"type": "array", "items": {
             "type": "object", "required": ["view", "part", "colour", "cause", "fix"],
@@ -41,7 +44,11 @@ DIAG_SCHEMA = {
             "type": "object", "required": ["change", "gain"], "additionalProperties": False,
             "properties": {"change": {"type": "string"}, "gain": {"type": "string"}}}},
         "owner": {"type": "object", "required": ["who", "why"], "additionalProperties": False,
-                  "properties": {"who": {"enum": list(OWNERS)}, "why": {"type": "string"}}}}}
+                  "properties": {"who": {"enum": list(OWNERS)}, "why": {"type": "string"}}},
+        "deltas": {"type": "array", "maxItems": 6, "items": {      # shape checked per action by apply_deltas
+            "type": "object", "required": ["part", "action"],
+            "properties": {"part": {"type": "string"}, "action": {"type": "string"}, "why": {"type": "string"}}}},
+        "expected": {"type": "object", "additionalProperties": {"type": "number"}}}}
 PROMPT = """You diagnose ONE finished run of a low-poly game-unit model, to help humans and a paper. Nothing you say is fed back to the model: be concrete and honest, not polite.
 
 Image 1 is compare.png: one row per view (front, left, back, top, bottom, rts), columns concept | clay | wire | overlay | textured. In the overlay the concept silhouette is GREEN where the model does not cover it (uncovered: something is missing there), the model is RED where it is outside the concept (spill: something is too big or in the wrong place), grey is a hit. Look at the images before you answer.
@@ -57,6 +64,18 @@ Answer with one JSON object:
 - "identity": what identity the sheet has that the model lacks (props, face, shape), one short string each.
 - "changes": exactly three concrete spec changes, in order, each {{"change", "gain" (the expected gain, e.g. "front IoU +0.03")}}.
 - "owner": {{"who": "author" | "massing" | "fit" | "dsl", "why"}}: who owns the main problem; "dsl" means the spec language lacks a kind to say it.
+- "deltas": up to 6 machine-applied edits of single parts, most useful first, [] when none is safe. A part is addressed `<bone>#<k>` from the part table below (a bone with one part may be written bare); parts you do not name stay exactly as they are, and the build checks every delta, rejecting alone the ones outside its limits. Each delta is one of:
+  {{"part": "spine#0", "action": "scale", "axis": "x" | "y" | "z" (omit = uniform), "value": {lo}-{hi}, "why"}} (axis scale: box/frustum dims, prism/cyl length, lathe height or squash)
+  {{"part": "forearm.L#1", "action": "radius", "value": {lo}-{hi}, "why"}} (lathe, cyl, frustum, prism, limb, chain)
+  {{"part": "head#0", "action": "move", "axis": "x" | "y" | "z", "value": metres, at most {move} in magnitude, "why"}}
+  {{"part": "head#1", "action": "rotate", "axis": "x" | "y" | "z", "value": degrees, at most {rot} in magnitude, "why"}} (box, prism, dome, frustum without from/to only)
+  {{"part": "<bone>", "action": "add", "kind": <a DSL kind>, "dims": [...], "at": [x, y, z], "material": <palette slot, optional>, "opts": {{...}} optional, "why"}} (at most {adds} per answer, each under {addshare:.0%} of the figure; on a .L/.R bone the twin is added too)
+  {{"part": "pelvis#2", "action": "remove", "why"}} (only a part under {rmshare:.0%} of the figure)
+  Edits to a .L/.R part are mirrored to its twin by the build; do not send both. One delta per part. Never write other fields.
+- "expected": {{"<view>": the IoU gain you expect on that view if the deltas apply, e.g. "left": 0.05}} for each view the deltas should move.
+
+Part table (address, kind, dims, centre, palette key):
+{parts}
 """
 
 
@@ -73,6 +92,12 @@ def spec_summary(spec):
         lines.append(f"- {name}: {len(ps)}x {'/'.join(sorted({p[1] for p in ps}))}, "
                      f"{'/'.join(sorted({str(p[4]) for p in ps}))}, at {lo}..{hi}")
     return "\n".join(lines)
+
+
+def part_table(spec):
+    """One line per part with the address apply_deltas understands."""
+    return "\n".join(f"- {a}: {p[1]} {[round(v, 2) for v in p[2]]} at {[round(v, 2) for v in PF.centre(p)]}, {p[4]}"
+                     for a, p in AD.addresses(spec))
 
 
 def spec_height(spec):
@@ -111,7 +136,9 @@ def prompt_of(run, unit, kind):
     spec = json.loads((run / "spec.json").read_text())
     return PROMPT.format(review=review_stages((run / "review.md").read_text()),
                          spec=spec_summary(spec), height=spec_height(spec),
-                         extra=failing_rules(run, unit, kind) + attach_text(run))
+                         extra=failing_rules(run, unit, kind) + attach_text(run), parts=part_table(spec),
+                         lo=AD.SCALE_RANGE[0], hi=AD.SCALE_RANGE[1], move=round(AD.MOVE_SHARE * spec_height(spec), 3),
+                         rot=AD.ROTATE_MAX, adds=AD.ADD_MAX, addshare=AD.ADD_SHARE, rmshare=AD.REMOVE_SHARE)
 
 
 def check_reply(txt):
@@ -126,7 +153,22 @@ def check_reply(txt):
             raise ValueError(f"bad finding: {f}")
     if (doc["owner"] or {}).get("who") not in OWNERS:
         raise ValueError("owner.who must be one of " + "/".join(OWNERS))
+    check_deltas(doc)
     return doc
+
+
+def check_deltas(doc):
+    """deltas: a list of objects with a part and an action (their fields are checked, and a bad delta rejected
+    alone, by apply_deltas); expected: {view: number}."""
+    if not isinstance(doc["deltas"], list) or any(not isinstance(d, dict) for d in doc["deltas"]):
+        raise ValueError("deltas is a list of objects")
+    exp = doc["expected"]
+    if not isinstance(exp, dict) or any(v not in VIEWS or not AD.num(x) for v, x in exp.items()):
+        raise ValueError(f"expected is {{view: number}} with views in {VIEWS}")
+
+
+def delta_lines(doc):
+    return "".join(f"- `{json.dumps(d)}`\n" for d in doc["deltas"]) or "- none\n"
 
 
 def markdown(doc, cost):
@@ -137,6 +179,7 @@ def markdown(doc, cost):
     steps = "".join(f"{i}. {c['change']} (expected: {c['gain']})\n" for i, c in enumerate(doc["changes"], 1))
     return (f"### Parts behind the red and the green\n\n{table}\n### Missing identity\n\n{ident}\n"
             f"### Three changes, in order\n\n{steps}\n"
+            f"### Deltas (applied by apply_deltas.py, expected {doc['expected']})\n\n{delta_lines(doc)}\n"
             f"### Owner: {doc['owner']['who']}\n\n{doc['owner']['why']}\n\n"
             f"cost: {cost['seconds']} s, {cost['tokens'].get('input_tokens', 0)} in / "
             f"{cost['tokens'].get('output_tokens', 0)} out tokens "

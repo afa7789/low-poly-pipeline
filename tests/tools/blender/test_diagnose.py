@@ -28,7 +28,9 @@ REVIEW = ("# u — run r (t)\n\n## Avaliação\n\n| x |\n\n## Timing\n\n- t_gen:
 REPLY = {"findings": [{"view": "front", "part": "body", "colour": "red", "cause": "too wide", "fix": "narrow"}],
          "identity": ["no backpack"],
          "changes": [{"change": "narrow body", "gain": "front +0.02"}] * 3,
-         "owner": {"who": "fit", "why": "dims"}}
+         "owner": {"who": "fit", "why": "dims"},
+         "deltas": [{"part": "body#0", "action": "scale", "axis": "x", "value": 0.9, "why": "too wide"}],
+         "expected": {"front": 0.02}}
 
 
 def make_run(tmp):
@@ -84,6 +86,9 @@ class Diagnose(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     D.check_reply(json.dumps(doc))
         self.assertEqual(D.check_reply(json.dumps(REPLY))["identity"], ["no backpack"])
+        for key, val in (("deltas", "scale"), ("expected", {"sideways": 0.1})):
+            with self.assertRaises(ValueError):
+                D.check_reply(json.dumps({**REPLY, key: val}))
 
 
 class Hook(unittest.TestCase):
