@@ -4754,3 +4754,35 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   Não feito: `--loop` não corre diagnose final nem o juiz pareado (L11-4); sem `loop_hooks` testado fora da prova real (os testes cobrem `loop_stage`).
 - **Testes.** `tests/tools/blender/test_loop_stage.py` (9: regra de aceite, ordenação, limite de 3, vaga de não-aplicável, paradas, add/remove, tabela). Suíte: 635 OK.
 
+
+### 29.L11-0b Enquadramento pelo corpo (bbox sem props) -- opt-in, aceite NÃO atendido
+
+- **O que mudou (atrás de `--frame body`, default `bbox`).** `silhouette.framed_panels` devolve painéis `Framed` (máscara + caixa do
+  corpo = figura menos `prop_masks`, só nas vistas com caixa em `parts.json`); `normalize` enquadra por essa caixa (props continuam
+  na máscara e no IoU, caindo fora do quadro se passarem). `prop_masks` reenquadra as máscaras de props para o quadro do corpo.
+  Modelo: `deform_to_sheet.body_fractions` (corpo = maior componente soldado, o mesmo critério do split de props do deform) ->
+  `silhouette.model_boxes` (render) e `View.frame_on` (`deform`/`optimize_verts` enquadram só os vértices do corpo). Flags:
+  `silhouette.py --frame`, `spec_pipeline.py --frame` (exporta `CF_FRAME`); `silhouette.json` ganha `"frame"` por vista;
+  `CF_VERTS_SECONDS` (default 30) para o optimize_verts rodar por passos, sem relógio. Estágio de cor, `fit_spec`, `fit_grad` seguem
+  em bbox (o colour stage re-casa as máscaras em bbox: `silhouette.bbox_masks`).
+- **Medida** (rebuild `--body sdf --shape-only --no-repair --no-diagnose`, specs/câmeras v13, `CF_VERTS_SECONDS=1e6`; IoU f/l/b/top/bot/rts;
+  bbox reproduz a v13 no clay existente: .846/.415/.853/.796/.859/.703; o rebuild bbox é a linha de controle).
+
+  | un. | bbox (controle) | body | body + `--flip-side` |
+  |---|---|---|---|
+  | hfoo | .883/.428/.881/.827/.838/.747 | .832/**.458**/.881/.827/.838/.747 | = body |
+  | n005 | .931/.945/.938/.747/.858/.888 | .912/**.607**/.938/.747/.858/.888 | .912/.600/... |
+  | n00U | .879/.838/.877/.770/.724/.652 | .803/.816/.880/.745/.714/.616 | .902/.722/.896/.671/.740/.610 |
+  | n017 | .915/.843/.847/.807/.892/.744 | = bbox (sem props em parts.json) | = bbox |
+  | n02X | .901/.868/.911/.776/.783/.814 | .711/.720/.911/.776/.783/.814 | = body |
+
+- **Veredito: não passa.** hfoo left .428 -> .458 (alvo .60); n005 left -.34, n02X front -.19 e left -.15, n00U front -.08.
+  Causa vista nos overlays: os dois lados definem "props" diferente. O sheet exclui só os props de `parts.json` (n02X: um disco
+  de 179 px; o clube fica no corpo), o modelo exclui todo componente solto (o clube do n02X, o tanque do n005 ficam de fora ou
+  dentro de forma oposta), então os dois corpos são enquadrados por caixas de coisas diferentes e a escala diverge. No hfoo o
+  corpo alinha (pack do lado certo, overlay em `scratchpad/l11-frame/cmp.png`) mas o pique do modelo (vertical) continua sem
+  casar com o do sheet (diagonal), o que limita o IoU. `--flip-side` não ajuda (hfoo igual; n00U piora left, melhora front/back).
+- **Próximo passo possível.** Definir o corpo do modelo pelos mesmos props do sheet (`attach.json["props"]` por peça do spec ->
+  vértices do corpo, não componente) antes de reabrir; sem isso, manter `bbox`. Testes: `BodyFrame` (test_silhouette),
+  `TestBodyFrame` (test_deform_to_sheet). Runs: `runs/draft/<un.>/l11-frame-{bbox,body,bodyflip}` (`-bbox-invalid` de hfoo/n00U =
+  escrita concorrente, refeitos).

@@ -616,3 +616,5 @@ confiável (A +.0072, B +.0042 somadas; quedas > .01 em 3 unidades nas duas). Re
 **Estado L11-2 (2026-10-29): feito, atrás de `--loop N` (default 0).** `tools/blender/loop_stage.py` + `spec_pipeline --loop`; rebuild pelo caminho da
 rodada 0 com `--deterministic` (fit-verts por iterações: o relógio dava +-.013 por vista; dois rebuilds agora idênticos). Prova hfoo/n017/n02X:
 1 delta aceito em 9 (hfoo média .7517 -> .7600, nenhuma vista cai > .01); n017 e n02X 0 aceitos. 85-306 s por delta. Detalhe: PIPELINE §29.L11-2.
+
+- **L11-0b (2026-10-29) Estado:** `--frame body` implementado e medido (5 un., PIPELINE §29.L11-0b), opt-in. NÃO atendido: hfoo left .428 -> .458 (alvo .60), n005 left -.34, n02X front -.19: o corpo do modelo (maior componente) não é o corpo do sheet (props de parts.json). Default segue `bbox`.

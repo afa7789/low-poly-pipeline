@@ -169,3 +169,25 @@ class TestDeform(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBodyFrame(unittest.TestCase):
+    """29.L11-0b: the canvas frame of a body-framed panel fits the body (largest welded component), not the props."""
+
+    pos = np.array([[0, 0, 0], [1, 0, 0], [0, 0, 2], [5, 0, 0], [6, 0, 0], [5, 0, 3]], float)
+    tri = np.array([[0, 1, 2], [3, 4, 5]])
+
+    def test_fractions_of_the_body_in_the_view(self):
+        big = np.vstack([self.pos[:3], self.pos[:3] + [0, 1, 0]])        # body: the bigger component (6 vertices)
+        pos = np.vstack([big, self.pos[3:]])
+        tri = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]])
+        got = D.body_fractions(pos, tri, np.array([1.0, 0, 0]), np.array([0.0, 0, 1]))
+        self.assertEqual(got, (0.0, 1 / 3, 1 / 6, 1.0))        # x 0..1 of 0..6, z 0..2 of 0..3 (y down: the body hangs from the top)
+        self.assertIsNone(D.body_fractions(self.pos[:3], self.tri[:1], np.array([1.0, 0, 0]), np.array([0.0, 0, 1])))
+
+    def test_frame_on_fits_the_selected_points(self):
+        uv = np.array([[0.0, 0.0], [1.0, 2.0], [5.0, 0.0]])
+        whole, s_whole = D.frame(uv)
+        body, s_body = D.frame(uv, 1, np.array([True, True, False]))
+        self.assertGreater(s_body, s_whole)
+        self.assertAlmostEqual(float(body(uv[:2])[:, 1].min()), 0.0, places=6)       # the body's top is the canvas top

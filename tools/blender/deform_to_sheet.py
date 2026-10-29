@@ -115,8 +115,9 @@ class View:
     """One camera of the sheet: image axes (ru right, rv up, unit vectors of the Z-up frame), the mirror
     that matched the panel, the panel (normalised) and whether the view pulls the mesh or only guards it."""
 
-    def __init__(self, name, ru, rv, mirror, concept, active, props=None):
+    def __init__(self, name, ru, rv, mirror, concept, active, props=None, frame_on=None):
         self.name, self.ru, self.rv, self.mirror, self.concept, self.active = name, ru, rv, mirror, concept, active
+        self.frame_on = frame_on         # vertex mask the canvas frame fits (the body, 29.L11-0b); None = every vertex
         self.props = list((props or {}).values())       # the prop masks of this view (silhouette.prop_masks); [] = no split
         self.allowed = {0: concept & ~np.any(self.props, axis=0)} if self.props else {}
         self.allowed |= {i + 1: m for i, m in enumerate(self.props)}
@@ -136,10 +137,11 @@ class View:
         return np.stack([pos @ self.ru, pos @ self.rv], 1)
 
 
-def frame(uv, mirror=1):
-    """Canvas map of the points' bbox, the way silhouette.normalize fits a mask: (to_canvas, scale)."""
+def frame(uv, mirror=1, on=None):
+    """Canvas map of the points' bbox, the way silhouette.normalize fits a mask: (to_canvas, scale). `on`: the bbox of
+    these points only (a boolean mask), as a body-framed panel (silhouette.framed_panels) fits the body."""
     uv = uv * np.array([mirror, 1.0])
-    lo, hi = uv.min(0), uv.max(0)
+    lo, hi = (uv if on is None else uv[on]).min(0), (uv if on is None else uv[on]).max(0)
     w, h = hi - lo
     s = S.CANVAS_H / h
     if w * s > S.CANVAS_W:
@@ -228,7 +230,7 @@ def pull(view, model_mask, xy, keys):
 def view_state(pos, tri, view):
     """(canvas coords, model mask, scale) of the welded Z-up positions in one view."""
     uv = view.uv(pos)
-    to_canvas, s = frame(uv, view.mirror)
+    to_canvas, s = frame(uv, view.mirror, view.frame_on)
     xy = to_canvas(uv)
     return xy, raster(xy, tri), s
 
@@ -348,15 +350,15 @@ def candidates(name, panel, cam=None):
             yield (*rts_axes(c), S.normalize(panel))
         return
     for turned in (False, True):
-        concept = S.normalize(np.rot90(panel, 2) if turned else panel)
+        concept = S.normalize(S.rot180(panel) if turned else panel)
         for tilt in [cam] if cam is not None else TILTS:
             yield (*tilted_axes(name, tilt), concept)
 
 
-def best_option(name, options, pos, tri):
+def best_option(name, options, pos, tri, on=None):
     """(option, mirror) whose raster matches the panel best; the side views pick the mirror of that option by the
     shift-tolerant IoU (silhouette.pick_variant: a prop that widens the sheet's bbox must not decide the side)."""
-    rasters = {(i, m): view_state(pos, tri, View(name, o[0], o[1], m, o[2], True))[1]
+    rasters = {(i, m): view_state(pos, tri, View(name, o[0], o[1], m, o[2], True, frame_on=on))[1]
                for i, o in enumerate(options) for m in ((1,) if name == "rts" else (1, -1))}
     i, m = max(rasters, key=lambda k: S.iou(options[k[0]][2], rasters[k]))
     if name in S.SIDE_VIEWS and S.FLIP_SIDE:
@@ -369,12 +371,14 @@ def make_views(pos, tri, panels, pulling, props=None, cams=None):
     of each (and tilt / turn of top/bottom, camera of the rts) is the one whose raster matches the panel best, like
     silhouette.py; `cams` {view: tilt or (elevation, azimuth)} pins the camera the run's silhouette.json chose."""
     views = []
+    owner, main = owner_body(tri, len(pos))
     for name, panel in panels.items():
         options = [(*np.array(FRONT_AXES[name], float), S.normalize(panel))] if name in FRONT_AXES \
             else list(candidates(name, panel, (cams or {}).get(name)))
-        best = best_option(name, options, pos, tri)
+        on = owner == main if getattr(panel, "box", None) is not None else None     # body-framed panel: fit the body
+        best = best_option(name, options, pos, tri, on)
         (ru, rv, concept), mirror = best
-        views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name)))
+        views.append(View(name, ru, rv, mirror, concept, name in pulling, (props or {}).get(name), on))
     return views
 
 
@@ -384,6 +388,26 @@ def owner_body(tri, n):
     owner = connected_components(sparse.coo_matrix((np.ones(len(edges)), (edges[:, 0], edges[:, 1])), shape=(n, n)),
                                  directed=False)[1]
     return owner, int(np.argmax(np.bincount(owner)))
+
+
+def view_axes(name, cam=0):
+    """(ru, rv) of a view at camera `cam` (a tilt, or the rts' (elevation, azimuth))."""
+    if name in FRONT_AXES:
+        return np.array(FRONT_AXES[name], float)
+    return rts_axes(cam) if name == "rts" else tilted_axes(name, cam)
+
+
+def body_fractions(pos, tri, ru, rv):
+    """(x0, y0, x1, y1), as fractions of the model's projected bbox (y down), of the body (the largest welded component)
+    in one view: where silhouette.model_boxes puts the box a body-framed concept is matched with. None when the
+    model is all one component (its body is its bbox)."""
+    owner, main = owner_body(tri, len(pos))
+    on = owner == main
+    if on.all():
+        return None
+    uv = np.stack([pos @ ru, pos @ rv], 1)
+    (lx, ly), (hx, hy), (bl, bh) = uv.min(0), uv.max(0), (uv[on].min(0), uv[on].max(0))
+    return ((bl[0] - lx) / (hx - lx), (hy - bh[1]) / (hy - ly), (bh[0] - lx) / (hx - lx), (hy - bl[1]) / (hy - ly))
 
 
 def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, cams=None, rig=None):
@@ -499,7 +523,7 @@ def parse_band(arg):
 def sheet_panels(sheet, views, layout="unit"):
     """Raw panels of the sheet: the pulling `views` and, as guards, the top/bottom that are not among them; the
     gameplay camera's drawing (sheet-rts.jpg, when it exists) only when `rts` is among the views."""
-    panels = S.concept_panels(pathlib.Path(sheet), layout=layout)
+    panels = S.framed_panels(pathlib.Path(sheet), layout=layout)
     out = {v: p for v, p in panels.items() if v in views or v in S_TILTED}
     rts = S.rts_path(pathlib.Path(sheet))
     if "rts" in views and layout == "unit" and rts.exists():
@@ -513,18 +537,30 @@ def transform(glb, out, fn, suffix=".deform.json"):
     return rewrite(glb, out, lambda uniq, tri, nor, file: fn(uniq, tri, nor), suffix)
 
 
+def weld_mesh(data, doc, base):
+    """(parts, file triangles, file positions, file normals, welded Z-up positions, welded index of each file vertex,
+    welded triangles without the degenerate ones) of a read() GLB."""
+    parts, tri_all = geometry(data, doc, base)
+    old = np.vstack([p for p, _, _ in parts]).astype(np.float64)
+    old_nor = np.vstack([n for _, n, _ in parts]).astype(np.float64)
+    uniq, inv = weld(to_z_up(old))
+    tri = inv[tri_all]
+    tri = tri[(tri[:, 0] != tri[:, 1]) & (tri[:, 1] != tri[:, 2]) & (tri[:, 0] != tri[:, 2])]
+    return parts, tri_all, old, old_nor, uniq, inv, tri
+
+
+def welded_mesh(glb):
+    """(welded Z-up positions, welded triangles) of a GLB."""
+    *_, uniq, _, tri = weld_mesh(*read(glb))
+    return uniq, tri
+
+
 def rewrite(glb, out, change, suffix=".deform.json"):
     """Write `out` = `glb` with the welded Z-up positions replaced by change(uniq, tri, normals, file) -> (new uniq,
     report), `file` = (welded index of each file vertex, the file's triangles); the report goes beside it as
     <out><suffix>. Shared with optimize_verts.py (PIPELINE 24.L6-7)."""
     data, doc, base = read(glb)
-    parts, tri_all = geometry(data, doc, base)
-    old = np.vstack([p for p, _, _ in parts]).astype(np.float64)
-    old_nor = np.vstack([n for _, n, _ in parts]).astype(np.float64)
-    zpos = to_z_up(old)
-    uniq, inv = weld(zpos)
-    tri = inv[tri_all]
-    tri = tri[(tri[:, 0] != tri[:, 1]) & (tri[:, 1] != tri[:, 2]) & (tri[:, 0] != tri[:, 2])]
+    parts, tri_all, old, old_nor, uniq, inv, tri = weld_mesh(data, doc, base)
     new_uniq, report = change(uniq, tri, welded_normals(to_z_up(old_nor), inv, len(uniq)), (inv, tri_all))
     new = from_z_up(new_uniq[inv]).astype(np.float32).astype(np.float64)     # what the file will hold
     nor = new_normals(new, old_nor, tri_all)
