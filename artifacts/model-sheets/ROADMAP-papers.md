@@ -546,6 +546,8 @@ Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
 
 **Estado L10-2 (2026-10-29): feito** — `build_unit.sdf_mesh` (openvdb `convertToPolygons`), `tools/blender/sdf_extract.py` + `sdf_extract_report.py`, `tests/tools/blender/test_sdf_extract.py`; malha fechada 5/5, slivers brutos ≤ 3.3 %, `sdf_dev` p95 ≤ 0.35 voxel; default 96³ adapt 0.5 (6.8 k–24 k tris); REMESH SHARP descartado (non-manifold, `sdf_dev` p95 3–34 voxels); nenhuma peça < 2 voxels nas 5 (PIPELINE §28.L10-2).
 
+**Estado L10-6 (2026-10-29): feito** — `mesh_lint.shape_report`/`sdf_field`, `lint(sdf=True)` em `review.md ### Forma` e `compare_runs` FORM; baseline nos 5 clays v12 (p95 `sdf_dev`: união crua 0.35-1.1 % H, clay final 2.4-3.9 % H; PIPELINE §28.L10-6). Só relatório, sem gate.
+
 Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
 
 # Leva 11 (a planejar depois da Leva 10) — DFS: VLM no loop sobre o modelo

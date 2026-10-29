@@ -3995,6 +3995,52 @@ Plano: `analysis/2026-10-29-leva10-sdf.md`. CSG → SDF → malha → retopologi
 - **Testes.** `tests/tools/blender/test_sdf_body.py` (paridade por kind, fallback, props/flame, casco bruto × qhull, smin
   pai/filho × duro, `k` preso, `k = 0`, grade × exato e JSON ida e volta; `SLOW=1`: 17 specs e 96³ do n00U ≤ 1.5 s).
 
+### 28.L10-6 `mesh_lint`: forma contra o SDF do próprio spec (relatório, 2026-10-29)
+
+Plano `analysis/2026-10-29-leva10-sdf.md` §2.7. Nenhum gate novo (`GATES` intacto). Ideia: Chamfer/Hausdorff/non-manifold como relatório (Meshy T2, `docs/references.md`).
+- **O que mudou.** `mesh_lint.shape_report(pos, tri, d, voxel)` e `sdf_field(glb)`: o campo vem de `clay.sdf.json` ao lado do GLB; sem ele
+  é recomputado de `spec.json` + `fit/cuts.json` (`sdf_body.field`, grade 96, ~0.1-0.4 s; `RF.scale_rig` por spec e `FAMILIES`/`lathe_limb.RIG`
+  restaurados); sem nenhum dos dois as métricas do campo ficam `None`. Medidas no corpo soldado (maior componente por nº de faces):
+  `sdf_dev` {pct_h, vox} × {mean, p95, max} de |d| em vértices + 10 k pontos uniformes por área (seed 0); `hausdorff_sdf` = máx em % H;
+  `normal_consistency` = média de |n_face · ∇d/|∇d|| nos centróides (diferença central, passo 0.25 voxel); `euler` = F − 2V + 4 (0 =
+  casca fechada de gênero 0; 4 × gênero em geral) do corpo e `euler_components` de todos; `nd_bands` = % das arestas do corpo a
+  0-20 / 20-60 / 60-100 / >100° (alvo "quinas presentes": 60-100° em 10-20 %). `boundary_edges`/`nonmanifold_edges` já existiam (malha inteira).
+- **Flags.** `lint(glb, sdf=False)` por padrão (o campo custa ~1 s e `lint` roda nos laços de `form_cost`); `sdf=True` em `review.md ### Forma`
+  (`spec_pipeline.sdf_rows`), em `compare_runs` (linha FORM ganha `sdf_dev p95 x%H`) e no CLI (`--no-sdf` desliga). `euler` e `nd_bands`
+  saem sempre (não dependem do campo).
+- **Baseline numérico (v12-r1, campo do próprio spec, 96³: voxel = H/96; é a régua que L10-3/L10-7 têm de bater).** `clay` = depois de
+  deform + verts; `clay-raw` = união booleana crua; `clay-prefit` = antes do fit.
+
+| unidade | GLB | tris | sdf_dev média / p95 / máx (% H) | p95 / máx (voxels) | normal_consistency | euler (corpo) | non-manifold / borda | nd 0-20 / 20-60 / 60-100 / 100+ (%) |
+|---|---|---|---|---|---|---|---|---|
+| n005 | clay | 630 | 0.783 / 2.376 / 5.081 | 2.273 / 4.86 | 0.8297 | 0 | 0 / 0 | 41.0 / 23.0 / 25.4 / 10.6 |
+| n005 | clay-raw | 630 | 0.069 / 0.351 / 0.712 | 0.337 / 0.684 | 0.9815 | 0 | 0 / 0 | 48.4 / 18.1 / 30.6 / 2.9 |
+| n005 | clay-prefit | 630 | 0.659 / 1.863 / 3.866 | 1.769 / 3.672 | 0.8631 | 0 | 0 / 0 | 43.2 / 24.7 / 23.3 / 8.8 |
+| n00U | clay | 625 | 1.13 / 3.468 / 6.898 | 3.313 / 6.589 | 0.8337 | 8 | 5 / 8 | 36.9 / 22.2 / 29.0 / 12.0 |
+| n00U | clay-raw | 625 | 0.365 / 1.096 / 2.55 | 1.055 / 2.453 | 0.9276 | 8 | 5 / 8 | 41.3 / 17.9 / 33.0 / 7.8 |
+| n00U | clay-prefit | 625 | 0.964 / 2.978 / 5.791 | 2.821 / 5.486 | 0.8524 | 8 | 5 / 8 | 39.4 / 19.7 / 29.2 / 11.8 |
+| hfoo | clay | 630 | 1.295 / 3.829 / 8.113 | 3.472 / 7.357 | 0.7521 | 0 | 0 / 0 | 37.5 / 26.3 / 23.6 / 12.7 |
+| hfoo | clay-raw | 630 | 0.078 / 0.348 / 1.038 | 0.334 / 0.996 | 0.9856 | 0 | 0 / 0 | 49.2 / 16.8 / 28.0 / 5.9 |
+| hfoo | clay-prefit | 630 | 1.213 / 3.555 / 6.979 | 3.208 / 6.297 | 0.7659 | 0 | 0 / 0 | 39.5 / 24.5 / 24.1 / 11.9 |
+| n017 | clay | 622 | 1.143 / 3.267 / 11.825 | 3.135 / 11.347 | 0.7824 | 0 | 1 / 0 | 36.0 / 22.8 / 28.4 / 12.7 |
+| n017 | clay-raw | 622 | 0.261 / 0.721 / 12.094 | 0.693 / 11.61 | 0.9654 | 0 | 1 / 0 | 49.0 / 10.2 / 38.7 / 2.1 |
+| n017 | clay-prefit | 622 | 1.153 / 3.306 / 12.068 | 3.108 / 11.343 | 0.7834 | 0 | 1 / 0 | 39.1 / 18.2 / 29.0 / 13.8 |
+| n02X | clay | 629 | 1.383 / 3.906 / 7.709 | 3.573 / 7.051 | 0.7106 | 7 | 1 / 2 | 32.2 / 27.9 / 22.0 / 17.9 |
+| n02X | clay-raw | 629 | 0.23 / 0.664 / 6.864 | 0.638 / 6.59 | 0.9527 | 7 | 1 / 2 | 44.2 / 17.8 / 30.6 / 7.4 |
+| n02X | clay-prefit | 629 | 1.215 / 3.557 / 7.264 | 3.262 / 6.662 | 0.7251 | 7 | 1 / 2 | 35.3 / 25.6 / 22.7 / 16.4 |
+
+- **Leitura.** A união crua (`clay-raw`) já está colada ao campo (p95 0.35-1.1 % H, ≈ 0.3-1 voxel; consistência 0.93-0.99), exceto o máx de n017 (12 %, p95 0.72: poucos vértices longe do campo, causa não investigada) e n02X (6.9 %). O `clay` final se afasta (p95 2.4-3.9 % H, 2.3-3.6 voxels; consistência
+  0.71-0.83) porque o deform/fit move vértices para a folha: a meta de L10-3 ("p95 ≤ H/64 = 1.56 %, máx ≤ H/32 = 3.1 %") é
+  mais estrita que o `clay` atual e mais frouxa que a união crua; é o `clay-raw` que mede a fidelidade da extração, o `clay` o que o fit
+  pede de deslocamento. `euler`: 0 em n005/hfoo/n017 (corpo fechado gênero 0); n00U 8 (≠ 0: gênero ≥ 2 ou casca aberta; 5 arestas non-manifold, 8 de borda); n02X 7
+  (casca com borda 2 e non-manifold 1); n017 tem um componente pequeno com 4 (corpo 0). nd 60-100°: 28-39 % no clay-raw, 22-29 % no
+  `clay`: acima da faixa-alvo 10-20 % (a união tem mais quinas que o alvo; o alvo 60-100 % é o que L10-3 tem de baixar).
+- **Negativos.** O campo recomputado vem do spec atual: se o spec mudou depois do GLB (ou o clay passou por `cut`), a medida mede o spec, não o
+  que gerou o GLB. Props/flame fora do campo mas dentro do GLB: só o maior componente entra, por isso um corpo partido em vários pedaços
+  mede só o maior. `normal_consistency` usa |·| (não detecta normal invertida: isso é o gate `flipped`).
+- **Testes.** `tests/tools/blender/test_mesh_lint.py`: cubo contra SDF de box exato (dev ≈ 0, consistência 1, euler 0, nd 33.3/0/66.7/0),
+  vértice puxado (p95 > 1 % H), casca aberta (euler −2, `sdf_dev` None), sem campo nem spec (None sem erro).
+
 ### 27.T5 Um material por (imagem, emissivo, opacidade) no export (2026-10-29)
 
 Fonte: Android, Optimize textures (https://developer.android.com/games/optimize/textures): menos materiais/texturas = menos draw calls.

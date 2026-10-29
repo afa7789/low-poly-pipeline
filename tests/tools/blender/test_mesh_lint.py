@@ -77,6 +77,26 @@ class Lint(unittest.TestCase):
         self.assertEqual(m["normal_diff"], {"mean": 60.0, "p90": 90.0, "hist": [33.3, 0.0, 0.0, 0.0, 66.7, 0.0]})
         self.assertEqual((m["fairness"], m["components_body"]), (20.0, 1))
 
+    def test_shape_against_an_exact_box_sdf(self):
+        """PIPELINE 28.L10-6: cube on its own SDF is exact; a pulled corner is not; an open shell has an Euler defect"""
+        def box(q):
+            e = np.abs(q - 0.5) - 0.5
+            return np.linalg.norm(np.maximum(e, 0), axis=1) + np.minimum(e.max(1), 0)
+        pos, tri = np.array(CUBE, float), np.array(TRIS)
+        m = L.shape_report(pos, tri, box, 1 / 96)
+        self.assertLess(m["sdf_dev"]["pct_h"]["max"], 1e-6)
+        self.assertAlmostEqual(m["normal_consistency"], 1.0, places=3)
+        self.assertEqual((m["euler"], m["euler_components"], m["nd_bands"]), (0, [0], [33.3, 0.0, 66.7, 0.0]))
+        pos[7] += 0.2
+        self.assertGreater(L.shape_report(pos, tri, box, 1 / 96)["sdf_dev"]["pct_h"]["p95"], 1)
+        hole = L.shape_report(np.array(CUBE, float), tri[:-2])
+        self.assertEqual(hole["euler"], -2)
+        self.assertIsNone(hole["sdf_dev"])
+
+    def test_no_field_beside_the_glb_leaves_the_sdf_metrics_empty(self):
+        m = L.lint(glb(self.tmp / "e.glb"), sdf=True)
+        self.assertEqual((m["sdf_dev"], m["hausdorff_sdf"], m["normal_consistency"], m["euler"]), (None, None, None, 0))
+
     def test_props_are_not_body_components(self):
         pos = np.vstack([np.array(CUBE, float), np.array(CUBE, float) + 5])
         tri = np.array(TRIS + [(a + 8, b + 8, c + 8) for a, b, c in TRIS])

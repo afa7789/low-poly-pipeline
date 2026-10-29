@@ -2432,6 +2432,20 @@ def identity_line(summary):
     return f"Identity: {ident['ok']}/{ident['total']}" + (f" - missing: {', '.join(ident['missing'])}" if ident["missing"] else "") + "\n\n"
 
 
+def sdf_rows(m):
+    """Rows of `### Forma` for the shape against the body's SDF (28.L10-6, report only); '' without the field."""
+    if not m.get("nd_bands"):
+        return ""
+    rows = f"| euler (F - 2V + 4; 0 = casca fechada) | {m['euler']} (por componente: {m['euler_components']}) |\n"
+    rows += f"| nd faixas 0-20 / 20-60 / 60-100 / 100+ (% das arestas do corpo) | {' / '.join(map(str, m['nd_bands']))} |\n"
+    if m["sdf_dev"]:
+        d = m["sdf_dev"]
+        rows += (f"| sdf_dev media / p95 / max | {d['pct_h']['mean']} / {d['pct_h']['p95']} / {d['pct_h']['max']} % H "
+                 f"({d['vox']['mean']} / {d['vox']['p95']} / {d['vox']['max']} voxels) |\n"
+                 f"| normal_consistency (|n . grad d|) | {m['normal_consistency']} |\n")
+    return rows
+
+
 def form_block(m):
     """`### Forma` (PIPELINE 24.L6-6): normal_diff mean / p90 with its 6-band histogram, fairness, body
     components, slivers, and the form cost the variant and fit rankings pay."""
@@ -2443,7 +2457,7 @@ def form_block(m):
             f"| fairness (desvio medio de 60 graus) | {m['fairness']} graus |\n"
             f"| componentes do corpo (sem props) | {m['components_body']} |\n"
             f"| slivers | {m['sliver_pct']} % |\n"
-            f"| custo de forma | {form_cost(m):.3f} |\n\n")
+            f"| custo de forma | {form_cost(m):.3f} |\n{sdf_rows(m)}\n")
 
 
 def readiness_section(args, shape, colour, verdict):
@@ -2451,7 +2465,7 @@ def readiness_section(args, shape, colour, verdict):
     glb, textured = lint_target(args, shape, colour)
     if glb is None:
         return f"## Readiness\n\nno GLB built.\n\nstatus: **{final_status(args, verdict, ['build'])}**\n\n"
-    m = mesh_lint.lint(glb)
+    m = mesh_lint.lint(glb, sdf=True)
     bad = mesh_lint.failing(m, textured)
     fa, tx = m["face_area"], m["texel"]
     rows = [("file", glb.name, "-"), ("verts / faces", f"{m['verts']} / {m['faces']} (V/F {m['compactness']})", "-"),

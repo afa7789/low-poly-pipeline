@@ -105,14 +105,15 @@ def cell_footer(run, view):
 
 
 def form_parts(run):
-    """Footer parts of the run's form numbers (4 of mesh_lint.lint on its GLB), or a note without a GLB."""
+    """Footer parts of the run's form numbers (mesh_lint.lint on its GLB, with sdf_dev p95 when the spec's field exists), or a note without a GLB."""
     try:
-        m = mesh_lint.lint(run_glb(run["dir"]))
+        m = mesh_lint.lint(run_glb(run["dir"]), sdf=True)
     except StopIteration:
         return [("form: no GLB", MC.DIM)]
     nd = m["normal_diff"]
+    dev = f"  sdf_dev p95 {m['sdf_dev']['pct_h']['p95']:.2f}%H" if m.get("sdf_dev") else ""
     return [(f"form  nd {nd['mean']:.1f}/{nd['p90']:.0f}  fair {m['fairness']:.1f}  "
-             f"body {m['components_body']}  slivers {m['sliver_pct']:.1f}%", MC.INK)]
+             f"body {m['components_body']}  slivers {m['sliver_pct']:.1f}%{dev}", MC.INK)]
 
 
 def pair_text(run):

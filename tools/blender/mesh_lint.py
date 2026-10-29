@@ -13,6 +13,7 @@ Papers: Chen 2023 (manifold, self-intersection, normal difference), Wiersma 2026
 (technical matrix), MeshGPT 2024 (compactness, face area), EdgeRunner 2024 (orientation,
 degenerates, components; watertight is NOT required: a unit is a union of closed parts).
 """
+import functools
 import json
 import os
 import pathlib
@@ -27,6 +28,8 @@ import numpy as np
 SLIVER_DEG = 10.0      # smallest triangle angle under this is a sliver (Wiersma 2026)
 SLIVER_MAX = 5.0       # final-use: at most this share (%) of slivers
 NORMAL_BANDS = (5, 15, 30, 60, 100)   # normal_diff histogram edges (degrees): 6 bands
+CORNER_BANDS = (0, 20, 60, 100, 180.001)   # shape report: smooth / soft / corner (target 10-20 %) / fold
+SDF_SAMPLES = 10000    # points on the faces of the body for sdf_dev (plus its vertices)
 WELD = 1e-5            # vertices closer than this are one vertex when counting edges
 RASTER = 1024          # UV overlap raster
 DECAL_CELLS = range(8, 16)   # build_unit.paint_decals: cells 8+i of each 4x4 block
@@ -310,6 +313,11 @@ def root_scale(doc):
     return float(max(scales, key=lambda s: abs(s - 1), default=1.0))
 
 
+def to_blender(p):
+    """glTF points (x, y up, z) -> Blender axes, where the SDF lives."""
+    return np.stack([p[:, 0], -p[:, 2], p[:, 1]], 1)
+
+
 def components_body(glb, comps):
     """Components of the body alone: build_unit.py counts them (props are components of their own) and
     writes them to the attach.json beside the GLB. No such file (an old run): every component counts."""
@@ -321,7 +329,111 @@ def components_body(glb, comps):
         return comps
 
 
-def lint(glb):
+def sdf_field(glb):
+    """The body's SDF (PIPELINE 28.L10-1) for the GLB: clay.sdf.json beside it, else recomputed from the spec.json
+    (+ fit/cuts.json) beside it; None without either. The rig tables the recompute scales are restored."""
+    try:
+        import lathe_limb
+        import rig_families as RF
+        import sdf_body as SB
+    except ImportError:
+        return None
+    here = pathlib.Path(glb).parent
+    if (here / "clay.sdf.json").exists():
+        return SB.load(here / "clay.sdf.json")
+    if not (here / "spec.json").exists():
+        return None
+    return _recomputed(here, SB, RF, lathe_limb)
+
+
+@functools.lru_cache(maxsize=8)
+def _recomputed(here, SB, RF, lathe_limb):
+    doc = json.loads((here / "spec.json").read_text())
+    cuts = here / "fit/cuts.json"
+    family, saved, rig = doc.get("rig", "biped"), dict(RF.FAMILIES), lathe_limb.RIG
+    try:
+        RF.scale_rig(family, doc.get("rig_measure"))
+        return SB.field([tuple(r) for r in doc["parts"]], json.loads(cuts.read_text()) if cuts.exists() else {},
+                        (family, doc.get("bones") or ()))
+    except (ValueError, KeyError):
+        return None
+    finally:
+        RF.FAMILIES.clear()
+        RF.FAMILIES.update(saved)
+        lathe_limb.RIG = rig
+
+
+def components(pos, tri):
+    """(welded tris, their index into `tri`, component label per welded tri)."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    t, idx, n = welded(pos, tri)
+    if not len(t):
+        return t, idx, np.zeros(0, int)
+    graph = coo_matrix((np.ones(3 * len(t)), (t.ravel(), np.roll(t, 1, 1).ravel())), shape=(n, n))
+    return t, idx, connected_components(graph, directed=False)[1][t[:, 0]]
+
+
+def surface_samples(p, rng):
+    """Corners of the triangles p[F,3,3] plus SDF_SAMPLES points uniform on their area."""
+    cross = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+    area = np.linalg.norm(cross, axis=1)
+    pick = rng.choice(len(p), SDF_SAMPLES, p=area / area.sum())
+    u = rng.random((SDF_SAMPLES, 2))
+    flip = u.sum(1) > 1
+    u[flip] = 1 - u[flip]
+    q = p[pick]
+    pts = q[:, 0] + u[:, :1] * (q[:, 1] - q[:, 0]) + u[:, 1:] * (q[:, 2] - q[:, 0])
+    return np.concatenate([p.reshape(-1, 3), pts]), cross / np.maximum(area[:, None], 1e-20)
+
+
+def sdf_report(p, normal, d, voxel):
+    """sdf_dev {pct_h, vox: mean/p95/max of |d| on the surface}, hausdorff_sdf (max, % H) and normal_consistency
+    (mean |n . grad d| at the centroids, central differences of `d`) of the triangles p[F,3,3]. `d`: points -> field."""
+    height = float(np.ptp(p[..., 1]))
+    pts, _ = surface_samples(p, np.random.default_rng(0))
+    dev = np.abs(d(pts))
+    eps = 0.25 * voxel
+    c, grad = p.mean(1), np.zeros((len(p), 3))
+    for a in range(3):
+        step = np.zeros(3)
+        step[a] = eps
+        grad[:, a] = d(c + step) - d(c - step)
+    grad /= np.maximum(np.linalg.norm(grad, axis=1, keepdims=True), 1e-20)
+    stat = lambda v: {"mean": round(float(v.mean()), 3), "p95": round(float(np.percentile(v, 95)), 3),  # noqa: E731
+                      "max": round(float(v.max()), 3)}
+    return {"sdf_dev": {"pct_h": stat(100 * dev / height), "vox": stat(dev / voxel)},
+            "hausdorff_sdf": round(float(100 * dev.max() / height), 3),
+            "normal_consistency": round(float(np.abs(np.einsum("fd,fd->f", normal, grad)).mean()), 4)}
+
+
+def shape_report(pos, tri, d=None, voxel=None):
+    """Shape of the welded body (the largest component) against its own SDF (PIPELINE 28.L10-6, report only):
+    euler (F - 2V + 4: 0 for a closed genus-0 shell) of it and of every component, nd_bands (% of its edges at
+    0-20 / 20-60 / 60-100 / 100+ degrees; the target for corners is 10-20 % at 60-100) and, when `d` (points in the GLB's
+    axes -> field) is given, sdf_report. `voxel`: the field's voxel (default H / 96)."""
+    t, idx, label = components(pos, tri)
+    out = {"euler": None, "euler_components": [], "nd_bands": None, "sdf_dev": None, "hausdorff_sdf": None,
+           "normal_consistency": None}
+    if not len(t):
+        return out
+    out["euler_components"] = sorted((int(len(np.flatnonzero(label == c)) - 2 * len(np.unique(t[label == c])) + 4)
+                                      for c in np.unique(label)), key=abs)
+    big = np.bincount(label).argmax()
+    out["euler"] = int((label == big).sum() - 2 * len(np.unique(t[label == big])) + 4)
+    sub = tri[idx[label == big]]
+    nd = normal_diff(pos, sub)
+    out["nd_bands"] = [round(100.0 * float(h) / max(len(nd), 1), 1) for h in np.histogram(nd, CORNER_BANDS)[0]]
+    if d is not None:
+        p = pos[sub]
+        normal = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+        normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 1e-20)
+        out.update(sdf_report(p, normal, d, voxel or float(np.ptp(p[..., 1])) / 96))
+    return out
+
+
+def lint(glb, sdf=False):
+    """The measurements of a GLB. `sdf`: also the shape against the body's SDF (loads or recomputes the field, ~1 s)."""
     doc, blob = read_glb(glb)
     pos, nor, uv, tri = geometry(doc, blob)
     p = pos[tri]
@@ -347,6 +459,8 @@ def lint(glb):
     out["normal_diff"], out["fairness"] = form(pos, tri, live)
     if out["components_body"] == comps:      # no union report beside the GLB: count the body geometrically (24.L6-6)
         out["components_body"] = body_components(pos, tri, prop_tris(doc), attach_props(glb))
+    field = sdf_field(glb) if sdf else None
+    out.update(shape_report(pos, tri, field and (lambda q: field.d(to_blender(q))), field and field.voxel))
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
     out["atlas_kb"] = atlas_kb(doc)
     out.update(uv_report(uv, tri, out["image_size"], p, area, tri_bones(doc, blob)))
@@ -469,10 +583,11 @@ if __name__ == "__main__":
     ap.add_argument("--decimate", type=pathlib.Path, metavar="SHEET", help="instead of the lint: IoU lost per 100 tris at 50 %% vs this sheet")
     ap.add_argument("--layout", default="unit", choices=("unit", "building"))
     ap.add_argument("--rig", default=None)
+    ap.add_argument("--no-sdf", action="store_true", help="skip the shape-vs-SDF metrics (they recompute the field, ~1 s)")
     a = ap.parse_args()
     for f in a.glbs:
         if a.decimate:
             with tempfile.TemporaryDirectory() as tmp:
                 print(json.dumps({str(f): decimate_loss(f, a.decimate, tmp, a.layout, a.rig)}))
         else:
-            print(json.dumps({str(f): lint(f)}))
+            print(json.dumps({str(f): lint(f, sdf=not a.no_sdf)}))
