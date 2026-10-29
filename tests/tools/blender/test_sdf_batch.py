@@ -57,7 +57,7 @@ class Pure(unittest.TestCase):
         self.assertEqual(r["nd_raw"], 35.0)
         z = row(plates=((4, 0, True), (6, 0, False), (7, 2, False)))
         self.assertEqual((z["plates_zero_rows"], z["plates_zero"], z["plates_buried"]), ([4, 6], 1, [4]))
-        self.assertEqual((r["sil_fail"], r["lint_fail"], r["sliver_raw"], r["dev_p95"]), (["rts"], ["sliver_pct < 5"], 0.0, 1.2))
+        self.assertEqual((r["sil_fail"], r["lint_fail"], r["sliver_raw"], r["dev_p95"]), (["front", "rts"], ["sliver_pct < 5"], 0.0, 1.2))
         self.assertEqual(B.rig_group("spider_high"), "spider")
         self.assertEqual(B.rig_group("serpent"), "outros")
 

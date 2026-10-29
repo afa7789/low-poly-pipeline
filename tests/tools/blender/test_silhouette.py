@@ -627,3 +627,42 @@ class BodyFrame(unittest.TestCase):
         self.assertEqual(S.rot180(m).box, (210, 10, 280, 260))
         self.assertIsNone(getattr(S.rot180(np.asarray(m)), "box", None))
         self.assertIsNone(getattr(m[:10], "box", None))      # a slice frames by its own bbox
+
+
+def square(a, b, n=100):
+    m = np.zeros((n, n), bool)
+    m[a:b, a:b] = True
+    return m
+
+
+class SpillGate(unittest.TestCase):
+    """L12-2: spill and bare are per-view caps; the cost prices spill dearer; contact measures tangency from inside."""
+
+    def test_contact(self):
+        sheet = square(20, 80)
+        for name, model, want in (("inscribed, tangent", sheet, 1.0), ("shrunk 4 px", square(24, 76), 0.0),
+                                  ("spilling", square(15, 85), 0.0), ("empty", np.zeros_like(sheet), 0.0)):
+            with self.subTest(name):
+                self.assertAlmostEqual(S.contact(sheet, model), want, places=2)
+
+    def test_gate_fails_at_spill_04_and_passes_at_03(self):
+        for spill, ok in ((0.04, False), (0.03, True)):
+            with self.subTest(spill=spill):
+                self.assertEqual(S.coupling_ok("top", {"uncovered": 0.0, "spill": spill}), ok)
+        self.assertFalse(S.coupling_ok("rts", {"uncovered": 0.11, "spill": 0.0}))
+        self.assertTrue(S.coupling_ok("rts", {"uncovered": 0.10, "spill": 0.0}))
+
+    def test_spilling_costs_more_than_bare(self):
+        sheet = square(20, 80)
+        leaks, bare = np.zeros_like(sheet), sheet.copy()
+        leaks[20:80, 20:80] = True
+        leaks[80:82, 20:80] = True                       # ~2 % of the area outside
+        bare[20:22, 20:80] = False                       # ~2 % of the area left uncovered
+        self.assertGreater(S.asym_cost(sheet, leaks, 3.0, 1.0), S.asym_cost(sheet, bare, 3.0, 1.0))
+        self.assertEqual(S.SPILL_W, 1.0)                  # the default stays the plain IoU (opt-in CF_SPILL_W)
+
+    def test_unit_weights_are_one_minus_iou(self):
+        sheet, model = square(20, 80), square(30, 90)
+        self.assertAlmostEqual(S.asym_cost(sheet, model, 1.0, 1.0), 1 - S.iou(sheet, model))
+        with unittest.mock.patch.object(S, "SPILL_W", 1.0), unittest.mock.patch.object(S, "BARE_W", 1.0):
+            self.assertAlmostEqual(S.asym_cost(sheet, model), 1 - S.iou(sheet, model))

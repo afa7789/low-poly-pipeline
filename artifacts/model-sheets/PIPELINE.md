@@ -4932,3 +4932,78 @@ bare do gate
 - **Testes.** `test_optimize_verts.py` (3: `make_views` devolve a câmara pinada e a varrida difere; `optimize` relata os `cams`; `rts_view` pinado), `test_deform_to_sheet.py`
   (`best_oriented` só gira com margem; `run_cams` com `--tilts`). Suite completa: 655 testes OK.
   Runs: `runs/draft/<id>/l12-cams` (final), `l12-cams-pin` (só tilt pinado), controle `l12-ctl` fora do repo.
+
+### 30.L12-2 Spill como gate, custo assimétrico, métrica `contact` (2026-10-29)
+
+- **Regra do usuário.** "Pode ter verde sobrando, e pouco; vermelho não pode, em nenhum ângulo." Refinamento: modelo **inscrito e tangente** (dentro do verde, a encostar na borda por dentro).
+- **Gate (default).** `silhouette.SPILL_MAX` = .03 e `UNCOVERED_MAX` = .10 por vista (antes .15–.25), as 6 vistas, sem média; `coupling_ok` já bloqueava, só os números mudaram.
+  A linha do gate imprime `spill bare cont` ao lado do IoU (`(contact CHECK)` abaixo de `CONTACT_MIN` = .70); `silhouette.json` ganha `contact` por vista; `summary` e `review.md` (linha `contact`) também.
+  `sdf_batch.py`: colunas spill / bare / contact por vista (antes média `unc / spill`) e `sil_fail` inclui vista acima dos tetos.
+- **Custo assimétrico (opt-in).** `silhouette.asym_cost = (SPILL_W·spill px + BARE_W·bare px) / união px`: com os dois pesos em 1 é exatamente `1 − IoU`. Usado em
+  `fit_spec.Proxy.view_score` (4.º valor; `loss` usa o custo em vez de `1 − IoU`), `optimize_verts.Ctx.cost` (objetivo duro) e `soft_sil.soft_iou` modo `sym` (gradiente suave, mesma fórmula), `deform_to_sheet.measure` (`score`,
+  que `mean_iou`/`accept` usam; o guard "nenhuma vista cai" continua no IoU). `SPILL_W` lê `CF_SPILL_W` (default **1.0**), `BARE_W` = 1. `GRAD=fd` e `fit_grad.py` seguem simétricos.
+- **`contact`.** `silhouette.contact`: fração dos pixels do contorno do sheet com contorno do modelo, **dentro do sheet**, a ≤ `CONTACT_EPS` (2 px) no canvas do gate. Quadrado igual ao sheet = 1; encolhido 4 px = 0; vazando = 0.
+  Nota: encolhido exatamente 2 px ainda conta 1 (distância = eps, `≤`). Gate só CHECK nesta leva. Não entrou no custo do otimizador (`CONTACT_W` não existe): o custo já não fecha a lacuna, ver abaixo.
+- **Medida** (6 unidades, sem LLM, bateria do L12-1; controle `l12-cams`, depois `l12-spill` com `CF_SPILL_W=3`; `contact` do controle recalculado das máscaras `sil/approved`). Antes -> depois, vistas f / l / b / top / bot / rts.
+
+IoU
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .920 -> .898 | .946 -> .931 | .933 -> .921 | .797 -> .773 | .820 -> .765 | .878 -> .868 |
+| n00U | .878 -> .860 | .818 -> .720 | .876 -> .865 | .734 -> .689 | .709 -> .669 | .653 -> .654 |
+| hfoo | .862 -> .850 | .412 -> .387 | .865 -> .862 | .802 -> .765 | .836 -> .825 | .733 -> .704 |
+| n017 | .908 -> .891 | .831 -> .789 | .849 -> .864 | .870 -> .814 | .861 -> .840 | .710 -> .700 |
+| n02X | .900 -> .889 | .839 -> .831 | .905 -> .889 | .780 -> .759 | .762 -> .742 | .764 -> .760 |
+| n01X | .841 -> .820 | .883 -> .889 | .845 -> .826 | .905 -> .859 | .875 -> .872 | .838 -> .843 |
+
+spill
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .053 -> .047 | .038 -> .036 | .051 -> .039 | .116 -> .086 | .060 -> .039 | .073 -> .065 |
+| n00U | .066 -> .061 | .134 -> .209 | .072 -> .064 | .217 -> .193 | .238 -> .202 | .272 -> .235 |
+| hfoo | .078 -> .053 | .392 -> .422 | .080 -> .051 | .097 -> .071 | .143 -> .101 | .206 -> .208 |
+| n017 | .070 -> .045 | .054 -> .057 | .119 -> .079 | .050 -> .064 | .060 -> .043 | .218 -> .217 |
+| n02X | .067 -> .055 | .096 -> .099 | .061 -> .052 | .171 -> .114 | .123 -> .077 | .143 -> .101 |
+| n01X | .111 -> .102 | .080 -> .047 | .111 -> .101 | .040 -> .020 | .104 -> .069 | .124 -> .096 |
+
+bare
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .030 -> .060 | .017 -> .036 | .018 -> .043 | .110 -> .166 | .135 -> .210 | .056 -> .077 |
+| n00U | .064 -> .088 | .065 -> .111 | .060 -> .081 | .079 -> .176 | .090 -> .194 | .136 -> .181 |
+| hfoo | .070 -> .108 | .439 -> .461 | .065 -> .096 | .122 -> .187 | .028 -> .091 | .095 -> .137 |
+| n017 | .026 -> .069 | .128 -> .171 | .041 -> .067 | .088 -> .138 | .089 -> .127 | .115 -> .132 |
+| n02X | .038 -> .063 | .079 -> .085 | .038 -> .065 | .070 -> .159 | .147 -> .209 | .124 -> .169 |
+| n01X | .060 -> .095 | .043 -> .070 | .056 -> .090 | .059 -> .126 | .026 -> .067 | .049 -> .074 |
+
+contact
+| un. | front | left | back | top | bottom | rts |
+|---|---|---|---|---|---|---|
+| n005 | .554 -> .500 | .614 -> .569 | .587 -> .615 | .127 -> .159 | .196 -> .118 | .281 -> .300 |
+| n00U | .352 -> .344 | .299 -> .241 | .317 -> .342 | .133 -> .165 | .217 -> .161 | .110 -> .114 |
+| hfoo | .456 -> .603 | .120 -> .102 | .496 -> .733 | .162 -> .112 | .179 -> .195 | .201 -> .172 |
+| n017 | .471 -> .455 | .372 -> .394 | .331 -> .494 | .522 -> .383 | .438 -> .395 | .130 -> .117 |
+| n02X | .496 -> .552 | .498 -> .495 | .504 -> .441 | .116 -> .078 | .138 -> .143 | .124 -> .164 |
+| n01X | .512 -> .472 | .430 -> .546 | .506 -> .463 | .303 -> .205 | .204 -> .243 | .269 -> .291 |
+
+- Vistas com spill ≤ .03 (antes -> depois, W=3): 0 -> 0 em n005, n00U, hfoo, n017, n02X; n01X 0 -> 1. Vistas com bare ≤ .10: n005 4 -> 4, n00U 5 -> 2, hfoo 4 -> 2, n017 4 -> 2, n02X 4 -> 3, n01X 6 -> 5.
+  Pior IoU por unidade: n005 −.055 (bottom), n00U −.098 (left), hfoo −.036, n017 −.056, n02X −.021, n01X −.046; pior alta de bare: +.076, +.103, +.065, +.050, +.088, +.067.
+- **Curva do peso** (n00U / hfoo / n02X; média das 6 vistas; W=1 = controle):
+
+| un. | W | IoU | spill | bare | vistas spill ≤ .03 | vistas bare ≤ .10 |
+|---|---|---|---|---|---|---|
+| n00U | 1 | .778 | .166 | .082 | 0 | 5 |
+| n00U | 1.5 / 3 / 5 / 10 | .754 / .743 / .733 / .724 | .159 / .161 / .158 / .159 | .125 / .139 / .155 / .165 | 0 / 0 / 0 / 0 | 2 / 2 / 1 / 0 |
+| hfoo | 1 | .752 | .166 | .137 | 0 | 4 |
+| hfoo | 1.5 / 3 / 5 / 10 | .745 / .732 / .729 / .725 | .152 / .151 / .148 / .150 | .160 / .180 / .185 / .188 | 0 / 0 / 0 / 0 | 3 / 2 / 0 / 0 |
+| n02X | 1 | .825 | .110 | .083 | 0 | 4 |
+| n02X | 1.5 / 3 / 5 / 10 | .824 / .812 / .806 / .799 | .087 / .083 / .085 / .087 | .107 / .125 / .130 / .136 | 0 / 0 / 0 / 0 | 3 / 3 / 3 / 3 |
+
+- **Veredito: aceite NÃO cumprido.** O spill cai em ≥ 4 vistas em 5 de 6 unidades (n005 6, n00U 5, hfoo 4, n02X 5, n01X 6; n017 3), mas só por .00–.06 (nenhuma vista chega a .03) e à custa de bare: sobe > .03 em ≥ 3 vistas de cada unidade e o IoU perde até .10 (n00U left). A curva satura em W≈1.5:
+  mais peso só troca vermelho por bare, o spill médio fica em ~.15. Causa: o contorno do modelo (vértices + SDF) não consegue encostar por dentro do sheet; encolher o spill vira bare quase 1:1 (n005 front verts: spill .065→.044, bare .039→.060).
+  O limite está na capacidade de forma (L12-3/L12-4: preflight e massing), não no peso. **Decisão:** gate .03/.10 default (regra do usuário; todas as 6 unidades agora FAIL honesto no stage 1); custo assimétrico e `contact` no custo ficam fora: `CF_SPILL_W` opt-in, `contact` só relatório.
+- **SDF (item 3).** Não re-medi o volume: `sdf_thin`/`drop_specks` só removem; o smin (L11-5) acrescentou +0.2–0.7 % de volume, ordem de grandeza menor que o spill de .03–.2 medido aqui; sem proposta de k por spill.
+- **Testes.** `test_silhouette.SpillGate` (contact: igual = 1, encolhido = 0, vazando = 0, vazio = 0; gate .04 falha e .03 passa; bare .11 falha; vazar 2 % custa mais que deixar 2 % descoberto; pesos 1 = 1 − IoU),
+  `test_optimize_verts` (`Ctx.cost` = 1 − IoU com pesos 1 e pesa o lado certo com W=3); ajustados `test_soft_sil` (tetos uniformes), `test_sdf_batch` (front agora FAIL), `test_optimize_verts` (IoU sobe com `SPILL_W=1`).
+  Regressão do default (W=1, `l12-spill-w1`, n00U / hfoo / n02X): n00U e n02X idênticos ao `l12-cams` (IoU das 6 vistas, diferença 0); hfoo ≤ .016 (orçamento por relógio do `fit-verts`, lição L11-2).
+  Runs: `runs/draft/<id>/l12-spill` (W=3, 6 unidades), `l12-spill-w{1.5,5,10}` (3 unidades), `l12-spill-w1` (default, regressão = `l12-cams`).

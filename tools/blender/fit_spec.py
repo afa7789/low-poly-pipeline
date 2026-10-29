@@ -300,15 +300,15 @@ class Proxy:
         return options[k], silhouette.iou(concept, options[k]), k == 1
 
     def view_score(self, view, mask, split=None):
-        """(IoU, chamfer, flipped) against the concept (`split`: self.split[view], against its body mask)."""
+        """(IoU, chamfer, flipped, asymmetric cost silhouette.asym_cost: spill dearer than bare, L12-2) against the concept (`split`: self.split[view], against its body mask)."""
         concept, edge_c, dist = (self.concept[view], self.edge[view], self.dist[view]) if split is None \
             else (split[0], split[2], split[3])
         best, score, flipped = self.best_variant(view, mask, concept)
         if not best.any():
-            return 0.0, 1.0, False
+            return 0.0, 1.0, False, 1.0
         edge = edge_of(best)
         chamfer = (dist[edge].mean() + distance_transform_edt(~edge)[edge_c].mean()) / 2
-        return score, float(chamfer / best.shape[0]), flipped
+        return score, float(chamfer / best.shape[0]), flipped, silhouette.asym_cost(concept, best)
 
     def score_view(self, view, outs, flags):
         """view_score of the parts' outlines `outs` (`flags`: which are props). In a split view the body parts go
@@ -319,13 +319,15 @@ class Proxy:
             return self.view_score(view, raster(outs)[0])
         canvas = canvas_of(outs)       # the canvas of the whole model, as the sheet's panel was laid out
         body = [o for o, f in zip(outs, flags) if not f]
-        iou, chamfer, flipped = self.view_score(view, raster(body, canvas)[0] if body else np.zeros_like(split[0]), split)
+        iou, chamfer, flipped, cost = self.view_score(view, raster(body, canvas)[0] if body else np.zeros_like(split[0]), split)
         held = [o for o, f in zip(outs, flags) if f]
         if held:
             prop = raster(held, canvas)[0]
             share = split[1].sum() / max(split[0].sum() + split[1].sum(), 1)
-            iou = (1 - share) * iou + share * silhouette.iou(split[1], np.fliplr(prop) if flipped else prop)
-        return iou, chamfer, flipped
+            prop = np.fliplr(prop) if flipped else prop
+            iou = (1 - share) * iou + share * silhouette.iou(split[1], prop)
+            cost = (1 - share) * cost + share * silhouette.asym_cost(split[1], prop)
+        return iou, chamfer, flipped, cost
 
     def ious(self, parts, cache=None):
         return {v: round(self.view_score(v, m)[0], 4) for v, (m, _) in self.masks(parts, cache).items()}
@@ -345,11 +347,11 @@ class Proxy:
         outs = {v: [h[v] for h in hulls] for v in self.views}
         flags = [preflight.is_prop(p) for p in parts]
         scores = {v: self.score_view(v, o, flags) for v, o in outs.items()}
-        total = sum(self.weight[v] * ((1 - i) + CHAMFER_W * c) for v, (i, c, _) in scores.items()) \
+        total = sum(self.weight[v] * (cost + CHAMFER_W * c) for v, (_, c, _, cost) in scores.items()) \
             / sum(self.weight[v] for v in scores)
         total += LEG_SPILL_W * leg_spill(self, parts, outs, scores["rts"][2]) if "rts" in scores else 0.0
         if self.zones and free:
-            total += ZONE_W * self.zones.term(parts, free, outs, {v: f for v, (_, _, f) in scores.items()})
+            total += ZONE_W * self.zones.term(parts, free, outs, {v: s[2] for v, s in scores.items()})
         if self.partfit and free:
             total += PART_W * self.partfit.term(free, hulls, self.polygons(outs))
             total += DEPTH_W * len(self.partfit.broken(hulls))

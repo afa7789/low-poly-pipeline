@@ -77,6 +77,12 @@ def stat(lint, key):
     return ((lint.get("sdf_dev") or {}).get("pct_h") or {}).get(key)
 
 
+def over_caps(sil, view):
+    """True when the view's spill or uncovered share is over its cap (silhouette.SPILL_MAX / UNCOVERED_MAX, L12-2)."""
+    from silhouette import SPILL_MAX, UNCOVERED_MAX
+    return (sil.get("spill", {}).get(view) or 0) > SPILL_MAX[view] or (sil.get("uncovered", {}).get(view) or 0) > UNCOVERED_MAX[view]
+
+
 def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, grid=0):
     """One measurements row (all inputs already parsed) -> flat dict. `plates` = [(spec row, owned triangles, buried)] per 'plate' part."""
     un, ap = attach.get("union", {}), sil.get("approved", {})
@@ -86,7 +92,9 @@ def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, gr
             "sliver_raw": raw["sliver_pct"] if raw else None, "nd": lint["normal_diff"]["mean"], "dev_p95": stat(lint, "p95"),
             "dev_max": stat(lint, "max"), "euler": lint["euler"], "comp": lint["components_body"],
             "iou": [ap.get(v) for v in VIEWS], "unc": mean(sil.get("uncovered", {})), "spill": mean(sil.get("spill", {})),
-            "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and ap[v] < gates[v]], "lint_fail": failing,
+            "spill_v": [sil.get("spill", {}).get(v) for v in VIEWS], "unc_v": [sil.get("uncovered", {}).get(v) for v in VIEWS],
+            "contact_v": [sil.get("contact", {}).get(v) for v in VIEWS],
+            "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and (ap[v] < gates[v] or over_caps(sil, v))], "lint_fail": failing,
             "thin": len(un.get("inflated", [])) + len(un.get("kept", [])), "inflated": len(un.get("inflated", [])),
             "plates": len(plates), "plates_zero": sum(1 for _, n, b in plates if n == 0 and not b),
             "plates_zero_rows": [i for i, n, _ in plates if n == 0], "plates_buried": [i for i, n, b in plates if n == 0 and b],
@@ -104,6 +112,10 @@ def f(v, nd=1):
     return "–" if v is None else (f"{v:.{nd}f}" if isinstance(v, float) else str(v))
 
 
+def per_view(xs):
+    return " / ".join(f(x, 3).lstrip("0") for x in xs)
+
+
 def verdict(r):
     bad = [*r["lint_fail"], *(f"sil:{v}" for v in r["sil_fail"])]
     return "PASS" if not bad else "FAIL " + ", ".join(bad)
@@ -112,15 +124,15 @@ def verdict(r):
 def table(rows):
     """Markdown: one line per (unit, body)."""
     head = ("| unit | rig | body | build s | total s | tris | sliver % (raw→final) | nd | sdf_dev p95 / max % H | euler | comp | "
-            "IoU f/l/b/top/bot/rts | unc / spill | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates |\n" + "|---" * 17 + "|")
+            "IoU f/l/b/top/bot/rts | spill | bare | contact | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates |\n" + "|---" * 19 + "|")
     out = [head]
     for r in sorted(rows, key=lambda r: (r["unit"], r["body"] != "sdf")):
         if not r["ok"]:
-            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 11)
+            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 13)
             continue
         iou = " / ".join(f(x, 3).lstrip("0") for x in r["iou"])
         out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | {f(r['build_s'])} | {r['total_s']} | {r['tris']} | {f(r['sliver_raw'])} → {f(r['sliver'])} "
-                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {f(r['unc'], 3)} / {f(r['spill'], 3)} "
+                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'])} | {per_view(r['unc_v'])} | {per_view(r['contact_v'])} "
                    f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} |")
     return "\n".join(out)
 

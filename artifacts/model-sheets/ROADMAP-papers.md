@@ -647,6 +647,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-1 (2026-10-29): feito, default** — o otimizador e o deform pinam a câmara do gate (`--tilts` / `silhouette.json`) e só giram top/bottom com a margem do gate: lacuna `verts.after − gate` top .06/.09/.07 → ≤ .002 (n005/n017/n02X), 34 de 35 células < .01; sobra n00U rts .126 → .030 (máscara do Blender mais larga que o raster, aberto). IoU do gate top +.03…+.07 nas três (PIPELINE §30.L12-1).
 
+**Estado L12-2 (2026-10-29): gate feito e default; custo assimétrico FALHOU o aceite, fica opt-in (`CF_SPILL_W=3`)** — `SPILL_MAX` = .03 e `UNCOVERED_MAX` = .10 em todas as 6 vistas, bloqueantes: as 6 unidades da bateria passam a FAIL honesto (0 vistas com spill ≤ .03 em 5/6; n01X 0→1 com W=3). Custo `(SPILL_W·spill px + BARE_W·bare px)/união` (W=1 ≡ 1−IoU) em `fit_spec`, `optimize_verts` (+ gradiente suave) e `deform_to_sheet`: com W=3 o spill médio mal cai (n00U .166→.161, hfoo .166→.151, n02X .110→.083) e o bare sobe .03–.06 e IoU −.01..−.03; a curva W=1.5/3/5/10 só piora o bare (n00U .125/.139/.155/.165) sem baixar o spill → o contorno não consegue encostar por dentro, só encolher. Métrica nova `contact` (tangência por dentro, `CONTACT_EPS` 2 px) no relatório: .1–.7, CHECK ≥ .70 não atingido. Detalhe em PIPELINE 30.L12-2.
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

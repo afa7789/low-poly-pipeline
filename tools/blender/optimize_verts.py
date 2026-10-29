@@ -132,6 +132,14 @@ class Ctx:
     def iou(self):
         return self.inter / self.union
 
+    @property
+    def cost(self):
+        """(S.SPILL_W * model outside the sheet + S.BARE_W * sheet uncovered) / union of the pooled coverage; 1 - IoU at weights 1 (L12-2)."""
+        if S.SPILL_W == S.BARE_W == 1:
+            return 1 - self.iou
+        spill, bare = np.maximum(self.cov - self.c, 0).sum(), np.maximum(self.c - self.cov, 0).sum()
+        return float((S.SPILL_W * spill + S.BARE_W * bare) / self.union)
+
     def asym(self, w_red, w_green):
         """w_red * uncovered + w_green * spill of the (hard, pooled) coverage: soft_sil.soft_asym on the hard raster."""
         red = np.maximum(self.c - self.cov, 0).sum() / max(self.c.sum(), 1e-9)
@@ -308,7 +316,7 @@ class Problem:
     def evaluate(self, pos, prev=None):
         """(objective, per-view contexts, terms) at `pos`; `prev` = the contexts of a nearby position."""
         ctxs = [Ctx(v, pos, self.tri, prev[i] if prev else None) for i, v in enumerate(self.views)]
-        terms = {"iou": float(sum(1 - c.iou if LOSS == "iou" else c.asym(*view_weights(c.view.name)) for c in ctxs))}
+        terms = {"iou": float(sum(c.cost if LOSS == "iou" else c.asym(*view_weights(c.view.name)) for c in ctxs))}
         terms["chamfer"] = LAMBDA["chamfer"] * sum(
             float((np.linalg.norm(m, axis=1)[n & self.body] ** 2).sum()) for m, n in (c.contour for c in ctxs)) / self.nb
         terms["fair"] = LAMBDA["fair"] * float(tri_fairness(pos[self.tri_b]).mean())
