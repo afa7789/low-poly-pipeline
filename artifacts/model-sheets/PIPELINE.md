@@ -3794,6 +3794,8 @@ Textura: atlas compacto, paleta partilhada, 1 material (`analysis/2026-10-29-pap
 
 ### 27.T1 Atlas cel compacto (`--atlas compact`, `build_unit.COMPACT_ATLAS`)
 
+**Decisão do integrador (2026-10-29):** `COMPACT_ATLAS = True` por default (16× menor; `luma_l1` ±.008 e `zones mean` −.011 no pior caso são ruído para o alvo alpha; forma não muda). `--atlas legacy` mantém o antigo.
+
 - O que mudou: `texturize` ganhou o caminho `texturize_compact` (só `style=cel`, atlas próprio). Cada (material, tom usado) ganha uma
   célula de tom `surfaces.tone_cell` de 16 px de largura: 1 coluna de ink por lado (a face começa 0.65 px dentro,
   `INK_EDGE_PX`, então o ink aparece em ~2.3 % dela, como na célula de 256 px) e **4 linhas** (1 de ink + 3 de cor) quando a rampa é
