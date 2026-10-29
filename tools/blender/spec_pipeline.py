@@ -1998,8 +1998,10 @@ def main():
     ap.add_argument("--fit-luma", action="store_true",
                     help="stage 2 cel: per-slot tone multipliers fitted to the sheet's luma by deferred shading "
                          "(fit_luma.py, PIPELINE 26.L8-8; default off, colour_stage.FIT_LUMA)")
-    ap.add_argument("--atlas", choices=("own", "shared"), default="own",
-                    help="stage 2 cel: own = one atlas per unit (default); shared = the race's 64 px gradient atlas, "
+    ap.add_argument("--atlas", choices=("own", "shared", "compact", "legacy"), default="own",
+                    help="stage 2 cel: own = one atlas per unit (build_unit.COMPACT_ATLAS picks its layout); compact / legacy = "
+                         "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
+                         "256 px cells, PIPELINE 27.T1); shared = the race's 64 px gradient atlas, "
                          "no decals, no ink line (shared_atlas.py, PIPELINE 24.L6-11)")
     ap.add_argument("--atlas-dir", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/atlas",
                     help="--atlas shared: where the per-race column tables <race>.json live (append only)")

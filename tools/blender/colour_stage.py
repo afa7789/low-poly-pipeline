@@ -207,7 +207,7 @@ def build_textured(spec, glb_clay, args, glb, work):
     hi = BUDGETS[args.kind][1]
     run("build_unit.py", path, glb, hi, "nofuse", hi, "tex", f"style={args.texture}",
         *face_args(spec, args, work), *prop_args(spec, args, work), *cut_hull.args(spec, args.sheet, args.kind, work),
-        *shared_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
+        *shared_args(args), *atlas_args(args), *(["cull=remove"] if getattr(args, "cull", False) else []), blender=True)
     if glb.exists():
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
@@ -221,6 +221,13 @@ def shared_args(args):
     if getattr(args, "atlas", "own") != "shared" or args.texture != "cel":
         return []
     return [f"shared={pathlib.Path(args.atlas_dir) / (args.race.lower() + '.json')}"]
+
+
+def atlas_args(args):
+    """["cel_atlas=compact|legacy"] when `--atlas` names the unit's own atlas layout (PIPELINE 27.T1);
+    nothing for `own` (build_unit.COMPACT_ATLAS decides) and `shared`."""
+    choice = getattr(args, "atlas", "own")
+    return [f"cel_atlas={choice}"] if choice in ("compact", "legacy") and args.texture == "cel" else []
 
 
 def face_args(spec, args, work):
