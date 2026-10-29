@@ -495,3 +495,21 @@ dependência, câmera por gradiente, textura por raster suave, redes implícitas
 
 
 **Estado L8-6b (2026-10-29):** ablação grad × verts sem LLM (PIPELINE §26.L8-6b, `history/2026-10-29-l8-abl/`): o ganho do left/rts vem do `--fit-verts` (5/5; left +.012..+.046, rts +.012..+.041); `--fit-grad` é nulo em n005/hfoo/n02X, +.01..+.02 em n00U (3x mais rápido), recusado em n017; a perda de top/bottom do hfoo não é de nenhum flag (já em `none`: autor). Recomendação: `--fit-verts` default, `--fit-grad` opt-in (talvez spider); defaults NÃO mudados no código.
+
+# Leva 9 (2026-10-29) — textura: atlas compacto, paleta partilhada, 1 material
+
+Fonte: lista de papers/tutoriais de atlas e packing (`analysis/2026-10-29-papers-atlas.md`; referências em
+`IA_gen_paper/papers/atlas/referencias_atlas.md`). Aprovada pelo usuário em 2026-10-29 ("autorizar execução do plano ao fim").
+Diagnóstico: o cel plano guarda ~40 cores úteis num PNG de 768² (84 KB) com 7 materiais = 7 draws; o `--atlas shared` (64², 1 KB)
+já existe mas perde decais e ink. Regras: textura procedural sempre; gates no raster duro; nada muda a forma.
+
+| # | item | aceite |
+|---|---|---|
+| T1 | atlas cel compacto: slot de rampa 2 px, decal 16 px, `pack_cells` shelf FFD | n005 ≤ 128², `atlas_kb` ≤ 8; `luma_l1` ±0.003; `zones mean` não cai > 0.01; decal legível |
+| T6 | mip-safe medido (`mesh_lint.mip_bleed`, células POT + padding 2 px) | 0 texels mistos até 1/4; relatório só |
+| T2 | paleta mínima partilhada (Oklab ΔE < 0.02, coluna 2 px) | Human 12 → ≤ 9 colunas; 64² cobre ≥ 16 unidades/raça; render texel-igual sem fusão |
+| T3 | decais no atlas partilhado (1 imagem, MaxRects 16 px) | `images == 1`; pareado sheet não perde 4-0; ≤ 128², ≤ 4 KB |
+| T5 | 1 material no export (`merge_materials`) | n005 prims 7 → 1; engine importa; 1 draw/tipo; render pixel-igual |
+| T4 | espelho L/R já partilha célula: prova + `uv_overlap_pct` esperado | linha no PIPELINE + teste |
+
+Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.
