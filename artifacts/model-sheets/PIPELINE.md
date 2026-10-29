@@ -4675,3 +4675,47 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   (z −.30, caixa) como no sheet. (2) enquadrar o left pelo corpo (bbox sem os props de `prop_masks`) em vez do bbox da figura,
   mudança em `silhouette.normalize`/`concept_panels` que mexe em todas as unidades (próprio item, medir 15 vistas).
   Enquanto isso `--flip-side` fica opt-in: só vale ligar junto com (1) ou (2).
+
+### 29.L11-3 Deltas como limites do fit (via B) contra edição do spec (via A)
+- **O que mudou (atrás de flag).** `apply_deltas.fit_limits(spec, deltas, height) -> {índice: {"dims"|"at": {slot: (lo, hi)}}}`:
+  `scale`/`radius` viram o intervalo `valor ± 0.1` sobre o fator da dim (`scale 0.8` em `spine#2` x → [0.7, 0.9] da largura atual), `move` o
+  intervalo `valor ± 0.02 H` metros sobre o deslocamento do `at`; a gêmea recebe o limite espelhado (x do move com sinal trocado).
+  `add`, `remove`, `rotate`, peça inexistente/ambígua, valor fora do schema e `scale` por eixo sem dim correspondente (squash do
+  lathe, peça from/to) não têm via B e são ignorados. `fit_spec.fit(..., constraints=deltas)`: `limit_bounds` troca nos `bounds` só os
+  slots citados (s = (f − 1)/`DIMS_RANGE`, s = m/(`AT_RANGE`·H)); a peça citada entra nas livres; o melhor ponto DENTRO dos limites é
+  devolvido mesmo que o início sem limite fosse mais barato (se nenhum ponto viável, devolve o spec: `best["x"] is None`);
+  `report["constrained"]`. `fit_grad.descend` começa no ponto de x = 0 projetado nos limites (igual a antes quando 0 está dentro).
+  Flags: `fit_spec.py --constraints diagnosis.json`, `spec_pipeline.py --constraints diagnosis.json` (com `--fit`, default). Sem a flag nada muda.
+- **Ablação (sem LLM; `--spec` v13-r1 / `spec2.json` de 29.L11-1, `--fit` ligado nas três vias, câmeras da v13 fixas, `--body sdf`,
+  `--shape-only`, runs `runs/draft/<id>/l11-fitc-{base,A,B}[-grad]`; IoU aprovado, raster duro, Δ vs base).** base = spec v13 sem deltas;
+  A = deltas aplicados ao spec (L11-1) e depois o fit; B = spec v13 + fit com os deltas como limites (Powell).
+
+| unid. | via | front | left | back | top | bottom | rts | média (Δ) |
+|---|---|---|---|---|---|---|---|---|
+| hfoo | base | .866 | .427 | .873 | .809 | .834 | .736 | .7576 |
+| | A | −.002 | **+.014** | −.002 | −.008 | **+.020** | **−.024** | .7571 (−.0005) |
+| | B | −.005 | −.011 | −.003 | +.001 | +.019 | **−.034** | .7522 (−.0054) |
+| n02X | base | .899 | .832 | .903 | .757 | .774 | .786 | .8252 |
+| | A | **−.018** | +.003 | **−.013** | **−.013** | **−.020** | +.036 | .8211 (−.0042) |
+| | B | 0 | 0 | 0 | 0 | 0 | 0 | .8252 (0): nenhum ponto viável dentro dos limites, o fit devolve o spec |
+| n00U | base | .885 | .761 | .883 | .682 | .714 | .609 | .7560 |
+| | A | +.010 | −.009 | +.013 | +.001 | +.012 | −.007 | .7592 (+.0033) |
+| | B | +.002 | +.017 | −.001 | +.036 | **−.026** | +.034 | .7663 (+.0103) |
+| n017 | base | .909 | .822 | .848 | .800 | .869 | .715 | .8271 |
+| | A | +.009 | **−.014** | +.015 | +.040 | −.002 | +.003 | .8357 (+.0086) |
+| | B | 0 | **−.017** | +.002 | +.022 | **−.013** | +.003 | .8264 (−.0007) |
+
+  Com `--fit-grad` (hfoo, n00U; base-grad = o mesmo caminho sem deltas): hfoo base-grad .7488, B-grad .7525 (+.004 sobre base-grad);
+  n00U base-grad .7828, B-grad .7729 (−.010; bottom −.055 vs Powell-base). O grad sozinho muda mais que os deltas (n00U +.027).
+- **Veredito.** Aceite (sobe a média sem queda > .01 em mais unidades): A 1 unidade (n00U), B 0. A soma das médias: A +.0072, B +.0042;
+  unidades com média acima da base: A 2/4, B 1/4 (n00U com o maior ganho, +.010, mas bottom −.026); unidades com alguma vista
+  caindo > .01: A 3, B 3 (A: hfoo rts, n02X ×4, n017 left; B: hfoo left/rts, n00U bottom, n017 left/bottom). **Nenhuma via sobe a
+  média de forma confiável; a hipótese "B evita as quedas de A" NÃO se confirma** (hfoo rts −.034 em B, pior que A; n017 left
+  continua caindo). A vantagem real de B é só estrutural: limites inviáveis degradam para a base (n02X) em vez de piorar.
+  **Recomendação para L11-2: via A como default** (aplica em 1.5 s, sem fit de 1–3 min por rodada; empata ou ganha em média) com o
+  guarda de rodada decidindo; B fica como opção (`--constraints`) para ablações, não como default.
+- **Testes.** `FitLimits` em `tests/tools/blender/test_apply_deltas.py` (3, ~0.01 s): scale/radius/move → intervalos com gêmea
+  espelhada; add/rotate/peça inexistente/fora de faixa ignorados; `limit_bounds` troca só os slots citados.
+- **Não feito.** n005 (sem deltas gravados em L11-1); `--deltas-as fit|spec` (o L11-2 escolhe a via; hoje A = `apply_deltas`,
+  B = `--constraints`); `rotate` como limite do extra `rot`; `--fit-grad` na ablação de n02X/n017; 1 rodada por via (sem repetição:
+  o Powell é determinístico, o grad não foi repetido).

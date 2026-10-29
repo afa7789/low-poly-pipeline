@@ -339,6 +339,59 @@ def apply(spec, deltas, height):
     return out, log
 
 
+LIMIT_WIDTH = 0.1          # scale/radius: the fit may land within value +- this (factor on the current dim)
+LIMIT_MOVE = 0.02          # move: the fit may land within value +- this * height (metres)
+
+
+def dim_slots(p, d):
+    """Indices of the dims a scale/radius delta bounds, [] when the fit has no such dim (squash, spans)."""
+    kind, axis = p[1], d.get("axis")
+    if d["action"] == "radius":
+        return list(RADIAL.get(kind, ()))
+    if axis is None:
+        return None                                     # uniform: every dim
+    if kind in ("box", "frustum"):
+        return [AXIS_DIM[axis]]
+    if kind in ("prism", "cyl"):
+        opts = p[5] if isinstance(p[5], dict) else {}
+        return [2 if kind == "prism" else 1] if axis == ("z" if opts.get("axis") == "fwd" else "y") else []
+    return [1] if kind == "lathe" and axis == "y" else []
+
+
+def one_limit(p, d, height):
+    """{"dims": {k: (lo, hi) factor}} or {"at": {k: (lo, hi) metres}} for delta `d` on part `p`, or None (no via B)."""
+    act, v = d["action"], d.get("value")
+    if act in ("scale", "radius"):
+        if not num(v) or not SCALE_RANGE[0] <= v <= SCALE_RANGE[1]:
+            return None
+        if act == "radius" and p[1] != "chain" and p[1] not in RADIAL:
+            return None
+        slots = list(range(len(p[2]))) if p[1] == "chain" else dim_slots(p, d)
+        slots = list(range(len(p[2]))) if slots is None else slots
+        return {"dims": {k: (round(v - LIMIT_WIDTH, 6), round(v + LIMIT_WIDTH, 6)) for k in slots}} if slots else None
+    if act == "move" and num(v) and d.get("axis") in AXES and p[1] != "chain" and abs(v) <= MOVE_SHARE * height:
+        return {"at": {AXIS_DIM[d["axis"]]: (v - LIMIT_MOVE * height, v + LIMIT_MOVE * height)}}
+    return None
+
+
+def fit_limits(spec, deltas, height):
+    """{part index: {"dims"|"at": {slot: (lo, hi)}}}: scale/radius/move deltas as limits for the fit (L11-3, via B).
+    The twin gets the mirrored limit. add/remove/rotate, unknown parts and out-of-range values have no via B: left out."""
+    SP.set_rig(spec.get("rig", "biped"), spec.get("rig_measure"))
+    parts, out = spec["parts"], {}
+    for d in deltas:
+        try:
+            check_delta(d)
+            i = resolve(parts, d["part"])
+        except Reject:
+            continue
+        for k, dd in ((i, d), (twin_of(parts, i), mirrored_delta(d) if d["action"] == "move" else d)):
+            lim = None if k is None else one_limit(parts[k], dd, height)
+            if lim:
+                out.setdefault(k, {}).update(lim)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("spec", type=pathlib.Path)

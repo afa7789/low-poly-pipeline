@@ -1219,7 +1219,8 @@ def fit_stage(spec, args):
                                hard=args.build if args.fit_edges else None,
                                stages=fit_spec.STAGES if args.fit_stages else None,
                                partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts,
-                               depth=args.depth, grad=args.fit_grad)
+                               depth=args.depth, grad=args.fit_grad,
+                               constraints=json.loads(args.constraints.read_text()).get("deltas") if args.constraints else None)
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
     if report["changed"]:
         ground_fix(fitted["parts"])          # the fit may sink a shin 1-2 cm; --spec refuses that
@@ -2047,6 +2048,9 @@ def main():
     ap.add_argument("--fit-grad", action="store_true",
                     help="the fit runs Adam on the differentiable soft-silhouette proxy instead of Powell (fit_grad.py, "
                          "PIPELINE 26.L8-7; fit_accepted still judges on the hard raster, opt-in)")
+    ap.add_argument("--constraints", type=pathlib.Path, default=None,
+                    help="a diagnosis.json: its scale/radius/move deltas become per-part limits of the --fit (L11-3, via B; "
+                         "PIPELINE 29.L11-3); add/remove/rotate are ignored here")
     ap.add_argument("--fit-parts", action="store_true",
                     help="the fit also uses refs/<id>/parts.json: each part inside its 2D mask, depth order as a hard "
                          "constraint (PIPELINE 23.L5-4; neutral on the silhouettes, opt-in)")

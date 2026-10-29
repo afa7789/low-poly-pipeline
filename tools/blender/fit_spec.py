@@ -580,6 +580,17 @@ def leg_grow(part, leg_w, height):
     return max(1.0, (leg_w * height / preflight.leg_radius(part) - 1) / DIMS_RANGE)
 
 
+def limit_bounds(part, bounds, limit, height):
+    """`bounds` with the unit slots a constraint names replaced by its interval (apply_deltas.fit_limits; L11-3):
+    dim factor f -> s = (f - 1) / DIMS_RANGE, `at` shift m metres -> s = m / (AT_RANGE * height)."""
+    out, n = list(bounds), len(part[2])
+    for k, (lo, hi) in limit.get("dims", {}).items():
+        out[k] = ((lo - 1) / DIMS_RANGE, (hi - 1) / DIMS_RANGE)
+    for k, (lo, hi) in limit.get("at", {}).items():
+        out[n + k] = (lo / (AT_RANGE * height), hi / (AT_RANGE * height))
+    return out
+
+
 def bounds_of(part, no_grow, wide=False, extra=(), grow=1.0):
     """scipy bounds of one group's unit parameters: a no-grow part may only shrink its horizontal dims;
     a part attached to its parent (`wide`) may move them by ATTACHED_RANGE instead of DIMS_RANGE;
@@ -691,14 +702,25 @@ def toggle_cut(doc):
     return {**doc, "parts": parts} if pick else None
 
 
-def search_space(parts, groups, hood, parent_of, loose0, wide, leg_w=None, height=1.0):
-    """({part index: extra param names}, scipy bounds) of the fitted groups."""
+def fit_limits_of(doc, parts, constraints, height):
+    """{index of a fittable part: limit} of the constraints (empty without any); a prop only rides its anchor."""
+    if not constraints:
+        return {}
+    import apply_deltas
+    found = apply_deltas.fit_limits(doc, constraints, height)
+    return {i: lim for i, lim in found.items() if not preflight.is_prop(parts[i])}
+
+
+def search_space(parts, groups, hood, parent_of, loose0, wide, leg_w=None, height=1.0, limits=None):
+    """({part index: extra param names}, scipy bounds) of the fitted groups; `limits` ({part index: limit}) narrows the
+    slots a delta names (L11-3)."""
     extra = {i: extras_of(parts[i], i == hood or j == hood and j is not None) if wide else () for i, j in groups}
     bounds = []
     for i, j in groups:
         shrink = parts[i][0] in NO_GROW or hood is not None and hood in (i, j)
         attached = wide and parts[i][0] in parent_of and parts[i][0] not in loose0
-        bounds += bounds_of(parts[i], shrink, attached, extra[i], leg_grow(parts[i], leg_w, height))
+        b = bounds_of(parts[i], shrink, attached, extra[i], leg_grow(parts[i], leg_w, height))
+        bounds += limit_bounds(parts[i], b, (limits or {}).get(i, {}), height)
     return extra, bounds
 
 
@@ -794,7 +816,7 @@ def misplaced(proxy, parts):
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
         seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False,
-        split=True, grad=False):
+        split=True, grad=False, constraints=None):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
@@ -805,7 +827,10 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
     (PIPELINE 22.L4-3); None is the single Powell over every parameter.
     `grad` (opt-in, PIPELINE 26.L8-7) replaces Powell by Adam on the soft-silhouette twin of the proxy (fit_grad.py); the same
-    objective judges and keeps the best point, `stages` do not apply."""
+    objective judges and keeps the best point, `stages` do not apply.
+    `constraints` (opt-in, L11-3, PIPELINE 29.L11-3): deltas (apply_deltas schema); each scale/radius/move becomes an interval on
+    that part's dim/`at` parameter (apply_deltas.fit_limits), the part joins the free ones, and the best point inside the
+    limits is returned even if the unconstrained start was cheaper."""
     t0 = time.monotonic()
     RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
@@ -830,7 +855,9 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
         import depth_map
         parts, report["depth"] = depth_map.depth_init(parts, proxy.partfit, parts_fit.load(sheet, parts_path),
                                                       depth_map.disparity(sheet), height, [spec_centre(p) for p in parts])
+    limits = fit_limits_of(doc, parts, constraints, height)
     free = touched(proxy, parts, proxy.masks(parts), failing) if failing else []
+    free = sorted({*free, *limits})
     if proxy.partfit:
         free = sorted({*free, *misplaced(proxy, parts)})
         report["assoc"] = proxy.partfit.assoc
@@ -845,7 +872,7 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     # was not costs LOOSE_W, so the fit can reconnect it
     parent_of = RF.parents(doc.get("rig", "biped"), doc.get("bones"))
     loose0 = loose_of(parts, parent_of)
-    extra, bounds = search_space(parts, groups, hood, parent_of, loose0, wide, sheet_leg_w(doc, sheet), height)
+    extra, bounds = search_space(parts, groups, hood, parent_of, loose0, wide, sheet_leg_w(doc, sheet), height, limits)
     targets, props = preflight.targets_from(sheet), preflight.load_props(pathlib.Path(sheet).parent.name)
     ctx = {"kind": kind, "targets": targets, "props": props, "parent_of": parent_of, "loose0": loose0,
            "held": broken_rules(parts, doc, kind, targets, props), "extra": extra, "order0": set(),
@@ -861,8 +888,9 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     best = objective.best
     report.update(free=len(free), groups=len(groups), evals=objective.n, loss=[round(start, 4), round(best["f"], 4)],
                   seconds=round(time.monotonic() - t0, 1))
-    if best["x"] is None or best["f"] >= start - 1e-4:
+    if best["x"] is None or best["f"] >= start - 1e-4 and not limits:
         return doc, report
+    report["constrained"] = sorted(limits)
     fitted = apply(parts, groups, best["x"], ctx["height"], extra)
     report.update(after=proxy.ious(fitted), changed=True)
     return {**doc, "parts": fitted}, report
@@ -888,6 +916,8 @@ def main():
                     help="start from Depth Anything V2 small's z and occlusion order (needs parts.json; PIPELINE 23.L5-4b)")
     ap.add_argument("--fit-grad", action="store_true",
                     help="Adam on a differentiable soft-silhouette proxy instead of Powell (fit_grad.py, PIPELINE 26.L8-7)")
+    ap.add_argument("--constraints", type=pathlib.Path, default=None,
+                    help="a diagnosis.json: its scale/radius/move deltas become per-part limits of the fit (L11-3)")
     ap.add_argument("--fit-parts", action="store_true", help="use refs/<id>/parts.json: part masks and depth order (L5-4)")
     ap.add_argument("--parts", type=pathlib.Path, default=None,
                     help="a parts.json other than the one beside the sheet (implies --fit-parts)")
@@ -896,7 +926,8 @@ def main():
     views = tuple(args.views.split(",")) if args.views else None
     out, report = fit(doc, args.sheet, args.kind, views, args.margin, wide=not args.fast,
                       tilts=V.parse_tilts(args.tilts), seconds=args.seconds, hard=args.hard, joints=args.fit_joints,
-                      partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts, depth=args.depth, grad=args.fit_grad)
+                      partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts, depth=args.depth, grad=args.fit_grad,
+                      constraints=json.loads(args.constraints.read_text()).get("deltas") if args.constraints else None)
     args.out.write_text(json.dumps(out, indent=2))
     print(json.dumps(report))
     return 0

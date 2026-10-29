@@ -608,3 +608,7 @@ Detalhe: PIPELINE §29.L11-1.
 **Estado T3 (2026-10-29):** `--atlas shared` agora 128² com decais (PIPELINE §27.T3): faixa de tom 64 colunas de 2 px + células de decal first-fit (append-only, hash do decal + coluna). `images == 1`, `luma_l1` ±.008 (14 de 15 vistas; n017 l/b +.006/+.007), `zones mean` ≥ −.0001; juiz sem 4-0 contra no eixo sheet (n005/n02X empate; hfoo/n00U/n017 B 4-0). NÃO atendido: ≤ 4 KB por raça no Human (união ~5 KB com PIL). Segue opt-in.
 
 **Estado T7 (2026-10-29):** `race_palettes.json` (dos ícones) + `palette_hint` no brief de cor (só com `--atlas shared`) + `snap`/`palette_snap` (opt-in, desligado: junta 0 colunas e trocou a cor das botas do hfoo). Simulação: 10-16 unidades/raça em 128², NÃO ≥ 16 (PIPELINE §27.T7).
+
+**Estado L11-3 (2026-10-29): feito, atrás de flag (`--constraints`); resultado negativo.** `apply_deltas.fit_limits` + `fit_spec.fit(constraints=)` traduzem
+scale/radius/move em limites por peça; ablação A (edição do spec) × B (limites do fit) × base em 4 unidades: nenhuma via sobe a média de forma
+confiável (A +.0072, B +.0042 somadas; quedas > .01 em 3 unidades nas duas). Recomendação ao L11-2: via A como default. Detalhe: PIPELINE §29.L11-3.
