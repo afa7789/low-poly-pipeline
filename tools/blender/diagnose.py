@@ -219,6 +219,9 @@ def main():
     ap.add_argument("--kind", default="mass")
     ap.add_argument("--model", default="session:opus")
     args = ap.parse_args()
+    import spec_pipeline as SP
+    spec = json.loads((args.run / "spec.json").read_text())
+    SP.set_rig(spec.get("rig", "biped"), spec.get("rig_measure"))     # part_table measures the parts
     r = run_diagnosis(args.run, args.id, args.kind, args.model)
     print(f"diagnosis: {len(r['findings'])} findings, owner {r['owner']['who']}, {r['cost']['seconds']} s")
     return 0
