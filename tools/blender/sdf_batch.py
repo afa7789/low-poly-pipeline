@@ -1,6 +1,6 @@
 """Regression battery of the SDF body on every existing spec (PIPELINE 28.L10-8), no LLM.
 
-    python3.14 tools/blender/sdf_batch.py [--units n005,n00H] [--body sdf,union] [--jobs 2] [--grid 96] [--no-anim] [--collect-only]
+    python3.14 tools/blender/sdf_batch.py [--units n005,n00H] [--body sdf,union] [--jobs 2] [--grid 96] [--no-anim] [--collect-only] [--compare DIR]
 
 For each unit the latest runs/draft/<id>/v1{2,1,0}-r1/spec.json is built with `spec_pipeline.py --shape-only --no-repair
 --body <b>` (cameras pinned to the origin run's silhouette.json) into runs/draft/<id>/l10-batch-<b>[g<grid>]/, measured
@@ -10,6 +10,7 @@ import argparse
 import concurrent.futures as cf
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -178,6 +179,21 @@ def acceptance_table(rows):
     return "\n".join(lines) + f"\n\n{sum(1 for w in n if not w)}/{len(n)} units in the acceptance."
 
 
+COMPARE_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+
+
+def compare_png(unit, out, size=256):
+    """<out>/<unit>.png: the clay renders of the union run (top row) and the sdf run (bottom), one column per view."""
+    from PIL import Image
+    runs = [DRAFT / unit / run_name(b) / "views" / unit for b in ("union", "sdf")]
+    sheet = Image.new("RGB", (size * len(COMPARE_VIEWS), size * 2), "white")
+    for r, views in enumerate(runs):
+        for c, v in enumerate(COMPARE_VIEWS):
+            if (views / f"clay-{v}.png").exists():
+                sheet.paste(Image.open(views / f"clay-{v}.png").convert("RGB").resize((size, size)), (c * size, r * size))
+    sheet.save(pathlib.Path(out) / f"{unit}.png", optimize=True)
+
+
 def read_json(path):
     return json.loads(path.read_text()) if path.exists() else {}
 
@@ -230,9 +246,12 @@ def collect(u, body, grid, total_s, skip_anim):
 
 
 def build(u, body, grid):
-    """Runs spec_pipeline for one (unit, body); the output goes to <run>/batch.log. Returns the wall seconds."""
+    """Runs spec_pipeline for one (unit, body); the output goes to <run>/batch.log. Returns the wall seconds. The l10-batch-* dir
+    of an earlier battery is removed first (it is this tool's own output): the pipeline reuses a run dir's fit/ and spec, so
+    a rebuild over it is not a rebuild from the origin spec (n00H, n010, n01N moved 0.03-0.2 IoU between two runs)."""
     run = DRAFT / u["unit"] / run_name(body, grid)
-    run.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(run, ignore_errors=True)
+    run.mkdir(parents=True)
     t0 = time.perf_counter()
     done = subprocess.run(command(u, body, grid, tilts_arg(read_json(u["spec"].parent / "silhouette.json"))), capture_output=True, text=True, cwd=ROOT)
     (run / "batch.log").write_text(done.stdout + done.stderr)
@@ -257,12 +276,16 @@ def main(argv=None):
     ap.add_argument("--grid", type=int, default=0, help="sdf voxels on the longest side (0 = build_unit default, 96); runs go to l10-batch-sdfg<N>")
     ap.add_argument("--no-anim", action="store_true", help="skip anim_check.py (reuse a previous anim.json)")
     ap.add_argument("--collect-only", action="store_true", help="do not build, measure the runs already on disk")
+    ap.add_argument("--compare", type=pathlib.Path, help="also write <dir>/<unit>.png: union (top) | sdf (bottom) clay views")
     ap.add_argument("--json", type=pathlib.Path, default=DRAFT / "l10-batch.json")
     args = ap.parse_args(argv)
     units = discover(units=[x for x in args.units.split(",") if x])
     bodies = args.body.split(",")
     with cf.ThreadPoolExecutor(args.jobs) as pool:
         rows = list(pool.map(lambda t: one(*t, args), [(u, b) for u in units for b in bodies]))
+    for u in units if args.compare else []:
+        args.compare.mkdir(parents=True, exist_ok=True)
+        compare_png(u["unit"], args.compare)
     args.json.write_text(json.dumps({"rows": rows, "acceptance": acceptance(rows) if "sdf" in bodies else []}, indent=1))
     print(table(rows) + "\n\n" + delta_table(rows) + ("\n\n" + acceptance_table(rows) if "sdf" in bodies else ""))
     return 0
