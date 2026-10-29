@@ -518,3 +518,25 @@ Estado T4 (2026-10-29): **feito, já existia** — gêmeos `.L/.R` partilham cé
 
 Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.
 | T7 | paleta por raça: atlas partilhado 128² (64 colunas de 2 px) + paleta fixa da raça (das 14 cores dos ícones/compêndio) oferecida ao autor como restrição suave (`palette_hint`), para caber ≥ 16 unidades/raça (T2 mostrou que fusão por ΔE rende 1 coluna) | 128² por raça ≤ 4 KB; ≥ 16 unidades/raça na simulação; `zones mean` não cai > 0.01 nas 5 unidades |
+
+# Leva 10 (2026-10-29) — CSG → SDF → malha → retopologia guardada (PLANO, aguarda aprovação)
+
+Plano completo em `analysis/2026-10-29-leva10-sdf.md`. Diagnóstico: a união booleana deixa 9–33 % de slivers e nd 38–41° já no
+`clay-raw` (v12: `sliver_pct < 5` falha 5/5; n00U 2 corpos), e isso é o que o `optimize_verts` recusa. Rota: SDF analítico por kind
+(cascos convexos dos anéis já emitidos), `smin` só pai/filho, extração por `openvdb` do Blender (ms), retopologia QEM própria com
+arestas vivas + reprojeção no SDF (passo crítico), ownership de osso por SDF, métricas Chamfer/Hausdorff/euler contra o campo.
+Fase D (VLM no loop) = DFS futuro; geradores (Meshy T2 e cia) só como ideias.
+
+| # | item | aceite |
+|---|---|---|
+| L10-1 | `sdf_body.py` (SDF por kind, smin por junta, grade 96³) | paridade \|d\| ≤ 1e-6 em todos os kinds e 17 specs; ≤ 1.5 s |
+| L10-2 | extração openvdb + ablação REMESH SHARP | malha fechada 5/5; slivers brutos < 4 %; `sdf_dev` p95 ≤ 0.5 voxel |
+| L10-3 (peso 2) | `retopo.py` QEM com guarda, features, reprojeção, V* = (B+4)/2 | `sliver_pct < 5` 5/5; `sdf_dev` p95 ≤ H/64; nd ≤ união −10°; IoU ≥ união −0.01; euler 0; ≤ 3 s |
+| L10-4 | remalhagem isotrópica (Botsch–Kobbelt) vs QEM | fairness ≤ 15°, slivers < 2 %; juiz forma decide |
+| L10-5 | ownership/skin/material por SDF; clips | 7 clipes importam; esticão ≤ 1.1×; comp 1 em 5/5 |
+| L10-6 | `mesh_lint` sdf_dev / normal_consistency / euler | relatório nos 5 clays v12 e SDF |
+| L10-7 | integração `BODY=sdf`, `--body`, peça fina, k | IoU ≥ v12 −0.01; `unsafe` −50 %; build ≤ 60 s; `--body union` idêntico |
+| L10-8 | robustez em lote: 17 specs, por rig | 17/17; build ≤ 15 s médio; critérios por rig |
+| L10-9 | bateria v13 pareada contra v12 | PASS ≥ 3/5; slivers < 5 % ≥ 4/5; default só se tudo passar |
+
+Ordem: L10-1 → L10-2 → {L10-3 ∥ L10-5 ∥ L10-6} → {L10-4 ∥ L10-7} → L10-8 → L10-9 (~8–9 h + bateria).
