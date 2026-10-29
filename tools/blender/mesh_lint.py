@@ -160,6 +160,24 @@ def prop_tris(doc):
     return np.concatenate(out)
 
 
+def tri_bones(doc, blob):
+    """Per triangle (same order as geometry()): the name of its dominant bone (largest summed skin
+    weight over its corners); None for every triangle without a skin."""
+    names = [doc["nodes"][j]["name"] for j in doc["skins"][0]["joints"]] if doc.get("skins") else None
+    out = []
+    for m in doc["meshes"]:
+        for p in m["primitives"]:
+            tri = accessor(doc, blob, p["indices"]).astype(np.int64).reshape(-1, 3)
+            if names is None or "JOINTS_0" not in p["attributes"]:
+                out += [None] * len(tri)
+                continue
+            joint = accessor(doc, blob, p["attributes"]["JOINTS_0"]).astype(np.int64)
+            weight = accessor(doc, blob, p["attributes"]["WEIGHTS_0"]).astype(np.float64)
+            top = joint[np.arange(len(joint)), weight.argmax(1)]
+            out += [names[np.bincount(top[t]).argmax()] for t in tri]
+    return out
+
+
 def attach_props(glb):
     """Prop parts listed in the attach.json beside the GLB (build_unit writes <stem>-attach.json for a
     trial, attach.json for clay/model.glb); 0 without the file."""
@@ -308,16 +326,31 @@ def lint(glb):
         out["components_body"] = body_components(pos, tri, prop_tris(doc), attach_props(glb))
     out["image_size"], out["unique_colours"] = image_info(doc, blob)
     out["atlas_kb"] = atlas_kb(doc)
-    out.update(uv_report(uv, tri, out["image_size"], p, area))
+    out.update(uv_report(uv, tri, out["image_size"], p, area, tri_bones(doc, blob)))
     # atlas pixels laid along the unit's height at the median texel density (report only)
     out["texel_per_height"] = round(out["texel"]["median"] * height) if out["texel"] else None
     return out
 
 
-def uv_report(uv, tri, size, p, area):
-    """uv_out_of_range, uv_overlap_pct, atlas_used_pct, texel{min,max,ratio} (px per world unit)."""
+def mirror_overlap_pct(uv, tri, bones, size, cols, rows):
+    """Share (% of the covered pixels) of the UV overlap that is only .L/.R twins sharing texels
+    (Knodt & Gao 2025 symmetric overlap): overlapped pixels that no longer overlap once the .L and
+    .R triangles count as one layer. None without bone names (report only, no gate)."""
+    if not any(bones):
+        return None
+    side = np.array([1 if b and b.endswith(".L") else 2 if b and b.endswith(".R") else 0 for b in bones])
+    cover = [cover_map(uv, tri[side == k], (size, size), cols, rows) for k in range(3)]
+    merged = np.maximum(cover[1], cover[2]) + cover[0]
+    total = cover[0] + cover[1] + cover[2]
+    return round(100.0 * ((total > 1) & (merged <= 1)).sum() / max((total > 0).sum(), 1), 1)
+
+
+def uv_report(uv, tri, size, p, area, bones=None):
+    """uv_out_of_range, uv_overlap_pct, uv_overlap_mirror_pct (the part of it explained by .L/.R twins
+    sharing a cell; bones = tri_bones(), else None), atlas_used_pct, texel{min,max,ratio} (px per world unit)."""
     if uv is None or size is None:
-        return {"uv_out_of_range": 0, "uv_overlap_pct": None, "atlas_used_pct": None, "texel": None}
+        return {"uv_out_of_range": 0, "uv_overlap_pct": None, "uv_overlap_mirror_pct": None,
+                "atlas_used_pct": None, "texel": None}
     cols, rows = max(size[0] // BLOCK_PX, 1), max(size[1] // BLOCK_PX, 1)
     overlap, used = raster_uv(uv, tri, RASTER, cols, rows)
     a, b = uv[tri][:, 1] - uv[tri][:, 0], uv[tri][:, 2] - uv[tri][:, 0]
@@ -327,6 +360,7 @@ def uv_report(uv, tri, size, p, area):
     texel = texel[texel > 0]
     return {"uv_out_of_range": int(((uv < -1e-4) | (uv > 1 + 1e-4)).any(1).sum()),
             "uv_overlap_pct": overlap, "atlas_used_pct": used,
+            "uv_overlap_mirror_pct": mirror_overlap_pct(uv, tri, bones, RASTER, cols, rows) if bones else None,
             "texel": {"min": float(texel.min()), "max": float(texel.max()),
                       "median": float(np.median(texel)), "ratio": float(texel.max() / texel.min())} if len(texel) else None}
 

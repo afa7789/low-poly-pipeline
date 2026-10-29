@@ -512,4 +512,6 @@ já existe mas perde decais e ink. Regras: textura procedural sempre; gates no r
 | T5 | 1 material no export (`merge_materials`) | n005 prims 7 → 1; engine importa; 1 draw/tipo; render pixel-igual |
 | T4 | espelho L/R já partilha célula: prova + `uv_overlap_pct` esperado | linha no PIPELINE + teste |
 
+Estado T4 (2026-10-29): **feito, já existia** — gêmeos `.L/.R` partilham célula e tom (25-36 % dos pixels cobertos em n005/hfoo); `mesh_lint.uv_overlap_mirror_pct` (relatório) = 2-3 %, o resto da sobreposição (64-81 %) é o cel "1 texel por tom". Único par desigual: `forearm` com prop na mão. PIPELINE §27.T4.
+
 Ordem: (T1+T6, T2, T4 em paralelo) → (T3, T5). Não vale: packing aprendido, joint UV baking, carving por OT, modulo-valid, TABI.
