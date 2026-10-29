@@ -1886,6 +1886,50 @@ def sdf_mesh(field, adaptivity=0.0, name="sdf"):
     return obj
 
 
+SDF_WELD = 0.1        # sdf_body_object welds vertices closer than this many voxels
+
+
+def skin_sdf(obj, field, spec, rig, **bands):
+    """Bone weights (sdf_body.weights: nearest part, mixed with the near ones inside a junction's band, limb ramp, chain segment; `bands` = band_scale / free_scale) as
+    vertex groups, and one material slot per body material, each face on the material of the part nearest its centre
+    (PIPELINE 28.L10-5). Same conventions as transfer_from_parts: a group per bone, weights normalized."""
+    import numpy as np
+    SB = sibling("sdf_body")
+    mesh = obj.data
+    pos = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", pos)
+    names, W = SB.weights(pos.reshape(-1, 3), field, spec, rig, **bands)
+    W[W < 0.01] = 0.0
+    W /= W.sum(1, keepdims=True)
+    groups = {b: obj.vertex_groups.new(name=b) for b in (names[c] for c in np.nonzero(W.any(0))[0])}
+    for v, col in zip(*np.nonzero(W)):
+        groups[names[col]].add([int(v)], float(W[v, col]), "REPLACE")
+    mats = list(dict.fromkeys(spec[field.parts[m]["i"]][4] for m in range(len(field.parts))))
+    for name in mats:
+        mesh.materials.append(material(name))
+    centres = np.array([tuple(p.center) for p in mesh.polygons]).reshape(-1, 3)
+    for poly, name in zip(mesh.polygons, SB.materials(centres, field, spec)):
+        poly.material_index = mats.index(name)
+
+
+def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", **bands):
+    """The skinned, material-labelled body of `spec` (rows [bone, kind, dims, at, material, opts]; props and the flame slit
+    stay out: they are separate components skinned on their anchor, as in a union build): sdf_body.field -> sdf_mesh ->
+    skin_sdf. Returns (object, field). Needs load_spec to have set the rig. main() does not call it yet (L10-7)."""
+    SB = sibling("sdf_body")
+    rig = sibling("lathe_limb").RIG
+    rows = [tuple(r) for r in spec]
+    field = SB.field(rows, CUTS if cuts is None else cuts, rig, k, grid, False)
+    obj = sdf_mesh(field, adaptivity, name)
+    bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=SDF_WELD * field.voxel)
+    bm.to_mesh(obj.data)
+    bm.free()
+    skin_sdf(obj, field, rows, rig, **bands)
+    return obj, field
+
+
 def main():
     target, out =sys.argv[sys.argv.index("--") + 1:][:2]
     rest = sys.argv[sys.argv.index("--") + 1:]

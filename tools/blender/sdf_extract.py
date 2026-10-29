@@ -2,12 +2,17 @@
 """L10-2 ablation: the SDF body's mesh by openvdb (build_unit.sdf_mesh) against REMESH SHARP over the joined parts.
 
     blender -b -P tools/blender/sdf_extract.py -- <run_dir> <outdir> [grids=96,128] [adapt=0,0.5,0.9] [octree=6,7]
+    blender -b -P tools/blender/sdf_extract.py -- <run_dir> <outdir> skin=1 [clay=1|0] [grid=96] [adapt=0.5] [name=clay-sdfskin]
 
 Reads <run_dir>/spec.json (+ fit/cuts.json when there). For each (grid, adaptivity) writes <outdir>/clay-sdfraw-g<G>-a<A>.glb, for
 each octree depth clay-remesh-o<D>.glb (Remesh modifier, mode SHARP, over the body parts only joined, no SDF), and
 <outdir>/ablation.json: seconds of the field and of the extraction, verts / tris, sdf_dev (|Field.d| at the vertices, in voxels:
 mean / p95 / max; provisional, L10-6 formalizes it in mesh_lint) and the thin parts (thickness 2 r < 2 voxels at 96^3) with the
 triangles each one owns. mesh_lint's numbers (python3.14, on the GLBs) are merged in by tools/blender/sdf_extract_report.py.
+
+`skin=1` (L10-5): the whole unit as main() would write it with the SDF body: build_unit.sdf_body_object (bone weights and
+materials by ownership), props and the flame slit as components of their own, armature, the clips; <name>.glb (+ <name>.json:
+verts, tris, components of the body, groups) in <outdir>. clay=0: the palette's flat colours (the ID render of zones_clay).
 """
 import json
 import pathlib
@@ -123,10 +128,55 @@ def sdf_column(doc, cuts, grids, adapts, outdir):
     return rows
 
 
+def skin_unit(run, outdir, rest):
+    """<name>.glb: the SDF body (skin, materials) + props / flame + armature + clips, exported like main()."""
+    BU.CLAY = arg(rest, "clay", "1") == "1"
+    BU.wipe()
+    BU._MAT_CACHE.clear()        # wipe() frees the materials the cache holds
+    cuts_path = run / "fit" / "cuts.json"
+    BU.CUTS.update(json.loads(cuts_path.read_text()) if cuts_path.exists() else {})
+    _, spec, rest_pose = BU.load_spec(str(run / "spec.json"))
+    arm = BU.build_armature(rest_pose)
+    t0 = time.perf_counter()
+    parts = BU.build_spec_parts(spec, {})
+    keep = [p for p in parts if p[0].data.materials[0].name.split(".")[0] == "flame" or p[0].get("prop")]
+    for part in parts:
+        if part not in keep:
+            bpy.data.objects.remove(part[0], do_unlink=True)
+    for obj, bone in keep:
+        BU.skin_part(obj, bone)
+    body, field = BU.sdf_body_object(spec, grid=int(arg(rest, "grid", "96")), adaptivity=float(arg(rest, "adapt", "0.5")),
+                                   **{f"{k}_scale": float(v) for k in ("band", "free") if (v := arg(rest, k, None))})
+    comps, groups = BU.components(body.data), sorted(g.name for g in body.vertex_groups)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in [body] + [o for o, _ in keep]:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body = bpy.context.view_layer.objects.active
+    body.name = body.data.name = run.parent.name
+    BU.soften(body, 35.0)
+    body.parent = arm
+    body.modifiers.new("Armature", "ARMATURE").object = arm
+    BU.make_actions(arm)
+    bpy.context.scene.frame_set(1)
+    name = arg(rest, "name", "clay-sdfskin")
+    bpy.ops.export_scene.gltf(filepath=str(outdir / f"{name}.glb"), export_format="GLB", export_yup=True, export_animations=True,
+                              export_animation_mode="ACTIONS", export_apply=False, export_skins=True, export_morph=False)
+    tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
+    info = {"unit": run.parent.name, "verts": len(body.data.vertices), "tris": tris, "components_body": comps, "props": len(keep),
+            "groups": groups, "materials": [m.name for m in body.data.materials], "voxel": round(field.voxel, 5),
+            "seconds": round(time.perf_counter() - t0, 3)}
+    (outdir / f"{name}.json").write_text(json.dumps(info, indent=1))
+    print("sdf_extract skin:", json.dumps(info))
+
+
 def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     run, outdir = pathlib.Path(rest[0]), pathlib.Path(rest[1])
     outdir.mkdir(parents=True, exist_ok=True)
+    if arg(rest, "skin", "0") == "1":
+        return skin_unit(run, outdir, rest)
     grids = [int(v) for v in arg(rest, "grids", "96,128").split(",")]
     adapts = [float(v) for v in arg(rest, "adapt", "0,0.5,0.9").split(",")]
     depths = [int(v) for v in arg(rest, "octree", "6,7").split(",")]
