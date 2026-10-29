@@ -968,7 +968,8 @@ def clay_args(kind):
     hi = str(BUDGETS[kind][1])
     return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else []),
             *([f"sdf_grid={SDF_GRID}"] if BODY == "sdf" and SDF_GRID else []),
-            *([f"sdf_k_mode={SDF_K_MODE}"] if BODY == "sdf" and SDF_K_MODE != "base" else [])]
+            *([f"sdf_k_mode={SDF_K_MODE}"] if BODY == "sdf" and SDF_K_MODE != "base" else []),
+            *([f"sdf_retopo={SDF_RETOPO}"] if BODY == "sdf" and SDF_RETOPO != "qem" else [])]
 
 
 def tilts_of(report):
@@ -2084,6 +2085,8 @@ def main():
     ap.add_argument("--sdf-grid", type=int, default=0, help="--body sdf: voxels along the longest side (0 = build_unit.SDF_GRID, 96)")
     ap.add_argument("--sdf-k-mode", choices=("base", "class", "hard", "ext"), default="base",
                     help="--body sdf: how each junction's smooth-min k is chosen (sdf_body.K_MODES, PIPELINE 29.L11-5)")
+    ap.add_argument("--sdf-retopo", choices=("qem", "cvt"), default="qem",
+                    help="--body sdf: the retopology of the dense body (retopo.retopo method; cvt = curvature-guided Voronoi, PIPELINE 29.L11-6)")
     ap.add_argument("--tilts", default="",
                     help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
                          "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
@@ -2129,8 +2132,8 @@ def main():
         ap.error("--variants must be at least 1")
     args.deterministic = args.deterministic or args.loop > 0
     args.style = args.texture        # the old name, for stage 2 code that still reads it
-    global BODY, SDF_GRID, SDF_K_MODE
-    BODY, SDF_GRID, SDF_K_MODE = args.body, args.sdf_grid, args.sdf_k_mode
+    global BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO
+    BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO = args.body, args.sdf_grid, args.sdf_k_mode, args.sdf_retopo
     args.union_body = args.body != "join"
 
     resolve_paths(args)
@@ -2262,6 +2265,7 @@ FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ab
 # 24.L6-4: the deformation needs the welded body; read build_unit.BODY (union | sdf | join) from its source (it imports bpy)
 DEFAULT_BODY = re.search(r'^BODY\s*=\s*"(\w+)"', (ROOT / "tools/blender/build_unit.py").read_text(), re.M).group(1)
 SDF_K_MODE = "base"      # --sdf-k-mode: build_unit sdf_k_mode= (sdf_body.K_MODES)
+SDF_RETOPO = "qem"       # --sdf-retopo: build_unit sdf_retopo= (retopo.retopo method)
 SDF_GRID = 0             # --sdf-grid: build_unit sdf_grid= (0 = its SDF_GRID default)
 BODY = DEFAULT_BODY      # main() sets it from --body; clay_args passes it to build_unit when it is not the default
 RED_W = 1.0           # margin_of: a variant pays its mean uncovered share against its IoU margins

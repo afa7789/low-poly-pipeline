@@ -648,13 +648,15 @@ def remesh(verts, tris, target_faces, sdf=None, iters=10, features=None, polish=
 
 
 # ---------------------------------------------------------------- curvature-guided CVT (L11-6)
-CVT_EPS = 0.1           # density rho = (CVT_EPS + kappa)^CVT_ALPHA, kappa = smoothed mean dihedral angle (rad) at the dense vertex
+CVT_EPS = 0.3           # density rho = (CVT_EPS + kappa)^CVT_ALPHA, kappa = smoothed mean dihedral angle (rad) at the dense vertex
 CVT_ALPHA = 1.0
 CVT_ITERS = 30          # Lloyd iterations (stops sooner when no seed moves)
 CVT_SMOOTH = 2          # rings of averaging over kappa (the openvdb mesh has a 45 degree staircase: the raw dihedral is noise)
 CVT_SEED = 0
-CVT_PLACE = "centroid"  # "centroid" (weighted cell centroid, projected) | "qef" (quadric minimiser of the cell's face planes, projected)
-CVT_QEF_REG = 0.1       # qef: Tikhonov pull to the centroid, x the mean eigenvalue
+CVT_TRIES = 4           # seed draws: the best one is kept (fewest defects, then smallest mean |sdf| at the face centroids); a draw is skipped past CVT_SECONDS
+CVT_SECONDS = 2.0
+CVT_PLACE = "qef"  # "centroid" (weighted cell centroid, projected) | "qef" (quadric minimiser of the cell's face planes, projected)
+CVT_QEF_REG = 0.5       # qef: Tikhonov pull to the centroid, x the mean eigenvalue
 
 
 def vertex_curvature(P, T, smooth=CVT_SMOOTH):
@@ -754,20 +756,60 @@ def dual_faces(T, label, N):
     return L[np.unique(key, return_index=True)[1]]
 
 
-def drop_nonmanifold(F, P):
-    """F without the faces that overload an edge (> 2 faces): the smallest area first. (F, number dropped)."""
-    dropped = 0
+def half_edges(F, N):
+    return (F.ravel() * N + F[:, [1, 2, 0]].ravel()).reshape(-1, 3)
+
+
+def drop_overloaded(F, X):
+    """F without the faces that repeat a directed edge (a cell pair that touches in two places): of the faces on such an edge,
+    the largest stays. (F, number dropped)."""
+    N, dropped = len(X), 0
     while True:
-        keys, _, _, count = edge_faces(F, len(P))
-        bad = keys[count > 2]
-        if not len(bad):
+        h = half_edges(F, N)
+        u, cnt = np.unique(h, return_counts=True)
+        if cnt.max() < 2:
             return F, dropped
-        a, b = F.ravel(), F[:, [1, 2, 0]].ravel()
-        k = np.minimum(a, b) * len(P) + np.maximum(a, b)
-        hit = np.unique(np.flatnonzero(np.isin(k, bad)) // 3)
-        worst = hit[np.argmin(tri_normals(P, F[hit])[1])]
-        F = np.delete(F, worst, axis=0)
-        dropped += 1
+        on = np.flatnonzero((h == u[cnt > 1][0]).any(1))
+        F = np.delete(F, on[np.argsort(tri_normals(X, F[on])[1])[:-1]], axis=0)
+        dropped += len(on) - 1
+
+
+def fill_holes(F, N):
+    """Close the loops of boundary edges with a triangle fan whose chords are new edges. (F, number of loops left open)."""
+    h = half_edges(F, N)
+    und = np.minimum(h // N, h % N) * N + np.maximum(h // N, h % N)
+    keys, inv, cnt = np.unique(und, return_inverse=True, return_counts=True)
+    bd = h.ravel()[(cnt == 1)[inv.ravel()]]
+    start, end = bd // N, bd % N
+    into = {int(e): int(s_) for s_, e in zip(start, end)}
+    taken, new, open_loops = set(), [], 0
+    for b in map(int, end):
+        if b in taken:
+            continue
+        loop, v = [], b
+        while v not in taken and v in into:
+            taken.add(v)
+            loop.append(v)
+            v = into[v]
+        if v != b or len(loop) < 3:
+            open_loops += 1
+            continue
+        for apex in range(len(loop)):
+            w = loop[apex:] + loop[:apex]
+            chords = [min(w[0], x) * N + max(w[0], x) for x in w[2:-1]]
+            if not np.isin(chords, keys).any():
+                new += [[w[0], w[i], w[i + 1]] for i in range(1, len(w) - 1)]
+                break
+        else:
+            open_loops += 1
+    return (np.vstack([F, new]) if new else F), open_loops
+
+
+def defects(F, N, euler_in):
+    """(boundary edges, edges on more than 2 faces, euler - euler_in) of the face set F over N vertices."""
+    keys, _, _, cnt = edge_faces(F, N)
+    used = len(np.unique(F))
+    return int((cnt == 1).sum()), int((cnt > 2).sum()), euler(used, len(F)) - euler_in
 
 
 def cell_positions(P, T, label, weight, N, place, sdf, h, reach):
@@ -787,14 +829,16 @@ def cell_positions(P, T, label, weight, N, place, sdf, h, reach):
 
 
 def cvt(verts, tris, target_faces, sdf=None, polish=None, grad_h=None, max_dev=None, eps=CVT_EPS, alpha=CVT_ALPHA, iters=CVT_ITERS,
-        smooth=CVT_SMOOTH, place=None, seed=CVT_SEED, **_):
+        smooth=CVT_SMOOTH, place=None, seed=CVT_SEED, tries=CVT_TRIES, **_):
     """(verts, tris, report): curvature-guided Voronoi / CVT retopology (Chatterjee, Soni, Bhowmick 2022; Valette & Chassery 2004,
     Valette, Chassery & Prost 2008) of a dense closed shell to ~`target_faces` triangles. N = (B + 4 - euler_in) / 2 seeds are drawn
     on the dense vertices with probability ~ area x (eps + kappa)^alpha (kappa: `vertex_curvature`), relaxed by `lloyd`
     (geodesic cells along the edges: unlike a kd-tree it never joins two legs that touch in space), each cell becomes one vertex
     (`cell_positions`, projected on `sdf`; `polish` the exact field of the last projection) and each dense triangle on three cells one
-    face (`dual_faces`; an overloaded edge drops its smallest face, then the hole is left to the report: `dropped`). `max_dev` is
-    only reported (`dev_over`): the dual has no per-operation guard like `reduce`. Faces = 2N - 4 + euler_in on a clean dual."""
+    face (`dual_faces`). A cell pair that touches twice repeats a directed edge: `drop_overloaded` keeps the largest face, `fill_holes` fans
+    the loops that leaves. Up to `tries` seed draws (stopping once CVT_SECONDS have passed): the one with the fewest `defects` (report:
+    boundary edges, overloaded edges, euler - euler_in), then the smallest mean |sdf| at its face centroids, is kept. `max_dev` is only reported
+    (`dev_over`, triangles with the centroid farther): the dual has no per-operation guard like `reduce`. Faces = 2N - 4 + euler_in."""
     t0 = time.perf_counter()
     P, T = np.array(verts, float), np.asarray(tris, np.int64)
     n, e_in = len(P), euler(len(np.unique(T)), len(T))
@@ -806,11 +850,20 @@ def cvt(verts, tris, target_faces, sdf=None, polish=None, grad_h=None, max_dev=N
     length = np.linalg.norm(P[adj[1]] - P[np.repeat(np.arange(n), np.diff(adj[0]))], axis=1)
     comp = components(np.r_[a, b], np.r_[b, a], n)
     N = max(int((target_faces + 4 - e_in) // 2), 4)
-    seeds = initial_seeds(comp, weight, seed_counts(comp, weight, N), np.random.default_rng(seed))
-    seeds, label = lloyd(P, adj, length, weight, seeds, iters)
-    N = len(seeds)
-    X = cell_positions(P, T, label, weight, N, place or CVT_PLACE, sdf, h, float(np.ptp(P, axis=0).max()) * 0.05)
-    F, dropped = drop_nonmanifold(dual_faces(T, label, N), X)
+    best = None
+    for k in range(tries):
+        seeds, label = lloyd(P, adj, length, weight, initial_seeds(comp, weight, seed_counts(comp, weight, N), np.random.default_rng(seed + k)), iters)
+        X = cell_positions(P, T, label, weight, len(seeds), place or CVT_PLACE, sdf, h, float(np.ptp(P, axis=0).max()) * 0.05)
+        F, dropped = drop_overloaded(dual_faces(T, label, len(seeds)), X)
+        F, open_loops = fill_holes(F, len(seeds))
+        score = defects(F, len(seeds), e_in)
+        rank = (sum(map(abs, score)), float(np.abs(sdf(X[F].mean(1))).mean()) if sdf is not None else 0.0)
+        if best is None or rank < best[0]:
+            best = (rank, score, F, X, dropped, open_loops, k + 1)
+        if time.perf_counter() - t0 > CVT_SECONDS:
+            break
+    _, score, F, X, dropped, open_loops, tried = best
+    N = len(X)
     if (polish or sdf) is not None:
         X = project(polish or sdf, X, h, np.full(N, float(np.ptp(P, axis=0).max()) * 0.02))
     used = np.unique(F)
@@ -818,8 +871,8 @@ def cvt(verts, tris, target_faces, sdf=None, polish=None, grad_h=None, max_dev=N
     remap[used] = np.arange(len(used))
     out_v, out_t = X[used], remap[F]
     over = int((np.abs((polish or sdf)(out_v[out_t].mean(1))) > max_dev).sum()) if max_dev is not None and (polish or sdf) is not None else None
-    return out_v, out_t, {"faces_in": len(T), "faces": len(out_t), "verts": len(out_v), "seeds": N, "euler_in": e_in,
-                          "euler": euler(len(out_v), len(out_t)), "dropped": dropped, "dev_over": over, "target_met": len(out_t) <= target_faces,
+    return out_v, out_t, {"faces_in": len(T), "faces": len(out_t), "verts": len(out_v), "seeds": N, "euler_in": e_in, "tries": tried,
+                          "euler": euler(len(out_v), len(out_t)), "dropped": dropped, "open_loops": open_loops, "defects": score, "dev_over": over, "target_met": len(out_t) <= target_faces,
                           "seconds": round(time.perf_counter() - t0, 3)}
 
 
