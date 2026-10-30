@@ -5623,3 +5623,41 @@ Perdas: n005 rts .884 -> .831 (spill .067 -> .135), n02X front −.014, hfoo rts
 
 `<id>-full.png`: colunas concept | clay | wire | overlay | textured para v13-r1 | v15-r1 | v15-r1-guard, 6 vistas. `<id>-spill.png`: overlay das 6 vistas por versão
 (amarelo = acerto, vermelho = modelo fora do sheet, verde = sheet descoberto), com spill% e bare% por célula (vermelho se spill > 3 %).
+
+## 31. Leva 13 (2026-10-30): polir o 3D criado
+
+### 31.L13-4 Matriz fase (c) cor + `iters-15` na bateria v15 (2026-10-30)
+
+- **O que mudou.** Nada em código (zero linhas). Só máquina: (1) fase (c) da matriz: `ablation_matrix.py --variants c-base,c-legacy,c-shared,c-split,c-luma,c-ramp,c-snap,c-painted`
+  nas 6 unidades (48 runs, `--jobs 2`, `nice -n 10`, 0 falhas). Os `c-*` já cobrem todos os opt-ins de cor vivos (`--atlas legacy/shared`, `--materials split`, `--fit-luma`, `--ramp`,
+  `palette_snap`, `--texture painted`; `test_ablation_matrix` verde), então nenhuma variante foi acrescentada. Saída: `analysis/2026-10-30-l12-matrix-c.{csv,md}` (cópia em `IA_gen_paper/ablation-matrix-2026-10-30-l12-matrix-c.*`;
+  o `--out` padrão sobrescreveria a matriz de forma, restaurada do git). (2) `iters-15` na bateria: specs `v15-r1/spec.json` e `--tilts` de `v15-r1/silhouette.json`, `--no-repair --no-diagnose --body sdf --deterministic --shape-only`;
+  controle `v15-r1-ctl` (defaults) e `v15-r1-it15` (`CF_OVERRIDES={"optimize_verts.DETERMINISTIC_ITERS":15}`), 2 de cada vez.
+- **Fase (c): forma não se mexe.** As 7 variantes `c-*` têm IoU, spill, bare e contact idênticos ao `c-base` em 36/36 vistas × 6 unidades (|Δ| = 0.0000): cor não toca a forma. O veredito automático
+  "no (no-op)" da tabela de resumo é de FORMA e não vale como veredito de cor; o de cor abaixo (média sobre 6 unidades, Δ contra `c-base`; palette Δ não é coluna da matriz; zone gate = stage 2 PASS em 48/48 runs, nenhuma vista de zona falha):
+
+| variant | Δ luma L1 | Δ zone coverage | Δ atlas KB | Δ prims | zone gate | critério | veredito |
+|---|---|---|---|---|---|---|---|
+| c-legacy (256 px) | -0.0005 | +0.0004 | +53.2 | 0 | 6/6 ok | cor igual, atlas +53 KB, UV fora do intervalo em 3/6 | no |
+| c-shared (atlas 128 da raça) | -0.0003 | -0.0018 | -1.0 | 0 | 6/6 ok | cor igual, atlas -1 KB; vale pela troca de atlas entre unidades da raça, não pela cor | opt-in |
+| c-split (1 material por slot) | 0.0000 | -0.0003 | 0.0 | +4.7 | 6/6 ok | cor igual, mais primitivas (7-9 em vez de 1-2) | no |
+| c-luma (`--fit-luma`) | **-0.0131** | **+0.0050** | -0.0 | 0 | 6/6 ok | única que melhora as duas métricas de cor (luma L1 melhora em 5/6, n01X igual: n00U .058→.019, n005 .042→.032, n017 .137→.120, n02X .054→.042) | **default-candidate** |
+| c-ramp | +0.0006 | -0.0011 | +2.0 | 0 | 6/6 ok | piora luma/zone e aumenta o atlas | no |
+| c-snap (shared + palette snap) | -0.0001 | -0.0020 | -0.7 | 0 | 6/6 ok | ~ c-shared | opt-in |
+| c-painted (textura antiga) | +0.0403 | -0.0225 | +280.5 | +4.7 | 6/6 ok | pior em luma e zone, atlas +280 KB | no |
+
+  Critério: `default-candidate` = luma L1 cai e zone coverage sobe na média, sem piorar zone gate nem atlas, com forma idêntica; `opt-in` = cor neutra mas muda o artefato por outro motivo; `no` = piora cor ou paga atlas/primitivas sem ganho.
+  Os Δ segundos da matriz (c-legacy +44, c-shared +59, c-split +50, c-luma +19, c-ramp -13, c-snap -17, c-painted -14) são ruído de máquina compartilhada (o build de forma é o mesmo): não ler como custo.
+- **`iters-15` na bateria v15.** Controle de verdade = `v15-r1-ctl` (o spec v15 reconstruído com este protocolo), NÃO o `v15-r1` original: o original foi feito com o autor LLM, sem `--deterministic` e sem tilts pinados, e o ctl já difere dele
+  (IoU médio .8165 contra .8143, 3 vistas caem > 2σ em hfoo, 4 em n017, 4 em n01X).
+
+| run | IoU | spill | bare | contact | vistas spill ≤ .03 | segundos (6 unidades) |
+|---|---|---|---|---|---|---|
+| v15-r1 (autor LLM, original) | .8143 | .1172 | .0871 | .328 | 0/36 | – |
+| v15-r1-ctl | .8165 | .1145 | .0838 | .318 | 0/36 | 1038 |
+| v15-r1-it15 | .8245 | .1111 | .0775 | .340 | 0/36 | 1201 (+15.7 %) |
+
+  it15 contra ctl por unidade: n005 ΔIoU +.002 Δspill +.0003; n00U +.002 / -.0045; hfoo +.007 / -.0006; n017 +.017 / -.0030; n02X +.004 / -.0029; n01X +.016 / -.0098. Vistas que caem > 2σ: **0/36**. Tabela por unidade e vista (IoU/spill, original/ctl/it15) em
+  `analysis/2026-10-30-l13-4-it15.md` (gerada por `analysis/2026-10-30-l13-4-report.py.txt`). Aceite para virar default (spill médio cai, nenhuma vista cai > 2σ, +tempo ≤ 20 %): **atendido** (Δ spill médio -.0034, ΔIoU +.0080, 0 quedas, +15.7 %). Confirma o `default-candidate` da matriz (-.0044 / +.0091 / 0 / +14 s)
+  com o specs do autor novo. **Pronto para default; o default NÃO foi mudado** (decisão no merge). Ressalva honesta: o spill continua longe do gate (0/36 vistas ≤ .03 nos três runs); iters-15 é ganho pequeno, não resolve o vermelho.
+- **Aberto.** `c-luma` como default de cor (decisão no merge; o `--fit-luma` é o único `default-candidate` da cor); a matriz não tem coluna de palette Δ; ctl vs original v15 mostra que o protocolo determinístico com tilt pinado não reproduz o run do autor LLM (diferença de até .009 IoU médio por unidade).

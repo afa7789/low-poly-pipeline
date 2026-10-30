@@ -1,0 +1,45 @@
+import sys, json, re, pathlib
+sys.path.insert(0,'tools/blender')
+import ablation_matrix as A, noise as NZ
+S=pathlib.Path(sys.argv[1]); noise=NZ.load(A.NOISE)
+T={}
+for l in (S/'l13-4.out').read_text().splitlines():
+    m=re.match(r'(\w+) (\S+) exit=\d+ t=(\d+)s',l)
+    if m: T[m[1],m[2]]=float(m[3])
+rows={}
+for u in A.UNITS:
+    for n,tag in (('ctl','ctl'),('it15','it15')):
+        rows[u,n]=A.collect(u,n,{'colour':False},T[u,'v15-r1-'+tag],A.DRAFT,'v15-r1-')
+    rows[u,'orig']=A.make_row(u,'orig',A.read_json(A.DRAFT/u/'v15-r1'/'silhouette.json'),None,{'total_s':0})
+f=lambda x:'–' if x is None else f'{x:.3f}'
+print('| unit | run | IoU f/l/b/top/bot/rts | spill f/l/b/top/bot/rts | bare mean | contact | spill<=.03 | s |\n|'+'---|'*8)
+for u in A.UNITS:
+  for n in ('orig','ctl','it15'):
+    r=rows[u,n]
+    print(f"| {u} | {n} | {' / '.join(f(x)[1:] for x in r['iou'])} | {' / '.join(f(x)[1:] for x in r['spill_v'])} | {f(r['bare'])} | {f(r['contact'])} | {r['spill_ok']}/6 | {r['total_s']:.0f} |")
+print()
+tot={}
+for n in ('orig','ctl','it15'):
+    rs=[rows[u,n] for u in A.UNITS]
+    print(n,'IoU',A.mean([r['mean'] for r in rs]),'spill',A.mean([r['spill'] for r in rs]),'bare',A.mean([r['bare'] for r in rs]),'contact',A.mean([r['contact'] for r in rs]),'ok',sum(r['spill_ok'] for r in rs),'secs',sum(r['total_s'] for r in rs))
+print('\nit15 vs ctl, views falling >2σ:')
+nf=0
+for u in A.UNITS:
+    d=A.vs_base(rows[u,'it15'],rows[u,'ctl'],noise)
+    nf+=len(d['falls']); print(u,'dIoU',d['mean'],'dspill',d['spill'],'dbare',d['bare'],'dcontact',d['contact'],'falls',d['falls'],'ds',d['total_s'])
+print('total falls',nf)
+print('\nit15 vs orig v15-r1:')
+for u in A.UNITS:
+    d=A.vs_base(rows[u,'it15'],rows[u,'orig'],noise); print(u,'dIoU',d['mean'],'dspill',d['spill'],'falls',d['falls'])
+print('ctl vs orig:')
+for u in A.UNITS:
+    d=A.vs_base(rows[u,'ctl'],rows[u,'orig'],noise); print(u,'dIoU',d['mean'],'dspill',d['spill'],'falls',d['falls'])
+# colour
+print('\ncolour vs c-base (mean over units): luma_l1, zones, atlas_kb, secs')
+cr=A.disk_rows(); by={(r['unit'],r['variant']):r for r in cr}
+for n in ['c-legacy','c-shared','c-split','c-luma','c-ramp','c-snap','c-painted']:
+    ds={k:[A.dv(by[u,n].get(k),by[u,'c-base'].get(k)) for u in A.UNITS if (u,n) in by and by[u,n]['ok']] for k in ('luma_l1','zones_mean','atlas_kb','total_s','prims')}
+    zf=[u for u in A.UNITS if by[u,n].get('zone_fail')]
+    sh=max(abs(A.dv(by[u,n]['mean'],by[u,'c-base']['mean']) or 0) for u in A.UNITS)
+    print(n,{k:A.mean(v) for k,v in ds.items()},'zonefail',zf,'max|dIoU|',sh, 'maxabs dspill', max(abs(A.dv(by[u,n]['spill'],by[u,'c-base']['spill']) or 0) for u in A.UNITS))
+print('c-base', {u:(by[u,'c-base']['luma_l1'],by[u,'c-base']['zones_mean'],by[u,'c-base']['atlas_kb']) for u in A.UNITS})
