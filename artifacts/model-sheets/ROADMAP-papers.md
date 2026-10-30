@@ -663,6 +663,10 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-9 (2026-10-29): feito, opt-in; aceite de crease NÃO atendido** — `look.py`: métricas `crease_chamfer` (P/R a 4 px), `planarity` e `wire_entropy` sempre ligadas (linha `look:`, `review.md`, coluna do `sdf_batch`); snap planar por região guardado por IoU/spill/bare (`--look-snap`), creases do sheet-hard como borda de região (`--look-creases`), tinta nas arestas marcadas no atlas cel (`--look-ink`). Bateria 6: planaridade .02–.09 → .25–.43 (6/6), tris 700 → 700, IoU/spill dentro de 2σ exceto n005 back −.006; **recall de crease não sobe (≥ +.15 em 0/6: melhor n017 back +.08)** e `wire_entropy` não muda (a topologia fica) — relevo real é o L12-8. PIPELINE 30.L12-9.
 
+**Estado L11-7 (2026-10-30): fechado.** Matriz antiga (5 unidades, código pré-L12): nenhum opt-in ganhou; defaults confirmados; re-executada em L12-10a (PIPELINE §29.L11-7).
+
+**Estado L12-10a (2026-10-30): matriz (a) e (b) feitas, (c) cor aberta; nenhum default muda.** `ablation_matrix.py` cobre todas as flags vivas (teste), 43 variantes de forma x 6 unidades, 265 runs, sem LLM. Único `default-candidate`: `iters-15` (Δ spill -.0044, Δ IoU +.0091, 0 vistas > 2σ, +14 s); spill-w3/verts-asym baixam spill (-.018/-.017) pagando IoU (-.019/-.016) e bare; nenhuma variante passa de 2/36 vistas com spill <= .03 (aceite de spill do L12-10 só depende da bateria v15). Combinações da fase (b) não somam. csv/md: `analysis/2026-10-30-l12-matrix.*`, cópia em `IA_gen_paper/ablation-matrix-2026-10-30-l12-matrix.*` (PIPELINE §30.L12-10a).
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

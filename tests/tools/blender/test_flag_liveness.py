@@ -283,7 +283,7 @@ PLAIN = {      # read by every run (or by the mode they name): the static check 
     "no_massing", "variants", "decimate", "budgets", "tilts", "deform", "fit_verts", "flip_side", "frame", "no_repair", "passes",
     "diagnose", "pair", "out",
 }
-ENV = {"CF_SPILL_W", "CF_VERTS_SECONDS", "CF_FLIP_SIDE", "CF_FRAME"}       # each is read in the source (checked below) and documented here
+ENV = {"CF_SPILL_W", "CF_VERTS_SECONDS", "CF_FLIP_SIDE", "CF_FRAME", "CF_OVERRIDES", "CF_BUILD_ARGS"}       # each is read in the source (checked below) and documented here
 
 
 class FlagTable(unittest.TestCase):

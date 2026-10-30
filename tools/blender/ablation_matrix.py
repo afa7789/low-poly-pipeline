@@ -321,6 +321,11 @@ def verdict(s):
     return "no"
 
 
+def verdict_class(s):
+    """The verdict without its detail: default-candidate, opt-in, no, not measured (a changed count of falling views is not a change of verdict)."""
+    return verdict(s).split(" (")[0]
+
+
 def winners(summary):
     """The shape variants (not combinations, not controls) with the verdict default-candidate, in the table's order."""
     return [n for n, s in summary.items() if "+" not in n and not n.startswith(("no-", "body-", "c-", "dsl-off")) and verdict(s) == "default-candidate"]
@@ -371,7 +376,7 @@ def before_after_table(before, after):
     """Markdown: the variants measured in both matrices whose verdict changed (before = L11-7 code, after = L12), with the numbers."""
     out = ["| variant | verdict before (L11-7) | verdict after (L12) | Δ spill before → after | Δ IoU before → after | views fall > 2σ before → after |", "|---" * 6 + "|"]
     for n in after:
-        if n in before and verdict(before[n]) != verdict(after[n]):
+        if n in before and verdict_class(before[n]) != verdict_class(after[n]):
             b, a = before[n], after[n]
             out.append(f"| {n} | {verdict(b)} | {verdict(a)} | {sgn(b['spill'], 4)} → {sgn(a['spill'], 4)} | {sgn(b['mean'], 4)} → {sgn(a['mean'], 4)} | {b['falls']} → {a['falls']} |")
     return "\n".join(out) if len(out) > 2 else "(no variant changed verdict)"
@@ -493,7 +498,7 @@ def one(unit, name, args):
         return skip_row(unit, name, "not applicable (unit not listed or its input file missing)")
     run = DRAFT / unit / run_name(name)
     done = read_json(run / "batch.json")
-    if args.collect_only or (done.get("returncode") == 0 and not args.rebuild):
+    if args.collect_only or ("returncode" in done and not args.rebuild):      # exit 1 = a gate FAIL, the run is complete
         total = done.get("total_s", 0.0)
     else:
         guard = DRAFT / unit / f"{run_name(name)}.lock"
