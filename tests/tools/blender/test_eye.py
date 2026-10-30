@@ -228,3 +228,47 @@ def pair(form, artist):
     return {a: {"winner": w, "A": 4 - b, "B": b} for a, (w, b) in (("form", form), ("artist", artist))}
 
 
+
+
+class Report(unittest.TestCase):
+    """eye_compare: the judge's wins and the brief's acceptance, from numbers (no disk)."""
+
+    @staticmethod
+    def summary(iou=0.8, tris=600, seconds=500, stretch=1.0, incoherent=False):
+        return {"final_round": 1, "seconds": seconds, "stretch": {"walk": {"p99.5_stretch": stretch}},
+                "rounds": [{"round": 1, "tris": tris, "views": {"front": {"iou": iou, "incoherent": incoherent}}}]}
+
+    def test_a_win_needs_both_axes_3_1_for_the_new_run(self):
+        self.assertTrue(EC.wins(pair(("B", 4), ("B", 3))))
+        self.assertFalse(EC.wins(pair(("B", 4), ("tie", 2))))
+        self.assertFalse(EC.wins(pair(("A", 0), ("B", 4))))
+
+    def test_acceptance_counts_wins_in_all_and_in_the_unseen_units(self):
+        units = ["n02X", "n005", "n00U", "hfoo", "n017", "n01X"]
+        win, lose = pair(("B", 4), ("B", 4)), pair(("A", 0), ("B", 4))
+        sums = {u: self.summary() for u in units}
+        got = EC.acceptance(units, {u: win for u in units[:3]} | {"hfoo": win, "n017": lose, "n01X": lose}, sums)
+        self.assertTrue(got["judge >= 3-1 in >= 4/6"])
+        self.assertFalse(got["judge >= 2/3 unseen"])
+        self.assertTrue(got["stretch <= 1.5"] and got["pieces <= 700 tris"] and got["<= 15 min"])
+        self.assertEqual(got["coherent views under IoU .6"], [])
+
+    def test_the_guards_fail_on_iou_stretch_triangles_and_time(self):
+        win = pair(("B", 4), ("B", 4))
+        bad = {"n005": self.summary(iou=0.5, tris=701, seconds=16 * 60, stretch=1.8)}
+        got = EC.acceptance(["n005"], {"n005": win}, bad)
+        self.assertEqual(got["coherent views under IoU .6"], ["n005 front"])
+        self.assertFalse(got["pieces <= 700 tris"] or got["<= 15 min"])
+        self.assertTrue(got["stretch <= 2.0"])
+        self.assertFalse(got["stretch <= 1.5"])
+        self.assertEqual(EC.acceptance(["n005"], {}, {"n005": self.summary(iou=0.5, incoherent=True)})["coherent views under IoU .6"], [])
+
+    def test_falls_marks_a_view_more_than_2_sigma_under_the_base(self):
+        noise = {"global": {"front": 0.01, "left": 0.01}}
+        views = {"front": {"iou": 0.80}, "left": {"iou": 0.90}}
+        base = {"front": {"iou": 0.90}, "left": {"iou": 0.89}}
+        self.assertEqual(EC.falls("u", views, base, noise), ["front"])
+
+
+if __name__ == "__main__":
+    unittest.main()

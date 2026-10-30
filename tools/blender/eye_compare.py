@@ -11,7 +11,6 @@
 --accept  the brief's acceptance (judge form + artist >= 3-1 for v16 in >= 4/6 and >= 2/3 of the unseen units; IoU >= .6 in every coherent
           view; stretch <= 2.0; pieces <= 700 triangles; <= 15 min per unit). Pure helpers (falls, judged, acceptance) are tested without disk."""
 import argparse
-import concurrent.futures
 import json
 import pathlib
 import shutil
