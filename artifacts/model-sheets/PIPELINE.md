@@ -5812,3 +5812,45 @@ em vértice vermelho, prop sem máscara própria intacto, prop com máscara pró
   `analysis/2026-10-30-l13-4-it15.md` (gerada por `analysis/2026-10-30-l13-4-report.py.txt`). Aceite para virar default (spill médio cai, nenhuma vista cai > 2σ, +tempo ≤ 20 %): **atendido** (Δ spill médio -.0034, ΔIoU +.0080, 0 quedas, +15.7 %). Confirma o `default-candidate` da matriz (-.0044 / +.0091 / 0 / +14 s)
   com o specs do autor novo. **Pronto para default; o default NÃO foi mudado** (decisão no merge). Ressalva honesta: o spill continua longe do gate (0/36 vistas ≤ .03 nos três runs); iters-15 é ganho pequeno, não resolve o vermelho.
 - **Aberto.** `c-luma` como default de cor (decisão no merge; o `--fit-luma` é o único `default-candidate` da cor); a matriz não tem coluna de palette Δ; ctl vs original v15 mostra que o protocolo determinístico com tilt pinado não reproduz o run do autor LLM (diferença de até .009 IoU médio por unidade).
+
+
+## 32. Leva 14 (2026-10-30): o que se vê — corpo, textura, conserto à mão
+
+O usuário olhou a v15 (`history/2026-10-30-v15/`) e disse "está muito ruim". A Leva 14 olha para o que se vê (corpo, textura) em vez
+do que se mede (IoU/spill), e usa um conserto à mão para diagnosticar o que a pipeline não faz.
+
+### 32.L14-3 Conserto à mão de 3 unidades (n02X, n005, n00U) e diagnóstico da pipeline (2026-10-30)
+
+**O que entrou.** Nenhum código da pipeline mudou. `runs/draft/<id>/l14-fix/` por unidade: `fix.py` (passos reproduzíveis sobre o
+`model.v15.glb`: peças refeitas por primitiva — tubo n-gon, caixa/cunha, esfera 8×4 — cor plana por peça amostrada do sheet, peso 1.0
+no osso da armadura da v15, clipes intactos), `steps/NN.png` (render das 6 vistas por passo), `diagnosis.md` (lista de artista por
+vista, por impacto), `fix.json`, `model.glb`, `sil/approved` (gate com as câmaras pinadas da v15), `sil/sweep` (câmaras livres),
+`pairwise.json` (juiz `session:opus`, 4 votos). Mãos partilhadas: `runs/draft/l14fix_lib.py`, `render_steps.sh`, `strip.py`,
+`compare_fix.py`. Imagens `history/2026-10-30-l14-fix/<id>.png` (concept | v15 | fix | overlay v15 | overlay fix pinado | overlay fix
+varrimento). Diagnóstico completo: `analysis/2026-10-30-l14-fix-diagnosis.md`.
+
+**Resultado.** Tempo 13 / 4 / 5 min (orçamento 45); tris 724 / 612 / 548; rig ok (stretch p99.5 1.0 / 1.0 / 1.0; v15 2.5 / 2.2 / 2.8).
+Gate honesto: **0/6 vistas com spill ≤ .03 nos três, como a v15**; IoU front/left/back **cai** (n02X .90/.85/.90 → .75/.78/.75; n005
+.91/.94/.93 → .74/.80/.73; n00U .90/.77/.89 → .56/.61/.56); top/bottom com as câmaras pinadas da v15 cai a .39/.35 no n02X por
+orientação girada 180º (`detect_rotated` decide por modelo) e volta a .82/.70 com varrimento. Juiz pareado fix × v15: **sheet 4-0,
+artista 4-0, wc3 4-0 nas três unidades; forma fix 4-0 em n02X e n00U, v15 4-0 em n005** (11/12 eixos). As duas medidas discordam de
+forma sistemática: o conserto acerta as *peças* (rosto, clava à frente, calça, botas, capuz, olhos, tanque, patas com joelho) e perde a
+*massa* (o sheet do ogro não tem pescoço; as patas da aranha no painel front são cunhas sobrepostas = dois blocos; o casaco do n005 é
+mais largo). O v15 obedeceu à massa e perdeu as peças.
+
+**Causas-raiz (detalhe, evidência, mudança e medida em `analysis/2026-10-30-l14-fix-diagnosis.md` §3).** C1 o SDF k=1 + retopo QEM
+600 tris apaga as peças (fundir só o núcleo; cabeça, mãos, pés, props, peças hard ficam separadas com o seu material); C2 a cor é
+projetada do painel, não atribuída à peça (face herda o material da peça de origem; o decal do rosto vira peças); C3 o gate mede massa
+e o olho mede peças (body IoU com teto .75–.80 "bom o bastante", aceite por peça + juiz pareado como gate de não-regressão; `--frame
+body` quebra com props à frente: n02X front .34); C4 câmara/espelho/orientação pinadas são do modelo medido, não do sheet
+(`detect_rotated` e espelho a partir do `refs/<id>/parts.json`, uma vez por unidade); C5 o autor não vê profundidade nem existência
+(clava em `forward −0.35..−0.71` = atrás; placas, manoplas, capacete inexistentes; A-pose com a clava erguida no sheet → três regras
+de preflight sobre `parts.json` + `sheet-props.jpg`: lado do prop, peça existe, pose do braço); C6 sheet incoerente absorvido em vez
+de exposto (tanga em lados opostos; patas-bloco no front vs finas no top → incoerência por peça, decisão do autor gravada no spec).
+
+**O que a pipeline nunca fará sem olhar** (§4 da análise): rosto lê?, clava à frente ou atrás?, barriga ou caixa?, patas ou tenda?,
+lado da tanga?, "parecido o bastante para parar?". É o brief do estágio com olho: ver concept | textured | overlay e **refazer peças por
+primitiva** (como `l14fix_lib`), não empurrar vértices (L13-1 chegou a −.008).
+
+**Aceite.** "Até ao menos lembrar": pelo olho e pelo juiz **sim** (sheet 12-0); pelo gate honesto **não** (0/6, IoU menor). Nenhum
+default muda. Aberto: C1–C6 como itens de código, cada um com a sua medida.
