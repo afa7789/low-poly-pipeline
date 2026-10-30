@@ -13,6 +13,8 @@ import json
 import re
 import time
 
+import noise as NZ
+
 DROP = 0.01       # a view may not fall more than this
 GAIN = 0.005      # the mean must rise by this ... (or a failing gate must pass)
 PER_ROUND = 3     # rebuilds per round
@@ -24,9 +26,10 @@ def mean(iou):
     return sum(iou[v] for v in VIEWS if v in iou) / max(1, sum(v in iou for v in VIEWS))
 
 
-def loop_accept(before, after, gates):
-    """(accepted, reason): no view falls more than DROP and (the mean rises by GAIN or a gate that failed now passes)."""
-    fell = [f"{v} {after[v] - before[v]:+.3f}" for v in before if v in after and after[v] < before[v] - DROP - EPS]
+def loop_accept(before, after, gates, noise=None, unit=None):
+    """(accepted, reason): no view falls more than DROP (2 sigma of the view with a noise table, L12-7) and (the mean rises by
+    GAIN or a gate that failed now passes)."""
+    fell = [f"{v} {after[v] - before[v]:+.3f}" for v in before if v in after and after[v] < before[v] - NZ.threshold(v, noise, DROP, unit) - EPS]
     if fell:
         return False, "view fell: " + ", ".join(fell)
     fixed = [v for v in before if v in after and v in gates and before[v] < gates[v] <= after[v]]
@@ -63,7 +66,7 @@ def attempt(cur, delta, out, hooks):
     entry["seconds"] = round(time.monotonic() - t0, 1)
     if shape.get("glb") is None or not after:
         return {**entry, "status": "rejected", "why": "build failed"}, None
-    ok, why = loop_accept(cur["iou"], after, cur["gates"])
+    ok, why = loop_accept(cur["iou"], after, cur["gates"], getattr(hooks, "noise", None), getattr(hooks, "unit", None))
     entry |= {"status": "accepted" if ok else "rejected", "why": why, "after": after, "change": change(cur["iou"], after)}
     return entry, ({"spec": spec3, "shape": shape, "summary": summary, "iou": after, "gates": cur["gates"], "dir": out}
                    if ok else None)

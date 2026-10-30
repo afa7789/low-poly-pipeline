@@ -5119,3 +5119,39 @@ spill (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guar
 - **Aberto.** (a) Regenerar os `box3d` nulos de `refs/*/parts.json` (7 de 8 ficheiros) para `--fit-parts/--depth` terem efeito; (b) o teste prova a ligação ao consumidor, não o ganho: a ablação de cada opt-in segue sendo medida; (c) o `sdf_batch.py` não gera `results.csv` (só `l10-batch.json` + tabela): a coluna de veredito mostra `FAIL(infra)`; (d) `infra_check` não vê exceção engolida dentro de um estágio que ainda escreve o ficheiro.
 - **Testes.** `test_flag_liveness.py` (10), `test_spec_pipeline.py` (+3: `verdict_of` com infra, `wants_colour`, `infra_check`), `test_sdf_batch.py` (+1). Runs: `runs/draft/<id>/l12-stage2`.
 
+
+### 30.L12-7 Piso de ruído: determinismo medido, σ por vista, guardas por 2σ (2026-10-29)
+
+- **Por que.** Os aceites eram constantes (`loop_stage.DROP/GAIN`, `author_guard.AUTHOR_DROP` = .01) sobre um ruído suposto de .013-.016 por vista (L11-2; L12-2 e L12-4 "viram hfoo variar até .016 com `--deterministic`"). Sem σ publicado, um guard de .01 pode ser sorteio ou pode ser folgado demais.
+- **Determinismo (a parte mais valiosa): `--deterministic` já é determinístico, bit a bit.** hfoo 2× pelo caminho exato (`spec_pipeline --spec v13-r1 --tilts … --deterministic`, `SOFT_SIL_THREADS=4`, as duas ao mesmo tempo e com outro Blender na máquina): `clay.glb`, `clay-raw.glb` e `clay-prefit.glb` com o mesmo md5, |Δ IoU| = 0.000 nas 6 vistas; idem n00U (|Δ| = 0.000, mesmo md5). Ambas também idênticas ao `l12-stage2` (build de horas antes). O ".016 do hfoo" do L12-2/L12-4 era comparação entre **versões de código** (`l12-cams` -> `l12-spill-w1`: o peso de spill e o `contact` mudaram o fit), não ruído; o texto do L12-4 ("ruído do fit entre rodadas") estava errado.
+  Fontes de não-determinismo achadas no caminho e o que foi feito:
+
+  | fonte | onde | efeito | ação |
+  |---|---|---|---|
+  | relógio do `fit-verts` (30 s) | `optimize_verts.PIPELINE_SECONDS` | até .013 por vista (L11-2); em n00U ainda σ .024 em `left` sem `--deterministic` | já resolvido em L11-2: `--deterministic` = 8 iterações/estágio, deadline 1e9. Sem a flag continua relógio (é o caminho default) |
+  | relógio do `fit` (Powell, 150 s) | `fit_spec.MAX_SECONDS`, `fit_grad.descend` | idem | `--deterministic` passa `seconds=1e9` (já era) |
+  | `time.time()/(deadline-t0)` em `run_progress` | `optimize_verts.run_progress` | com deadline 1e9 a fração de tempo vale ~1e-9 e não muda o resultado (md5 igual) | nada; documentado |
+  | nº de threads do torch | `soft_sil.THREADS` (`SOFT_SIL_THREADS`, default 4) | a redução paralela muda a soma em ponto flutuante: hfoo com `SOFT_SIL_THREADS=2` ≠ com 4, |Δ| até .004 (bottom), md5 diferente | o default é fixo em 4 (independe dos núcleos); **comparações exigem a mesma `SOFT_SIL_THREADS`**. Não forcei: o limite é da máquina. Run `hfoo/l12-noise-thr2` |
+  | `retopo.CVT_SECONDS` (2 s) | `retopo.cvt` (`--sdf-retopo cvt`, opt-in) | o nº de tentativas de semente depende do relógio | não é o caminho default (qem); ponytail: passar a contagem fixa quando cvt virar default |
+  | `np.random` | `retopo.cvt` (`default_rng(seed + k)`), `mesh_lint` (`default_rng(0)`), `silhouette` (seed), `compare_runs` (seed) | nenhum: todos com seed | nada |
+
+- **σ publicado.** `noise.py` (novo, 40 linhas, puro): `sigmas`, `table`, `threshold(view, noise, default, unit)` = `max(2σ, .005)` com tabela, o `default` antigo sem tabela. `sdf_batch.py --repeat N --spec-run v13-r1` reconstrói cada unidade N vezes em `l12-noise-r1..rN` (shape-only, **sem** `--deterministic`: o ruído do caminho default), imprime a tabela σ por vista/unidade e grava `noise.json` ao lado do `--json` (`--noise-out`): `{unit: {view: σ}, "global": {view: mediana dos σ das unidades}}`. Bateria das 6 × 3, `artifacts/model-sheets/runs/draft/noise-l12.json` (+ `noise-l12-batch.json`):
+
+  | unidade | front | left | back | top | bottom | rts | σ_max |
+  |---|---|---|---|---|---|---|---|
+  | n005 | .000 | .000 | .000 | .000 | .000 | .000 | .000 |
+  | n00U | .009 | .024 | .006 | .018 | .003 | .002 | .024 |
+  | hfoo | .000 | .000 | .000 | .000 | .002 | .002 | .002 |
+  | n017 | .003 | .001 | .001 | .000 | .003 | .001 | .003 |
+  | n02X | .002 | .001 | .007 | .004 | .004 | .006 | .007 |
+  | n01X | .002 | .004 | .002 | .003 | .003 | .001 | .004 |
+  | global (mediana) | .002 | .001 | .002 | .002 | .003 | .001 | .003 |
+
+  Leitura: o ruído do caminho default é **menor** que o .01 suposto em 5 de 6 unidades (σ ≤ .007; 2σ ≤ .015); a exceção é n00U (aranha, o fit-verts mais lento: 280 s), σ até .024 em `left` (2σ = .047). O `global` (mediana) subestima n00U: **use o σ da unidade** (as guardas já usam `unit` e caem no `global` só se a unidade não tem σ). Com a tabela, o piso .005 vale em 5 das 6 unidades (guard mais estrito que .01); n00U fica folgado (.012-.047).
+- **Guardas por 2σ.** `loop_stage.loop_accept(before, after, gates, noise=None, unit=None)`, `author_guard.drops(mass, author, drop, noise=None, unit=None)` e as três chamadas em `spec_pipeline` (`guard_stage` ×2, `guard_fit`; `loop_hooks`) leem o limiar por vista de `noise.threshold`. `spec_pipeline --noise noise.json` propaga (`noise_kw(args)`). Sem `--noise` nada muda (constantes antigas); nenhum default numérico mudou. `GAIN` (ganho da média, .005) ficou: ele é um ganho, não uma queda; ver Aberto.
+- **`compare_runs.py --stability a b --noise noise.json`** marca cada Δ por vista `> 2σ` ou `ruído`.
+- **Linhas tocadas em arquivos do L12-5** (só `spec_pipeline.py`, 15 linhas +/-, todas aditivas exceto 4 chamadas que ganham `**noise_kw(args)`): `import noise as NZ`; helper `noise_kw` (4 linhas); `--noise` no parser (3 linhas); `**noise_kw(args)` nas 3 chamadas de `author_guard.drops` e em `loop_hooks`. Nada em `views.py`, `fit_spec.py`, `optimize_verts.py`, `deform_to_sheet.py`, `silhouette.py`.
+- **Aceite.** σ publicado 6×6: **sim**. `--deterministic` Δ = 0 em hfoo (e n00U): **sim, já era** (bit a bit; a causa do ".016" documentada acima). Guardas leem 2σ: **sim** (opt-in via `--noise`, sem arquivo = constante antiga).
+- **Decisão: opt-in** (`--noise`): não mudei defaults numéricos. Quando o L12-5 mudar as vistas/pesos, refazer `noise-l12.json` (σ depende do caminho).
+- **Aberto.** (a) `GAIN` do laço e os aceites "nenhuma vista cai > .01" dos itens da Leva 12 seguem constantes; (b) σ medido só no estágio 1 (shape-only) e sobre 3 amostras (σ amostral de n=3 é ele mesmo ruidoso: ±50 %); (c) n00U: investigar por que o fit-verts por relógio varia .024 só nela (carga? mais passos por segundo no spider?) ou aceitar 8 iterações fixas como default do caminho de aceite; (d) `SOFT_SIL_THREADS` não é registrado no `clay.verts.json`.
+- **Testes.** `test_noise.py` (9: limiar com/sem arquivo, marca ruído/>2σ, `loop_accept` e `drops` por 2σ, σ e tabela, `sdf_batch --repeat 3` com builder mockado, nomes dos runs), `test_flag_liveness.py` (+`noise`). Runs: `runs/draft/<id>/l12-noise-r1..r3`, `hfoo|n00U/l12-noise-det{A,B}`, `hfoo/l12-noise-thr2`.

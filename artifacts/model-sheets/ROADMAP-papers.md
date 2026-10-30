@@ -653,6 +653,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-4 (2026-10-29): feito, default** — o stage 2 corre sempre (`--colour-on-fail on`; `off` = regra antiga): 6/6 com `model.glb`, textura e turntable (CHECK com textura, ~36-45 s por unidade); estágio em falta = `FAIL(infra)` (exit 2, `infra.json`, `review.md`, coluna do `sdf_batch`), distinto de CHECK; teste "flag viva" (`test_flag_liveness.py`) introspecta o parser: `--flat` morta removida, `--fit-parts/--depth` avisam `no-op` (7 de 8 `parts.json` têm `box3d` nulo; `associate` pula a parte nula), 0 `FAIL(infra)` na bateria. Detalhes: PIPELINE 30.L12-4.
 
+**Estado L12-7 (2026-10-29): feito, opt-in** — `--deterministic` já era bit a bit (hfoo, n00U 2×: md5 igual, Δ 0.000; o ".016" do L12-2/L12-4 era diferença de versão de código; só `SOFT_SIL_THREADS` muda o resultado, até .004); σ publicado 6×3 em `runs/draft/noise-l12.json` (σ ≤ .007 em 5 unidades, n00U até .024 em left); `loop_accept`, `author_guard.drops` e as guardas do `spec_pipeline` leem `max(2σ, .005)` com `--noise`, sem arquivo = .01 como antes; `compare_runs --stability --noise` marca `> 2σ`/`ruído` (PIPELINE 30.L12-7).
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

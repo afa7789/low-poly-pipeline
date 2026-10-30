@@ -101,6 +101,13 @@ def live_deterministic():
     return "seconds" in fit_kwargs(), "seconds" in fit_kwargs("--deterministic")
 
 
+def live_noise():      # --noise: the sigma table the guards read; without it None (the fixed 0.01)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "noise.json"
+        path.write_text(json.dumps({"global": {"front": 0.02}}))
+        return SP.noise_kw(parse())["noise"], SP.noise_kw(parse("--noise", str(path)))["noise"]
+
+
 def live_loop():       # --loop 2 with an approved round 0 reaches loop_stage.run; 0 does not
     calls = []
     for n in ("0", "2"):
@@ -189,7 +196,7 @@ def lines_say(*flags, flag):
 LIVE_PAIRS = {
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
-    "deterministic": live_deterministic, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
+    "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
     "shape_only": live_shape_only,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)

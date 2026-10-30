@@ -44,6 +44,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import make_compare as MC  # noqa: E402
+import noise as NZ  # noqa: E402
 import mesh_lint  # noqa: E402
 import review_pair  # noqa: E402
 
@@ -231,13 +232,15 @@ def run_glb(run_dir):
     return next(f for f in (d / "clay.glb", d / "model.glb") if f.exists())
 
 
-def stability(run_a, run_b):
-    """Text report: Chamfer 3D (% of height) and |delta IoU| per view between two runs."""
+def stability(run_a, run_b, noise=None):
+    """Text report: Chamfer 3D (% of height) and |delta IoU| per view between two runs; with a noise table (L12-7) each view
+    is marked '> 2σ' (a real change) or 'ruído' (inside the unit's noise)."""
     ch, h = chamfer_3d(run_glb(run_a), run_glb(run_b))
     iou = [json.loads((pathlib.Path(r) / "silhouette.json").read_text()).get("approved") or {} for r in (run_a, run_b)]
     deltas = {v: abs(iou[0][v] - iou[1][v]) for v in iou[0] if v in iou[1]}
     mean = sum(deltas.values()) / max(len(deltas), 1)
-    cells = "  ".join(f"{v} {d:.3f}" for v, d in deltas.items())
+    unit = pathlib.Path(run_a).parent.name
+    cells = "  ".join(f"{v} {d:.3f}" + (f" {NZ.mark(v, d, noise, unit)}" if noise else "") for v, d in deltas.items())
     return (f"{pathlib.Path(run_a).parent.name}\t{pathlib.Path(run_a).name} vs {pathlib.Path(run_b).name}\t"
             f"chamfer {100 * ch / h:.2f} % H\t|dIoU| mean {mean:.3f} max {max(deltas.values(), default=0):.3f}\t{cells}")
 
@@ -246,6 +249,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="+", type=pathlib.Path, help="out.png then runs; with --stability: the two runs")
     ap.add_argument("--stability", action="store_true")
+    ap.add_argument("--noise", type=pathlib.Path, help="noise.json (sdf_batch.py --repeat): --stability marks each view '> 2σ' or 'ruído'")
     ap.add_argument("--against", choices=("approved", "hard"), default="approved")
     ap.add_argument("--show", default=DEFAULT_SHOW,
                     help="column(s) per run: " + "|".join(SHOWS) + ', or several joined by "+" (clay+overlay+textured)')
@@ -253,7 +257,7 @@ def main():
     if args.stability:
         if len(args.paths) != 2:
             ap.error("--stability takes exactly two run directories")
-        print(stability(*args.paths))
+        print(stability(*args.paths, NZ.load(args.noise)))
         return
     args.out, args.runs = args.paths[0], args.paths[1:]
     if args.show == "budgets":          # one clay column per budget of spec_pipeline --budgets
