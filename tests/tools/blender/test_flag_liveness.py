@@ -254,6 +254,12 @@ def live_sdf_k_mode():       # the flag reaches build_unit, and the mode changes
     return (clay() == clay(sdf_k_mode="hard"), sdf_body.pair_k(a, a, .01, 2, 1) == sdf_body.pair_k(a, a, .01, 2, 1, "hard"))
 
 
+def live_sdf_core():         # the flag reaches build_unit, and the role rule moves the head, the hand and the hard plate out of the field
+    rows = [("spine", "lathe", (1,), (0,), "skin", {}), ("head", "lathe", (1,), (0,), "skin", {}), ("hand.L", "prism", (1,), (0,), "skin", {}),
+            ("spine", "plate", (1,), (0,), "iron", {})]
+    return clay() == clay(sdf_core="on"), sdf_body.core_rows(rows, "biped", {"iron": "metal"})[1]
+
+
 def live_sdf_retopo():
     called = []
     for method in ("qem", "cvt"):
@@ -382,6 +388,7 @@ LIVE_CUSTOM = {         # dest -> (check, expected)
     "author_guard": (live_author_guard, (False, True)),
     "sdf_k_mode": (live_sdf_k_mode, (False, False)),          # clay_args differ, pair_k differs: "equal" is False for both
     "sdf_retopo": (live_sdf_retopo, (False, ["qem", "cvt"])),
+    "sdf_core": (live_sdf_core, (False, [1, 2, 3])),
     "fit_luma": (live_fit_luma, [True]),
     "colour_only": (live_colour_only, (0, {"top": 10, "rts": (35, 30)}, ["clay.glb", "clay.sdf.json", "silhouette.json", "spec.json"])),
     "inscribe": (live_inscribe_wiring, ([[], ["inscribe=h.npz"]], ["inscribe-uncut.glb"])),

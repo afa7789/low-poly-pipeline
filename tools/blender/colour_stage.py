@@ -257,7 +257,8 @@ def build_textured(spec, glb_clay, args, glb, work):
 
 def body_args(args):
     """["body=sdf"] for `--body sdf` (build_unit.BODY, PIPELINE 28.L10-7); nothing when args has no body."""
-    return [f"body={args.body}"] if getattr(args, "body", None) else []
+    core = getattr(args, "sdf_core", None)
+    return [*([f"body={args.body}"] if getattr(args, "body", None) else []), *([f"sdf_core={core}"] if core in ("on", "off") else [])]
 
 
 def shared_args(args):

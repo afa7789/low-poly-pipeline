@@ -980,7 +980,8 @@ def clay_args(kind):
     return [hi, "nofuse", hi, "clay", *([f"body={BODY}"] if BODY != DEFAULT_BODY else []),
             *([f"sdf_grid={SDF_GRID}"] if BODY == "sdf" and SDF_GRID else []),
             *([f"sdf_k_mode={SDF_K_MODE}"] if BODY == "sdf" and SDF_K_MODE != "base" else []),
-            *([f"sdf_retopo={SDF_RETOPO}"] if BODY == "sdf" and SDF_RETOPO != "qem" else [])]
+            *([f"sdf_retopo={SDF_RETOPO}"] if BODY == "sdf" and SDF_RETOPO != "qem" else []),
+            *([f"sdf_core={SDF_CORE}"] if BODY == "sdf" and SDF_CORE != DEFAULT_SDF_CORE else [])]
 
 
 def inscribe_args(spec_path, spec, args):
@@ -2315,6 +2316,9 @@ def build_parser():
                     help="--body sdf: how each junction's smooth-min k is chosen (sdf_body.K_MODES, PIPELINE 29.L11-5)")
     ap.add_argument("--sdf-retopo", choices=("qem", "cvt"), default="qem",
                     help="--body sdf: the retopology of the dense body (retopo.retopo method; cvt = curvature-guided Voronoi, PIPELINE 29.L11-6)")
+    ap.add_argument("--sdf-core", choices=("on", "off"), default=DEFAULT_SDF_CORE,
+                    help="--body sdf: only the core (trunk, pelvis, thighs, arms) enters the SDF; head, hands, feet, props and hard plates stay rigid "
+                         "pieces with their own material and bone, the retopology budget divided by area (build_unit sdf_core=, PIPELINE 33.L15-2)")
     ap.add_argument("--inscribe", choices=("off", "cut", "on"), default="off",
                     help="inscribe the model in the sheet's visual hull (inscribe.py, PIPELINE 31.L13-5): cut = the SDF body is intersected with the "
                          "coherent views' masks before the retopology (--body sdf), on = cut + the vertices still outside the masks after the "
@@ -2396,7 +2400,7 @@ def noop_notes(args):
                                 ("--parts", args.parts), ("--constraints", args.constraints)) if on and not args.fit]
     stage1_only = [f for f, on in (("--colour-pass", args.colour_pass), ("--ramp", args.ramp), ("--fit-luma", args.fit_luma)) if on and args.shape_only]
     sdf_only = [f for f, on in (("--sdf-grid", args.sdf_grid), ("--sdf-k-mode", args.sdf_k_mode != "base"),
-                                ("--sdf-retopo", args.sdf_retopo != "qem"), ("--inscribe cut", args.inscribe == "cut")) if on and args.body != "sdf"]
+                                ("--sdf-retopo", args.sdf_retopo != "qem"), ("--sdf-core", args.sdf_core != DEFAULT_SDF_CORE), ("--inscribe cut", args.inscribe == "cut")) if on and args.body != "sdf"]
     unioned_only = (["--align"] if args.align and args.body == "join" else [])
     why = [(cel_only, "stage 2 reads it for --texture cel only"), (fit_only, "--no-fit"), (stage1_only, "--shape-only: no stage 2"),
            (sdf_only, f"--body {args.body}, it is for --body sdf"), (unioned_only, "--body join: no unioned body to deform"),
@@ -2435,8 +2439,8 @@ def main():
         ap.error("--variants must be at least 1")
     args.deterministic = args.deterministic or args.loop > 0
     args.style = args.texture        # the old name, for stage 2 code that still reads it
-    global BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO
-    BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO = args.body, args.sdf_grid, args.sdf_k_mode, args.sdf_retopo
+    global BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO, SDF_CORE
+    BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO, SDF_CORE = args.body, args.sdf_grid, args.sdf_k_mode, args.sdf_retopo, args.sdf_core
     view_defs.INCOHERENT_WEIGHT = args.incoherent_weight
     args.union_body = args.body != "join"
 
@@ -2587,6 +2591,8 @@ FIT_VERTS = True      # PIPELINE 26.L8-6b: default (30 s, soft gradient); the ab
 # 24.L6-4: the deformation needs the welded body; read build_unit.BODY (union | sdf | join) from its source (it imports bpy)
 DEFAULT_BODY = re.search(r'^BODY\s*=\s*"(\w+)"', (ROOT / "tools/blender/build_unit.py").read_text(), re.M).group(1)
 SDF_K_MODE = "base"      # --sdf-k-mode: build_unit sdf_k_mode= (sdf_body.K_MODES)
+DEFAULT_SDF_CORE = "on" if re.search(r'^SDF_CORE\s*=\s*True', (ROOT / "tools/blender/build_unit.py").read_text(), re.M) else "off"
+SDF_CORE = DEFAULT_SDF_CORE   # --sdf-core: build_unit sdf_core= (only the core in the SDF)
 SDF_RETOPO = "qem"       # --sdf-retopo: build_unit sdf_retopo= (retopo.retopo method)
 SDF_GRID = 0             # --sdf-grid: build_unit sdf_grid= (0 = its SDF_GRID default)
 BODY = DEFAULT_BODY      # main() sets it from --body; clay_args passes it to build_unit when it is not the default

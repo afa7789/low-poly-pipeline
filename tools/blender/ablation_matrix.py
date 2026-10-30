@@ -96,6 +96,7 @@ VARIANTS = {
     "body-join": var(["--body", "join"], note="24.L6-4: the parts joined, no single shell"),
     "k-class": var(["--sdf-k-mode", "class"], note="29.L11-5"),
     "k-hard": var(["--sdf-k-mode", "hard"], note="29.L11-5"),
+    "core": var(["--sdf-core", "on"], note="33.L15-2: only the core in the SDF; head, hands, feet, props, hard plates rigid pieces"),
     "cvt": var(["--sdf-retopo", "cvt"], note="29.L11-6: Voronoi/CVT retopology guided by curvature"),
     "thin-keep": var(build="sdf_thin=keep", note="28.L10-7: parts under 2 voxels kept as their own plates"),
     "thin-off": var(build="sdf_thin=off", note="28.L10-7: parts under 2 voxels may vanish"),
