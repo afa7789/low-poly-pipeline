@@ -56,6 +56,7 @@ own stage ends, every output is still written.
 import argparse
 import base64
 import collections
+import copy
 import types
 import json
 import os
@@ -78,6 +79,7 @@ import lathe_limb
 import loop_stage
 import noise as NZ
 import author_guard
+import dsl_rules
 import massing
 import mesh_lint
 import review_pair
@@ -1338,6 +1340,21 @@ def guard_stage(spec, args, layout):
     return spec, report
 
 
+def dsl_stage(spec, args, shape=None):
+    """--dsl-repair on (PIPELINE 30.L12-6): dsl_rules.repair on the spec, no model call. Returns (spec, report or None, shape): the report has
+    per rule PASS / FAIL / n/a before and after and the repairs [(rule, part, before, after)]; the shape is dropped when the spec changed."""
+    if args.dsl_repair == "off":
+        return spec, None, shape
+
+    def verdicts(doc):
+        got, na = dsl_rules.checks(doc["parts"], doc, args.sheet)
+        return {**{r: "PASS" if ok else "FAIL" for r, ok, _ in got}, **{r: f"n/a: {why}" for r, why in na.items()}}
+    doc = copy.deepcopy(spec)
+    before = verdicts(doc)
+    doc["parts"], log = dsl_rules.repair(doc["parts"], doc, args.sheet, opt_in=args.dsl_repair == "all")
+    return doc, {"before": before, "after": verdicts(doc), "repairs": log}, (None if log else shape)
+
+
 def guard_fit(args, pre_fit, spec, shape, layout):
     """The fit may not push a view under the massing's stage 1 either (PIPELINE 30.L12-3): when it does, the spec stays as it was
     before the fit and is built again. Returns (spec, shape)."""
@@ -2051,6 +2068,7 @@ def stage_one(args, brief, images, tmp, layout):
     spec, args.guard_report = guard_stage(spec, args, layout)    # the author's body against the massing's, before anything refits it
     if args.guard_report and args.guard_report["action"] in ("revert", "reject"):
         shape = None
+    spec, args.dsl_report, shape = dsl_stage(spec, args, shape)        # the DSL rules that were prose, repaired in code (30.L12-6)
     # the repair pass (preflight failures -> patch) runs even without --passes: it is
     # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
     if args.passes or not args.no_repair:
@@ -2212,6 +2230,10 @@ def build_parser():
                     help="the author's spec against the massing before the fit (PIPELINE 30.L12-3): a view more than "
                          "author_guard.AUTHOR_DROP under the massing's plain clay -> revert = the bones that explain it go back to "
                          "the massing's (reject if it still falls), reject = the massing's body with the author's props, off = nothing")
+    ap.add_argument("--dsl-repair", choices=("on", "off", "all"), default="on",
+                    help="the DSL rules of dsl_rules.py (hood_recess, prop_axis, prop_coverage, leg_joints; PIPELINE 30.L12-6) are repaired "
+                         "in code, with no model call, before the numeric fit; the repairs go to review.md. on = spider legs, "
+                         "all = also the hood and the props (opt-in: n005 front falls .006-.013), off = the author's spec as it is")
     ap.add_argument("--body", choices=("union", "sdf", "join"), default=DEFAULT_BODY,
                     help="how the body parts become one shell: union = boolean + decimate (24.L6-4), sdf = distance field + "
                          "guarded QEM retopology (build_unit sdf_union, PIPELINE 28.L10-7), join = the plates joined, no weld")
@@ -2531,10 +2553,21 @@ def massing_section(args):
 
 
 def save_guard(args):
-    """The guard's report into silhouette.json (the tables of a battery read it)."""
-    if getattr(args, "guard_report", None) and args.summary.get("approved"):
-        args.summary["guard"] = args.guard_report
+    """The guard's and the DSL repair's reports into silhouette.json (the tables of a battery read them)."""
+    reports = {k: r for k, r in (("guard", getattr(args, "guard_report", None)), ("dsl", getattr(args, "dsl_report", None))) if r}
+    if reports and args.summary.get("approved"):
+        args.summary.update(reports)
         (args.out / "silhouette.json").write_text(json.dumps(args.summary, indent=2))
+
+
+def dsl_section(args):
+    """review.md: the DSL rules before and after the code repair (PIPELINE 30.L12-6), and each repair (rule, part, before -> after)."""
+    r = getattr(args, "dsl_report", None)
+    if not r:
+        return ""
+    rows = "".join(f"| {rule} | {r['before'][rule]} | {r['after'][rule]} |\n" for rule in r["before"])
+    fixes = "".join(f"- {rule} {part}: {was} -> {now}\n" for rule, part, was, now in r["repairs"]) or "- none needed\n"
+    return f"## DSL rules (dsl_rules.py, repaired in code)\n\n| rule | before | after |\n|---|---|---|\n{rows}\n{fixes}\n"
 
 
 def guard_section(args):
@@ -2864,7 +2897,7 @@ def write_review(args, shape, colour, verdict):
         f"- judge (approved sheet): {args.sheet}\n- built from (image 1): {args.build}\n"
         f"- extra refs: {', '.join(k for k, _ in args.refs) or '-'}\n\n"
         f"{EVALUATION}{timing_section(args)}{fewshot_section(args)}{variants_section(args)}"
-        f"{massing_section(args)}{guard_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{infra_section(args)}{loop_stage.table(args.loop_report)}\n"
+        f"{massing_section(args)}{guard_section(args)}{dsl_section(args)}{stage1_section(args, shape)}{stage2_section(args, shape, colour)}{infra_section(args)}{loop_stage.table(args.loop_report)}\n"
         f"{readiness_section(args, shape, colour, verdict)}"
         f"verdict: **{verdict}**\n\n{pairwise_line(args)}"
         f"artifacts: spec.json, clay.glb, views/{args.id}/clay-<view>.png, compare.png (vs the "
