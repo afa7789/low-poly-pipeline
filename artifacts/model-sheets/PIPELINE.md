@@ -5900,3 +5900,32 @@ Zones mean por unidade (n005 n00U hfoo n017 n02X n01X): cel .573 .343 .208 .253 
 - **Forma por baixo (não é textura; L14-1).** Pilhas de degraus no casco do n00U; pernas de n017 como lajes; cabeça do n01X como bloco aberto; torso do hfoo com a mochila como caixa preta; n005 sem pescoço/capuz definido. A textura não corrige isso.
 
 **Aberto.** (1) Contorno de silhueta (a falta mais visível; não é opção de textura existente). (2) Decal de cara por unidade (olhos, máscara, focinho) a partir do concept. (3) `sheet` triplanar com mistura; a regra do usuário o mantém opt-in. (4) `cel` mais forte entre faces (as bandas do cel por orientação são sutis demais: `shade` .93 já iguala o concept, o que mostra que a falta é de linha e detalhe, não de gradiente). Imagens: `artifacts/model-sheets/history/2026-10-30-l14-texture/<id>.png` (concept | cel | cel+luma | cel+ink | painted | sheet; front left back top bottom rts), números em `<id>.json` e `summary.json`.
+
+O usuário olhou a v15 e disse "está muito ruim". A leva troca métrica de silhueta por métrica de look e juiz de visão. Itens: L14-1 corpo, L14-2 textura, L14-3 conserto.
+
+### 32.L14-1 Corpo `union` x `sdf`, 700 x 1000 tris (2026-10-30)
+- **Protocolo.** Specs v15 das 6 unidades (cópia em `runs/draft/<id>/l14-src/`), `spec_pipeline.py --kind mass --spec ... --no-repair --no-diagnose
+  --deterministic --tilts <os da v15>`, stage 2 cel, sem LLM. 4 runs por unidade: `l14-sdf-700` (controle), `l14-union-700` (`--body union`),
+  `l14-sdf-1000`, `l14-union-1000` (`CF_OVERRIDES='{"preflight.BUDGETS.mass":[400,1000]}'`: `--budgets` é o modo curva, sem stage 2). 24 runs, 2 a 2,
+  nenhuma falha de infra: o caminho union ainda constrói. Medição: `tools/blender/body_compare.py` (tabela + imagens). Tudo em
+  `history/2026-10-30-l14-body/` (README = tabela completa, `<id>.png` = 6 vistas x 4 runs x clay|wire|textured).
+- **Look (média das unidades, union-700 x sdf-700).** planarity sobe em 5/6 (n005 .059→.073, n00U .000→.012, hfoo .027→.036, n017 .024→.099, n01X .037→.051;
+  n02X .053→.035), mas os valores absolutos são .00–.10 nas duas: a métrica quase não separa. Crease recall cai em 3/6 (n01X .517→.398). wire_entropy
+  .95–.99 em todos. **Slivers: union 11–18 % contra sdf 0–7 %**; componentes: union 2 em n00U/hfoo, 3 em n01X (sdf 1). Tris reais: union-700 = 630
+  (a decimação não chega ao orçamento), union-1000 = 690–900; sdf bate 700/1000 exato. Tempo: ≈ igual (-4 %…-9 %) no union-700; a união é
+  mais rápida só porque entrega menos tris.
+- **Silhueta como guarda (union-700 x sdf-700).** ΔIoU médio -.001 (n005), -.010 (n00U), -.003 (hfoo), -.009 (n017), -.006 (n02X), -.019 (n01X);
+  vistas que caem > 2σ: 2+2+2+5+1+5 = **17/36**. Δspill +.003, +.016, -.004, +.006, +.013, +.011 (3 unidades passam de +.01). Spill ≤ .03: 0/6 vistas em
+  todos os runs (os 24).
+- **1000 tris.** sdf-1000 x sdf-700: planarity sobe 6/6, crease recall sobe 5/6, IoU +.005 (n005), -.004 (n00U), +.003, -.005, +.010, +.007; spill ≈ igual
+  (-.003…+.011); tempo +46 % (n005), +9, +27, +7, +4, +4 %. No union o orçamento rende pouco (n01X 690 tris) e o wire do union-1000 mostra arestas
+  longas soltas (n017, vértices degenerados da boolean): não investigado.
+- **Juiz pareado (session:opus, 4 votos A/B trocados).** union-700 x sdf-700: **forma a favor do union em 1/6** (hfoo 4-0; sdf 4-0 em 4/6, n01X forma sdf
+  4-0 mas sheet/artist/wc3 union); wc3 a favor do union em 1/6 (n01X 3-1). sdf-700 vence 4 eixos 4-0 em n017 e n02X. sdf-1000 x sdf-700: forma ≥ 3-1 para 1000 em
+  **1/6** (n02X 3-1; n005, n017, n01X forma 4-0 para 700). union-1000 x union-700: forma para 1000 em 3/6 (n00U, n017, n01X 4-0), para 700 em n005 3-1 e n02X 4-0.
+- **Aceite (default `--body union`): NÃO atendido** (juiz forma+wc3 ≥ 3-1 em 1/6, não 4/6; planarity 5/6 sim, mas métrica sem poder; 17/36 vistas caem > 2σ).
+  **Aceite (default 1000): NÃO atendido** (forma ≥ 3-1 em 1/6 para sdf; tempo +46 % no pior). **Nenhum default mudou** (`BODY = "sdf"`, `BUDGETS["mass"] = (400, 700)`).
+- **Leitura honesta.** O diagnóstico do orquestrador ("o union lia melhor") não se confirma neste protocolo: o juiz de visão prefere o sdf, e a diferença que o usuário
+  viu em v10 vs v15 não vem do corpo (specs, ajuste e textura mudaram juntos). `planarity` (k-means de normais, k = 12) quase não separa os dois: .00–.10.
+- **Aberto.** Orçamento 1000 só no sdf e só para unidades com patas/mãos finas (n02X) — sem critério de seleção medido; a decimação do union para no 90 % do orçamento;
+  nenhum run deste item tem spill ≤ .03 (forma, não corpo).
