@@ -659,6 +659,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-7 (2026-10-29): feito, opt-in** — `--deterministic` já era bit a bit (hfoo, n00U 2×: md5 igual, Δ 0.000; o ".016" do L12-2/L12-4 era diferença de versão de código; só `SOFT_SIL_THREADS` muda o resultado, até .004); σ publicado 6×3 em `runs/draft/noise-l12.json` (σ ≤ .007 em 5 unidades, n00U até .024 em left); `loop_accept`, `author_guard.drops` e as guardas do `spec_pipeline` leem `max(2σ, .005)` com `--noise`, sem arquivo = .01 como antes; `compare_runs --stability --noise` marca `> 2σ`/`ruído` (PIPELINE 30.L12-7).
 
+**Estado L12-9 (2026-10-29): feito, opt-in; aceite de crease NÃO atendido** — `look.py`: métricas `crease_chamfer` (P/R a 4 px), `planarity` e `wire_entropy` sempre ligadas (linha `look:`, `review.md`, coluna do `sdf_batch`); snap planar por região guardado por IoU/spill/bare (`--look-snap`), creases do sheet-hard como borda de região (`--look-creases`), tinta nas arestas marcadas no atlas cel (`--look-ink`). Bateria 6: planaridade .02–.09 → .25–.43 (6/6), tris 700 → 700, IoU/spill dentro de 2σ exceto n005 back −.006; **recall de crease não sobe (≥ +.15 em 0/6: melhor n017 back +.08)** e `wire_entropy` não muda (a topologia fica) — relevo real é o L12-8. PIPELINE 30.L12-9.
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

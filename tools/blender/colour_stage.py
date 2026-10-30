@@ -28,6 +28,7 @@ import sys
 import cut_hull
 import align_features
 import deform_to_sheet
+import look
 import optimize_verts
 import shared_atlas as SA
 import silhouette as SIL
@@ -214,6 +215,7 @@ def build_textured(spec, glb_clay, args, glb, work):
         deform_to_sheet.apply(glb, args)     # the clay was deformed; the rebuilt textured body gets the same pull
         align_features.apply(glb, args)
         optimize_verts.apply(glb, args)
+        look.apply(glb, args)
     return glb.exists()
 
 

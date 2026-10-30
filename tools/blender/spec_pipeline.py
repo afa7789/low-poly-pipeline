@@ -76,6 +76,7 @@ import deform_to_sheet
 import optimize_verts
 import diagnose
 import lathe_limb
+import look
 import loop_stage
 import noise as NZ
 import author_guard
@@ -1558,6 +1559,9 @@ def stage_shape(spec_path, args, layout):
     if fitted:
         print(f"fit-verts: {fitted['steps']} steps in {fitted['seconds']} s, objective {fitted['objective'][0]} -> "
               f"{fitted['objective'][1]}, slivers {fitted['slivers_before']} -> {fitted['slivers_after']}")
+    looked = look.apply(glb, args)                    # L12-9: planar snap / ink of the sheet's lines (opt-in) and the look metrics
+    if looked:
+        print(look.line(looked))
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -2214,6 +2218,10 @@ def build_parser():
                     help="pull the unioned body's sharp edges to the hard sheet's inner edges after the "
                          "deformation (align_features.py, PIPELINE 24.L6-12; off by default: no measured gain)")
     ap.add_argument("--no-align", dest="align", action="store_false", help="the opposite of --align")
+    for name, what in (("snap", "snap the body's vertices onto the planes of its flat regions (look.py, PIPELINE 30.L12-9)"),
+                       ("creases", "with --look-snap: the hard sheet's drawn lines are region borders"),
+                       ("ink", "stage 2 cel: ink along the edges that run on the hard sheet's lines")):
+        ap.add_argument(f"--look-{name}", choices=("on", "off"), default="off", help=what)
     ap.add_argument("--sdf-grid", type=int, default=0, help="--body sdf: voxels along the longest side (0 = build_unit.SDF_GRID, 96)")
     ap.add_argument("--sdf-k-mode", choices=("base", "class", "hard", "ext"), default="base",
                     help="--body sdf: how each junction's smooth-min k is chosen (sdf_body.K_MODES, PIPELINE 29.L11-5)")
@@ -2599,7 +2607,7 @@ def stage1_section(args, shape):
     return (f"## Stage 1 - shape (clay): **{'PASS' if shape['ok'] else 'FAIL'}**\n\n"
             f"| gate | value |\n|---|---|\n{rows}"
             f"| tris | {shape['tris']}/{lo}-{hi} |\n| skins | {shape['skins']} |\n"
-            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n{cull_row(shape)}"
+            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n{cull_row(shape)}{look.row(shape['glb'])}"
             f"{iou_rows(args.summary)}{prop_row(args.summary)}\n")
 
 
