@@ -2,7 +2,7 @@
 """Pre-flight for a unit spec: the rules this project learned the hard way, checked
 BEFORE anything is built, so the first attempt is already inside the design.
 
-    python3 tools/blender/preflight.py <spec.json> <kind> [<approved sheet.jpg>]
+    python3 tools/blender/preflight.py <spec.json> <kind> [<approved sheet.jpg>] [--fix <out.json> [--dsl-repair on|off|all]]
 
 Rules (each one exists because an iteration failed on it):
 
@@ -35,6 +35,10 @@ Rules (each one exists because an iteration failed on it):
                  front x left silhouettes (64^3 grid) <= 25%; names the part and wide/tall/deep
                  (Sano 2026). Needs the sheet.
   decal_place    a face decal (eyes, mask...) sits on a head/jaw/face bone, never the chest
+  hood_recess    a hood needs a face part recessed in it; prop_axis / prop_coverage: a prop lies along and over its sheet mask;
+  prop_axis      leg_joints: every spider leg has a bend where the sheet shows it (dsl_rules.py, PIPELINE 30.L12-6; `n/a: <why>`
+  prop_coverage  when a rule does not apply to the unit). --fix <out.json> writes the spec after dsl_rules.repair (no model call).
+  leg_joints
 """
 import json
 import math
@@ -997,9 +1001,10 @@ def floating_parts(parts, parent_of, k=1.0):
     return sorted(set(floating))
 
 
-def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
+def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None, na=None):
     """[(rule, passed, detail)] of one spec. `targets` = targets_from(sheet), `props` =
-    load_props(unit): both read once by the caller, so fit_spec can re-run the rules cheaply."""
+    load_props(unit): both read once by the caller, so fit_spec can re-run the rules cheaply.
+    `na`: a dict that takes {rule: reason} for the DSL rules (dsl_rules) that do not apply to this unit."""
     import rig_families as RF
     lo, hi = BUDGETS[kind]
     family = doc.get("rig", "biped")                       # specs without "rig" are bipeds
@@ -1060,6 +1065,8 @@ def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
         checks.append(("identity_present", not st["missing"] or not IDENTITY_BLOCKING,
                        f"{st['ok']}/{st['total']}, missing: {st['missing'] or 'none'} (each is a part or a decal)"))
     checks += clearance_checks(parts)
+    import dsl_rules
+    checks += dsl_rules.checks(parts, doc, sheet, na=na)[0]       # hood_recess, prop_axis, prop_coverage, leg_joints: hard where they apply
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:
@@ -1098,13 +1105,28 @@ def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None):
 
 
 def main():
-    sheet = sys.argv[3] if len(sys.argv) > 3 else None
-    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
-    parts, doc = load(sys.argv[1])
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("argv", nargs="+")
+    ap.add_argument("--fix", default=None)
+    ap.add_argument("--dsl-repair", choices=("on", "off", "all"), default="on")
+    opt = ap.parse_args()
+    argv, fix, repairs = opt.argv, opt.fix, opt.dsl_repair
+    sheet = argv[2] if len(argv) > 2 else None
+    kind = argv[1] if len(argv) > 1 else "mass"
+    parts, doc = load(argv[0])
+    if fix and repairs == "on":
+        import dsl_rules
+        parts, log = dsl_rules.repair(parts, doc, sheet, opt_in=repairs == "all")
+        doc["parts"] = parts
+        pathlib.Path(fix).write_text(json.dumps(doc, indent=2))
+        for rule, part, before, after in log:
+            print(f"  repaired {rule} {part}: {before} -> {after}")
     unit = pathlib.Path(sheet).parent.name if sheet else None
     layout = "building" if doc.get("rig") == "building" else "unit"
     identity = identity_items(unit, sheet, doc.get("rig", "biped") == "biped", layout) if sheet else None
-    checks = checks_of(parts, doc, kind, targets_from(sheet), load_props(unit) if sheet else [], sheet, identity)
+    gone = {}
+    checks = checks_of(parts, doc, kind, targets_from(sheet), load_props(unit) if sheet else [], sheet, identity, gone)
     tris = sum(part_tris(p) for p in parts)
     share = sum(part_tris(p) for p in parts if p[0] == "head" and p[1] in ORNAMENT) / BUDGETS[kind][1]
     width = max(len(name) for name, *_ in checks)
@@ -1112,6 +1134,8 @@ def main():
     for name, ok, detail in checks:
         bad += 0 if ok else 1
         print(f"  {name.ljust(width)}  {'PASS' if ok else 'FAIL'}  {detail}")
+    for name, why in gone.items():
+        print(f"  {name.ljust(width)}  n/a: {why}")
     leg_share = sum(part_tris(p) for p in parts if is_leg(p[0])) / max(tris, 1)
     print(f"  {'tri_mix'.ljust(width)}  {'INFO':4}  legs+feet {leg_share:.0%}, "
           f"ornament {share:.0%}, parts {len(parts)}")

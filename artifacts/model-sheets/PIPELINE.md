@@ -5181,6 +5181,45 @@ spill (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guar
 - **Testes.** `test_views.WeightOf`, `test_fit_spec.ViewWeights` (+1: mudar o painel de uma vista incoerente não muda o custo), `test_silhouette.BodyProp` (3: corpo certo + prop errado passa o corpo e deixa o prop em CHECK; corpo vaza falha; sem prop = inteiro), `test_sdf_batch` (+1), `test_flag_liveness` (+1: `incoherent_weight` viva). Runs: `runs/draft/<id>/l12-views{,-w0,-w1}`.
 
 
+### 30.L12-6 Regras da DSL viram preflight: `hood_recess`, `prop_axis`/`prop_coverage`, `leg_joints` (2026-10-29)
+
+- **Por que.** HOODS, props com eixo e patas de aranha eram prosa em `spec_pipeline.DSL` sem nenhuma função no preflight ("regra sem preflight não existe"). O autor violou as três nos specs v13 e nada acusou.
+- **Mudança.** `tools/blender/dsl_rules.py` (novo): `checks(parts, doc, sheet, na=)` -> `([(regra, passou, detalhe)], {regra: razão n/a})` e `repair(parts, doc, sheet, opt_in=)` -> `(parts, [(regra, peça, antes, depois)])`. `preflight.checks_of` anexa as regras (duras onde se aplicam; `preflight.py` imprime `n/a: <razão>`, nunca PASS, quando não se aplicam), `preflight.py --fix <out.json> [--dsl-repair on|off|all]` escreve o spec reparado. `spec_pipeline.dsl_stage` corre o reparo depois da guarda do autor e antes do fit (também com `--no-repair`: é código, não LLM), `--dsl-repair off|on|all` (default `on`), seção `## DSL rules` no `review.md` (regra, antes -> depois, cada reparo) e `dsl` no `silhouette.json`.
+  1. `hood_recess` (biped com capuz: `parts.json` nomeia `hood|cowl|capuz` no osso head, ou opts `hood`): FAIL se (a) não há peça de cara (osso head, opts `decal`) além do capuz, (b) a face da frente da cara não está >= `HOOD_RECESS_MIN` (.15) da profundidade do capuz à frente da parede de trás e >= `HOOD_MOUTH_GAP` (.05 H) atrás da boca, (c) capuz com profundidade < `HOOD_DEEP_MIN` (.6) x largura. Reparo: aprofunda o capuz (parede de trás fixa), move a cara em z para a janela, ou cria uma `frustum` de cara (dims da peça `face` do `parts.json`) que leva o decal.
+  2. `prop_axis` / `prop_coverage` (peças `is_prop`, máscaras de `silhouette.prop_masks` em front/left): a peça projetada no canvas do painel (`frame_of`: bbox do spec -> 256x384, melhor espelho e deslize como `hull_outside`, máscara e projeção crescidas `PROP_PAD`=2 px) tem eixo PCA a <= 15 graus do da máscara (só se os dois têm elongação >= 2) e IoU >= .50. Reparo: gira o grupo do prop (posições de `at`/`from`/`to`, `rot` onde a DSL deixa) pelo ângulo medido no plano da vista e escala o comprimento ao da máscara (0.6-1.6); só age quando a regra falha, desfaz se piora ângulo e IoU.
+  3. `leg_joints` (rig spider/spider_high): cada pata (`legN.upper` + `legN.lower`, ou `limb`) tem junta >= `LEG_BEND_MIN` (15 graus) **e** a tíbia (joelho -> pé em planta) alcança >= .5 x a do sheet (`rig_measure.legs`, casadas por azimute do pé). Reparo: joelho e pé nas posições (x, z) do sheet para aquela pata e o joelho em `knee_h`; pata de 1 peça é dividida em 2 (25 graus a meio da corda se o sheet não dá linha).
+- **Medida** (bateria das 6, sem LLM, `v13-r1/spec.json --no-repair --no-diagnose --body sdf --deterministic --tilts`; controlo `l12-stage2`; run `l12-preflight` = default `on`, `l12-preflight-all` = `--dsl-repair all` só n005; ruído `noise-l12.json`, marca quando |Δ| > max(2σ, .005)).
+
+Regras novas, antes -> depois do reparo (default `on`):
+
+| un. | hood_recess | prop_axis | prop_coverage | leg_joints |
+|---|---|---|---|---|
+| n005 | **FAIL** (sem peça de cara) -> FAIL (`all`: PASS) | PASS | **FAIL** (vaporiser .23) -> FAIL (`all`: .32) | n/a: biped |
+| n017 | n/a: quadruped | n/a: sem máscara de prop | n/a: sem máscara de prop | n/a: quadruped |
+| n00U | n/a: spider | n/a: sem prop | n/a: sem prop | **FAIL** (tíbia .00-.05 H vs .12-.16 do sheet, 8/8 patas) -> **PASS** |
+| hfoo | n/a: sem capuz | PASS | **FAIL** (lança front .56, left .21) -> FAIL | n/a: biped |
+| n02X | n/a: sem capuz | PASS | **FAIL** (clava .45) -> FAIL | n/a: biped |
+| n01X | n/a | n/a: sem prop | n/a: sem prop | n/a: biped |
+
+IoU / spill / bare por vista, controlo -> `l12-preflight` (as 6 unidades; só n00U muda, as outras reproduzem o controlo bit a bit com `|Δ| = 0.000`: n005 com o default não tem nada a reparar porque os reparos de capuz e props são opt-in):
+
+| un. | vista | IoU | spill | bare |
+|---|---|---|---|---|
+| n00U | front | .878 -> .902 | .066 -> .047 melhora | .064 -> .056 |
+| n00U | left | .818 -> .784 (dentro de 2σ=.047) | .134 -> .152 | .065 -> .088 |
+| n00U | back | .876 -> .887 | .072 -> .061 | .060 -> .059 |
+| n00U | top † | .734 -> .762 | .217 -> .160 melhora | .079 -> .108 |
+| n00U | bottom † | .709 -> .785 melhora | .238 -> .185 melhora | .090 -> .044 melhora |
+| n00U | rts | .653 -> .682 melhora | .272 -> .226 melhora | .136 -> .148 piora |
+
+Opt-in `all` (n005; vistas que passam 2σ/.005): hood + props: front .920 -> .907, back .933 -> .922 (pioram), top .797 -> .803, bottom .820 -> .831, rts .878 -> .899 (melhoram); spill bottom .060 -> .055, rts .073 -> .059. Só props (run `l12-preflight-props`): front .920 -> .914, left .946 -> .941, back .933 -> .926, rts .878 -> .885. Só capuz (run intermediário, apagado): front -.011, back -.007, top -.019, spill top .116 -> .139.
+
+- **Variantes medidas e descartadas.** (1) Joelho de n00U pela semelhança da corda do spec (pé do spec mantido): back .876 -> .853 (pior que 2σ), por isso o reparo usa joelho e pé do sheet; (2) quadruped: `leg_joints` com dobra de 25 graus (frente para a frente, trás para trás), invertida, e 15 graus: n017 left spill .054 -> .09-.10 nas três, top .050 -> .08-.09; o sheet do lobo desenha colunas retas, a dobra só acrescenta spill: **quadruped fica n/a**.
+- **Aceite.** Specs v13 rejeitados: n005 **sim** (`hood_recess`), n00U **sim** (`leg_joints`), n017 **não**: as máscaras de prop do n017 são vazias (`prop_masks` descarta corda e arnês por estarem dentro das caixas do corpo) e as pernas não se medem; a caixa `left` da corda nem contém o eixo (y da corda .04 H, caixa .08-.38 H), mas uma regra por caixa seria ruído. Reparo sem LLM faz as regras passarem: n00U `leg_joints` sim; n005 `hood_recess` sim (com `all`), `prop_coverage` **não** (.23 -> .32; o vaporiser da caixa do sheet é metade do comprimento do spec e a máscara é só o que sobra fora das caixas do corpo); hfoo/n02X `prop_coverage` sem reparo (a lança de hfoo tem máscara não elongada; a clava de n02X está em .45). Nenhuma vista coerente cai > 2σ: **sim** no default (n00U left -.034 < .047); no `all` n005 front/back caem .013/.011 (> .005): por isso os reparos de capuz e props são opt-in.
+- **Decisão.** Regras: duras (default). Reparo: `leg_joints` default (n00U: top/bottom spill -.057/-.053, bottom IoU +.076); capuz e props atrás de `--dsl-repair all`. Efeito colateral a saber: `prop_coverage` dura reprova hoje n005, hfoo e n02X no preflight (estágio 1 já reprovava as 6 pela silhueta no controlo; o veredito não muda).
+- **Aberto.** (a) O capuz é um `lathe` fechado: a cara recuada fica dentro do sólido e o decal some; precisa de abertura real do capuz no build (território do L12-9, `build_unit`) e só então `hood_recess` vale a pena como default; (b) `prop_coverage` precisa da máscara completa do prop (`prop_masks` perde o que cai nas caixas do corpo: n017, hfoo left); (c) pés das patas do spec ainda vêm do autor (aqui vêm do sheet por regra, não por triangulação); (d) 1 repetição por variante.
+- **Testes.** `tests/tools/blender/test_dsl_rules.py` (13: capuz sem cara -> FAIL + reparo passa, cara na boca e capuz raso, biped sem capuz n/a; pata de 1 peça -> 2 peças, dobra mínima, biped n/a; lança a 30 graus -> `prop_axis` FAIL + reparo passa, sem prop n/a; specs reais v13-r1: n005 e n00U rejeitados e reparados, n017 n/a de pernas), `test_flag_liveness` (+`dsl_repair`).
+
 ### 30.L12-7 Piso de ruído: determinismo medido, σ por vista, guardas por 2σ (2026-10-29)
 
 - **Por que.** Os aceites eram constantes (`loop_stage.DROP/GAIN`, `author_guard.AUTHOR_DROP` = .01) sobre um ruído suposto de .013-.016 por vista (L11-2; L12-2 e L12-4 "viram hfoo variar até .016 com `--deterministic`"). Sem σ publicado, um guard de .01 pode ser sorteio ou pode ser folgado demais.

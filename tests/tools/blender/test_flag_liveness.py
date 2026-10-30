@@ -142,6 +142,17 @@ def live_incoherent_weight():     # main() sets views.INCOHERENT_WEIGHT from the
     return tuple(out)
 
 
+def live_dsl_repair():        # a spider with one straight leg piece: on splits it in two (dsl_rules.repair), off hands the spec back as it was
+    spec = {"rig": "spider", "parts": [["body", "frustum", [.4, .2, .5], [0, .4, 0], "m", {"top": [1, 1], "shift": [0, 0]}],
+                                       ["leg1.upper", "prism", [.04, .03, .5], [0, 0, 0], "m", {"sides": 6, "from": [.1, .4, 0], "to": [.5, 0, 0]}]]}
+    out = []
+    for flags in (("--dsl-repair", "off"), ()):
+        args = parse(*flags)
+        args.sheet = None
+        out.append(len(SP.dsl_stage(spec, args)[0]["parts"]))
+    return tuple(out)
+
+
 def live_sdf_k_mode():       # the flag reaches build_unit, and the mode changes the junction width
     a = {"r": .1, "bone": "arm.L"}
     return (clay() == clay(sdf_k_mode="hard"), sdf_body.pair_k(a, a, .01, 2, 1) == sdf_body.pair_k(a, a, .01, 2, 1, "hard"))
@@ -205,7 +216,7 @@ LIVE_PAIRS = {
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
-    "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight,
+    "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight, "dsl_repair": live_dsl_repair,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),
