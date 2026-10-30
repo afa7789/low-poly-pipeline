@@ -111,7 +111,7 @@ VARIANTS = {
     "verts-dihedral": var(over={"optimize_verts.LAMBDA.dihedral": 30.0}, note="26.L8-4: dihedral regulariser, lambda 30"),
     "verts-gamma": var(over={"optimize_verts.DIST": "gamma_inv"}, note="26.L8-3: gamma_inv raster distribution"),
     "verts-uniform": var(over={"optimize_verts.DIST": "uniform"}, note="26.L8-3: uniform raster distribution"),
-    "iters-15": var(over={"optimize_verts.DETERMINISTIC_ITERS": 15}, note="29.L11-4: 15 iterations per stage instead of 8"),
+    "iters-8": var(over={"optimize_verts.DETERMINISTIC_ITERS": 8}, note="control: the old default, 8 iterations per stage (15 since 31.L13-4)"),
     "verts-yager": var(over={"optimize_verts.AGG": "yager2"}, note="26.L8-3: yager2 aggregation"),
     # silhouette framing
     "flip-side": var(["--flip-side"], note="29.L11-0: shift-tolerant side picks the mirror"),

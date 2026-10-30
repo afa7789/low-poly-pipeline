@@ -68,7 +68,7 @@ TAU_SCHEDULE = None       # None = constant TAU; or a tuple of tau px, decreasin
 DIST, AGG = "logistic", "prob"    # soft_sil distribution (logistic | uniform | gamma_inv) and aggregation (prob | yager2)
 DEVICE = "cpu"            # torch device of the soft gradient: "cpu" | "mps"
 DEFAULT_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
-DETERMINISTIC_ITERS = 8        # per stage; 30 took 160 s (166 steps), too slow for a rebuild per delta
+DETERMINISTIC_ITERS = 15       # per stage (31.L13-4: 8 -> 15, spill -.003, IoU +.008, +16 % time); 30 took 160 s, too slow for a rebuild per delta
 DETERMINISTIC_SECONDS = 1e9     # --deterministic: the deadline never comes, run_progress reads the iteration only
 PIPELINE_SECONDS = float(os.environ.get("CF_VERTS_SECONDS", 30.0))   # budget when spec_pipeline calls apply (26.L8-2: soft-30 keeps the L6-7 table on 3 of 5 units); the CLI keeps 120; CF_VERTS_SECONDS=1e6: the 30 steps per stage decide, not the clock (29.L11-0b)
 
