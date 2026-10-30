@@ -5624,7 +5624,40 @@ Perdas: n005 rts .884 -> .831 (spill .067 -> .135), n02X front −.014, hfoo rts
 `<id>-full.png`: colunas concept | clay | wire | overlay | textured para v13-r1 | v15-r1 | v15-r1-guard, 6 vistas. `<id>-spill.png`: overlay das 6 vistas por versão
 (amarelo = acerto, vermelho = modelo fora do sheet, verde = sheet descoberto), com spill% e bare% por célula (vermelho se spill > 3 %).
 
+
 ## 31. Leva 13 (2026-10-30): polir o 3D criado
+
+### 31.L13-2 A guarda do autor mede cada candidato com o tilt dele (bug hfoo 180) e remedição (2026-10-30)
+
+**Bug (L12-10b, confirmado em `runs/draft/hfoo/v15-r1-guard-pintilt-invalid`):** `--tilts` pinado vale para o modelo final, mas
+`guard_measure` o repassava a TODOS os candidatos da guarda. O spec do autor do hfoo varre top -20 / bottom +20; o massing varre
++20 / -20 (painel de orientação oposta). Com o pin, `guard/massing/silhouette.json` mediu top .177 / bottom .186 / bare .82 (modelo girado 180
+graus contra o painel); sem pin, o mesmo massing dá top .678 / bottom .730. Segunda ponta do mesmo erro: quando a guarda devolve o corpo do massing
+(`reject`, `reject-bare`, `revert`), o run seguia com o pin do autor, e o modelo final saía girado (guard2 so com o fix 1: top .176, bottom .185).
+
+**Fix (2 pontos, ambos em `spec_pipeline.py`):**
+1. `guard_measure`: cada candidato varre as próprias câmeras (`a.tilts = ""` na cópia dos args; o pin do run fica intacto).
+2. `guard_repin` (novo, chamado logo depois de `guard_stage`): se a guarda trocou o spec, `args.tilts` passa a ser o `tilt` do `silhouette.json` do candidato
+   mantido (`guard/<ação>/`; `reject-bare` sai sem medir e lê o do massing). `intact`/`skipped` mantêm o pin. Grava `guard.repinned` no relatório.
+Testes (`test_author_guard.py`): `MeasureTilt` (vermelho sem o fix 1, verde com) e `Repin`. Suite 760 OK (11 skip), ruff limpo.
+
+**Remedição** (`v15-r1-guard2`, specs v15, `--author-guard revert --incoherent-weight 1.0 --noise noise-l12.json`, tilts pinados da v15, 6 unidades; `v15-r1-guard2-fix1only` = so o fix 1, guardado como medida intermediária em hfoo/n017/n02X/n01X). Médias das 6 unidades (6 vistas):
+
+| versão | IoU | spill | bare | contact | vistas spill<=.03 (de 36) |
+|---|---|---|---|---|---|
+| v15-r1 (controle) | .814 | .117 | .092 | .328 | 0 |
+| v15-r1-guard (antigo, hfoo refeito sem pin) | .823 | .104 | .090 | .319 | 2 |
+| guard2 so fix 1 | .766 | .109 | .142 | .306 | - |
+| **guard2 (fix 1 + 2)** | .821 | .110 | .086 | .324 | 1 (e bare<=.10: 0) |
+
+Por unidade (IoU front/left/back/top/bottom/rts de guard2; ação da guarda; `*` = queda > 2 sigma contra v15-r1):
+n005 `intact` (identico a v15-r1, +-.003); n00U `intact` (.904/.772/.896/.750/.797/.723; top -.034 sem marca de queda real); hfoo `reject-bare` (.792/.742/.797 top **.658** bottom **.705** rts .601; front -.068* e back -.067* contra o autor, left +.109*, rts +.151*);
+n017 `reject-bare` (front -.016*, top/bottom/rts +.037/+.042/+.037); n02X `reject-bare` (front -.015*, left -.012*, top +.030, bottom +.018, rts +.024);
+n01X `reject` (front/left/back +.028/+.029/+.029, **top -.091***, rts -.044*). Tabela completa por vista (IoU/spill/bare/contact) nos logs do run; os silhouette.json estão em cada `v15-r1-guard2*/`.
+
+**Aceite (roadmap):** (a) hfoo top/bottom coerentes IoU >= .6: **SIM** (.658/.705; antes do fix .177/.185). (b) guard2 >= guard em spill médio: **NAO** (.110 contra .104, diferença dentro do ruído, mas pior). (c) nenhuma vista coerente cai > 2 sigma: **NAO** (n01X top -.091, rts -.044; hfoo front/back -.068; n017 front, n02X front/left, ~-.015).
+**Resposta:** com a medição certa a guarda NÃO ajuda: spill .117 -> .110 (dentro de 2 sigma), bare .092 -> .086, 1/36 vistas com spill <= .03 contra 0, e troca vistas coerentes (front/back do hfoo, top do n01X) por ganhos nas incoerentes. Fica **opt-in** (`--author-guard off` default). O bug está corrigido e coberto por teste; o ganho da guarda continua o que a L12-10b mediu (marginal).
+Aberto: a guarda decide por IoU de 6 vistas contra o massing, sem olhar spill; uma guarda por spill por vista (não por IoU) seria a próxima tentativa, mas a matriz L12-10a já mostrou que spill e bare trocam 1:1.
 
 ### 31.L13-3 `--depth` igual a `--fit-parts`: diagnóstico e veredito (2026-10-30)
 
