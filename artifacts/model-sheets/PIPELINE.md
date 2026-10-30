@@ -5623,3 +5623,32 @@ Perdas: n005 rts .884 -> .831 (spill .067 -> .135), n02X front −.014, hfoo rts
 
 `<id>-full.png`: colunas concept | clay | wire | overlay | textured para v13-r1 | v15-r1 | v15-r1-guard, 6 vistas. `<id>-spill.png`: overlay das 6 vistas por versão
 (amarelo = acerto, vermelho = modelo fora do sheet, verde = sheet descoberto), com spill% e bare% por célula (vermelho se spill > 3 %).
+
+## 31. Leva 13 (2026-10-30): polir o 3D criado
+
+### 31.L13-1 Estágio `polish`: o modelo (Claude) polui o clay por MCP, com gates honestos (2026-10-30)
+
+**O que entrou.** `tools/blender/polish.py` (estágio + `Session`: estado, `apply` com gate e reversão, overlays, instalação), `polish_mcp.py` (servidor MCP stdio, JSON-RPC 2.0 à mão: o pacote `mcp` não existe no python3.14; `initialize`, `tools/list`, `tools/call`), `polish_ops.py` (as mãos), `--polish on|off` em `spec_pipeline.py` (default off; só com `--model session:<claude>`; antes do stage 2, e depois dele o `model.glb` recebe o polimento). Ferramentas MCP: `state`, `views`, `inspect(view, region)`, `apply(python_code, why, dry_run)`, `done(summary)`. Helpers no código do agente: `parts`, `shrink_part`, `move_part`, `scale_part`, `erode_toward_view`, `smooth_region`, `straighten_prop`, `snap_feet_to_ground`.
+
+**Desvio do brief, de propósito:** sem Blender. As ops editam os bytes POSITION/NORMAL do GLB (`deform_to_sheet.rewrite`, o mesmo caminho do deform e do optimize_verts): skin, pesos, UV, materiais e clipes ficam como estão, o rig sobrevive por construção, e uma op custa ~1 s mais ~7 s do gate (`silhouette.py`, o Blender só renderiza as máscaras). Parte = osso dominante do vértice (`abdomen`, `leg3.upper`; família `leg3`). `erode_toward_view` projeta pela câmara pinada do gate (`optimize_verts.make_views`), empurra no plano da imagem (empurrar ao longo do raio não muda a projeção) os vértices em vermelho para dentro do contorno do sheet, e o resto da parte segue por um solve laplaciano (o de `deform_to_sheet`).
+
+**Gate de cada op** (contra o estado anterior E contra o início; reverte sozinho, devolve "rejected: <razão>"): spill de qualquer vista +.005; IoU −.003 (mais apertado que 2σ do `noise-l12.json`: a op repete sobre malha fixa, sem ruído de rebuild, e o aceite é "nenhuma vista cai"); bare > .10 e subindo > .005; tris diferente; `mesh_lint` (flipped, degenerate, não-manifold, slivers +5 pp). Orçamento: 5 min, 12 ops aceitas, 24 tentativas; `dry_run` mede sem gastar op. Saída no run: `clay.glb` novo só se alguma op passou, `clay.prepolish.glb`, `polish.py` (ops aceitas, `# why:`, replay com `polish.py <run> --id <id> --replay <run>/polish.py`), `polish.json` (ops, razões, tabela antes/depois, tokens), seção "Polimento" no `review.md`, `sil/approved` e `silhouette.json` remedidos, `model.glb` com o deslocamento carregado do clay (`polish_ops.carry`: vizinho mais próximo, deslocamento por vértice de ARQUIVO; a ordem dos vértices soldados muda quando eles se movem, e a primeira versão, por índice soldado, piorou o `model.glb` em até .08 de spill) e `model.prepolish.glb`.
+
+**Piloto** (6 unidades, `v15-r1` copiado para `v15-r1-polish`, `session:opus`, `--budget-min 6 --max-ops 12`; imagens antes|depois em `history/2026-10-30-l13-polish/<id>.png`; verde = sheet descoberto, vermelho = modelo fora do sheet):
+
+| unidade | ops aceitas/tentadas | tempo | tokens saída | vistas com spill menor (> .001) | pior IoU | spill ≤ .03 antes→depois |
+|---|---|---|---|---|---|---|
+| n005 | 1/1 | 299 s | 14.5 k | 1 | −.0016 | 0→0 |
+| n00U | 2/2 | 305 s | 11.4 k | 5 | −.0028 | 0→0 |
+| hfoo | 1/1 | 281 s | 15.2 k | 2 | −.0003 | 0→0 |
+| n017 | 3/3 | 301 s | 12.4 k | 5 | −.0024 | 0→0 |
+| n02X | 2/2 | 301 s | 13.9 k | 6 | −.0011 | 0→0 |
+| n01X | 3/6 | 341 s | 11.9 k | 5 | −.0011 | 0→0 |
+
+Spill por vista (antes → depois): n005 .056→.055 / .039→.039 / .050→.049 / .117→.117 / .062→.060 / .067→.066; n00U .050→.047 / .180→.174 / .060→.057 / .132→.127 / .182→.174 / .247→.247; hfoo .123→.122 / .288→.287 / .129→.128 / .122→.122 / .118→.118 / .376→.376; n017 .059→.059 / .083→.071 / .107→.105 / .076→.073 / .064→.056 / .268→.261; n02X .048→.047 / .059→.053 / .044→.042 / .204→.189 / .169→.164 / .097→.091; n01X .102→.074 / .068→.067 / .103→.074 / .054→.046 / .095→.091 / .113→.102. O maior ganho real é n01X front/back (−.028). Bare sobe em quase toda vista (+.001..+.012), contact varia ±.02..±.04.
+
+**Aceite: NÃO atendido.** Vistas com spill ≤ .03: 0/36 → 0/36 (pedia ≥ 12/36). Spill cai em ≥ 4 vistas em 4/6 unidades, mas por .001..–.03 (pedia ≥ 4/6 com efeito). "Nenhuma vista cai": o IoU cai até .0028 em algumas vistas (dentro da tolerância .003 do gate). `model.glb` carregado acompanha o clay (n00U: front .053→.047, left .186→.180, bottom .182→.175).
+
+**Por que não resolveu.** Os 342–364 vértices são compartilhados entre as seis vistas e cada vista é enquadrada pelo bbox do próprio modelo: apertar um vértice extremo encolhe o bbox, a vista reescala e o ganho some; uma op que limpa o vermelho em left suja top/bottom/rts (n00U: erode em left −.027 de spill, +.03 em top/bottom/rts, revertida). É o mesmo 1:1 da matriz L12-10a, agora medido com um agente olhando as imagens. O agente achou sozinho o truque de travar os vértices que definem o bbox e de escopo por parte (n00U), e mesmo assim o teto foi −.008. O que o polimento grosso não alcança: forma errada por vista (patas n00U rts, lança hfoo, placas n02X top).
+
+**Custo.** ~5 min e ~12–15 k tokens de saída (+ 250–490 k de cache lido) por unidade com `session:opus`.

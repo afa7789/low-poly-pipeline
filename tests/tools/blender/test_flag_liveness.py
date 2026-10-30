@@ -256,12 +256,22 @@ def lines_say(*flags, flag):
 
 # dest -> ("live", check, ...) | ("noop", argv, text) | ("plain",)
 # live checks return (off, on): they must differ. Checks that return a tuple of booleans/lists assert on their own below.
+def live_polish():
+    """--polish on hands the final clay to polish.run_in_pipeline; off never does (a Claude session is the only model it works with)."""
+    def calls(*flags):
+        args = parse("--model", "session:opus", *flags)
+        with mock.patch.dict(sys.modules, {"polish": mock.Mock()}) as _:
+            SP.run_polish(args, {"glb": pathlib.Path("clay.glb")})
+            return sys.modules["polish"].run_in_pipeline.call_count
+    return calls(), calls("--polish", "on")
+
+
 LIVE_PAIRS = {
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
     "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight, "dsl_repair": live_dsl_repair,
-    "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink, "depth_source": live_depth_source,
+    "polish": live_polish, "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink, "depth_source": live_depth_source,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),
