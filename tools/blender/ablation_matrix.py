@@ -124,6 +124,9 @@ VARIANTS = {
     "c-luma": var(["--fit-luma"], colour=True, note="26.L8-8: per-slot tones fitted to the sheet's luma"),
     "c-ramp": var(["--ramp"], colour=True, note="cel ramps as wide as the sheet zone"),
     "c-snap": var(["--atlas", "shared"], build="palette_snap", colour=True, note="27.T7: shared atlas + palette snap"),
+    "c-outline": var(["--outline", "hull"], colour=True, note="33.L15-3: inverted-hull contour as a second mesh"),
+    "c-face": var(["--face", "decal"], colour=True, note="33.L15-3: the head cut at 128 px on a quad in front of the head"),
+    "c-zone-contrast": var(["--zone-contrast", "on"], colour=True, note="33.L15-3: close palette slots pushed apart (darker x.8)"),
     "c-painted": var(["--texture", "painted"], colour=True, note="the older painted texture"),
 }
 # live flags the matrix does not turn on as a variant, each with the reason (test_ablation_matrix: nothing live may be missing)

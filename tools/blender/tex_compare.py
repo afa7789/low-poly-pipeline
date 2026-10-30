@@ -13,6 +13,7 @@ and <out>/<id>.json.
 import argparse
 import json
 import pathlib
+import re
 import struct
 import sys
 
@@ -24,7 +25,7 @@ import silhouette as S  # noqa: E402
 from views import layout_of  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RUNS = ("l14-tex-cel", "l14-tex-cel-luma", "l14-tex-cel-ink", "l14-tex-painted", "l14-tex-sheet")
+RUNS = ("l15-col-cel", "l15-col-part", "l15-col-part-outline", "l15-col-part-outline-face")
 VIEWS = ("front", "left", "back", "top", "bottom")
 CELL = 320
 
@@ -65,6 +66,14 @@ def atlas_kb(glb):
     return round(sum(doc["bufferViews"][i["bufferView"]]["byteLength"] for i in doc.get("images", []) if "bufferView" in i) / 1024, 1)
 
 
+def glb_tris(glb):
+    """(total triangles, triangles beyond the biggest mesh, the body): the second number is what an outline hull / face quad adds."""
+    data = pathlib.Path(glb).read_bytes()
+    doc = json.loads(data[20:20 + struct.unpack("<I", data[12:16])[0]])
+    per = [sum(doc["accessors"][p["indices"]]["count"] // 3 for p in m["primitives"] if "indices" in p) for m in doc["meshes"]]
+    return sum(per), sum(per) - max(per)
+
+
 def run_row(run, unit, sheet, layout):
     """The numbers of one run: per view zones mean/cover, luma_l1, de, shade; atlas KB."""
     zones = json.loads((run / "stage2/colour.json").read_text())["zones"]
@@ -79,7 +88,8 @@ def run_row(run, unit, sheet, layout):
         render = np.asarray(Image.open(shot).convert("RGB"))
         de, shade = look_numbers(render, rgb, panels[v], centres)
         views[v] = {"mean": zones[v]["mean"], "cover": zones[v]["cover"], "luma_l1": zones[v].get("luma_l1"), "de": de, "shade": shade}
-    return {"views": views, "atlas_kb": atlas_kb(run / "model.glb")}
+    tris, extra = glb_tris(run / "model.glb")
+    return {"views": views, "atlas_kb": atlas_kb(run / "model.glb"), "tris": tris, "tris_extra_meshes": extra}
 
 
 def fit(im):
@@ -93,7 +103,7 @@ def fit(im):
 
 def contact(unit, runs, panels, out):
     """concept | each run, one row per view (front left back top bottom rts)."""
-    names = ["concept", *(r.name.replace("l14-tex-", "") for r in runs)]
+    names = ["concept", *(re.sub(r"^l1[45]-(tex|col|fix)-", "", r.name) for r in runs)]
     img = Image.new("RGB", (CELL * len(names), CELL * 6), (158, 160, 166))
     shots = [("front", "front"), ("left", "left"), ("back", "back"), ("top", "top"), ("bottom", "bottom"), ("rts", "wc3")]
     for row, (view, shot) in enumerate(shots):
@@ -115,7 +125,7 @@ def main():
     ap.add_argument("id")
     ap.add_argument("--kind", default="mass")
     ap.add_argument("--runs", default=",".join(RUNS))
-    ap.add_argument("--out", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/history/2026-10-30-l14-texture")
+    ap.add_argument("--out", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/history/2026-10-30-l15-colour")
     a = ap.parse_args()
     import split_sheet
     base = ROOT / "artifacts/model-sheets/runs/draft" / a.id
@@ -129,7 +139,7 @@ def main():
         contact(a.id, runs, split_sheet.split(sheet, pathlib.Path(t), a.id, layout), a.out / f"{a.id}.png")
     for name, r in rows.items():
         v = r["views"]
-        print(name, "mean", {k: x["mean"] for k, x in v.items()}, "de", {k: x["de"] for k, x in v.items()}, "atlas", r["atlas_kb"])
+        print(name, "mean", {k: x["mean"] for k, x in v.items()}, "de", {k: x["de"] for k, x in v.items()}, "atlas", r["atlas_kb"], "tris", r["tris"], "+", r["tris_extra_meshes"])
 
 
 if __name__ == "__main__":

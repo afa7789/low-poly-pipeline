@@ -2221,6 +2221,12 @@ def build_parser():
                          "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
                          "256 px cells, PIPELINE 27.T1); shared = the race's 128 px atlas, "
                          "tone columns + decal cells, ink as a row only (shared_atlas.py, PIPELINE 27.T3)")
+    ap.add_argument("--outline", choices=("hull", "off"), default="off",
+                    help="stage 2: hull = the contour of every silhouette, an inverted black copy of the body as a second mesh (outline.py, PIPELINE 33.L15-3)")
+    ap.add_argument("--face", choices=("decal", "off"), default="off",
+                    help="stage 2: decal = the head cut from the concept at 128 px on one quad in front of the head instead of the 64 px lathe decal (PIPELINE 33.L15-3)")
+    ap.add_argument("--zone-contrast", choices=("on", "off"), default="off",
+                    help="stage 2: palette slots closer than dE 8 push the darker one x.8 in luma (PIPELINE 33.L15-3)")
     ap.add_argument("--materials", choices=("merge", "split"), default="merge",
                     help="stage 2 cel: merge = slots sharing the atlas fold into one material, one draw (build_unit.MERGE_MATERIALS, "
                          "PIPELINE 27.T5); split = one material per palette slot, as before")

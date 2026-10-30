@@ -145,6 +145,34 @@ def live_look_ink():        # --look-ink on bakes the ink into the atlas
     return look_calls(), look_calls("--look-ink", "on")
 
 
+def live_outline():         # --outline hull reaches outline.apply after the measure; off never does
+    def calls(*flags):
+        args = parse(*flags)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(colour_stage, "build_textured", return_value=True), \
+                mock.patch.object(colour_stage, "measure", return_value={}), mock.patch.object(colour_stage, "render_views"), \
+                mock.patch.object(colour_stage.outline, "apply") as apply:
+            colour_stage.attempt({}, None, args, {}, pathlib.Path(tmp), "t")
+            return apply.call_count
+    return calls(), calls("--outline", "hull")
+
+
+def live_face():            # --face decal cuts the head at 128 px for a part with the "sheet" decal
+    spec = {"parts": [["head", "box", [1, 1, 1], [0, 0, 0], "skin", {"decal": "sheet"}]]}
+    with tempfile.TemporaryDirectory() as tmp, mock.patch("split_sheet.head_face", return_value="f.png"):
+        return tuple(colour_stage.face_quad(spec, types.SimpleNamespace(**{**vars(parse("--face", *flag)), "sheet": "s.jpg"}), pathlib.Path(tmp))
+                     for flag in (("off",), ("decal",)))
+
+
+def live_zone_contrast():   # --zone-contrast on darkens the darker of two close palette slots in the spec the build reads
+    spec = {"palette": {"a": {"color": "#808080"}, "b": {"color": "#828282"}}, "parts": []}
+
+    def written(*flags):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(colour_stage, "run"):
+            colour_stage.build_textured(spec, None, parse(*flags), pathlib.Path(tmp) / "m.glb", pathlib.Path(tmp))
+            return (pathlib.Path(tmp) / "spec-colour.json").read_text()
+    return written(), written("--zone-contrast", "on")
+
+
 def live_loop():       # --loop 2 with an approved round 0 reaches loop_stage.run; 0 does not
     calls = []
     for n in ("0", "2"):
@@ -316,7 +344,7 @@ LIVE_PAIRS = {
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
     "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight, "dsl_repair": live_dsl_repair,
-    "polish": live_polish, "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink, "depth_source": live_depth_source,
+    "polish": live_polish, "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink, "outline": live_outline, "face": live_face, "zone_contrast": live_zone_contrast, "depth_source": live_depth_source,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),

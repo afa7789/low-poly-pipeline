@@ -6,7 +6,7 @@ want = next((a[8:].split(",") for a in rest_args if a.startswith("actions=")), [
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=glb)
 arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
-meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith("Icosphere")]
+meshes = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith(("Icosphere", "outline", "face"))]
 assert len(meshes) == 1, [m.name for m in meshes]
 mesh = meshes[0]
 arm.animation_data_create()
