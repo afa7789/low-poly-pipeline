@@ -691,3 +691,6 @@ unidades; L12-3 bateria v15). Fonte: Pokorný, WSCG 2026 (`docs/references.md`).
 **Decisão no merge (2026-10-30): `iters-15` virou default** (`optimize_verts.DETERMINISTIC_ITERS` 8 → 15; variante da matriz passa a `iters-8` como controlo); `c-luma` fica opt-in (sem critério de aceite de cor definido).
 
 **Estado L13-4 (2026-10-30): fase (c) cor feita (fecha o "(c) aberta" do L12-10a) e `iters-15` confirmado na bateria v15; defaults não mudaram.** 48 runs `c-*` x 6 unidades: forma idêntica ao `c-base` (|Δ| 0.0000 em 36/36 vistas), zone gate ok 48/48; único `default-candidate` de cor = `c-luma` (luma L1 -.013, zone +.005). `iters-15` vs controle `v15-r1-ctl`: Δ spill -.0034, ΔIoU +.0080, 0/36 vistas > 2σ, +15.7 % de tempo: aceite atendido, **pronto para default** (decisão no merge); spill segue 0/36 vistas ≤ .03 (PIPELINE §31.L13-4).
+
+
+**Estado L14-1 (2026-10-30): corpo `union` x `sdf`, 700 x 1000 tris medidos (24 runs, v15, 6 unidades); aceite NÃO atendido, nenhum default mudou.** Juiz forma a favor do union em 1/6 (sdf 4-0 em 4/6), 17/36 vistas do union caem > 2σ de IoU, slivers 11–18 % contra 0–7 %; planarity sobe 5/6 mas só .00–.10 (sem poder). 1000 no sdf: forma ≥ 3-1 em 1/6, tempo até +46 %. Ferramenta `body_compare.py`; imagens em `history/2026-10-30-l14-body/` (PIPELINE §32.L14-1).
