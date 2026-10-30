@@ -861,8 +861,9 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     attach_parts(proxy, doc, sheet, parts, height, wide, partfit, parts_path)
     if depth and proxy.partfit:
         import depth_map
-        parts, report["depth"] = depth_map.depth_init(parts, proxy.partfit, parts_fit.load(sheet, parts_path),
-                                                      depth_map.disparity(sheet), height, [spec_centre(p) for p in parts])
+        parts_doc = parts_fit.load(sheet, parts_path)
+        parts, report["depth"] = depth_map.depth_init(parts, proxy.partfit, parts_doc, depth_map.disparity(sheet), height,
+                                                      [spec_centre(p) for p in parts], depth_map.landmark_calibration(sheet, parts_doc))
     limits = fit_limits_of(doc, parts, constraints, height)
     free = touched(proxy, parts, proxy.masks(parts), failing) if failing else []
     free = sorted({*free, *limits})

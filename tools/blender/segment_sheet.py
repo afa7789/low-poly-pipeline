@@ -279,7 +279,9 @@ def depth_order(part, torso_z, H):
     return int(np.sign(dz)) * mag, "left"
 
 
-def triangulate_parts(raw, frames):
+def triangulate_parts(raw, frames, top=None):
+    """(parts, incoherences). `top` = depth_rule.top_context(): a part one panel shows alone gets its other range from the sheet's
+    front x left x top hull (PIPELINE 30.L12-8); without it, or when the hull cannot tell, box3d stays None and `z_why` says why."""
     parts, bad = [], []
     for p in raw:
         box, gap = box3d(p["box_front"], p["box_left"], frames)
@@ -289,6 +291,7 @@ def triangulate_parts(raw, frames):
         if gap is not None and gap > COHERENT:
             bad.append({"part": p["name"], "dy_H": round(gap, 3)})
     mirror_boxes(parts, raw, frames)
+    complete_boxes(parts, raw, frames, top)
     torso = next((p for p in parts if p["role"] == "torso" and p["box3d"]), None)
     tz = (torso["box3d"][0][2] + torso["box3d"][1][2]) / 2 if torso else None
     for p in parts:
@@ -307,6 +310,44 @@ def mirror_boxes(parts, raw, frames):
         if twin:
             p["box3d"], _ = box3d(r["box_front"], None, frames, [twin["box3d"][0][2], twin["box3d"][1][2]])
             p["z_from"] = "mirror"
+
+
+def part_window(raw, frames):
+    """{"x": (a, b) | None, "y": (a, b), "z": (a, b) | None} the panels a part is boxed in give; None when it has no box at all."""
+    win = {"x": None, "y": None, "z": None}
+    if raw["box_front"]:
+        (xa, ya), (xb, yb) = frames.front_xy(raw["box_front"][0], raw["box_front"][1]), frames.front_xy(raw["box_front"][2], raw["box_front"][3])
+        win["x"], win["y"] = tuple(sorted((xa, xb))), tuple(sorted((ya, yb)))
+    if raw["box_left"]:
+        (za, ya), (zb, yb) = frames.left_zy(raw["box_left"][0], raw["box_left"][1]), frames.left_zy(raw["box_left"][2], raw["box_left"][3])
+        win["z"] = tuple(sorted((za, zb)))
+        win["y"] = win["y"] or tuple(sorted((ya, yb)))
+    return win if win["y"] else None
+
+
+def complete_boxes(parts, raw, frames, top):
+    """box3d of the parts with only one panel's box: the missing range from depth_rule.complete_box over the top-carved hull. Writes
+    `box3d_src` ("front+top" / "left+top") and `z_from` "top" on success, `z_why` when the box stays None."""
+    import depth_rule as DR
+    todo = [(p, r) for p, r in zip(parts, raw) if p["box3d"] is None]
+    if not todo:
+        return
+    hull = None if top is None or top[1] is None or top[1].iou < DR.TOP_IOU_MIN else DR.hull3(top[0], top[1], top[2])
+    boxes = [tuple(p["box3d"]) for p in parts if p["box3d"]]
+    for p, r in todo:
+        win = part_window(r, frames)
+        if win is None or (win["x"] is None and win["z"] is None):
+            p["z_why"] = "no-box"
+        elif hull is None:
+            p["z_why"] = "no-top"
+        else:
+            if win["x"] is None and p["bone"].endswith((".L", ".R")):
+                win["x"] = (0.0, 9.0) if p["bone"].endswith(".L") else (-9.0, 0.0)     # the unit's left is +x
+            p["box3d"], why = DR.complete_box(win, hull, boxes, frames.H)
+            if why:
+                p["z_why"] = why
+            else:
+                p["z_from"], p["box3d_src"] = "top", "front+top" if r["box_front"] else "left+top"
 
 
 def summary(joints, family):
@@ -415,9 +456,10 @@ def overlay(sheet, doc, frames, out):
 
 # ---- run
 
-def segment(unit, sheet, rig="biped", race="", model="session:opus", ask=None, work=None, masks_dir=None, out_dir=None):
+def segment(unit, sheet, rig="biped", race="", model="session:opus", ask=None, work=None, masks_dir=None, out_dir=None, top_cam=None, crop=None):
     """parts.json dict for `unit`. `ask(model, brief, images, schema, check)` is spec_pipeline.ask by default
-    (tests pass a stub). Writes the ruler panels into `work`, parts.json / overlay into `out_dir` when given."""
+    (tests pass a stub). Writes the ruler panels into `work`, parts.json / overlay into `out_dir` when given. `top_cam`: the tilt the gate
+    pins the top panel at (None: no z from the top, PIPELINE 30.L12-8); `crop` {view: box}: the crops the reply's fractions refer to (a saved reply)."""
     if ask is None:
         import spec_pipeline
         ask = spec_pipeline.ask
@@ -438,14 +480,21 @@ def segment(unit, sheet, rig="biped", race="", model="session:opus", ask=None, w
     if out_dir:
         (pathlib.Path(out_dir) / "parts-reply.json").write_text(json.dumps(raw, indent=1))
     frames = Frames(sheet, H)
+    if crop:
+        frames.crop = {v: tuple(c) for v, c in crop.items()}
+    top = None
+    if top_cam is not None:
+        import depth_rule
+        top = depth_rule.top_context(frames, top_cam)
     joints, bad_joints = triangulate_joints(raw["joints"], frames)
-    parts, bad_parts = triangulate_parts(raw["parts"], frames)
+    parts, bad_parts = triangulate_parts(raw["parts"], frames, top)
     hexes, labels = zone_data(sheet, frames)
     add_zones(parts, hexes, labels, frames, masks_dir)
     doc = {"unit": unit, "H": round(H, 3), "views": list(VIEWS), "rig": rig, "joints": joints, "parts": parts,
            "identity": raw["identity"], "incoherent": bad_joints + bad_parts, "joints_read": {**summary(joints, family), "on_figure": on_figure(joints, frames)},
            "meta": {"model": model, "seconds": seconds, "sheet": pathlib.Path(sheet).name,
-                    "panel_crop": {v: list(frames.crop[v]) for v in VIEWS}}}
+                    "panel_crop": {v: list(frames.crop[v]) for v in VIEWS},
+                    **({"top": {"cam": top_cam, "iou": top[1].iou}} if top and top[1] else {})}}
     if out_dir:
         out_dir = pathlib.Path(out_dir)
         (out_dir / "parts.json").write_text(json.dumps(doc, indent=1))
@@ -463,7 +512,10 @@ def main():
     ap.add_argument("--out", type=pathlib.Path, default=None)
     ap.add_argument("--work", type=pathlib.Path, default=None)
     ap.add_argument("--masks", action="store_true")
-    ap.add_argument("--reply", type=pathlib.Path, default=None, help="re-triangulate a saved parts-reply.json: no VLM call")
+    ap.add_argument("--reply", type=pathlib.Path, default=None, help="re-triangulate a saved parts-reply.json: no VLM call, at the panel crops "
+                    "the old parts.json recorded; the old file is kept as parts.json.pre-l12-8")
+    ap.add_argument("--run", type=pathlib.Path, default=None,
+                    help="a run dir: the top tilt of its silhouette.json pins the top panel, a part one panel shows alone gets its z from the hull (L12-8)")
     a = ap.parse_args()
     out = a.out or REFS / a.unit
     sheet = a.sheet or REFS / a.unit / "sheet.jpg"
@@ -471,8 +523,15 @@ def main():
     before = dict(spec_pipeline.USAGE)
     saved = a.reply.read_text() if a.reply else None
     old_meta = json.loads((out / "parts.json").read_text())["meta"] if saved and (out / "parts.json").exists() else {}
+    keep = out / "parts.json.pre-l12-8"
+    if saved and (out / "parts.json").exists() and not keep.exists():
+        keep.write_bytes((out / "parts.json").read_bytes())
+    top_cam = None
+    if a.run:
+        tilt = json.loads((a.run / "silhouette.json").read_text()).get("tilt") or {}
+        top_cam = tilt.get("top", 0)
     doc = segment(a.unit, sheet, a.rig, a.race, a.model, ask=(lambda *_, **__: saved) if saved else None, work=a.work or tempfile.mkdtemp(prefix="segment-"),
-                  masks_dir=out / "parts" if a.masks else None, out_dir=out)
+                  masks_dir=out / "parts" if a.masks else None, out_dir=out, top_cam=top_cam, crop=old_meta.get("panel_crop"))
     doc["meta"]["tokens"] = {k: v - before.get(k, 0) for k, v in spec_pipeline.USAGE.items() if v - before.get(k, 0)}
     doc["meta"]["resent"] = spec_pipeline.STATS["resent"]
     doc["meta"] |= {k: v for k, v in old_meta.items() if saved and k in ("seconds", "tokens", "resent")}   # a re-triangulation keeps what the VLM call cost

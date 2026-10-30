@@ -24,6 +24,26 @@ class Pure(unittest.TestCase):
         self.assertEqual((moved[3], moved[5]["from"], moved[5]["to"]), ([0, 1, 2.5], [0, 0, 0.5], [0, 1, 1.5]))
 
 
+class Landmarks(unittest.TestCase):
+    def test_calibration_reads_the_disparity_at_each_landmark_and_the_pearson_r(self):
+        """four landmarks (joints both panels show) whose z rises with the disparity of the front panel: r = 1, a = 1"""
+        import depth_rule
+        fig = np.ones((768, 768), bool)
+        disp = np.zeros((768, 768), np.float32)
+        frames = mock.Mock()
+        frames.panels = {"front": fig}
+        frames.px = lambda view, u, v: (u * 100, v * 100)
+        marks = [{"name": f"m{k}", "xyz": [0, 0, 0.1 * k], "gap": 0.0, "front_uv": (k + 1, k + 1)} for k in range(5)]
+        marks.append({"name": "face", "xyz": [0, 0, 9], "gap": 0.0, "front_uv": (1, 1), "face": [0, 1]})      # a surface mark is not a solid's centre
+        marks.append({"name": "gap", "xyz": [0, 0, 9], "gap": 0.2, "front_uv": (1, 1)})                         # its two views disagree: out
+        for k in range(5):
+            disp[(k + 1) * 100 - 2:(k + 1) * 100 + 3, (k + 1) * 100 - 2:(k + 1) * 100 + 3] = 0.1 * k
+        with mock.patch.object(depth_rule, "frames_for", return_value=frames), mock.patch.object(depth_rule, "landmarks", return_value=marks):
+            got = D.landmark_calibration("sheet.jpg", {}, disp)
+        self.assertEqual((got["n"], got["r"]), (5, 1.0))
+        self.assertAlmostEqual(got["a"], 1.0)
+
+
 class DepthInit(unittest.TestCase):
     def setUp(self):
         self.doc = {"H": 2.0, "parts": [
@@ -45,6 +65,14 @@ class DepthInit(unittest.TestCase):
         self.assertEqual(report["moved"], {4: 0.2}, "z = 0.5 on the line, clipped to INIT_MAX x height")
         self.assertAlmostEqual(parts[4][3][2], 0.2)
         self.assertEqual(parts[0][3][2], 0, "a part with a left mask stays")
+
+    def test_the_landmark_line_moves_a_part_only_when_r_is_at_least_the_trust_floor_and_positive(self):
+        """L12-8: the line and its r come from the triangulated landmarks; r < .7 (L5-4b measured .2 to .4) or negative (the sheet's z points the other way) moves nothing"""
+        disp = {0: 0.1, 1: 0.3, 2: 0.5, 3: 0.7, 4: 0.7}
+        for r, moved in ((0.95, {4: 0.1}), (0.69, {}), (-0.95, {})):
+            with self.subTest(r=r), mock.patch.object(D, "part_disparity", return_value=disp):
+                _, report = D.depth_init(self.parts, self.pf, self.doc, {}, 2.0, self.centres, {"a": 1.0, "b": -0.6, "r": r, "n": 9})
+            self.assertEqual((report["moved"], report["landmarks"]), (moved, 9))
 
     def test_order_from_depth_when_the_doc_has_none(self):
         with mock.patch.object(D, "part_disparity", return_value={0: 0.1, 1: 0.3, 2: 0.5, 3: 0.9}):

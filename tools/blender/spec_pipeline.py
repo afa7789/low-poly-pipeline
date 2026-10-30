@@ -76,6 +76,7 @@ import deform_to_sheet
 import optimize_verts
 import diagnose
 import lathe_limb
+import depth_rule
 import look
 import loop_stage
 import noise as NZ
@@ -1356,6 +1357,43 @@ def dsl_stage(spec, args, shape=None):
     return doc, {"before": before, "after": verdicts(doc), "repairs": log}, (None if log else shape)
 
 
+def depth_stage(spec, args, shape):
+    """--depth-source tri (PIPELINE 30.L12-8): each spec part whose z centre lies outside the z range of the box3d of the semantic part it is
+    (parts.json, triangulated front x left, depth_rule.tri_shifts) moves to the nearest point of the box's middle half, largest move first;
+    a move stays when the fast 2D proxy loses no view by more than 2 sigma against the spec as it came (author_guard.drops) and breaks no
+    preflight rule that held. Returns (spec, report or None, shape): the shape is dropped when a move was kept."""
+    if args.depth_source == "none":
+        return spec, None, shape
+    import fit_spec
+    import parts_fit
+    import preflight
+    from depth_map import shifted
+    doc = parts_fit.load(args.sheet)
+    if not doc or not any(p.get("box3d") for p in doc["parts"]):
+        print("no-op: --depth-source tri: no refs parts.json, or none of its parts has a box3d (the triangulation found no z)")
+        return spec, None, shape
+    ious = proxy_ious(spec, args).ious
+    parts = spec["parts"]
+    centres = [fit_spec.spec_centre(p) for p in parts]
+    height = max(max(b[1][1] for b in map(bbox, parts)), 1e-6)
+    moves = {i: dz for i, dz in depth_rule.tri_shifts(centres, parts_fit.associate(parts, centres, doc, height), doc, height).items()
+             if parts[i][1] != "chain"}                  # a chain's `at` is ignored: its bones place it
+    targets, props = preflight.targets_from(args.sheet), load_props(args.id)
+    held = fit_spec.broken_rules(parts, spec, args.kind, targets, props)
+    base, cur, kept, refused = ious(parts), list(parts), {}, {}
+    for i in sorted(moves, key=lambda k: -abs(moves[k])):
+        cand = [*cur[:i], shifted(cur[i], moves[i]), *cur[i + 1:]]
+        bad = author_guard.drops(base, ious(cand), **noise_kw(args)) or fit_spec.broken_rules(cand, spec, args.kind, targets, props) - held
+        (refused if bad else kept)[i] = round(moves[i], 3)
+        cur = cur if bad else cand
+    report = {"moves": {i: round(dz, 3) for i, dz in moves.items()}, "kept": kept, "refused": refused,
+              "parts": {i: f"{parts[i][0]} {parts[i][1]}" for i in moves}}
+    if getattr(args, "out", None):
+        (args.out / "depth-stage.json").write_text(json.dumps(report, indent=1))
+    print(f"depth-source tri: {len(moves)} parts off their triangulated z, {len(kept)} moved, {len(refused)} refused")
+    return ({**spec, "parts": cur}, report, None) if kept else (spec, report, shape)
+
+
 def guard_fit(args, pre_fit, spec, shape, layout):
     """The fit may not push a view under the massing's stage 1 either (PIPELINE 30.L12-3): when it does, the spec stays as it was
     before the fit and is built again. Returns (spec, shape)."""
@@ -1562,6 +1600,9 @@ def stage_shape(spec_path, args, layout):
     looked = look.apply(glb, args)                    # L12-9: planar snap / ink of the sheet's lines (opt-in) and the look metrics
     if looked:
         print(look.line(looked))
+    depth = depth_rule.apply(glb, args)               # L12-8: z_err against the triangulated landmarks, relief_agreement of the z-pass
+    if depth:
+        print(depth_rule.line(depth))
     smear = re.search(r"normal smear on \d+ flat faces \(([\d.]+)%", build.stdout + build.stderr)
     smear_pct = float(smear.group(1)) if smear else 0.0
     tris, _, skins, anims = glb_stats(glb)
@@ -2073,6 +2114,7 @@ def stage_one(args, brief, images, tmp, layout):
     if args.guard_report and args.guard_report["action"] in ("revert", "reject"):
         shape = None
     spec, args.dsl_report, shape = dsl_stage(spec, args, shape)        # the DSL rules that were prose, repaired in code (30.L12-6)
+    spec, args.depth_report, shape = depth_stage(spec, args, shape)    # z of the parts from the triangulated boxes (30.L12-8)
     # the repair pass (preflight failures -> patch) runs even without --passes: it is
     # what pulls a too-wide body back to its sheet (hfoo shoulders 0.66 -> 0.51, sheet 0.46)
     if args.passes or not args.no_repair:
@@ -2198,6 +2240,10 @@ def build_parser():
                          "parts.json, implies --fit-parts; PIPELINE 23.L5-4b)")
     ap.add_argument("--parts", type=pathlib.Path, default=None,
                     help="a parts.json other than refs/<id>/parts.json for the fit (implies --fit-parts)")
+    ap.add_argument("--depth-source", choices=("tri", "none"), default="none",
+                    help="tri: a spec part whose z lies outside the box3d refs/<id>/parts.json triangulated for it (front x left, "
+                         "the pinned top camera for what one panel shows) moves into it, kept when the 2D proxy loses no view by "
+                         "more than 2 sigma (depth_rule.py, PIPELINE 30.L12-8); none: the spec's z stays")
     ap.add_argument("--no-fewshot", action="store_true",
                     help="leave the worked spec -> render example out of the author's prompt "
                          "(PIPELINE 21.F5)")
@@ -2607,7 +2653,7 @@ def stage1_section(args, shape):
     return (f"## Stage 1 - shape (clay): **{'PASS' if shape['ok'] else 'FAIL'}**\n\n"
             f"| gate | value |\n|---|---|\n{rows}"
             f"| tris | {shape['tris']}/{lo}-{hi} |\n| skins | {shape['skins']} |\n"
-            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n{cull_row(shape)}{look.row(shape['glb'])}"
+            f"| anims | {shape['anims']} |\n| smear | {shape['smear']}% |\n{cull_row(shape)}{look.row(shape['glb'])}{depth_rule.row(shape['glb'])}"
             f"{iou_rows(args.summary)}{prop_row(args.summary)}\n")
 
 
