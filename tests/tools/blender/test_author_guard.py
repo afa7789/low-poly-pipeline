@@ -96,6 +96,45 @@ class Stage(unittest.TestCase):
         self.assertNotEqual(spec, AUTHOR)
 
 
+class MeasureTilt(unittest.TestCase):
+    """L13-2: the pinned --tilts of the run never reach a guard candidate's own camera sweep."""
+    def test_candidate_sweeps_its_own_tilts(self):
+        import tempfile
+        import types
+        from unittest import mock
+
+        import spec_pipeline as SP
+        seen = []
+        args = types.SimpleNamespace(tilts="top:-20,bottom:20", out=pathlib.Path("."), summary={"keep": 1})
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(SP, "stage_shape", lambda path, a, layout: seen.append(a.tilts)):
+            SP.guard_measure(MASS, args, "mass", pathlib.Path(tmp), "massing")
+        self.assertEqual((seen, args.tilts, args.summary), ([""], "top:-20,bottom:20", {"keep": 1}))
+
+
+class Repin(unittest.TestCase):
+    """guard_repin: the pin follows the spec the guard kept."""
+    def repin(self, action, tilts_of_massing):
+        import json
+        import tempfile
+        import types
+
+        import spec_pipeline as SP
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp) / "guard" / "massing"
+            d.mkdir(parents=True)
+            (d / "silhouette.json").write_text(json.dumps({"tilt": tilts_of_massing}))
+            args = types.SimpleNamespace(tilts="top:-20,bottom:20", out=pathlib.Path(tmp))
+            SP.guard_repin(args, {"action": action})
+            return args.tilts
+
+    def test_massing_body_takes_massing_cameras(self):
+        self.assertEqual(self.repin("reject-bare", {"top": 20, "bottom": -20, "rts": [55, -30]}), "bottom:-20,rts:55/-30,top:20")
+
+    def test_intact_and_skipped_keep_the_pin(self):
+        self.assertEqual(self.repin("intact", {"top": 20}), "top:-20,bottom:20")
+        self.assertEqual(self.repin("skipped", {"top": 20}), "top:-20,bottom:20")
+
+
 class FitGuard(unittest.TestCase):
     """spec_pipeline.guard_fit: a fit that pushes a view under the massing's keeps the spec as it was."""
     def run_fit(self, final):

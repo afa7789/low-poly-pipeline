@@ -1272,10 +1272,12 @@ def guard_rows(summary):
 
 def guard_measure(spec, args, layout, work, name):
     """Stage 1 of `spec` as the massing's is measured (build, deform, vertex fit; no numeric fit) on the run's pinned
-    cameras, in <work>/<name>/: {view: {iou, spill}}, or None when the clay did not build or was not measured."""
+    cameras, in <work>/<name>/: {view: {iou, spill}}, or None when the clay did not build or was not measured.
+    Every candidate sweeps its OWN top/bottom/rts cameras: the run's pinned --tilts belong to the final model (the author's
+    spec), and applied to the massing they rotated its top/bottom 180 degrees (hfoo v15: IoU .18, PIPELINE 31.L13-2)."""
     import copy
     a = copy.copy(args)
-    a.out, a.summary = work / name, {}
+    a.out, a.summary, a.tilts = work / name, {}, ""
     a.out.mkdir(parents=True, exist_ok=True)
     (a.out / "spec.json").write_text(json.dumps(spec, indent=2))
     stage_shape(a.out / "spec.json", a, layout)
@@ -1342,6 +1344,19 @@ def guard_stage(spec, args, layout):
         if rows[action] and not author_guard.drops(iou["massing"], {v: r["iou"] for v, r in rows[action].items()}, **noise_kw(args)):
             return guarded, report
     return spec, report
+
+
+def guard_repin(args, report):
+    """A guard that replaced the author's spec (revert/reject/reject-bare) hands the run the cameras that candidate swept itself: the
+    pinned --tilts are the author's, and on the massing's body they turn top/bottom 180 degrees (hfoo: IoU .18, PIPELINE 31.L13-2).
+    reject-bare is taken unmeasured, so it reads the massing's."""
+    if not report or report["action"] in ("skipped", "intact"):
+        return
+    own = args.out / "guard" / (report["action"] if report["action"] != "reject-bare" else "massing") / "silhouette.json"
+    tilts = json.loads(own.read_text()).get("tilt") if own.exists() else None
+    if tilts:
+        args.tilts = ",".join(f"{v}:{'/'.join(map(str, t)) if isinstance(t, (list, tuple)) else t}" for v, t in sorted(tilts.items()))
+        report["repinned"] = args.tilts
 
 
 def dsl_stage(spec, args, shape=None):
@@ -2113,6 +2128,7 @@ def stage_one(args, brief, images, tmp, layout):
     else:
         spec = specs[0][1]
     spec, args.guard_report = guard_stage(spec, args, layout)    # the author's body against the massing's, before anything refits it
+    guard_repin(args, args.guard_report)
     if args.guard_report and args.guard_report["action"] in ("revert", "reject"):
         shape = None
     spec, args.dsl_report, shape = dsl_stage(spec, args, shape)        # the DSL rules that were prose, repaired in code (30.L12-6)
