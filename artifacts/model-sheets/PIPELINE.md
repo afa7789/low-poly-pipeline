@@ -6067,3 +6067,70 @@ Origem: `analysis/2026-10-30-l14-fix-diagnosis.md` (o conserto à mão por primi
 - **Aberto.** (1) braços e coxas rígidos também (testar um modo `limbs`) para o stretch ≤ 1.5: sem isso o aceite de stretch não fecha; (2) cabeça / mão com mais tris que o primitivo do spec (o decal
   `face` tem 12 tris): o orçamento só reduz, nunca sobe; (3) chanfros nas peças rígidas (hoje primitivos sem bevel como os props); (4) a junta de pé abaixo de .03 H em algumas unidades;
   (5) a aranha precisa das coxas fora do `thin: inflate` para as patas lerem como patas (hoje a tenda vem do gate/fit, igual nos dois lados).
+
+### 33.L15-5 Estágio com olho: o agente vê concept × render e refaz as peças por primitiva (`--eye on`) (2026-10-30)
+- **Mudança.** O conserto à mão da L14-3 (um agente que olhou concept e render e montou tubos, caixas e esferas, cor plana por peça, peso 1.0 no osso) virou um estágio reproduzível.
+  `tools/blender/eye_lib.py` (port testado da `l14fix_lib`, sem depender do arquivo; DSL em JSON), `tools/blender/eye_stage.py` (o laço), `tools/blender/eye_compare.py` (tabela, imagens, juiz,
+  aceite da bateria), prompt em `artifacts/model-sheets/prompts/eye.md`. `spec_pipeline.py` só ganha flags e chamadas: `--eye off|on|replay`, `--eye-rounds N` (3, máx 4), `--eye-from RUN`
+  (só o estágio, sobre `runs/draft/<id>/RUN`, para `--run`); `--eye on` sem `--eye-from` roda depois do estágio 2 sobre o `model.glb` do próprio run. Só com `--model session:<claude>` (precisa de um
+  modelo que leia imagens: `SystemExit` senão). Flags vivas em `test_flag_liveness` (`eye`, `eye_rounds`; `eye_from` é plain), `ablation_matrix.NOT_A_VARIANT` (custo de LLM).
+  - **DSL de peças, não Python.** `{"colours": {mat: hex}, "keep": [ossos], "why": ..., "pieces": [{op: ball|box|tube|between, name, mat, bone, role, ...}]}`; mesmos parâmetros da lib
+    (`ball`: r, at, scale, seg, rings; `box`: size, at, rot, top, shift; `tube`: r0, r1, length, at, rot, sides, scale; `between`: a, b, r0, r1, sides, scale). `eye_lib.build` roda no Blender
+    sobre a **armadura do run de entrada** (`eye/input.glb`, cópia do `model.glb` de entrada): descarta as faces da malha antiga (só `keep` fica), cada peça pesa 1.0 no osso, cor plana por
+    peça, normais planas, exporta com os clipes. `bones` devolve ossos (head/tail/pai, coordenadas de mundo) e a caixa da malha, no mesmo referencial em que o modelo escreve (x = direita do
+    observador no front, −y = frente, z = cima).
+  - **Validação determinística antes do Blender** (`eye_lib.validate`; falha volta ao modelo com a razão, 1 reenvio via `spec_pipeline.ask(check=)`): forma de cada peça (op, chaves, vetores,
+    r/length ≥ .005, sides 3–12, seg 5–12, rings 3–8), osso existe no rig, cor definida por material, todo ponto dentro da caixa do sheet ±20 % (união das `box3d` do `parts.json`, convertidas
+    ao referencial do Blender pelo `left_facing` do `refs/<id>/sheet.json`, e da caixa da malha de entrada), tris estimados ≤ 700 (`tris_of` = o que o Blender gera: bola 2·seg·(rings−1), caixa 12,
+    tubo 4·sides−4; igual ao GLB nos testes), ≥ 1 peça de cada papel que o sheet tem entre cabeça, mão, pé, prop.
+  - **Laço com olho.** Ronda 0: o sheet (+ `sheet-hard`, `sheet-props` se existem), dois painéis (front/left/back e top/bottom/rts: conceito | render do modelo antigo | overlay), `parts.json` convertido
+    (nome, papel, osso, caixa, cor), lista de ossos, as cotas (altura, largura, profundidade, chão), as **diretrizes gerais** (cor por peça, rosto com peças geométricas, barriga ≠ caixa, prop no lado e
+    na profundidade do painel left, juntas visíveis, contradição entre painéis decide-se pelos que concordam) e os números do gate. Ronda r>0: sheet + os dois painéis da ronda r−1, o JSON anterior,
+    `parts k/n` com as peças que falham, IoU/spill/bare por vista, câmaras usadas; resposta: JSON completo novo **ou** `{"stop": true, "why": ...}`. O critério de parada é o olho do modelo; o gate só
+    pega desastre (IoU < .6 numa vista coerente recusa o primeiro stop e, no fim das R rondas, obriga mais uma, até 4). Tudo gravado em `eye/round-<r>/` (`prompt.md`, `images.txt`, `dsl.json`,
+    `why.md`, `model.glb`, `eval.json`, `board-1/2.png`, `views/`, `sil/`); `eye/summary.json` (rondas, segundos por fase, chamadas, reenvios e as razões, tris, parts, IoU/spill/bare por vista,
+    stretch, hash dos vértices); `--eye replay` reconstrói da DSL gravada sem LLM e compara o hash.
+  - **Medida honesta das câmaras e da legenda.** (1) `measure` varre as câmaras de top/bottom/rts para cada modelo (silhouette.py sem `--tilts`: 8 s) e renderiza a partir delas: o primeiro lote usou as
+    câmaras pinadas da v15 (como a bateria v13–v15) e mediu n02X top/bottom em .38 (o mesmo artefato da L14-3: a câmara que a v15 escolheu é de outro desenho), o gate gritou "DISASTER" e o modelo
+    respondeu, certo, que não ia distorcer a frente por isso; esse lote ficou em `v16-pinned-r1/` (não versionado). (2) O overlay do `silhouette.py` é **vermelho = só o sheet, verde = só o modelo**
+    (`write_overlay`: canal R = conceito, G = modelo) e o cabeçalho de `compare_fix.py` (L14-3) diz o contrário; o modelo notou ("the overlay colours are swapped against their label") ao comparar
+    com a imagem. (3) O render do left espelha-se no painel quando `sheet.json` manda espelhar (o rig olha para a direita; o sheet do n02X e do n017 olha para a esquerda). (4) Os renders levam o nome
+    do GLB de origem (`input-*.png` na linha de base): a primeira versão mostrava "missing" no lugar do modelo antigo na ronda 0.
+- **Protocolo.** Entrada: `runs/draft/<id>/v15-r1/` (cópia magra do arquivo `v2-hard`: `model.glb`, `clay.glb`, specs, `silhouette.json`, `attach.json`; `anim.json` do v15 medido aqui), 6 unidades
+  (flags de `v15.sh`: n00U `--rig spider`, n017 `--rig quadruped`), `spec_pipeline --kind mass --model session:opus --eye on --eye-from v15-r1 --eye-rounds 3 --run v16-r1`, uma unidade de cada vez
+  (1 Blender + 1 `claude -p`, `nice -n 10`, `SOFT_SIL_THREADS=4`; máquina partilhada), n005, n02X, n00U, hfoo com o código final, n017 e n01X com o mesmo código (n017 ainda sem o registro das razões de reenvio).
+  Juiz `eye_compare.py --judge` = `review_pair.compare` (session:opus, 4 votos A/B trocados, **um voto de cada vez**) v15 × v16 nas 6 e l14-fix × v16 nas 3 (uma cópia do `model.glb` do conserto com as câmaras da v15
+  fora do diretório versionado). Imagens `history/2026-10-30-l15-eye/<id>.png` (conceito | v15 | ronda 0 | 1 | 2 (| 3) | conserto à mão), `history/2026-10-30-l15-eye/table.md`.
+- **Tabela (v15 → v16 final; mesmo gate `--gate parts`, câmaras varridas nos dois).** `parts` = k/n do `parts_gate`; IoU front/left/back/top/bottom/rts; tempo de relógio, chamadas ao modelo (reenvios).
+
+| un. | parts | IoU f/l/b/top/bot/rts | tris das peças (+hull no arquivo) | tempo | chamadas (reenvios) | rondas | stretch v15 → v16 |
+|---|---|---|---|---|---|---|---|
+| n02X | 18/39 → 29/39 | .90/.44/.90/.81/.78/.76 → .90/.89/.89/.75/.67/.73 | 700 (1400) | 12.5 min | 3 (0) | 3 | 2.46 → 1.00 |
+| n005 | 26/28 → 28/28 | .91/.94/.93/.81/.82/.88 → .89/.89/.89/.78/.71/.82 | 700 (1400) | 13.4 min | 3 (0) | 3 | 2.19 → 1.00 |
+| n00U | 14/21 → 17/21 | .90/.77/.88/.78/.77/.70 → .87/.87/.84/.62/.59/.63 (top, bottom incoerentes) | 700 (1400) | 8.4 min | 3 (1) | 3 | 2.77 → 1.00 |
+| hfoo | 13/25 → 16/25 | .84/.26/.84/.64/.67/.45 → .75/.80/.75/.58/.62/.51 (rts incoerente) | 684 (1368) | 12.7 min | 4 (0) | 4 | 2.01 → 1.00 |
+| n017 | 9/19 → 19/19 | .90/.80/.86/.88/.86/.69 → .88/.78/.83/.76/.80/.63 (rts incoerente) | 696 (1392) | **21.7 min** | 3 (2) | 3 | 2.23 → 1.00 |
+| n01X | 18/30 → 28/30 | .82/.79/.82/.91/.83/.86 → .88/.87/.88/.79/.76/.79 | 692 (1384) | 7.7 min | 3 (0) | 3 | 2.14 → 1.00 |
+
+  `parts k/n` sobe nas 6 (n005 26 → 28, n017 9 → 19); o IoU front vai de −.09 (hfoo) a +.06 (n01X; n005 −.02) e sobe no left do n02X (.44 → .89: a clava passou para a frente) e do hfoo (.26 → .80: a v15 estava
+  virada); top/bottom/rts caem .03–.18 (hfoo rts sobe .06; a maioria das vistas cai > 2σ do ruído, σ .00–.02: é o preço de modelar peças, como na L14-3). Spill por vista e bare por vista na `table.md`. **Nenhuma vista coerente
+  abaixo de .6 exceto hfoo top (.58)**; n00U top/bottom (.62/.59), hfoo rts e n017 rts são vistas que o sheet contradiz. Stretch p99.5 **1.00** nas 6 (todas as peças são rígidas; v15 2.0–2.8). `mesh_lint`
+  `components` conta as peças + o casco do contorno (74–128). O modelo **nunca pediu stop** (0 em 13 rondas ≥ 1): corrige sempre; a ronda 3 do hfoo veio do gate (hfoo top .58).
+  O tempo é quase todo chamada ao modelo (86–545 s cada; n017: 498 s e 545 s, ambas com reenvio) e cada ronda ≥ 1 custa 100–250 s; o Blender + gate são ~12 s por ronda.
+- **Juiz pareado (B = v16; sheet / artista / wc3 / forma).** Grupo **visto** (as diretrizes saíram do diagnóstico destas): n02X **B 4-0 / B 4-0 / B 4-0** / v15 4-0; n005 **B 4-0 / B 4-0 / B 4-0** / v15 4-0; n00U **B 4-0 / B 4-0 / B 4-0 / B 4-0**.
+  Grupo **não visto**: hfoo **B 4-0 / B 4-0 / B 4-0 / B 4-0**; n017 **B 4-0 / B 4-0 / B 4-0** / v15 4-0; n01X **B 4-0 / B 4-0 / B 4-0** / v15 4-0. v16 × **conserto à mão** (l14-fix, 3 unidades): n02X **B 4-0 / B 4-0 / B 4-0** /
+  conserto 4-0; n005 **B 4-0 / B 4-0 / B 4-0** / conserto 4-0; n00U **B 4-0 em tudo**. Sheet, artista e wc3: v16 vence 18/18 eixos 4-0 contra a v15 e 9/9 contra o conserto; a **forma** ("continuo: sem degraus nem caixas se cruzando") fica com o
+  v15 em 4 das 6 (n02X, n005, n017, n01X) e com o conserto à mão em 2 das 3 (n02X, n005). Sem viés de posição em nenhuma das 9 comparações.
+- **Aceite (`--eye on` default do `--kind mass`): NÃO atendido; opt-in.** Falhou exatamente: (1) juiz forma+artista ≥ 3-1 para v16 em ≥ 4/6: **2/6** (n00U, hfoo; a forma perde 4-0 em n02X, n005, n017, n01X; o artista ganha 6/6) e ≥ 2/3 nas não vistas:
+  **1/3** (hfoo); (2) nenhuma vista coerente com IoU < .6: **hfoo top .58**; (3) tempo ≤ 15 min por unidade: **n017 21.7 min** (as outras 7.7–13.4). Atendido: stretch ≤ 2.0 e ≤ 1.5 (1.00 nas 6), tris das peças ≤ 700 (684–700;
+  o casco dobra o arquivo, como em L15-3), `anim_check` importa o rig e mede walk/attack/death nas 6. Com a forma fora do aceite (só sheet, artista e wc3) o estágio passaria 6/6; o juiz de forma é o eixo em que uma malha de primitivas
+  perde por construção (L14-3, L15-2), e o brief o põe no aceite. **Nenhum default mudou** (`--eye off`).
+- **Leitura honesta.** O olho automático chega ao conserto à mão onde o conserto era bom e passa dele onde não era: o modelo corrigiu a clava para a frente do n02X pelo painel left, trocou lados da tanga, desenhou rosto
+  (lentes, focinho, presas, olhos) e colocou props na mão e no cinto sem receber a resposta por unidade; as 3 unidades não vistas (hfoo, n017, n01X) saem tão legíveis quanto as vistas (juiz 9/9 eixos de sheet, artista e wc3 4-0). O que o
+  estágio **não** corrige: a forma contínua (cada peça é um primitivo, as juntas ficam abertas ou cruzadas, o juiz vê "degraus"; n00U e hfoo ganham a forma só porque a v15 deles era um caroço fendido) e as vistas top/bottom
+  (o sheet do hfoo gira as botas para cima: top .58; o do n00U contradiz o front). O gate por peça agora separa o que o juiz separa (parts sobe em 6/6; na L15-1 ficava 26/28 × 25/28), mas parts k/n não vê a forma. O modelo
+  gasta o orçamento inteiro (684–700 tris) em todas as rondas, então o que muda entre rondas é onde (rosto, props), não quanto.
+- **Aberto.** (1) A forma: um passo final que une as peças (bevel / sobreposição nas juntas, `keep` do tronco do v15 como núcleo contínuo e só cabeça/mãos/pés/props em primitivos — `keep` já existe na DSL e não foi usado pelo
+  modelo em nenhum dos 6 prompts, que dizem "default: tudo novo") e medir de novo o juiz de forma; (2) tempo do n017: 65 peças e 2 reenvios (as razões só estão registradas de n00U em diante: `r1 < .005` numa ponta de presa; o prompt não diz que a ponta é `r1 = .01`);
+  (3) o prompt mostra `parts.json` convertido pelo `left_facing`, o que fecha o referencial no n005/n017, mas a conversão não foi checada contra os 8 sheets (só as 6 deste lote); (4) o juiz de forma lê o contorno preto (o casco) do v16 e não o do v15: um controle v15 + `--outline hull` isolaria o efeito do casco;
+  (5) o cabeçalho de `compare_fix.py` (L14-3) tem a legenda do overlay invertida; (6) rodar o estágio sobre runs que o autor LLM fez *sem* massing (`--no-massing`) para ver se ele precisa do v15 como entrada.
