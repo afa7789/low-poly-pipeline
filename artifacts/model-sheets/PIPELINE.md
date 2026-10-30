@@ -6114,3 +6114,55 @@ reparo do lado do pike) e n01X (`part_exists`); as regras acertam o diagnóstico
 (o reparo piora o left) e o do n005 (joints do sheet com erro ~25° = ruído de leitura) pedem o laço com olho (L15-5) em vez de reparo numérico;
 `part_exists` por cor precisa de cor medida do sheet por zona (não a paleta do autor); incoerência por forma (patas do n00U front × top).
 Testes: `tests/tools/blender/test_part_rules.py` (fixtures por regra + specs v15 de n02X/n005).
+### 33.L15-6 Contorno por defeito? O jogo carrega o casco, mas o shader soma rim; espessura medida (2026-10-30)
+Pergunta do item: `--outline hull` pode passar a default? Só se o jogo (`src/`, lido, não alterado) carregar o GLB de 2 malhas, mantiver o casco preto e
+desenhar com culling. **Default NÃO mudou** (`--outline off`); falta uma linha no shader do jogo.
+
+**Jogo (leitura de `src/render/`).**
+- *Loader OK.* Unidades entram por `UnitModels::LoadModelFiles` (`LoadModel` do raylib, todas as malhas). `PrepareSkinnedMeshes` só descarta malha rígida sem osso; o casco
+  tem `JOINTS_0`/`WEIGHTS_0` (conferido nos 6 `l15-col-part-outline/model.glb`: 2 malhas `outline` + `spec-colour`, ambas com skin, 1 skin, mesmas animações).
+  `.rig` conta primitivas do GLB final (`rig_static.rig_files`: `tri`), logo `header.meshes == meshCount` (2). `MergeByMaterial` chaveia por textura+shader: casco sem
+  textura nunca junta com o corpo texturizado; se juntasse, a cor de material vai para o vértice (preto continua preto).
+- *Recolor OK (não se aplica).* `RecolorLoaded`/`RecolorCooked` só rodam em castelo (`CastleModels`) e cenário (`SceneryModels`), por matiz/saturação da paleta; unidades só
+  levam `TintOf(entry)` (multiplicativo: preto x tint = preto).
+- *Culling OK.* O único `rlDisableBackfaceCulling` está em `EffectsView` (podridão, água) e `ExtensionView` (chão), cada um com `rlEnableBackfaceCulling` logo depois;
+  nenhum no caminho de unidade nem no shadow map. O casco não tapa o corpo.
+- *Preto NÃO fica preto: o fragment do `StyleShader` soma `lit += uRimColor * uRimStrength * rim * mix(0.4, 1.0, vis)` (`StyleShader.cpp:239`), aditivo e
+  independente de `base`.* Com `StyleRimColor {.75,.85,1}` e `StyleRimStrength .30` o casco (normais para dentro, visto de costas, rasante na borda onde `rim -> 1`)
+  sobe de `#000` para até ~ (57, 65, 77): um contorno cinza-azulado escuro, não preto, e mais fraco exatamente onde mais importa. Não corri o jogo (sem build leve
+  aqui); o número é da aritmética do shader. Não há harness C++ de teste que carregue GLB (`tests/` só tem Python para GLB); não escrevi um.
+- *Diff proposto (NÃO aplicado, é do orquestrador):* em `StyleShader.cpp:239`, escalar o rim pela luminância da base,
+  `lit += uRimColor * uRimStrength * rim * mix(0.4, 1.0, vis) * smoothstep(0.0, 0.08, max(base.r, max(base.g, base.b)));`
+  (só afecta pixels quase pretos: o casco; peças pretas legítimas do modelo também perdem o rim, aceitável). Com isso o ponto 1 passa e o default pode mudar com o
+  teste `live_outline` invertido e `c-no-outline` como controlo (nota em `test_flag_liveness`/`ablation_matrix`).
+
+**Espessura (render 512 px dos `l15-col-part-outline`, 4 vistas laterais, mediana da corrida escura <50 de luminância a partir da borda, esquerda/direita/cima/baixo).**
+Script de medida só no scratchpad da sessão (não entra no repo).
+
+| unidade | H px | W px (front/left) | contorno px | contorno / H |
+|---|---|---|---|---|
+| n005 | 345 | 251 / 188 | 3.75 | 1.09% |
+| n00U (aranha) | 316 | 387 / 411 | 3.5 | 1.1% |
+| hfoo | 348 | 204 / 298 | 3.5 | 1.0% |
+| n017 | 238 | 110 / 410 | 1.9 | 0.8% |
+| n02X | 332 | 258 / 189 | 3.25 | 0.98% |
+| n01X | 310 | 235 / 89 | 2.5 | 0.81% |
+
+Mediana 3.4 px (0.99% de H). A mais grossa (n005, 3.75 px) é 1.1x a mediana, longe do limiar 1.5x do brief: a aranha larga e baixa NÃO fica mais grossa (1.1% de H,
+igual às altas); o quadrúpede n017 e o golem n01X é que ficam mais finos (0.8%, o casco é `.012 H` mas a corrida escura cai com a antialias em peças inclinadas).
+**Regra de espessura mantida** (`.012 x H`); sem PNG antes/depois porque nada mudou. Se o jogo vier a mostrar o contorno fino em quadrúpedes, subir o offset por
+`max(H, W)` seria o ajuste (1 linha em `outline.build_hull`).
+
+**Custo (medido nos GLB).** Tris: o casco repete os do corpo, 700 -> 1400 por unidade (as 6; corpo 700 cada). GLB (KB):
+
+| unidade | sem contorno | com contorno | delta |
+|---|---|---|---|
+| n005 | 207.3 | 309.8 | +102.5 (+49%) |
+| n00U | 236.1 | 336.2 | +100.1 (+42%) |
+| hfoo | 213.1 | 316.2 | +103.1 (+48%) |
+| n017 | 196.8 | 297.2 | +100.4 (+51%) |
+| n02X | 214.0 | 316.7 | +102.7 (+48%) |
+| n01X | 217.1 | 319.8 | +102.7 (+47%) |
+
+Mais ~100 KB por modelo e 2x triângulos desenhados nas unidades com contorno (o casco passa também pelo shadow map). Sem bateria nova (L15-3 já mediu o juiz: contorno
+vence artist+wc3 6/6 e 3/3 consertos).
