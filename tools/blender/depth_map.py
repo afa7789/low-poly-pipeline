@@ -141,7 +141,17 @@ def depth_init(parts, pf, parts_doc, maps, height, centres, calib=None):
         torso = float(np.median(list(disp.values()))) if disp else 0.0
         pf.pairs = parts_fit.front_pairs(parts_doc, pf.assoc, rank_order(disp, torso))
         report["pairs_from_depth"] = len(pf.pairs)
+    if not report["moved"] and "pairs_from_depth" not in report:
+        report["noop"] = no_effect(r, z_of, disp)
+        print(f"no-op: --depth: {report['noop']}: the fit is --fit-parts")
     return out, report
+
+
+def no_effect(r, z_of, disp):
+    """Why `--depth` handed the parts and the pairs back as they were (PIPELINE 31.L13-3): the sheet's own parts.json already orders the
+    pairs, and no part moved because the line is untrusted (r under MIN_R) or because every part with a mask has a left box."""
+    why = "every part with a mask has a left box, nothing to place" if all(i in z_of for i in disp) else f"r {'<' if r < MIN_R else '>='} {MIN_R}"
+    return f"r={r:.2f}, {why}; parts.json already has depth_order"
 
 
 def main():
