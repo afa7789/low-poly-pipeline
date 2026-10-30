@@ -42,6 +42,10 @@ class Association(unittest.TestCase):
         doc = {"H": 1.0, "parts": [part("a", "spine", [[0, 0, 0], [1, 1, 1]])]}
         self.assertEqual(PF.associate([spec("spine")], [(1.5, 1.5, 1.5)], doc, 2.0), [0])
 
+    def test_part_without_box3d_is_skipped(self):
+        doc = {"H": 1.0, "parts": [part("hidden", "spine", None), part("a", "spine", [[0, 0, 0], [1, 1, 1]])]}
+        self.assertEqual(PF.associate([spec("spine")], [(.5, .5, .5)], doc, 1.0), [1])
+
     def test_front_pairs_need_order_and_overlap(self):
         doc = {"parts": [part("tank", "spine", [], -1, [0, 0, .5, .5]), part("torso", "spine", [], 0, [.4, .4, 1, 1]),
                          part("lamp", "spine", [], 1, [.8, .8, 1, 1]), part("same", "spine", [], 0, [0, 0, 1, 1])]}
