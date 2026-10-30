@@ -2388,6 +2388,11 @@ def build_parser():
     ap.add_argument("--pair", type=pathlib.Path, default=None,
                     help="an earlier run dir of this unit: pairwise vision review against it "
                          "(review_pair.py); losing both axes demotes the status one level")
+    ap.add_argument("--eye", choices=("off", "on", "replay"), default="off",
+                    help="on: the stage with an eye (eye_stage.py, PIPELINE 33.L15-5): the model sees concept x render and redoes the parts by primitive "
+                         "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
+    ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-4)")
+    ap.add_argument("--eye-from", default=None, metavar="RUN", help="--eye: only the eye stage, on runs/<id>/RUN, into --run")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
     return ap
@@ -2450,8 +2455,8 @@ def main():
 
     resolve_paths(args)
     print_noops(args)
-    if args.colour_only:
-        return colour_only(args)
+    if args.colour_only or args.eye_from:
+        return one_stage(args)
 
     lo, hi = BUDGETS[args.kind]
     layout = layout_of(args.kind)
@@ -2488,6 +2493,7 @@ def main():
         t0 = time.monotonic()
         colour = run_colour(spec, shape, args)
         args.times["colour"] = time.monotonic() - t0
+    run_eye(args)
     args.infra = infra_check(args, shape, colour)
     save_infra(args)
     verdict = verdict_of(shape, colour, args.infra)
@@ -2620,6 +2626,31 @@ def run_colour(spec, shape, args):
     if (args.out / "model.glb").exists():      # whatever the colour gate said: the judge looks at the turntable (L12-4)
         turntable(args, args.out / "model.glb")
     return ok, report
+
+
+def one_stage(args):
+    """--colour-only RUN: stage 2 alone on RUN; --eye-from RUN: the eye stage alone on RUN."""
+    return colour_only(args) if args.colour_only else eye_only(args)
+
+
+def eye_ask(args):
+    """The model call of the eye stage (L15-5). Only a Claude session reads the images it is given (SystemExit otherwise)."""
+    if not args.model.startswith(SESSION):
+        raise SystemExit("--eye needs --model session:<claude model>")
+    import eye_stage
+    return eye_stage.session_ask(args.model)
+
+
+def run_eye(args):
+    """--eye on|replay after stage 2: the eye stage on this run's model.glb (PIPELINE 33.L15-5); nothing when off."""
+    if args.eye != "off":
+        import eye_stage
+        eye_stage.run_in_pipeline(args, args.out, eye_ask(args))
+
+
+def eye_only(args):
+    import eye_stage
+    return eye_stage.from_run(args, eye_ask(args))
 
 
 def colour_only(args):

@@ -375,7 +375,27 @@ def live_judge_gate():    # L15-1: a run that loses form 3-1 to --pair is CHECK,
     return tuple(out)
 
 
+def eye_run_kwargs(*flags):
+    """The keyword arguments run_in_pipeline hands eye_stage.run for these flags (the stage stubbed)."""
+    import eye_stage
+    with tempfile.TemporaryDirectory() as tmp:
+        args = parse("--model", "session:opus", "--eye", "on", *flags)
+        args.out = pathlib.Path(tmp)
+        with mock.patch.object(eye_stage, "run") as run:
+            eye_stage.run_in_pipeline(args, args.out, None)
+        return run.call_args.kwargs
+
+
+def live_eye():           # L15-5: --eye replay rebuilds from the recorded DSL, on asks the model
+    return eye_run_kwargs()["replay"], eye_run_kwargs("--eye", "replay")["replay"]
+
+
+def live_eye_rounds():    # L15-5: the rounds of look and redo, capped at 4
+    return eye_run_kwargs()["rounds"], eye_run_kwargs("--eye-rounds", "2")["rounds"]
+
+
 LIVE_PAIRS = {
+    "eye": live_eye, "eye_rounds": live_eye_rounds,
     "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
@@ -404,7 +424,7 @@ PLAIN = {      # read by every run (or by the mode they name): the static check 
     "id", "race", "name", "role", "run", "sheet", "hard", "hard_clean", "props", "image1", "with_sheet", "model", "tag", "rig",
     "fixed_rig", "height", "kind", "texture", "atlas_dir", "no_silhouette", "no_rts", "spec", "hull", "cull", "fit", "no_fewshot",
     "no_massing", "variants", "decimate", "budgets", "tilts", "deform", "fit_verts", "flip_side", "frame", "no_repair", "passes",
-    "diagnose", "pair", "out", "inscribe_erode",
+    "diagnose", "pair", "out", "inscribe_erode", "eye_from",
 }
 ENV = {"CF_SPILL_W", "CF_VERTS_SECONDS", "CF_FLIP_SIDE", "CF_FRAME", "CF_OVERRIDES", "CF_BUILD_ARGS"}       # each is read in the source (checked below) and documented here
 
