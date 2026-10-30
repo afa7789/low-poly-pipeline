@@ -54,6 +54,14 @@ Answer with one JSON object and nothing else:
  "form": "left" or "right", "form_why": "one sentence"}"""
 
 
+PROMPT_REF = PROMPT.replace(
+    "The FOURTH cell of the first row is a reference model from a classic game (Warcraft III), only a\nstyle target, not the unit.",
+    "The FOURTH cell of the first row is one real Warcraft III game model (six views: front, left, back,\ntop, bottom, game camera), the style target; it is a different character from the unit.").replace(
+    "  wc3:    which of the two candidates reads more like a game model in the style of the fourth cell\n          (clean silhouette, clear masses, nothing like stacked boxes)",
+    "  wc3:    which of the two candidates reads more like THAT real WC3 model of the fourth cell in style,\n          proportions and legibility (silhouette, size of head, shoulders and hands, painted detail,\n          nothing like stacked boxes)")
+assert PROMPT_REF != PROMPT
+
+
 def model_of(run, textured):
     return run / ("model.glb" if textured else "clay.glb")
 
@@ -168,11 +176,11 @@ def sides(n=VOTES):
     return [i < n // 2 for i in range(n)]
 
 
-def ask_vote(ask, model, image, tries=2):
+def ask_vote(ask, model, image, tries=2, prompt=PROMPT):
     """One parsed vote; a reply with no valid answer (or a failed call) is asked once more."""
     for _ in range(tries):
         try:
-            vote = parse_vote(ask(model, PROMPT, [image]))
+            vote = parse_vote(ask(model, prompt, [image]))
         except (RuntimeError, OSError):
             continue
         if vote:
@@ -186,9 +194,11 @@ def rig_of(run):
     return json.loads(f.read_text()).get("rig", "") if f.exists() else ""
 
 
-def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, ask=None):
+def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, ask=None, reference=None, out=None):
     """Run the pairwise review; returns the result dict (also written to run_b/pairwise.json).
-    `ask(model, brief, images) -> str` defaults to spec_pipeline.ask."""
+    `ask(model, brief, images) -> str` defaults to spec_pipeline.ask. `reference`: a png of one real
+    WC3 model (L16-3) that replaces the rig-class WC3 cell, and the wc3 axis then asks which candidate
+    reads more like THAT model; the result then goes to `out` (default run_b/pairwise.json)."""
     if ask is None:
         import spec_pipeline
         ask = spec_pipeline.ask
@@ -199,17 +209,18 @@ def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, as
              for k, r in (("A", run_a), ("B", run_b))}
     panels = sheet_panels(unit, kind, work)
     flags = sides()
-    wc3, proxy = wc3_ref(rig_of(run_b), unit, kind, work)
+    wc3, proxy = (reference, False) if reference else wc3_ref(rig_of(run_b), unit, kind, work)
     images = [vote_image(shots["A" if f else "B"], shots["B" if f else "A"], panels, wc3,
                          work / f"vote{i}.png") for i, f in enumerate(flags)]
+    prompt = PROMPT_REF if reference else PROMPT
     with concurrent.futures.ThreadPoolExecutor(len(images)) as pool:
-        replies = list(pool.map(lambda im: ask_vote(ask, model, im), images))
+        replies = list(pool.map(lambda im: ask_vote(ask, model, im, prompt=prompt), images))
     votes = [(to_ab(v, f), i) for i, (v, f) in enumerate(zip(replies, flags)) if v]
     result = {"unit": unit, "A": run_a.name, "B": run_b.name, "textured": textured,
-              "wc3_proxy": proxy, "model": model, "valid_votes": len(votes), "votes": [
+              "wc3_proxy": proxy, "wc3_reference": str(reference) if reference else None, "model": model, "valid_votes": len(votes), "votes": [
                   {"order": "A|B" if flags[i] else "B|A", **v} for v, i in votes],
               **tally([v for v, _ in votes])}
-    (run_b / "pairwise.json").write_text(json.dumps(result, indent=2))
+    (out or run_b / "pairwise.json").write_text(json.dumps(result, indent=2))
     return result
 
 
@@ -263,11 +274,15 @@ def main():
     ap.add_argument("--kind", default="mass")
     ap.add_argument("--model", default="session:opus")
     ap.add_argument("--work", type=pathlib.Path, default=None)
+    ap.add_argument("--reference", type=pathlib.Path, default=None,
+                    help="png of one real WC3 model (a hive_sheet contact sheet): the wc3 cell and axis use it")
     ap.add_argument("--gate", action="store_true",
                     help="non-regression gate: exit 0 when the new run (B) does not lose form or artist to A 3-1 / 4-0, 1 when it does")
     args = ap.parse_args()
-    result = compare(args.run_a, args.run_b, args.id, args.kind, args.model, args.work)
-    append_review(args.run_b, result)
+    ref_out = args.run_b / f"pairwise-ref-{args.reference.stem}.json" if args.reference else None
+    result = compare(args.run_a, args.run_b, args.id, args.kind, args.model, args.work, reference=args.reference, out=ref_out)
+    if not ref_out:                 # a judgement against a reference model is not the run's review line
+        append_review(args.run_b, result)
     print(line(result))
     if args.gate:
         print(gate_line(result))
