@@ -4866,6 +4866,48 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   Runs: `runs/draft/<id>/l11-cvt-qem` e `l11-cvt` (+ `-invalid*`: runs que o SIGTERM do ambiente interrompeu, mantidos).
 
 
+### 29.L11-7 Matriz de ablação (fecho: o que a phase (a) antiga mediu e a decisão)
+- **O que foi.** `tools/blender/ablation_matrix.py` + `overrides.py` (`CF_OVERRIDES`/`CF_BUILD_ARGS`, no-op sem as variáveis): cada opt-in
+  sozinho, 5 unidades (specs `v13-r1`, câmaras pinadas, `--deterministic`, sem LLM), 28 variantes, 140 runs, no código ANTES da Leva 12
+  (câmara do otimizador desalinhada do gate, gates frouxos, flags mortas). Runs em `l11-mx-*` do worktree `leva11-matrix` (não
+  versionados); tabela da época em `scratchpad/l11-matrix/phase-a.md`. O agente foi interrompido antes da phase (b) e da escrita do doc.
+- **Resultado (critério da época: ganha em >= 3/5 unidades com média +.005 e nenhuma vista cai > .01).** Nenhum opt-in ganhou: 0 variantes
+  "default"; `verts-asym`, `verts-gamma`, `verts-tau` ficaram opt-in (+.0008 / +.0004 / -.0024 de IoU médio, 2-3 vistas caindo); controles
+  confirmaram o default (`no-verts` -.026, `no-deform` -.018, `body-union` -.008, `frame-body` -.023). `thin-keep`/`thin-off`/`leg-grow`
+  não mexeram em nada (no-op nessas unidades). Fim de L11-7: **decisão = nenhum default muda por esta matriz**; ela media com câmara
+  desalinhada e flags mortas (peer review §7.8), então a Leva 12 a re-executa (§30.L12-10a, que substitui esta tabela).
+- **Tabela antiga (IoU, só forma; reproduzida com as colunas novas em §30.L12-10a "antes").**
+
+| variant | units | Δ mean IoU | units won (≥ +.005, no fall) | views falling > .01 | units worse | Δ slivers % | Δ nd ° | Δ seconds | worst view | decision |
+|---|---|---|---|---|---|---|---|---|---|---|
+| fit-grad | 5 | -0.0026 | 0/5 | 5 | 1 | +0.5 | -1.1 | -77 | left -0.045 | no (loses left -0.045; 1/5 units worse) |
+| fit-stages | 5 | -0.0048 | 0/5 | 6 | 2 | +0.3 | +0.0 | -18 | left -0.058 | no (loses left -0.058; 2/5 units worse) |
+| fit-edges | 5 | -0.0003 | 0/5 | 4 | 0 | +0.2 | -1.0 | +78 | bottom -0.044 | no (loses bottom -0.044; 0/5 units worse) |
+| fit-parts | 5 | -0.0042 | 0/5 | 5 | 1 | +0.0 | -1.2 | +21 | left -0.082 | no (loses left -0.082; 1/5 units worse) |
+| fit-depth | 5 | -0.0048 | 0/5 | 5 | 1 | +0.3 | -0.8 | +41 | left -0.082 | no (loses left -0.082; 1/5 units worse) |
+| constraints | 4 | -0.0062 | 0/4 | 6 | 2 | +0.8 | +0.7 | +0 | rts -0.045 | no (loses rts -0.045; 2/4 units worse) |
+| leg-spill | 2 | -0.0169 | 0/2 | 6 | 2 | -0.1 | -0.9 | -139 | bottom -0.056 | no (loses bottom -0.056; 2/2 units worse) |
+| leg-grow | 1 | +0.0000 | 0/1 | 0 | 0 | +0.0 | +0.0 | -1 | back +0.000 | neutral |
+| body-union | 5 | -0.0080 | 0/5 | 11 | 3 | +13.5 | +9.7 | -19 | left -0.044 | no (loses left -0.044; 3/5 units worse) |
+| k-class | 5 | -0.0053 | 0/5 | 6 | 2 | +0.7 | +0.6 | -17 | top -0.053 | no (loses top -0.053; 2/5 units worse) |
+| k-hard | 5 | -0.0035 | 0/5 | 9 | 2 | +0.4 | +1.2 | -12 | left -0.042 | no (loses left -0.042; 2/5 units worse) |
+| thin-keep | 5 | +0.0000 | 0/5 | 0 | 0 | +0.0 | +0.0 | -10 | back +0.000 | neutral |
+| thin-off | 5 | +0.0000 | 0/5 | 0 | 0 | +0.0 | +0.0 | -11 | back +0.000 | neutral |
+| grid-128 | 5 | -0.0056 | 0/5 | 8 | 3 | +1.2 | +0.7 | -7 | top -0.055 | no (loses top -0.055; 3/5 units worse) |
+| no-deform | 5 | -0.0183 | 0/5 | 18 | 5 | -2.0 | -1.6 | -20 | left -0.073 | no (loses left -0.073; 5/5 units worse) |
+| no-verts | 5 | -0.0257 | 0/5 | 24 | 5 | +0.2 | -1.2 | -34 | back -0.074 | no (loses back -0.074; 5/5 units worse) |
+| align | 5 | -0.0017 | 0/5 | 3 | 1 | +0.0 | +0.0 | -10 | rts -0.019 | no (loses rts -0.019; 1/5 units worse) |
+| props-own | 5 | -0.0009 | 0/5 | 3 | 0 | -0.2 | -0.0 | -9 | left -0.020 | no (loses left -0.020; 0/5 units worse) |
+| verts-fd | 5 | -0.0003 | 1/5 | 8 | 2 | -0.4 | +1.4 | +5 | back -0.055 | no (loses back -0.055; 2/5 units worse) |
+| verts-tau | 5 | -0.0024 | 0/5 | 4 | 1 | -0.1 | -0.3 | -7 | bottom -0.028 | no (loses bottom -0.028; 1/5 units worse) |
+| verts-asym | 5 | +0.0008 | 0/5 | 2 | 0 | -0.1 | +0.2 | -11 | back -0.012 | opt-in (loses back -0.012; 2 view(s) > 0.01) |
+| verts-dihedral | 5 | -0.0081 | 0/5 | 9 | 3 | -0.3 | -2.2 | -10 | rts -0.034 | no (loses rts -0.034; 3/5 units worse) |
+| verts-gamma | 5 | +0.0004 | 1/5 | 1 | 1 | +0.0 | -0.0 | -8 | front -0.011 | opt-in (loses front -0.011; 1 view(s) > 0.01) |
+| verts-uniform | 5 | -0.0010 | 0/5 | 1 | 0 | -0.2 | -0.1 | -7 | front -0.013 | no (loses front -0.013; 0/5 units worse) |
+| verts-yager | 5 | -0.0014 | 0/5 | 2 | 1 | -0.1 | -0.2 | -2 | back -0.022 | no (loses back -0.022; 1/5 units worse) |
+| flip-side | 5 | -0.0021 | 0/5 | 1 | 1 | +0.0 | +0.0 | -1 | left -0.064 | no (loses left -0.064; 1/5 units worse) |
+| frame-body | 5 | -0.0231 | 0/5 | 6 | 3 | +0.0 | +0.0 | -2 | left -0.337 | no (loses left -0.337; 3/5 units worse) |
+
 ## 30. Leva 12 (2026-10-29/30): consertar o que o peer review achou
 
 Fonte: `analysis/2026-10-29-peer-review-v14.md`; critério do usuário: vermelho (spill) <= .03 em cada uma das 6 vistas, verde (bare) pouco, "PASS != certo".
@@ -5378,7 +5420,99 @@ relief_agreement (precisão/recall, front / left / back) e caixas null
 - **Testes.** `test_depth_rule.py` (18: z exato com tilt pinado e erro grande com tilt 0, top e bottom; `fit_top` acha o painel girado e o resíduo separa marco dentro e fora da figura; z_err de clay deslocado .1 H = .1, marco incoerente descartado e contado, reta sem clay = miss, sinal do z trocado, frente do rosto; `zbuffer`, degraus só no contorno da placa, `agreement` 1 com degrau e tinta juntos e 0 a 8 px; `tri_shifts`; `complete_box`; célula do `sdf_batch`), `test_segment_sheet.py` (+2: parte de um painel ganha z do hull ou diz por que fica null), `test_depth_map.py` (+2: reta dos marcos, r < .7 ou negativo não move), `test_flag_liveness.py` (+`depth_source`). Suite completa: 744 testes OK (11 skipped). Ruff com complexidade ≤ 10 limpo nos arquivos tocados.
 - **Arquivos.** `tools/blender/depth_rule.py` (novo), `segment_sheet.py` (`complete_boxes`, `--reply` com o recorte gravado, `--run`), `depth_map.py` (`landmark_calibration`, `MIN_R` .7), `fit_spec.py` (`--depth` passa a reta dos marcos), `spec_pipeline.py` (`depth_stage`, `--depth-source`, hook `depth_rule.apply` depois do `look.apply`, linha no `review.md`), `sdf_batch.py` (coluna `depth`), `refs/<id>/parts.json` (8 unidades; `*.pre-l12-8` = os antigos), testes. Runs: `runs/draft/<id>/l12-depth` (tri), `l12-depth-none` (n00U, n017: controle do HEAD), `l12-depth-none-oldparts` (n00U), `l12-depth-mirror` (n02X com z espelhado, front −.013), `l12-depth-v1` (n00U, mesma coisa antes de `depth-stage.json`) / `l12-depth-chain` (n017 com a `chain` mexida: sem efeito, o `at` é ignorado), `-invalid*` / `-partial` (baterias sobrepostas, descartadas).
 
-#**30.L12-10b Bateria v15 (autor LLM + tudo da Leva 12) pareada com v13, e a guarda sobre o spec novo (2026-10-30)
+### 30.L12-10a Matriz de ablação re-executada sobre o código da Leva 12 (2026-10-30)
+- **O que mudou.** `tools/blender/ablation_matrix.py` (reescrito): 6 unidades (`n005 n00U hfoo n017 n02X n01X`, specs `v13-r1`, `--tilts` do
+  v13-r1, `--no-repair --no-diagnose --deterministic --shape-only --body sdf`, rigs/race/name como em `v13.sh`), **43 variantes de forma** = todos os opt-ins
+  vivos de `test_flag_liveness` (L8/L10/L11 + `CF_SPILL_W=3`, `--author-guard revert`, `--incoherent-weight 1.0` e `0`, `--dsl-repair all` (e `off` como controle),
+  `--look-snap/-creases/-ink on`, `--depth-source tri`, `--depth`, `--noise noise-l12.json`, `--sdf-retopo cvt`, `--body join`, `--fit-fast`) e variável de ambiente por variante
+  (`var(env=...)`). Teste `tests/tools/blender/test_ablation_matrix.py`: falha se uma flag viva (LIVE_PAIRS/LIVE_CUSTOM) não é coberta por uma variante nem tem razão em
+  `NOT_A_VARIANT` (`loop` = precisa do LLM; `deterministic` = base; `parts` = entrada do fit-parts; `shape_only`/`colour_on_fail` = seletores de estágio; `fit_luma` = onda de cor).
+  Colunas por variante, sobre as 6 unidades (e por unidade no csv): Δ spill médio (números do gate: corpo onde há prop), **vistas com spill <= .03**, Δ IoU, Δ bare, vistas que caem
+  > 2σ (`noise-l12.json`, `noise.threshold`), Δ contact, Δ z_err, Δ planarity, Δ recall de crease, Δ tris, Δ segundos. Veredito: `default-candidate` = spill médio cai (> .002)
+  e nenhuma vista cai > 2σ; `opt-in` = spill ou IoU melhora mas uma vista cai; `no`. `--legacy DIR` mede os runs `l11-mx-*` do mesmo jeito (tabela antes/depois).
+  Runs: `runs/draft/<id>/l12-mx-<variante>/` (43 de forma + 3 combinações = 265 runs medidos, 11 células "não aplicável" por `units`/`needs`; 0 falhas de build). Obs.: `spec_pipeline` sai com código 1 quando um gate dá FAIL; o runner tratava isso como "não terminou" e, ao relançar com `--jobs 4`, refez ~50 runs (renomeados `-invalid<ts>`, nunca apagados): as 50 reconstruções têm `approved` bit a bit igual ao run original, prova extra de determinismo com a matriz inteira (corrigido: `batch.json` com `returncode` basta para pular).
+- **Fase (a): cada variante sozinha, 6 unidades (resumo; por unidade em `analysis/2026-10-30-l12-matrix.{csv,md}`, copiado para `IA_gen_paper/ablation-matrix-2026-10-30-l12-matrix.*`).**
+
+| variant | units | Δ spill | views spill ≤ .03 (base) | Δ IoU | Δ bare | views fall > 2σ | Δ contact | Δ z_err | Δ planarity | Δ crease R | Δ tris | Δ s | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| spill-w3 | 6 | -0.0181 | 2/36 (0) | -0.0191 | +0.0418 | 28 | -0.0026 | -0.0055 | +0.019 | -0.008 | +0 | +23 | opt-in (28 view(s) fall > 2σ) |
+| author-guard | 6 | -0.0024 | 1/36 (0) | -0.0077 | +0.0095 | 10 | -0.0188 | -0.0091 | -0.010 | -0.005 | +0 | +278 | opt-in (10 view(s) fall > 2σ) |
+| incoh-1 | 6 | +0.0010 | 0/36 (0) | +0.0008 | -0.0008 | 4 | -0.0011 | +0.0021 | +0.007 | +0.001 | -0 | +11 | opt-in (4 view(s) fall > 2σ) |
+| incoh-0 | 6 | +0.0101 | 0/36 (0) | -0.0105 | +0.0028 | 13 | -0.0170 | -0.0066 | +0.003 | -0.015 | -0 | +38 | no |
+| dsl-all | 6 | -0.0003 | 0/36 (0) | +0.0003 | -0.0001 | 2 | -0.0003 | -0.0001 | +0.002 | -0.005 | +0 | +14 | opt-in (2 view(s) fall > 2σ) |
+| dsl-off | 6 | +0.0047 | 0/36 (0) | -0.0037 | +0.0000 | 3 | +0.0017 | +0.0034 | -0.004 | -0.009 | +0 | +22 | no |
+| look-snap | 6 | +0.0014 | 0/36 (0) | -0.0011 | -0.0004 | 1 | -0.0083 | -0.0009 | +0.319 | -0.002 | +0 | +25 | no |
+| look-creases | 6 | +0.0011 | 0/36 (0) | -0.0011 | +0.0001 | 1 | -0.0091 | -0.0009 | +0.307 | -0.003 | +0 | +22 | no |
+| look-ink | 6 | +0.0000 | 0/36 (0) | +0.0000 | +0.0000 | 0 | +0.0000 | +0.0000 | +0.000 | +0.000 | +0 | +1 | no (no-op: nothing moved) |
+| depth-tri | 6 | -0.0015 | 0/36 (0) | +0.0000 | +0.0018 | 1 | -0.0033 | -0.0001 | -0.007 | -0.004 | +0 | -6 | no |
+| noise | 6 | +0.0000 | 0/36 (0) | +0.0000 | +0.0000 | 0 | +0.0000 | +0.0000 | +0.000 | +0.000 | +0 | -2 | no (no-op: nothing moved) |
+| fit-grad | 6 | +0.0007 | 0/36 (0) | -0.0023 | +0.0031 | 7 | -0.0065 | -0.0083 | +0.003 | -0.003 | +0 | -50 | no |
+| fit-stages | 6 | +0.0036 | 0/36 (0) | -0.0024 | -0.0000 | 6 | -0.0051 | -0.0008 | +0.006 | -0.007 | +0 | -0 | no |
+| fit-edges | 6 | -0.0019 | 0/36 (0) | +0.0003 | +0.0016 | 6 | -0.0082 | +0.0004 | +0.009 | -0.002 | +0 | +71 | opt-in (6 view(s) fall > 2σ) |
+| fit-fast | 6 | +0.0013 | 0/36 (0) | -0.0021 | +0.0020 | 6 | -0.0070 | +0.0052 | +0.000 | -0.013 | -0 | -85 | no |
+| fit-parts | 6 | -0.0054 | 1/36 (0) | +0.0048 | +0.0010 | 6 | +0.0204 | +0.0005 | +0.006 | -0.005 | -0 | +60 | opt-in (6 view(s) fall > 2σ) |
+| fit-depth | 6 | -0.0054 | 1/36 (0) | +0.0048 | +0.0010 | 6 | +0.0204 | +0.0005 | +0.006 | -0.005 | -0 | +70 | opt-in (6 view(s) fall > 2σ) |
+| constraints | 4 | +0.0037 | 0/24 (0) | -0.0039 | +0.0013 | 6 | -0.0161 | +0.0091 | +0.014 | +0.019 | +0 | +3 | no |
+| leg-spill | 2 | +0.0031 | 0/12 (0) | -0.0038 | +0.0020 | 3 | -0.0134 | -0.0236 | +0.024 | -0.037 | +0 | -32 | no |
+| leg-grow | 1 | +0.0000 | 0/6 (0) | +0.0000 | +0.0000 | 0 | +0.0000 | +0.0000 | +0.000 | +0.000 | +0 | -23 | no (no-op: nothing moved) |
+| body-union | 6 | +0.0017 | 0/36 (0) | -0.0056 | +0.0057 | 14 | -0.0113 | -0.0042 | -0.003 | +0.004 | -71 | -10 | no |
+| body-join | 6 | +0.0296 | 0/36 (0) | -0.0507 | +0.0300 | 32 | -0.1124 | -0.0176 | – | – | -5 | -38 | no |
+| k-class | 6 | -0.0026 | 0/36 (0) | +0.0046 | -0.0051 | 5 | -0.0025 | +0.0001 | +0.013 | +0.011 | +0 | -6 | opt-in (5 view(s) fall > 2σ) |
+| k-hard | 6 | -0.0014 | 0/36 (0) | +0.0013 | +0.0006 | 9 | +0.0050 | -0.0039 | +0.009 | +0.000 | +0 | -3 | opt-in (9 view(s) fall > 2σ) |
+| cvt | 6 | -0.0026 | 0/36 (0) | -0.0032 | +0.0077 | 12 | -0.0038 | +0.0133 | -0.018 | +0.018 | -6 | -9 | opt-in (12 view(s) fall > 2σ) |
+| thin-keep | 6 | -0.0011 | 0/36 (0) | +0.0016 | -0.0005 | 0 | +0.0049 | -0.0005 | +0.000 | +0.002 | +0 | -7 | opt-in (spill does not fall) |
+| thin-off | 6 | -0.0004 | 0/36 (0) | +0.0009 | -0.0005 | 1 | +0.0024 | -0.0002 | +0.002 | -0.000 | +0 | -7 | opt-in (1 view(s) fall > 2σ) |
+| grid-128 | 6 | -0.0031 | 0/36 (0) | +0.0005 | +0.0033 | 10 | +0.0080 | +0.0016 | +0.012 | -0.003 | +0 | +0 | opt-in (10 view(s) fall > 2σ) |
+| no-deform | 6 | +0.0076 | 0/36 (0) | -0.0109 | +0.0054 | 16 | -0.0388 | +0.0027 | +0.039 | +0.012 | +0 | -12 | no |
+| no-verts | 6 | +0.0186 | 0/36 (0) | -0.0275 | +0.0125 | 31 | -0.0737 | +0.0014 | +0.041 | -0.004 | +0 | -28 | no |
+| align | 6 | -0.0008 | 0/36 (0) | +0.0012 | -0.0014 | 3 | +0.0063 | +0.0009 | -0.002 | +0.006 | +0 | -4 | opt-in (3 view(s) fall > 2σ) |
+| props-own | 6 | -0.0020 | 0/36 (0) | -0.0014 | +0.0025 | 8 | -0.0042 | +0.0005 | -0.001 | +0.013 | +0 | -7 | no |
+| verts-fd | 6 | +0.0052 | 1/36 (0) | +0.0023 | -0.0098 | 12 | -0.0130 | +0.0000 | -0.015 | +0.021 | +0 | +12 | opt-in (12 view(s) fall > 2σ) |
+| verts-tau | 6 | -0.0022 | 1/36 (0) | -0.0026 | +0.0053 | 9 | -0.0046 | -0.0006 | +0.001 | +0.002 | +0 | +7 | opt-in (9 view(s) fall > 2σ) |
+| verts-asym | 6 | -0.0167 | 2/36 (0) | -0.0155 | +0.0351 | 26 | -0.0055 | -0.0003 | -0.003 | +0.008 | +0 | +5 | opt-in (26 view(s) fall > 2σ) |
+| verts-dihedral | 6 | +0.0025 | 0/36 (0) | -0.0057 | +0.0044 | 16 | -0.0165 | +0.0004 | -0.013 | -0.038 | +0 | -6 | no |
+| verts-gamma | 6 | -0.0003 | 0/36 (0) | +0.0003 | -0.0010 | 6 | -0.0034 | +0.0011 | -0.008 | +0.004 | +0 | -6 | opt-in (6 view(s) fall > 2σ) |
+| verts-uniform | 6 | -0.0008 | 0/36 (0) | -0.0017 | +0.0024 | 7 | -0.0092 | -0.0003 | -0.012 | +0.001 | +0 | -8 | no |
+| iters-15 | 6 | -0.0044 | 0/36 (0) | +0.0091 | -0.0061 | 0 | +0.0209 | -0.0001 | -0.007 | +0.007 | +0 | +14 | default-candidate |
+| iters-15+fit-parts | 6 | -0.0084 | 1/36 (0) | +0.0093 | -0.0014 | 7 | +0.0332 | +0.0014 | -0.010 | -0.013 | -0 | +92 | opt-in (7 view(s) fall > 2σ) |
+| iters-15+spill-w3 | 6 | -0.0230 | 2/36 (0) | -0.0125 | +0.0391 | 23 | +0.0131 | -0.0047 | +0.022 | -0.010 | +0 | +50 | opt-in (23 view(s) fall > 2σ) |
+| iters-15+spill-w3+fit-parts | 6 | -0.0191 | 1/36 (0) | -0.0140 | +0.0368 | 23 | +0.0074 | +0.0002 | +0.019 | -0.015 | +0 | +65 | opt-in (23 view(s) fall > 2σ) |
+| verts-yager | 6 | +0.0006 | 0/36 (0) | -0.0019 | +0.0012 | 8 | -0.0037 | -0.0002 | -0.006 | +0.003 | +0 | -5 | no |
+| flip-side | 6 | +0.0039 | 0/36 (0) | -0.0058 | +0.0068 | 6 | -0.0078 | +0.0002 | -0.003 | -0.005 | -0 | -2 | no |
+| frame-body | 6 | +0.0180 | 0/36 (0) | -0.0244 | +0.0110 | 9 | -0.0501 | +0.0002 | -0.003 | -0.005 | -0 | -6 | no |
+
+- **Leitura.** (1) Spill: nenhuma variante deixa o spill <= .03 em mais de 2 de 36 vistas (base: 0/36); o spill médio do base é ~.10, então o teto do aceite L12-10 (3 %) segue longe.
+  (2) O único `default-candidate` é `iters-15` (15 iterações do fit-verts por estágio em vez de 8): Δ spill -.0044, Δ IoU +.0091, 0 vistas caem > 2σ, contact +.021, +14 s por unidade;
+  não vira default aqui (o brief proíbe mudar defaults), fica como candidato a ser provado na bateria v15/v16. (3) O alavanca de spill é o custo assimétrico (`spill-w3`: Δ spill -.0181,
+  `verts-asym` -.0167), mas as duas pagam em IoU (-.019/-.016) e em bare (+.042/+.035) e 26-28 vistas caem > 2σ: troca spill por bare, não é ganho (confirma L12-2). (4) `fit-parts` ==
+  `fit-depth` (números idênticos: causa não investigada: `--depth` e `--fit-parts` chegam aos mesmos termos de parts.json nestas unidades): Δ spill -.0054, Δ IoU +.0048, contact +.020, mas 6 vistas caem > 2σ.
+  (5) `author-guard` (massing de `v13-r1/massing` contra o spec do autor) custa +278 s (3 builds) e piora (IoU -.008, 10 vistas). (6) `look-snap`/`look-creases`:
+  planarity +.32/+.31 (a métrica de k-means de normais, ver L12-9), IoU -.001, contact -.008: neutro em forma. `look-ink` e `noise` são no-op por construção na matriz (tinta só entra no atlas
+  do stage 2; 2σ só é lido por laço/guarda). `incoh-1` ~ base; `incoh-0` piora (IoU -.011, 13 vistas). `dsl-all` ~ base (Δ IoU +.0003); `dsl-off` pior (-.004). `depth-tri`: z_err -.0001 (a régua L12-8 não se mexe),
+  IoU 0. `cvt`: Δ spill -.0026 mas IoU -.003, 12 vistas caem. `body-join` (sem casca única) é o pior (-.051, contact -.11). Controles: `no-verts` -.0275, `no-deform` -.0109, `frame-body` -.0244, `body-union` -.0056 (default confirmado).
+- **Antes (L11-7, código pré-L12) vs depois (L12), mesmas variantes, mesmo critério novo aplicado aos runs `l11-mx-*` (5 unidades)** — só as que mudaram de classe de veredito:
+
+| variant | verdict before (L11-7) | verdict after (L12) | Δ spill before → after | Δ IoU before → after | views fall > 2σ before → after |
+|---|---|---|---|---|---|
+| fit-parts | no | opt-in (6 view(s) fall > 2σ) | +0.0008 → -0.0054 | -0.0042 → +0.0048 | 6 → 6 |
+| fit-depth | no | opt-in (6 view(s) fall > 2σ) | +0.0020 → -0.0054 | -0.0048 → +0.0048 | 6 → 6 |
+| k-class | no | opt-in (5 view(s) fall > 2σ) | +0.0005 → -0.0026 | -0.0053 → +0.0046 | 6 → 5 |
+| k-hard | no | opt-in (9 view(s) fall > 2σ) | -0.0020 → -0.0014 | -0.0035 → +0.0013 | 10 → 9 |
+| thin-keep | no (no-op: nothing moved) | opt-in (spill does not fall) | +0.0000 → -0.0011 | +0.0000 → +0.0016 | 0 → 0 |
+| thin-off | no (no-op: nothing moved) | opt-in (1 view(s) fall > 2σ) | +0.0000 → -0.0004 | +0.0000 → +0.0009 | 0 → 1 |
+| grid-128 | no | opt-in (10 view(s) fall > 2σ) | +0.0046 → -0.0031 | -0.0056 → +0.0005 | 9 → 10 |
+| align | no | opt-in (3 view(s) fall > 2σ) | +0.0002 → -0.0008 | -0.0017 → +0.0012 | 4 → 3 |
+| verts-fd | no | opt-in (12 view(s) fall > 2σ) | +0.0057 → +0.0052 | -0.0003 → +0.0023 | 8 → 12 |
+
+  Por quê: as 9 variantes passam de `no` a `opt-in` porque o spill passa a cair e o IoU deixa de cair em média; a causa é atribuída, não isolada (não há run com só uma das mudanças L12): câmara do otimizador alinhada ao gate (L12-1), gates e custo novos (L12-2), flags que passam a chegar ao build (L12-4). O `base` novo tem IoU médio .8208 nas mesmas 5 unidades contra .8114 do L11-7 (+.009). `thin-keep/off` deixam de ser no-op (fecham um pouco de spill). Nenhuma passa a `default-candidate` por esta mudança; `iters-15` não foi medida na phase (a) antiga (interrompida).
+- **Fase (b): combinações dos `default-candidate`.** Só há um (`iters-15`), então combinei com as duas alavancas de spill/contact mais fortes: `iters-15+spill-w3` (Δ spill -.0230, Δ IoU -.0125, 23 vistas caem),
+  `iters-15+fit-parts` (-.0084, +.0093, 7 vistas, contact +.033, +92 s), `iters-15+spill-w3+fit-parts` (-.0191, -.0140, 23 vistas). Nenhuma é `default-candidate`: os ganhos de spill vêm de bare (IoU), não somam.
+  Melhor trade: `iters-15` sozinha.
+- **Fase (c) (cor: `--ramp`, `--fit-luma`, `--atlas`, `--materials`, `palette_snap`, `--texture painted`): NÃO corrida** (a phase (a) levou ~5 h a 2-4 jobs com a máquina compartilhada); os variantes `c-*` ficam definidos
+  em `VARIANTS` e `python3.14 tools/blender/ablation_matrix.py --variants c-base,c-legacy,... --units ...` os mede (aberto).
+- **Aceite do brief.** Matriz completa de forma (a) feita; (b) feita; (c) aberta; csv+md copiados ao paper. Defaults não mudaram. Teste de cobertura verde.
+
+### 30.L12-10b Bateria v15 (autor LLM + tudo da Leva 12) pareada com v13, e a guarda sobre o spec novo (2026-10-30)
 
 - **Protocolo.** `spec_pipeline.py --model session:opus --kind mass --run v15-r1 --pair v13-r1` nas 6 unidades (2 a 2, `nice -n 10`, `SOFT_SIL_THREADS=4`; defaults atuais, sem `--tilts`). Controle de guarda
   `v15-r1-guard`: o spec da v15 reconstruído sem LLM (`--spec`, `--no-repair --no-diagnose`) com `--author-guard revert --incoherent-weight 1.0 --noise runs/draft/noise-l12.json` e as câmeras da v15 pinadas

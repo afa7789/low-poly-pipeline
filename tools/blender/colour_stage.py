@@ -30,6 +30,7 @@ import align_features
 import deform_to_sheet
 import look
 import optimize_verts
+import overrides
 import shared_atlas as SA
 import silhouette as SIL
 from preflight import BUDGETS, is_prop, load_props, misplaced_decals
@@ -46,7 +47,8 @@ FIT_LUMA = False    # stage 2 cel: per-slot tone multipliers and a light directi
 def run(script, *argv, blender=False):
     cmd = (["blender", "-b", "-P", str(HERE / script), "--"] if blender
            else [sys.executable, str(HERE / script)])
-    return subprocess.run(cmd + [str(a) for a in argv], capture_output=True, text=True)
+    return subprocess.run(cmd + [str(a) for a in argv] + (overrides.build_args() if script == "build_unit.py" else []),
+                          capture_output=True, text=True)
 
 
 def tilts_text(tilts):
