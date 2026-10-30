@@ -145,7 +145,7 @@ def live_look_ink():        # --look-ink on bakes the ink into the atlas
     return look_calls(), look_calls("--look-ink", "on")
 
 
-def live_outline():         # --outline hull reaches outline.apply after the measure; off never does
+def live_outline():         # --outline hull (the default) reaches outline.apply after the measure; off never does
     def calls(*flags):
         args = parse(*flags)
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(colour_stage, "build_textured", return_value=True), \
@@ -153,7 +153,7 @@ def live_outline():         # --outline hull reaches outline.apply after the mea
                 mock.patch.object(colour_stage.outline, "apply") as apply:
             colour_stage.attempt({}, None, args, {}, pathlib.Path(tmp), "t")
             return apply.call_count
-    return calls(), calls("--outline", "hull")
+    return calls("--outline", "off"), calls()
 
 
 def live_face():            # --face decal cuts the head at 128 px for a part with the "sheet" decal

@@ -6166,3 +6166,11 @@ igual às altas); o quadrúpede n017 e o golem n01X é que ficam mais finos (0.8
 
 Mais ~100 KB por modelo e 2x triângulos desenhados nas unidades com contorno (o casco passa também pelo shadow map). Sem bateria nova (L15-3 já mediu o juiz: contorno
 vence artist+wc3 6/6 e 3/3 consertos).
+
+### 33.L15-7 Rim do shader não acinzenta o preto; `--outline hull` vira default
+
+`src/render/StyleShader.cpp` (ramo não-chão): o termo aditivo do rim passa a ser multiplicado por `smoothstep(0.0, 0.08, max(base.r, max(base.g, base.b)))`, com `base` = textura × tint já amostrada. Um casco `#000` (inverted hull) fica preto na borda em vez de subir a ~(57,65,77) (achado L15-6); pixels com luma de base >= 0.08 ficam como antes. Diff de 1 linha de código + 1 comentário.
+
+**Default mudou:** `--outline` default `hull` (`off` opt-in) em `spec_pipeline.py`; `colour_stage` já lê `args.outline`, então qualquer corrida sem flag passa por `outline.apply`. `test_flag_liveness.live_outline` compara `off` vs default; `ablation_matrix` `c-outline` virou `c-no-outline` (controlo `--outline off`). `--face` continua `off`. Motivo do default: juiz L15-3 6/6 v15 + 3/3 consertos a favor do contorno, e o usuário viu e gostou.
+
+**Verificação:** suite blender 837 OK / 12 skip, ruff limpo; `make build` compila o alvo do jogo (o GLSL é string e só compila em runtime: não visto a correr). Por regra do usuário não se correu `make check` nem testes do jogo. Sem screenshot (não há captura de GLB com o StyleShader).
