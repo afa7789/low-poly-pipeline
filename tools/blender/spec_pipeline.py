@@ -84,6 +84,7 @@ import loop_stage
 import noise as NZ
 import author_guard
 import dsl_rules
+import part_rules
 import massing
 import mesh_lint
 import review_pair
@@ -1378,12 +1379,15 @@ def dsl_stage(spec, args, shape=None):
         return spec, None, shape
 
     def verdicts(doc):
-        got, na = dsl_rules.checks(doc["parts"], doc, args.sheet)
+        got, na = dsl_rules.checks(doc["parts"], {**doc, "rig": doc.get("rig") or args.rig or "biped"}, args.sheet)
         return {**{r: "PASS" if ok else "FAIL" for r, ok, _ in got}, **{r: f"n/a: {why}" for r, why in na.items()}}
     doc = copy.deepcopy(spec)
     before = verdicts(doc)
-    doc["parts"], log = dsl_rules.repair(doc["parts"], doc, args.sheet, opt_in=args.dsl_repair == "all")
-    return doc, {"before": before, "after": verdicts(doc), "repairs": log}, (None if log else shape)
+    doc["parts"], log = dsl_rules.repair(doc["parts"], {**doc, "rig": doc.get("rig") or args.rig or "biped"}, args.sheet, opt_in=args.dsl_repair == "all")
+    rows = part_rules.incoherent_parts(args.sheet) if args.sheet else []          # C6: the contradictory panel per part (33.L15-4)
+    if rows:
+        part_rules.save(args.sheet, rows)
+    return doc, {"before": before, "after": verdicts(doc), "repairs": log, "coherence": part_rules.decided(rows, doc["parts"])}, (None if log else shape)
 
 
 def depth_stage(spec, args, shape):
@@ -2337,9 +2341,9 @@ def build_parser():
                          "author_guard.AUTHOR_DROP under the massing's plain clay -> revert = the bones that explain it go back to "
                          "the massing's (reject if it still falls), reject = the massing's body with the author's props, off = nothing")
     ap.add_argument("--dsl-repair", choices=("on", "off", "all"), default="on",
-                    help="the DSL rules of dsl_rules.py (hood_recess, prop_axis, prop_coverage, leg_joints; PIPELINE 30.L12-6) are repaired "
+                    help="the DSL rules of dsl_rules.py (hood_recess, prop_axis, prop_coverage, leg_joints; PIPELINE 30.L12-6; prop_side, arm_pose, part_exists, incoherent_part: 33.L15-4) are repaired "
                          "in code, with no model call, before the numeric fit; the repairs go to review.md. on = spider legs, "
-                         "all = also the hood and the props (opt-in: n005 front falls .006-.013), off = the author's spec as it is")
+                         "all = also prop_side, arm_pose, reject-part, the hood and the props (opt-in: n005 front falls .006-.013), off = the author's spec as it is")
     ap.add_argument("--body", choices=("union", "sdf", "join"), default=DEFAULT_BODY,
                     help="how the body parts become one shell: union = boolean + decimate (24.L6-4), sdf = distance field + "
                          "guarded QEM retopology (build_unit sdf_union, PIPELINE 28.L10-7), join = the plates joined, no weld")
@@ -2725,6 +2729,7 @@ def dsl_section(args):
         return ""
     rows = "".join(f"| {rule} | {r['before'][rule]} | {r['after'][rule]} |\n" for rule in r["before"])
     fixes = "".join(f"- {rule} {part}: {was} -> {now}\n" for rule, part, was, now in r["repairs"]) or "- none needed\n"
+    fixes += "".join(f"- incoherent_part {c['part']}: front {c['front']:+.2f} vs back {c['back']:+.2f}, {c['side']} wins, the gate ignores {c['ignore'][0]} for it\n" for c in r.get("coherence", []))
     return f"## DSL rules (dsl_rules.py, repaired in code)\n\n| rule | before | after |\n|---|---|---|\n{rows}\n{fixes}\n"
 
 

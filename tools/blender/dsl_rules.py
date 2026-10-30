@@ -496,13 +496,15 @@ def checks(parts, doc, sheet=None, rows=None, na=None):
                       prop_checks(parts, sheet, family, pdoc, rows), leg_checks(parts, doc, family)):
         out += got
         gone_all.update(gone)
-    return out, gone_all
+    import part_rules
+    return out + part_rules.checks(parts, doc, sheet, pdoc, gone_all)[0], gone_all      # prop_side, arm_pose, part_exists, incoherent_part (33.L15-4)
 
 
 def repair(parts, doc, sheet=None, opt_in=False):
     """(parts repaired in place, log [(rule, part, before, after)]) for the rules that fail; a rule that does not apply is left alone.
-    The spider legs always; opt_in adds hood_recess (the face it adds hides inside a closed lathe hood: n005 front .920 -> .907) and the
+    The spider legs always; opt_in adds prop_side, arm_pose and reject-part (part_exists, L15-4), and hood_recess (the face it adds hides inside a closed lathe hood: n005 front .920 -> .907) and the
     props (n005 front/back -.006/-.007, coverage still under .5) - PIPELINE 30.L12-6."""
+    import part_rules
     log, pdoc = [], parts_doc(sheet)
     failing = {n for n, ok, _ in checks(parts, doc, sheet)[0] if not ok}
     if "hood_recess" in failing and opt_in:
@@ -511,4 +513,6 @@ def repair(parts, doc, sheet=None, opt_in=False):
         prop_repair(parts, sheet, pdoc, log)
     if "leg_joints" in failing:
         leg_repair(parts, doc, log)
+    if opt_in:                  # measured on the v15 battery: prop_side / arm_pose / reject-part cost views > 2 sigma (PIPELINE 33.L15-4)
+        part_rules.repair(parts, doc, sheet, pdoc, failing, log, reject=True)
     return parts, log
