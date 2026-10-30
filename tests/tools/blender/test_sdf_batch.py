@@ -61,6 +61,17 @@ class Pure(unittest.TestCase):
         self.assertEqual(B.rig_group("spider_high"), "spider")
         self.assertEqual(B.rig_group("serpent"), "outros")
 
+    def test_incoherent_view_and_body_gate(self):
+        """30.L12-5: an incoherent view is marked, never failed; with props the gate reads the body's numbers"""
+        sil = {"approved": dict(zip(B.VIEWS, (.9, .5, .9, .7, .7, .3))), "gates": {"left": .65, "rts": .7}, "sheet": {"incoherent": ["rts"]},
+               "body_iou": {"left": .72}, "body_spill": {"left": .01}, "body_bare": {"left": .05}, "spill": {"left": .3}}
+        r = B.make_row(UNIT, "sdf", sil, {"union": {}}, lint(), None, None, [], [], 1.0)
+        self.assertEqual((r["sil_fail"], r["incoherent"]), ([], ["rts"]))
+        self.assertIn("†", B.per_view(r["iou"], r["incoherent"]))
+        self.assertEqual(r["body_v"]["iou"][1], .72)
+        sil["body_spill"]["left"] = .2
+        self.assertEqual(B.make_row(UNIT, "sdf", sil, {"union": {}}, lint(), None, None, [], [], 1.0)["sil_fail"], ["left"])
+
     def test_tables(self):
         un = {**UNIT, "rig": "wyrm"}
         rows = [row("sdf", un), row("union", un), B.fail_row({**UNIT, "unit": "u2"}, "sdf", "boom", 3.0)]

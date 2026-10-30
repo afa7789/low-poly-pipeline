@@ -54,6 +54,23 @@ class ViewWeights(unittest.TestCase):
         self.assertLess(costs["biped"], costs["spider"])
 
 
+    def test_incoherent_view_is_ignored_by_the_objective(self):
+        """30.L12-5: the sheet's contradicting rts panel weighs 0, so redrawing it does not move the cost; at weight 2 it does"""
+        parts = [box("a", (1, 2, 1), (0, 1, 0))]
+        front = F.raster(F.Proxy({}, ("front",)).outlines(parts)["front"])[0]
+        costs = {}
+        for name, corner in (("a", (slice(5, 50), slice(5, 50))), ("b", (slice(100, 200), slice(100, 200)))):
+            rts = np.zeros((silhouette.CANVAS_H, silhouette.CANVAS_W), bool)
+            rts[corner] = True
+            for w in (0.0, 2.0):
+                with mock.patch.object(F.V, "INCOHERENT_WEIGHT", w):
+                    proxy = F.Proxy({"front": front, "rts": rts}, ("front", "rts"), cams={"rts": (45, 45)}, rig="spider",
+                                    sheet_rep={"incoherent": ["rts"]})
+                costs[name, w] = proxy.loss(parts)
+        self.assertEqual(costs["a", 0.0], costs["b", 0.0])
+        self.assertNotEqual(costs["a", 2.0], costs["b", 2.0])
+
+
 class Proxy(unittest.TestCase):
     def test_outlines(self):
         """a box fills its rectangle; a rotated one stays inside the hull of its corners; a cyl

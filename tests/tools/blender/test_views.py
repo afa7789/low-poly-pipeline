@@ -36,6 +36,18 @@ class Camera(unittest.TestCase):
             self.assertAlmostEqual(math.dist(offset, (0, 0, 0)), V.DIST)
 
 
+class WeightOf(unittest.TestCase):
+    """30.L12-5 (opt-in): a view the sheet contradicts weighs INCOHERENT_WEIGHT whatever the rig; unset, VIEW_WEIGHTS as before."""
+    def test_incoherent_view_weighs_what_was_asked(self):
+        rep = {"incoherent": ["top"]}
+        self.assertEqual(V.weight_of("spider", "top", rep), 2.0)                 # default: unchanged
+        self.assertEqual(V.weight_of("spider", "top", rep, incoherent_weight=0.0), 0.0)
+        self.assertEqual(V.weight_of("spider", "bottom", rep, incoherent_weight=0.0), 2.0)   # a coherent view keeps the rig's weight
+        self.assertEqual(V.weight_of("spider", "top", None, incoherent_weight=0.0), 2.0)     # no report, no incoherent view
+        self.assertEqual(V.weight_of(None, "rts", {"incoherent": ["rts"]}, 1.0), 1.0)
+        self.assertEqual(V.weight_of("biped", "rts", {"incoherent": ["rts"]}, 2.0), 2.0)
+
+
 class RtsOffset(unittest.TestCase):
     def test_front_right_and_above(self):
         x, y, z = V.rts_offset(45, 45)

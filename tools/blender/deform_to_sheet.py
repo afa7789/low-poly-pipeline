@@ -308,7 +308,7 @@ def mean_iou(report, views, weight=None, active=True):
     """Weighted mean score (1 - S.asym_cost, the IoU at SPILL_W = 1; L12-2) of the pulling (or only watched) views; `weight` {view: w}, 1 where absent."""
     chosen = [v.name for v in views if v.active == active]
     w = np.array([(weight or {}).get(n, 1.0) for n in chosen] or [1.0])
-    return float(np.dot(w, [report[n].get("score", report[n]["iou"]) for n in chosen] or [0.0]) / w.sum())
+    return float(np.dot(w, [report[n].get("score", report[n]["iou"]) for n in chosen] or [0.0]) / max(w.sum(), 1e-9))
 
 
 def accept(old, new, tri, views, ref, floor, limit, weight=None):
@@ -317,7 +317,7 @@ def accept(old, new, tri, views, ref, floor, limit, weight=None):
     if turned(ref, new, tri).any() or sliver_share(new, tri) > limit:
         return False
     a, b = measure(old, tri, views), measure(new, tri, views)
-    if any(b[v.name]["iou"] < floor[v.name] - GUARD for v in views):
+    if any(b[v.name]["iou"] < floor[v.name] - GUARD for v in views if (weight or {}).get(v.name, 1.0)):   # weight 0: not watched either
         return False
     return mean_iou(b, views, weight) >= mean_iou(a, views, weight) - 1e-4
 
@@ -420,7 +420,7 @@ def body_fractions(pos, tri, ru, rv):
     return ((bl[0] - lx) / (hx - lx), (hy - bh[1]) / (hy - ly), (bh[0] - lx) / (hx - lx), (hy - bl[1]) / (hy - ly))
 
 
-def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, cams=None, rig=None):
+def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, cams=None, rig=None, sheet_rep=None):
     """(new welded Z-up positions, report). Rounds of one step per pulling view, each refused when it makes things
     worse. Two phases (25.L7-1): the front/left/back alone, exactly as 24.L6-5 did (+SLIVER_GROW slivers, the top and
     bottom only watched); then every pulling view, weighted, nothing may end more than GUARD under what phase 1
@@ -428,10 +428,11 @@ def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, 
     under PULL_MIN IoU is only watched. `nor`: the welded Z-up vertex normals, the facing of the zero-area faces
     (None: their own). `props`: {view: {prop name: mask}} (silhouette.prop_masks): the body (the largest welded
     component) is pulled only toward the outline outside them, each other component toward its own prop's
-    (25.L7-5). `cams`: the pinned top/bottom/rts cameras; `rig`: whose VIEW_WEIGHTS count in the acceptance."""
+    (25.L7-5). `cams`: the pinned top/bottom/rts cameras; `rig`: whose VIEW_WEIGHTS count in the acceptance; `sheet_rep`: silhouette.sheet_report, its incoherent views
+    weigh views.INCOHERENT_WEIGHT (0: neither pulled nor watched, 30.L12-5)."""
     views = make_views(pos, tri, panels, pulling, props, cams)
     owner, body = owner_body(tri, len(pos))
-    weight = {v.name: weight_of(rig, v.name) for v in views}
+    weight = {v.name: weight_of(rig, v.name, sheet_rep) for v in views}
     ref = reference(pos, tri, np.zeros_like(pos) if nor is None else nor)
     height = float(np.ptp(pos[:, 2]))
     ground = pos[:, 2] < pos[:, 2].min() + SOLE * height
@@ -439,7 +440,7 @@ def deform(pos, tri, panels, pulling, iters=4, band=None, nor=None, props=None, 
     slivers = sliver_share(pos, tri)
     before = measure(pos, tri, views)
     report = {"before": before, "slivers_before": round(slivers, 4), "steps": 0, "refused": 0}
-    extra = [v for v in views if v.active and v.name not in FRONT_AXES and before[v.name]["iou"] >= PULL_MIN]
+    extra = [v for v in views if v.active and v.name not in FRONT_AXES and weight[v.name] and before[v.name]["iou"] >= PULL_MIN]
     for v in views:
         v.active = v.active and v.name in FRONT_AXES
 
@@ -580,13 +581,13 @@ def rewrite(glb, out, change, suffix=".deform.json"):
     return report
 
 
-def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit", split=True, cams=None, rig=None):
+def run(glb, sheet, out, views=("front", "left", "back"), iters=4, band=None, layout="unit", split=True, cams=None, rig=None, sheet_rep=None):
     """Deform `glb` onto the sheet and write `out`; returns the report (before / after per view, slivers).
     Default 3 views; `views=SIX` enables the top/bottom/rts of 25.L7-1 (opt-in)."""
     panels = sheet_panels(sheet, views, layout)
     views = tuple(v for v in views if v in panels)       # no drawing of a view, no pull
     props = {v: S.prop_masks(sheet, v, layout, panels) for v in views} if split else {}
-    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor, props, cams, rig))
+    report = transform(glb, out, lambda pos, tri, nor: deform(pos, tri, panels, views, iters, band, nor, props, cams, rig, sheet_rep))
     pathlib.Path(out).with_suffix(".deform.json").write_text(json.dumps(report, indent=2))
     return report
 
@@ -610,7 +611,8 @@ def apply(glb, args):
     glb = pathlib.Path(glb)
     raw = glb.with_name(f"{glb.stem}-raw.glb")
     raw.write_bytes(glb.read_bytes())
-    return run(raw, args.sheet, glb, layout=layout_of(args.kind), cams=run_cams(args), rig=getattr(args, "rig", None))
+    return run(raw, args.sheet, glb, layout=layout_of(args.kind), cams=run_cams(args), rig=getattr(args, "rig", None),
+               sheet_rep=S.run_report(args))
 
 
 def main():

@@ -44,7 +44,18 @@ VIEW_WEIGHTS = {"spider": {"rts": 2.0, "top": 2.0, "bottom": 2.0},
                 "biped": {"rts": 1.5}}
 
 
-def weight_of(rig, view):
+# PIPELINE 30.L12-5: how much a view the sheet contradicts (silhouette.sheet_report "incoherent") counts in the fit, the deformation
+# and the vertex optimiser. None (default) = as any view (VIEW_WEIGHTS); 0 = ignored, still measured and printed (opt-in
+# `--incoherent-weight 0`: it did not meet the acceptance, see the PIPELINE subsection).
+INCOHERENT_WEIGHT = None
+
+
+def weight_of(rig, view, sheet_report=None, incoherent_weight=None):
+    """The weight of `view` in the fit's objective and the deformation's acceptance: `incoherent_weight` (default
+    INCOHERENT_WEIGHT, when not None) if the sheet report lists the view as incoherent, whatever the rig, else VIEW_WEIGHTS."""
+    w = INCOHERENT_WEIGHT if incoherent_weight is None else incoherent_weight
+    if w is not None and view in (sheet_report or {}).get("incoherent", ()):
+        return w
     return VIEW_WEIGHTS.get(rig, {}).get(view, 1.0)
 
 

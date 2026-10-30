@@ -653,6 +653,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-4 (2026-10-29): feito, default** — o stage 2 corre sempre (`--colour-on-fail on`; `off` = regra antiga): 6/6 com `model.glb`, textura e turntable (CHECK com textura, ~36-45 s por unidade); estágio em falta = `FAIL(infra)` (exit 2, `infra.json`, `review.md`, coluna do `sdf_batch`), distinto de CHECK; teste "flag viva" (`test_flag_liveness.py`) introspecta o parser: `--flat` morta removida, `--fit-parts/--depth` avisam `no-op` (7 de 8 `parts.json` têm `box3d` nulo; `associate` pula a parte nula), 0 `FAIL(infra)` na bateria. Detalhes: PIPELINE 30.L12-4.
 
+**Estado L12-5 (2026-10-29): gate no corpo + colunas corpo/prop feitos, default; peso 0 da vista incoerente FALHOU o aceite, fica opt-in (`--incoherent-weight`, default `None`)** — `w=0` piora as vistas coerentes (n017 left −.035, top −.025); `w=1` melhora n017 (5/5) mas sobe o spill de front/back +.010 em hfoo/n00U; hfoo left (corpo) .544, não .70 (o spec v13-r1 sem a guarda/autor). Tabela "porquê falha": nenhuma vista falha só por prop; todas por spill de corpo; incoerentes (rts hfoo/n017, top/bottom n00U) marcadas `(incoherent, not gated)`. A separação corpo/prop é por pixel, não por render do prop. PIPELINE 30.L12-5.
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender

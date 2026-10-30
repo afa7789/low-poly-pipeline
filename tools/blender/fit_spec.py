@@ -254,10 +254,10 @@ def leg_spill(proxy, parts, outs, flipped, view="rts"):
 class Proxy:
     """Scores a parts list against the concept masks of the views being fitted."""
 
-    def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None, rig=None):
+    def __init__(self, concept, views, cams=None, zones=None, hard=None, partfit=None, rig=None, sheet_rep=None):
         self.concept, self.views, self.cams, self.zones, self.hard = concept, views, cams or {}, zones, hard
         self.split = {}             # {view: (body mask, prop mask, body edge, its distance map)}: set_split
-        self.weight = {v: V.weight_of(rig, v) for v in views}     # PIPELINE 25.L7-1
+        self.weight = {v: V.weight_of(rig, v, sheet_rep) for v in views}     # PIPELINE 25.L7-1; an incoherent view: 30.L12-5
         self.partfit = partfit      # parts_fit.PartTerms: part masks and depth pairs (L5-4)
         # the concept's contour and its distance map never change: silhouette.chamfer, halved
         self.edge = {v: edge_of(m) for v, m in concept.items()}
@@ -823,13 +823,14 @@ def misplaced(proxy, parts):
 
 def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide=True, tilts=None,
         seconds=MAX_SECONDS, hard=None, joints=False, stages=None, partfit=False, parts_path=None, depth=False,
-        split=True, grad=False, constraints=None):
+        split=True, grad=False, constraints=None, sheet_rep=None):
     """(fitted doc, report). The doc is returned untouched when no view is under its gate
     (+ margin) or the parts on the failing band cannot move without breaking a rule.
     `wide=False` is the classic fit (front/left/back, dims and `at`); `tilts` pins the
     top/bottom/rts cameras ({view: tilt}, silhouette.json's), else each is swept on the start spec.
     `partfit` (opt-in: PIPELINE 23.L5-4 measured it neutral on the silhouettes) uses refs/<id>/parts.json, or `parts_path`, when there is one: part masks and depth order (PIPELINE 23.L5-4).
     `split`: the proxy scores the body against the sheet's body mask and the props against theirs (PIPELINE 25.L7-5).
+    `sheet_rep`: silhouette.sheet_report of the sheet; the views it lists as incoherent weigh views.INCOHERENT_WEIGHT (0: ignored, PIPELINE 30.L12-5).
     `depth` (opt-in, needs partfit) starts from Depth Anything's z and occlusion order (depth_map.py, PIPELINE 23.L5-4b).
     `stages` (subset of STAGES) runs one Powell per stage on its own parameters, 1/len of the budget each
     (PIPELINE 22.L4-3); None is the single Powell over every parameter.
@@ -845,13 +846,13 @@ def fit(doc, sheet, kind="mass", views=None, margin=MARGIN, max_evals=None, wide
     gates = silhouette.gates_for(doc.get("rig"))
     concept = concept_masks(sheet, views or (WIDE_VIEWS if wide else FIT_VIEWS), wide)
     proxy = Proxy(concept, tuple(concept), hard=hard_canvas_edges(hard, tuple(concept)) if hard else None,
-                  rig=doc.get("rig"))
+                  rig=doc.get("rig"), sheet_rep=sheet_rep)
     if parts:
         proxy.cams = proxy.pick_cams(parts, tilts)
         if split:
             proxy.set_split(sheet)
     before = proxy.ious(parts) if parts else {}
-    failing = [v for v in proxy.views if v in gates and before.get(v, 1.0) < gates[v] + margin]
+    failing = [v for v in proxy.views if v in gates and proxy.weight[v] and before.get(v, 1.0) < gates[v] + margin]
     report = {"views": list(proxy.views), "cams": proxy.cams, "before": before, "after": before,
               "failing": failing, "free": 0, "evals": 0, "changed": False}
     if not parts:

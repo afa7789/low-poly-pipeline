@@ -302,6 +302,14 @@ def sheet_report(sheet, layout="unit", cams=None):
             "incoherent": [v for v, c in coh.items() if c < COHERENCE_MIN]}
 
 
+def run_report(args):
+    """sheet_report() of the run's sheet, computed once per run (cached on `args`): who weighs the views and who is gated."""
+    if not hasattr(args, "sheet_rep"):
+        from views import layout_of
+        args.sheet_rep = sheet_report(args.sheet, layout_of(args.kind))
+    return args.sheet_rep
+
+
 def write_sheet_report(args):
     """Write outdir/sheet.json; the set of views the sheet is incoherent on."""
     rep = sheet_report(args.sheet, args.layout)
@@ -312,7 +320,7 @@ def write_sheet_report(args):
 def verdict_of(gate, ok, waived):
     """(counts as ok, printed verdict) of a view: a waived view is reported, never failed."""
     verdict = "n/a" if gate is None else ("PASS" if ok else "FAIL")
-    return (True, f"{verdict} (sheet incoherent: report)") if waived else (ok, verdict)
+    return (True, f"{verdict} (incoherent, not gated)") if waived else (ok, verdict)
 
 
 def sheet_line(rep):
@@ -1883,10 +1891,47 @@ def coupling_split(concept, model, props):
             "spill_body": share(spill & ~near, m), "spill_prop": share(spill & near, m)}
 
 
+def body_prop_scores(concept, model, props):
+    """The view told apart as body and props (PIPELINE 30.L12-5; `props`: boolean union of the view's prop masks). The sheet's
+    body is the panel less the prop masks; the model's prop is what lies in a prop mask or spills within PROP_NEAR px of one
+    (coupling_split's attribution), its body is the rest. {body,prop}_{iou,spill,bare}, each pair measured on its own pair of
+    masks (spill = share of that model part outside its sheet part, bare = share of the sheet part it leaves uncovered)."""
+    from scipy.ndimage import binary_dilation
+    c, m = concept.astype(bool), model.astype(bool)
+    prop_m = (m & props) | (m & ~c & binary_dilation(props, iterations=PROP_NEAR))
+    out = {}
+    for name, cs, ms in (("body", c & ~props, m & ~prop_m), ("prop", props & c, prop_m)):
+        both = (cs & ms).sum()
+        out |= {f"{name}_iou": round(float(both / max((cs | ms).sum(), 1)), 4),
+                f"{name}_spill": round(float((ms & ~cs).sum() / max(ms.sum(), 1)), 4),
+                f"{name}_bare": round(float((cs & ~ms).sum() / max(cs.sum(), 1)), 4)}
+    return out
+
+
 def split_of(sheet, view, layout, panels, concept, model):
-    """coupling_split() of one view, {} when the sheet has no prop mask there (no parts.json, or no box for the view)."""
+    """coupling_split() and body_prop_scores() of one view, {} when the sheet has no prop mask there (no parts.json, or no
+    box for the view)."""
     props = prop_masks(sheet, view, layout, panels)
-    return coupling_split(concept, model, np.any(list(props.values()), axis=0)) if props else {}
+    if not props:
+        return {}
+    union = np.any(list(props.values()), axis=0)
+    return coupling_split(concept, model, union) | body_prop_scores(concept, model, union)
+
+
+def gated_values(r):
+    """(IoU, coupling dict) the gate judges a view's report `r` by: the body's when the sheet has props there (the props are a
+    CHECK, printed), else the whole silhouette's."""
+    if "body_iou" not in r:
+        return r["iou"], r
+    return r["body_iou"], {"uncovered": r["body_bare"], "spill": r["body_spill"]}
+
+
+def body_text(r):
+    """'  [body IoU .71 spill .02 bare .05 | prop CHECK IoU .55 spill .20]' for a view with props, else ''."""
+    if "body_iou" not in r:
+        return ""
+    return (f"  [body IoU {r['body_iou']:.3f} spill {r['body_spill']:.3f} bare {r['body_bare']:.3f} | prop CHECK IoU "
+            f"{r['prop_iou']:.3f} spill {r['prop_spill']:.3f} bare {r['prop_bare']:.3f}]")
 
 
 def red_text(red):
@@ -2015,12 +2060,14 @@ def main():
                         "contact": round(contact(concept[name], best_mask), 4),
                         **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
-        ok = (gate is None or best >= gate) and coupling_ok(name, report[name])
+        g_iou, g_cov = gated_values(report[name])
+        ok = (gate is None or g_iou >= gate) and coupling_ok(name, g_cov)
         report[name]["incoherent"] = name in waived
         ok, verdict = verdict_of(gate, ok, name in waived)
         bad += 0 if ok else 1
         print(f"{name:8} {best:6.3f}  {l1:6.3f}  {px:5.3f}  {str(tilt):>6}  {report[name]['spill']:5.3f} {report[name]['uncovered']:5.3f} {report[name]['contact']:5.3f}  {verdict}"
-              + ("" if report[name]["contact"] >= CONTACT_MIN else "  (contact CHECK)"))
+              + ("" if report[name]["contact"] >= CONTACT_MIN else "  (contact CHECK)")
+              + body_text(report[name]))
         write_mask(concept[name], args.outdir / f"mask-concept-{name}.png", (255, 80, 80))
         write_mask(best_mask, args.outdir / f"mask-model-{name}.png", (80, 255, 80))
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")

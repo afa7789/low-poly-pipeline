@@ -82,6 +82,7 @@ import mesh_lint
 import review_pair
 import rig_families as RF
 from surfaces import DECALS, SURFACES
+import views as view_defs
 from views import layout_of
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -1218,12 +1219,12 @@ def fit_stage(spec, args):
     toggled clay for real and keep the best one that passes fit_accepted against the one before it
     (PIPELINE 21.F4: `cut: sheet` is decided here, not guessed by the author). The trials land in <run>/fit/."""
     import fit_spec
-    from silhouette import gates_for
+    from silhouette import gates_for, run_report
     fitted, report = fit_spec.fit(spec, args.sheet, args.kind, wide=not args.fit_fast, tilts=run_tilts(args),
                                hard=args.build if args.fit_edges else None,
                                stages=fit_spec.STAGES if args.fit_stages else None,
                                partfit=args.fit_parts or bool(args.parts) or args.depth, parts_path=args.parts,
-                               depth=args.depth, grad=args.fit_grad,
+                               depth=args.depth, grad=args.fit_grad, sheet_rep=run_report(args),
                                constraints=json.loads(args.constraints.read_text()).get("deltas") if args.constraints else None,
                                **({"seconds": 1e9} if getattr(args, "deterministic", False) else {}))
     print(f"fit: proxy IoU {report['before']} -> {report['after']} ({report['evals']} evals)")
@@ -1278,10 +1279,11 @@ def proxy_ious(spec, args):
     """Callable parts -> {view: IoU}: fit_spec's 2D proxy on the run's pinned cameras (no Blender)."""
     import fit_spec
     import views
+    from silhouette import run_report
     RF.scale_rig(spec.get("rig", "biped"), spec.get("rig_measure"))
     lathe_limb.set_rig(spec.get("rig", "biped"), spec.get("bones"))
     concept = fit_spec.concept_masks(args.sheet, fit_spec.WIDE_VIEWS, True)
-    proxy = fit_spec.Proxy(concept, tuple(concept), rig=spec.get("rig"))
+    proxy = fit_spec.Proxy(concept, tuple(concept), rig=spec.get("rig"), sheet_rep=run_report(args))
     proxy.cams = proxy.pick_cams(fit_spec.baked(spec["parts"], args.sheet), views.parse_tilts(args.tilts))
     return types.SimpleNamespace(ious=lambda parts: proxy.ious(fit_spec.baked(parts, args.sheet)))
 
@@ -1382,17 +1384,17 @@ def shape_review(args, glb, layout):
     compare. Returns (gate passed, approved report)."""
     sil_ok, report, summary = True, {}, {"drift": args.drift}
     if not args.no_silhouette:
-        from silhouette import gates_for, sheet_report
+        from silhouette import gates_for, run_report
         sil_ok, report = silhouette_vs(args, glb, layout, args.sheet, "approved")
         summary["approved"] = {k: r["iou"] for k, r in report.items()}
         summary["tilt"] = tilts_of(report)
         summary["flipped"] = {v: r["flipped"] for v, r in report.items() if "flipped" in r}
         summary["top_orientation"] = {v: report[v]["head"] for v in ("top", "bottom") if v in report}
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
-        for key in ("uncovered", "spill", "red", "contact"):     # coupling (PIPELINE 21.F7)
+        for key in ("uncovered", "spill", "red", "contact", *BODY_PROP):     # coupling (PIPELINE 21.F7); body / prop (30.L12-5)
             summary[key] = {k: r[key] for k, r in report.items() if key in r}
         summary["gates"] = gates_for(args.rig)
-        summary["sheet"] = sheet_report(args.sheet, layout)     # r_sym and coherence; incoherent views are not gated
+        summary["sheet"] = run_report(args)     # r_sym and coherence; incoherent views are not gated
         if args.build != args.sheet:
             _, hard = silhouette_vs(args, glb, layout, args.build, "hard")
             summary["hard"] = {k: r["iou"] for k, r in hard.items()}
@@ -1823,6 +1825,7 @@ RUNS = MSHEETS / "runs" / "draft"
 
 
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+BODY_PROP = tuple(f"{part}_{m}" for part in ("body", "prop") for m in ("iou", "spill", "bare"))    # silhouette.body_prop_scores
 
 
 def sheet_row(summary):
@@ -1831,6 +1834,12 @@ def sheet_row(summary):
         return ""
     from silhouette import sheet_line
     return f"| sheet (report; an incoherent view is not gated) | {sheet_line(summary['sheet'])} |\n"
+
+
+def split_rows(summary, row, shape):
+    """The body / prop rows, only for a sheet with props: the gate judges the body, the prop is a CHECK (30.L12-5)."""
+    return "".join(row(f"{k.replace('_', ' ')} ({'gate' if k.startswith('body') else 'CHECK'})", summary[k], shape)
+                   for k in BODY_PROP if summary.get(k))
 
 
 def signal_rows(summary, row, shape):
@@ -1842,6 +1851,7 @@ def signal_rows(summary, row, shape):
     for key in ("uncovered", "spill", "contact"):
         if summary.get(key):
             out += row(f"{key} (report, /{ {'uncovered': 'sheet area', 'spill': 'model area'}.get(key, 'sheet contour') })", summary[key], shape)
+    out += split_rows(summary, row, shape)
     if summary.get("red"):
         from silhouette import red_text
         out += "".join(f"| worst red {v} | {red_text(r)} |\n" for v, r in summary["red"].items())
@@ -2188,6 +2198,10 @@ def build_parser():
     ap.add_argument("--tilts", default="",
                     help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
                          "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
+    ap.add_argument("--incoherent-weight", type=float, default=None,
+                    help="opt-in: the weight in the fit, the deformation and the vertex optimiser of a view the sheet contradicts "
+                         "(sheet_report 'incoherent'): 0 ignores it (still measured and printed), 1 drops the rig's extra weight; "
+                         "unset = as any view (PIPELINE 30.L12-5)")
     ap.add_argument("--author-guard", choices=author_guard.MODES, default="off",
                     help="the author's spec against the massing before the fit (PIPELINE 30.L12-3): a view more than "
                          "author_guard.AUTHOR_DROP under the massing's plain clay -> revert = the bones that explain it go back to "
@@ -2272,6 +2286,7 @@ def main():
     args.style = args.texture        # the old name, for stage 2 code that still reads it
     global BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO
     BODY, SDF_GRID, SDF_K_MODE, SDF_RETOPO = args.body, args.sdf_grid, args.sdf_k_mode, args.sdf_retopo
+    view_defs.INCOHERENT_WEIGHT = args.incoherent_weight
     args.union_body = args.body != "join"
 
     resolve_paths(args)
