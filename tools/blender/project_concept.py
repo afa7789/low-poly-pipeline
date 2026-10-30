@@ -135,7 +135,7 @@ def main():
 
     img = bpy.data.images.load(str(pathlib.Path(sheet).resolve()), check_existing=False)
     W, H = img.size
-    panels = SIL.concept_panels(sheet, 768)
+    panels = SIL.concept_panels(sheet, 768, columns=True)   # the column cut: the blob split needs scipy, which Blender's Python lacks (it crashed every sheet run since 10-28; PIPELINE 32.L14-2)
     boxes = {}
     for name, mask in panels.items():
         ys, xs = mask.nonzero()

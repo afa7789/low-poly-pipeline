@@ -2226,6 +2226,9 @@ def build_parser():
                          "PIPELINE 27.T5); split = one material per palette slot, as before")
     ap.add_argument("--atlas-dir", type=pathlib.Path, default=ROOT / "artifacts/model-sheets/atlas",
                     help="--atlas shared: where the per-race column tables <race>.json live (append only)")
+    ap.add_argument("--colour-only", type=pathlib.Path, default=None, metavar="RUN_DIR",
+                    help="stage 2 alone on the frozen shape of an existing run (its spec, clay and sidecars are copied to --out; "
+                         "no author, no fit; PIPELINE 32.L14-2)")
     ap.add_argument("--shape-only", action="store_true",
                     help="stop after stage 1 (clay + shape gates), even when stage 2 exists")
     ap.add_argument("--colour-on-fail", choices=("on", "off"), default="on",
@@ -2392,13 +2395,20 @@ def print_noops(args):
         print(note)
 
 
-def main():
-    if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view; no other flag needed
+def utility_command():
+    """The two commands that need no other flag; True when one ran."""
+    if sys.argv[1:] == ["--check-rts"]:   # figures per existing RTS view
         for name, n in check_rts().items():
             print(f"{n} {name}")
-        return
+        return True
     if sys.argv[1:2] == ["--redo-rts"]:   # --redo-rts refs/<id>/sheet.jpg: redraw that sheet's rts view
         print("kept the old rts" if not redo_rts(pathlib.Path(sys.argv[2]).resolve()) else "rts redone")
+        return True
+    return False
+
+
+def main():
+    if utility_command():
         return
     ap = build_parser()
     args = ap.parse_args()
@@ -2416,6 +2426,8 @@ def main():
 
     resolve_paths(args)
     print_noops(args)
+    if args.colour_only:
+        return colour_only(args)
 
     lo, hi = BUDGETS[args.kind]
     layout = layout_of(args.kind)
@@ -2581,6 +2593,23 @@ def run_colour(spec, shape, args):
     if (args.out / "model.glb").exists():      # whatever the colour gate said: the judge looks at the turntable (L12-4)
         turntable(args, args.out / "model.glb")
     return ok, report
+
+
+def colour_only(args):
+    """--colour-only RUN: copy the frozen shape of RUN (spec, clay and their sidecars, silhouette.json) into args.out and
+    run stage 2 on it, with the cameras stage 1 pinned. Prints the zones line; exit 0 when the colour gate holds."""
+    src, out = args.colour_only, args.out
+    args.rig = args.rig or ("building" if layout_of(args.kind) == "building" else "biped")        # as main() sets them before stage 2
+    args.build = args.hard if args.image1 == "hard" and args.hard and args.hard.exists() else args.sheet
+    out.mkdir(parents=True, exist_ok=True)
+    for f in src.iterdir():
+        if f.is_file() and (f.name.startswith("clay") or f.name in ("spec.json", "silhouette.json", "attach.json", "cull.json")):
+            shutil.copy(f, out / f.name)
+    tilts = {v: tuple(t) if isinstance(t, list) else t for v, t in json.loads((out / "silhouette.json").read_text())["tilt"].items()}
+    t0 = time.monotonic()
+    ok, _ = run_colour(json.loads((out / "spec.json").read_text()), {"glb": out / "clay.glb", "tilts": tilts}, args)
+    print(f"{args.id}\t{args.run}\tcolour-only {args.texture}\tstage2 {'PASS' if ok else 'FAIL'}\t{time.monotonic() - t0:.0f} s")
+    return 0 if ok else 1
 
 
 def run_polish(args, shape):
