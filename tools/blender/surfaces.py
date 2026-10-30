@@ -85,12 +85,43 @@ def _scales(u, v, tx, ty):
 def _chitin(u, v, tx, ty):
     ramp = 0.30 + 0.80 * v ** 1.3
     seams = 1.0 - 0.35 * _bump((v * 4) % 1.0, 0.02, 0.0008)
-    return ramp * seams, 0.55 * _bump(v, 0.78, 0.0012)
+    mottle = 1.0 + 0.06 * np.sin(u * 13 + tx) * np.sin(v * 7 + ty)
+    return ramp * seams * mottle, 0.10 * _bump(v, 0.78, 0.02)      # a creature's matte shell, not armour
 
 
 def _wood(u, v, tx, ty):
-    grain = 1.0 + 0.12 * np.sin(u * 40 + 3 * np.sin(v * 6 + tx))
-    return (0.45 + 0.65 * v) * grain, 0.0
+    # worked timber: three vertical boards, a dark joint between them, grain lines
+    # that wander along each board and a slightly different tone per board
+    board = np.floor(u * 3)
+    bu = (u * 3) % 1.0
+    grain = 1.0 + 0.14 * np.sin(bu * 34 + 5 * np.sin(v * 3 + board * 2.1 + tx))
+    joint = 1.0 - 0.45 * np.clip(1 - np.minimum(bu, 1 - bu) / 0.04, 0, 1)
+    tone = 0.92 + 0.08 * np.sin(board * 2.7 + ty)
+    return (0.45 + 0.65 * v) * grain * joint * tone, 0.0
+
+
+def _bark(u, v, tx, ty):
+    # living bark: deep vertical furrows that drift sideways, one dark knot per tile
+    ridge = (0.5 + 0.5 * np.sin(u * 2 * np.pi * 5 + 1.6 * np.sin(v * 3.1 + tx))) ** 2
+    furrow = 1.0 - 0.40 * (1 - ridge)
+    ku, kv = 0.25 + 0.5 * ((tx * 0.37 + ty * 0.61) % 1.0), 0.30 + 0.4 * ((tx * 0.73 + ty * 0.29) % 1.0)
+    knot = 1.0 - 0.45 * _bump(np.hypot((u - ku) * 1.6, v - kv), 0.0, 0.006)
+    return (0.40 + 0.60 * v) * furrow * knot, 0.0
+
+
+def _slime(u, v, tx, ty):
+    # wet ooze: soft body, vertical drip streaks, a broad wet highlight broken by the streaks
+    streak = 1.0 + 0.10 * np.sin(u * 15 + 3 * np.sin(v * 2 + tx))
+    ramp = 0.60 + 0.50 * v
+    sheen = (0.55 * _bump(v, 0.78, 0.006) + 0.35 * _bump(np.hypot(u - 0.3, v - 0.7), 0.0, 0.004))
+    return ramp * streak, sheen * (0.7 + 0.3 * np.sin(u * 9 + ty))
+
+
+def _flesh(u, v, tx, ty):
+    # raw wet meat: blotchy, dark veins wandering across, a faint moist sheen
+    vein = 1.0 - 0.22 * np.exp(-np.sin(u * 11 + 2.5 * np.sin(v * 6 + tx)) ** 2 / 0.02)
+    blotch = 1.0 + 0.08 * np.sin(u * 5 + ty) * np.sin(v * 4 + tx)
+    return (0.50 + 0.55 * v) * vein * blotch, 0.25 * _bump(v, 0.80, 0.008)
 
 
 def _stone(u, v, tx, ty):
@@ -122,7 +153,8 @@ def _glow(u, v, tx, ty):
 PAINTERS = {
     "metal": (_metal, 1.0), "polished": (_polished, 0.6), "skin": (_skin, 0.7),
     "leather": (_leather, 0.6), "cloth": (_cloth, 1.0), "silk": (_silk, 0.3),
-    "scales": (_scales, 0.5), "chitin": (_chitin, 0.2), "wood": (_wood, 1.0),
+    "scales": (_scales, 0.5), "chitin": (_chitin, 0.3), "wood": (_wood, 1.0),
+    "bark": (_bark, 1.0), "slime": (_slime, 0.5), "flesh": (_flesh, 0.5),
     "stone": (_stone, 1.0), "fur": (_fur, 1.0), "plastic": (_plastic, 0.0),
     "glass": (_glass, 0.0), "glow": (_glow, 1.0),
 }
@@ -140,15 +172,184 @@ def paint(surface, rgb, size=256):
     return np.clip(out, 0.0, 1.0)
 
 
+# Cel style: the hard sheet's flat facets. One flat tone per face by orientation (light up,
+# mid on the sides, dark underneath), no pattern, no gloss: a slot image is three flat
+# tone cells (index = tone_index) and every face maps into the cell of its tone.
+# A surface only nudges the three multipliers (default CEL_TONES).
+CEL_TONES = (1.08, 1.0, 0.90)   # measured on the 7 v2-hard-r2 renders: render luma / sheet luma 0.95 side, 1.0 top (PIPELINE §18.F)
+CEL_SURFACE = {"glow": (1.0, 1.0, 1.0), "slime": (1.30, 1.0, 0.78), "flesh": (1.25, 1.0, 0.72),
+               "bark": (1.12, 0.95, 0.60)}
+
+
+def tone_index(nz):
+    """Cel tone cell of a face whose unit normal has vertical component nz: 0 up, 1 side, 2 down."""
+    return 0 if nz > 0.55 else (2 if nz < -0.35 else 1)
+
+
+INK = 0.55   # tone of the ink line at the border of every cel slot (a face spans its whole slot)
+RAMP_SLOTS = 8     # a cel cell is RAMP_SLOTS horizontal slots, a dark-to-light ramp bottom to top
+RAMP_SLOPE = 0.0   # tone change across the whole ramp, share of the cell's tone. 0 = flat cells: measured, a ramp lowers
+                   # the colour-zone mean on n01X front (.41 -> .30) and n005 bottom (.49 -> .37) (PIPELINE 19.C1); build_unit ramp=0.5 turns it on; re-measured on the unioned shell: still negative (PIPELINE 24.L6-11)
+TONE_V = (1.0, 0.5, 0.0)   # ramp v of a box's top / side / bottom face (height 1 / .5 / 0): its tone stays exact
+SLOT_PAD = 0.1   # a face spans 80 % of its slot: the ink row (1 texel of 8) covers ~3 % of it, as before
+
+
+def ramp_slot(nz, height, chamfer=False):
+    """Ramp slot (0 = dark, bottom) of a cel face (Le 2026: gradient texturing). v is 0.6 x the
+    normal's lightness + 0.4 x the face's relative height in its part; a chamfer face (three
+    normal components over 0.3) takes the top of the ramp: the bevel catches the light."""
+    v = 1.0 if chamfer else 0.6 * (0.5 + 0.5 * nz) + 0.4 * height
+    return max(0, min(RAMP_SLOTS - 1, int(v * RAMP_SLOTS)))
+
+
+def slot_v(slot, t):
+    """Cell-local v of position t (0..1) across a face that sits in ramp slot `slot`."""
+    return (slot + SLOT_PAD + (1 - 2 * SLOT_PAD) * t) / RAMP_SLOTS
+
+
+RAMP_MAX = 0.6    # a measured ramp wider than this share of the tone is the sheet's lighting, not its paint
+
+
+def ramp_slope(ramp, rgb):
+    """Slope (paint_cel) of a palette slot's measured ramp (p10, p90 of the sheet zone's luma):
+    its width as a share of the slot colour's luma, 0 .. RAMP_MAX."""
+    luma = float(np.dot(np.asarray(rgb[:3], dtype=float), (0.299, 0.587, 0.114)))
+    return max(0.0, min(RAMP_MAX, (ramp[1] - ramp[0]) / max(luma, 1e-3)))
+
+
+def paint_cel(surface, rgb, size=256, slope=RAMP_SLOPE, tones=None):
+    """One slot image in cel style: cells 0..2 hold the light/mid/dark tone, the others the
+    mid tone (the decal cells are painted over by the caller). Each cell is a vertical ramp of
+    RAMP_SLOTS flat slots, darker at the bottom, and a face fills one whole slot (its colour
+    is flat). The border of each slot (1-2 px) is darker: faces span their slot, so it reads
+    as WC3's ink line. A glow surface has no ramp and no line. `tones` (light, mid, dark) replaces the
+    surface's multipliers: the ones fit_luma measured on the sheet (a glow surface keeps its own)."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES) if tones is None or surface == "glow" else tuple(tones)
+    u, v, tx, ty = _cells(size)
+    cell = (ty * GRID + tx).astype(int)
+    k = np.array(tones + (tones[1],) * (GRID * GRID - 3))[cell]
+    if surface != "glow":
+        px = size // GRID
+        slot_px = px // RAMP_SLOTS
+        pos = np.arange(size) % px
+        level = ((pos // slot_px) + 0.5) / RAMP_SLOTS
+        centre = np.array(TONE_V + (0.5,) * (GRID * GRID - 3))[cell]
+        k = k * (1 + slope * (level[:, None] - centre))
+        edge, edge_v = max(1, px // 32), max(1, slot_px // 8)
+        on_u = (pos < edge) | (pos >= px - edge)
+        on_v = (pos % slot_px < edge_v) | (pos % slot_px >= slot_px - edge_v)
+        k = k * np.where(on_u[None, :] | on_v[:, None], INK, 1.0)
+    return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
+
+
+SLOT_PX = 2        # compact atlas: a ramp slot is 2 texel rows, the lower one is the ink line (Pöyry 2018: no cell sampled across a border)
+TONE_W = 16        # compact atlas: a tone cell is TONE_W wide, 1 ink column per side; a face starts 0.65 px in (INK_EDGE_PX), so the ink shows ~2.3 % of it per side, as in the 256 px cell
+INK_EDGE_PX = 0.65
+DECAL_PX = 16      # compact atlas: a procedural decal (eyes, mouth) cell is 16 x 16
+DECAL_PX_PICTURE = 32   # ... a picture decal (the sheet's head, a prop crop) is 32 x 32 (64 in the 256 px cell; 16 is mush)
+COMPACT_ROWS = RAMP_SLOTS * SLOT_PX
+FLAT_ROWS = 4      # a flat cell (no ramp, or a glow surface) is one slot: an ink row and 3 colour rows
+
+
+def cell_rows(surface, slope):
+    """Texel rows of a compact tone cell: the whole ramp, or FLAT_ROWS when every slot has the same colour."""
+    return FLAT_ROWS if slope == 0 or surface == "glow" else COMPACT_ROWS
+
+
+def tone_cell(surface, rgb, tone, slope=RAMP_SLOPE, tones=None, width=TONE_W):
+    """(cell_rows, width, 3) compact cel cell of tone 0 light / 1 mid / 2 dark: the cell of paint_cel at
+    2 px per ramp slot. Row 2s of slot s (row 0 of a flat cell) and the first and last column are the ink
+    line (a glow surface has none); faces sample the rows between (face_row)."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES) if tones is None or surface == "glow" else tuple(tones)
+    rows = cell_rows(surface, slope)
+    k = np.full((rows, width), float(tones[tone]))
+    if surface != "glow":
+        if rows == COMPACT_ROWS:
+            level = ((np.arange(rows) // SLOT_PX) + 0.5) / RAMP_SLOTS
+            k = k * (1 + slope * (level[:, None] - TONE_V[tone]))
+        ink = np.zeros((rows, width), bool)
+        ink[::SLOT_PX if rows == COMPACT_ROWS else FLAT_ROWS], ink[:, 0], ink[:, -1] = True, True, True
+        k = k * np.where(ink, INK, 1.0)
+    return np.clip(np.asarray(rgb[:3], dtype=float) * k[..., None], 0.0, 1.0)
+
+
+def face_row(rows, slot, t):
+    """Cell row (0..rows) of position t (0..1) across a face that sits in ramp slot `slot`: inside the
+    slot's upper texel row (a flat cell: below its ink row), 2 % in from both ends, so nearest sampling
+    never reads the ink row."""
+    if rows == FLAT_ROWS:
+        return 1.02 + (FLAT_ROWS - 1.04) * t
+    return slot * SLOT_PX + 1.02 + 0.96 * t
+
+
+def pack_cells(sizes, align=4, pad=0):
+    """Shelf first-fit-decreasing packing of (w, h) rectangles into the smallest power-of-two image.
+    Each cell takes (w + pad, h + pad) rounded up to `align`, so its origin and size stay multiples of
+    `align` and a mip level up to 1/align never mixes two cells (mesh_lint.mip_bleed).
+    Returns (W, H, [(x, y)] in the order of `sizes`), the image at least 8 x 8 and the cheapest
+    (fewest texels, then squarest) of the power-of-two widths."""
+    boxes = [(-(-(w + pad) // align) * align, -(-(h + pad) // align) * align) for w, h in sizes]
+    order = sorted(range(len(boxes)), key=lambda i: (-boxes[i][1], -boxes[i][0]))
+    widest = max((b[0] for b in boxes), default=8)
+    best = None
+    for width in (8 << n for n in range(8)):
+        if width < widest:
+            continue
+        pos, height = _shelves(boxes, order, width)
+        side = 8
+        while side < height:
+            side *= 2
+        key = (width * side, abs(width - side))
+        if best is None or key < best[0]:
+            best = (key, width, side, pos)
+    return best[1], best[2], best[3]
+
+
+def _shelves(boxes, order, width):
+    """Positions of `boxes` (placed in `order`) on shelves of `width`, and the stack's height."""
+    pos, shelves, top = [None] * len(boxes), [], 0      # a shelf is [y, height, used x]
+    for i in order:
+        w, h = boxes[i]
+        shelf = next((s for s in shelves if s[2] + w <= width and h <= s[1]), None)
+        if shelf is None:
+            shelf = [top, h, 0]
+            shelves.append(shelf)
+            top += h
+        pos[i] = (shelf[2], shelf[0])
+        shelf[2] += w
+    return pos, top
+
+
+def ramp_column(surface, rgb, size):
+    """(size, 3) tone ramp of one slot for the shared atlas (shared_atlas.py): row v is the colour times the
+    surface's tone at v, interpolated between its dark / mid / light multipliers at TONE_V 0 / .5 / 1, so a
+    face at TONE_V[tone_index] samples exactly the flat cel tone. A glow slot is flat."""
+    tones = CEL_SURFACE.get(surface, CEL_TONES)
+    v = np.arange(size) / (size - 1.0)          # row r is v = r / (size - 1): uv = (v * (size - 1) + .5) / size
+    k = np.interp(v, (0.0, 0.5, 1.0), (tones[2], tones[1], tones[0]))
+    return np.clip(np.asarray(rgb[:3], dtype=float)[None, :] * k[:, None], 0.0, 1.0)
+
+
 # Painted features: eyes and similar marks are texture, not geometry. Each is a list of
-# (u, v, radius) dots in a 0..1 face, the face's front projected into a spare atlas cell.
+# (u, v, radius[, mode]) dots in a 0..1 face, the face's front projected into a spare atlas
+# cell. mode "eye" (default) is a dark eye with a glint, or lit in the decal colour; "dark"
+# is a flat dark fill (mouth, mask); "lit" is an eye that always glows (pale if no colour).
 DECALS = {
     "eyes2": [(0.32, 0.60, 0.11), (0.68, 0.60, 0.11)],
     "eyes8": [(0.38, 0.55, 0.10), (0.62, 0.55, 0.10),              # the big front pair
               (0.22, 0.68, 0.055), (0.78, 0.68, 0.055),
               (0.40, 0.75, 0.05), (0.60, 0.75, 0.05),
               (0.28, 0.42, 0.045), (0.72, 0.42, 0.045)],
+    # simple face: two eyes over a three-dot mouth
+    "face": [(0.32, 0.64, 0.09), (0.68, 0.64, 0.09),
+             (0.36, 0.30, 0.05, "dark"), (0.50, 0.27, 0.05, "dark"), (0.64, 0.30, 0.05, "dark")],
+    # hood shadow: a dark mask with two glowing eyes (hooded figures)
+    "mask": [(0.50, 0.50, 0.46, "dark"), (0.33, 0.56, 0.085, "lit"), (0.67, 0.56, 0.085, "lit")],
+    # the approved sheet's own head, cut out and projected (build_unit.py face=<png>); no dots here
+    "sheet": [],
 }
+DARK = (0.05, 0.04, 0.04)
+PALE = (0.95, 0.85, 0.45)
 
 
 def decal(kind, colour=None, size=64):
@@ -157,13 +358,15 @@ def decal(kind, colour=None, size=64):
     x = (np.arange(size) + 0.5) / size
     u, v = np.meshgrid(x, x)
     rgb, alpha = np.zeros((size, size, 3)), np.zeros((size, size))
-    lit = np.asarray(colour if colour is not None else (0.05, 0.04, 0.04), dtype=float)
-    for cu, cv, r in DECALS[kind]:
+    for cu, cv, r, *mode in DECALS[kind]:
+        mode = mode[0] if mode else "eye"
         d = np.hypot(u - cu, v - cv) / r
         dot = np.clip((1.0 - d) * 6, 0, 1)                         # hard edge, 1 px soft
+        glow = mode == "lit" or (mode == "eye" and colour is not None)
+        lit = np.asarray(DARK if mode == "dark" else colour if colour is not None else PALE, dtype=float)
         glint = np.clip((1.0 - np.hypot(u - cu + 0.3 * r, v - cv - 0.3 * r) / (0.3 * r)) * 4, 0, 1)
-        core = glint if colour is None else np.clip(1.0 - d * 1.6, 0, 1)
-        shade = lit[None, None] * (1 - core[..., None]) + core[..., None] * (0.9 if colour is None else 1.0)
+        core = np.clip(1.0 - d * 1.6, 0, 1) if glow else glint * (mode == "eye")
+        shade = lit[None, None] * (1 - core[..., None]) + core[..., None] * (1.0 if glow else 0.9)
         rgb = rgb * (1 - dot[..., None]) + shade * dot[..., None]
         alpha = np.maximum(alpha, dot)
     return np.clip(rgb, 0, 1), alpha
@@ -173,3 +376,14 @@ def atlas_layout(count):
     """(columns, rows) of slot images in the unit's single atlas."""
     cols = int(np.ceil(np.sqrt(count)))
     return cols, int(np.ceil(count / cols))
+
+
+def merge_groups(slots):
+    """{material name: name of the slot it folds into} for T5 (PIPELINE 27.T5). `slots` is
+    [(name, image, emission, alpha)] in slot order; slots sharing image, emission colour and
+    opacity draw identically, so they become one material (the first of the group). A glow or
+    translucent slot differs in one of the last two keys and stays its own material."""
+    first, out = {}, {}
+    for name, image, emission, alpha in slots:
+        out[name] = first.setdefault((image, emission, alpha), name)
+    return out

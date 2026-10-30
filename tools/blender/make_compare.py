@@ -1,118 +1,416 @@
 #!/usr/bin/env python3
-"""Build a scale-normalized review sheet: concept panels over the model renders.
+"""Professional review sheet of one run: a row per view, columns concept | clay | overlay | textured.
 
-    python3 tools/blender/make_compare.py <sheet.jpg> <views_dir> <stem> <out.png>
+    python3 tools/blender/make_compare.py --run <run_dir> [--against approved|hard] [--out x.png]
+    python3 tools/blender/make_compare.py <sheet.jpg> <views_dir> <stem> <out.png> [--layout ...]
 
-Every panel is cropped to its silhouette and fitted into the same 480x360 cell, so
-the two rows are directly comparable. The sheet also carries the five views at
-32 px (the gameplay read) and the WC3-angle render. This replaces the old compare
-image, which scaled the whole concept sheet and the whole model sheet and therefore
-never showed the two at the same body height.
+The second form is the spec_pipeline call: the run directory is `out.parent`, `--against` is
+`hard` when the sheet's name says so (sheet-hard.jpg), else `approved`.
+
+Rows: front, left, back, top, bottom, rts (buildings: front, left, back, right, roof, rts).
+Every cell is cropped to its figure and fitted into the same box, so the columns are at one
+scale. Each row has a footer with the view's numbers; the header has unit, run, spec author
+and the verdict per stage. Overlay: concept green, model red, hit grey.
+
+Input contract - everything is read from files of the run directory, nothing is recomputed:
+  review.md              "# <unit> - run <run> (<tag>)", "- spec author: ...", "- kind: ...",
+                         "- judge (approved sheet): <path>", "- built from (image 1): <path>",
+                         "verdict: **PASS|FAIL**"; stage verdicts are any line naming
+                         "stage 1" / "stage 2" with PASS or FAIL (older runs: shown as n/a)
+  silhouette.json        summary (per-view "approved"/"hard" IoU, "drift"); only for the header
+  sil/<against>/silhouette.json   per view: iou, iou_32, width_l1, tilt, gate, zones{mean,cover,lost}
+  sil/<against>/mask-concept-<view>.png, mask-model-<view>.png    the matched masks (alpha)
+  views/<tag>/<stem>-<view>.png   textured renders (view "rts" is the "wc3" file)
+  views/<tag>/wire-<view>.png     clay with triangle edges (render_wire.py); absent -> empty cell + warning
+  model.glb              the textured model; its atlas with the UV triangles is the `uv` column (first row)
+  views/<tag>/clay-<view>.png     clay renders (S1 writes them; rts: clay-wc3.png or clay-rts.png); absent -> empty cell + warning
+  concept panels: split_sheet.split of the sheet named in review.md (fallback refs/<unit>/)
 """
 import argparse
+import json
 import pathlib
-import shutil
-import subprocess
+import re
 import sys
+import tempfile
 
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import mesh_lint  # noqa: E402
 import silhouette as S  # noqa: E402
 
-CELL = (480, 360)
-PX = (96, 72)
+ROOT = S.ROOT
+CELL = (384, 288)
+BG = (200, 200, 200)
+EMPTY = (226, 226, 226)
+HEAD_H, TITLE_H, FOOT_H, GAP = 96, 30, 30, 6
+COLUMNS = ("concept", "clay", "wire", "overlay", "textured", "uv")
+OVERLAY = {"concept": (70, 190, 70), "model": (220, 50, 50), "hit": (120, 120, 120)}
+PASS, FAIL, DIM, INK = (30, 140, 50), (200, 40, 40), (110, 110, 110), (20, 20, 20)
+FONTS = ("/System/Library/Fonts/Helvetica.ttc", "/System/Library/Fonts/Supplemental/Arial.ttf")
+RENDER_NAME = {"rts": "wc3"}
 
 
-def magick(*args, **kw):
-    subprocess.run(["magick", *map(str, args)], check=True, **kw)
+def font(size):
+    for path in FONTS:
+        if pathlib.Path(path).exists():
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default(size)
 
 
-def bbox(mask):
-    ys, xs = np.where(mask)
-    if len(ys) == 0:
-        raise ValueError("empty mask")
+def warn(msg):
+    print(f"make_compare: {msg}", file=sys.stderr)
+
+
+# --- run directory ---------------------------------------------------------------------------
+
+def parse_review(path):
+    """{"unit", "run", "tag", "author", "kind", "judge", "built", "verdict", "stages"} of review.md."""
+    meta = {"stages": {}}
+    if not path.exists():
+        return meta
+    for line in path.read_text().splitlines():
+        head = re.match(r"#\s*(\S+)\s+\S+\s+run\s+(\S+)\s*\((.*)\)", line)
+        if head:
+            meta.update(unit=head[1], run=head[2], tag=head[3])
+        for key, label in (("author", "spec author"), ("kind", "kind"), ("model", "model"),
+                           ("judge", "judge (approved sheet)"), ("built", "built from (image 1)")):
+            if line.startswith(f"- {label}:"):
+                meta[key] = line.split(":", 1)[1].strip()
+        status = re.match(r"status:\s*\*\*([\w-]+)\*\*", line)
+        if status:
+            meta["status"] = status[1]
+        verdict = re.match(r"verdict:\s*\*\*([\w-]+)\*\*", line)      # PASS, CHECK, SHAPE-PASS
+        if verdict:
+            meta["verdict"] = verdict[1]
+        stage = re.search(r"stage\s*([12])\b.*?\b(PASS|FAIL)\b", line, re.I)
+        if stage:
+            meta["stages"][stage[1]] = stage[2].upper()
+    return meta
+
+
+def find_views(run_dir):
+    """(views dir, stem): the views/<tag> directory holding the render set, and its file stem."""
+    for d in sorted((run_dir / "views").glob("*")):
+        for f in sorted(d.glob("*-front.png")):
+            if not f.name.startswith(("clay-", "wire-")):
+                return d, f.name[:-len("-front.png")]
+        if (d / "clay-front.png").exists():
+            return d, None
+    return None, None
+
+
+def find_sheet(meta, run_dir, against):
+    """The concept sheet of the compared side: the path in review.md, else refs/<unit>/."""
+    named = meta.get("judge" if against == "approved" else "built")
+    if named and pathlib.Path(named.split()[0]).exists():
+        return pathlib.Path(named.split()[0])
+    unit = meta.get("unit") or run_dir.parent.name
+    sheet = ROOT / "artifacts/model-sheets/refs" / unit / ("sheet.jpg" if against == "approved" else "sheet-hard.jpg")
+    return sheet if sheet.exists() else None
+
+
+def load_run(run_dir, against="approved", sheet=None, views=None, stem=None, layout=None):
+    run_dir = pathlib.Path(run_dir)
+    meta = parse_review(run_dir / "review.md")
+    found_views, found_stem = find_views(run_dir)
+    sil_report = run_dir / "sil" / against / "silhouette.json"
+    kind = meta.get("kind", "mass")
+    return {
+        "dir": run_dir, "against": against, "meta": meta,
+        "unit": meta.get("unit", run_dir.parent.name), "run": meta.get("run", run_dir.name),
+        "sheet": sheet or find_sheet(meta, run_dir, against),
+        "views": views or found_views, "stem": stem or found_stem,
+        "layout": layout or ("building" if kind in ("building", "large") else "unit"),
+        "report": json.loads(sil_report.read_text()) if sil_report.exists() else {},
+        "sil": run_dir / "sil" / against,
+    }
+
+
+def view_names(run):
+    from views import LAYOUTS
+    return (*LAYOUTS[run["layout"]], "rts")
+
+
+# --- cells -----------------------------------------------------------------------------------
+
+def empty_cell(text):
+    img = Image.new("RGB", CELL, EMPTY)
+    d = ImageDraw.Draw(img)
+    f = font(14)
+    d.text((CELL[0] // 2, CELL[1] // 2), text, fill=DIM, font=f, anchor="mm")
+    return img
+
+
+def figure_box(img, bg=None):
+    """Bounding box of the figure: what differs from the border colour, keeping the largest
+    blobs only (a panel cut from a sheet can carry a stray line of its neighbour)."""
+    from scipy import ndimage as ndi
+    rgb = np.asarray(img.convert("RGB")).astype(np.int16)
+    if bg is None:
+        bg = np.median(np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]), axis=0)
+    lab, n = ndi.label(ndi.binary_closing(np.abs(rgb - bg).sum(axis=2) > 24, iterations=3))
+    if not n:
+        return None
+    areas = ndi.sum(np.ones(lab.shape), lab, range(1, n + 1))
+    keep = np.isin(lab, 1 + np.flatnonzero(areas >= 0.05 * areas.max()))
+    ys, xs = np.where(keep)
     return xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
 
 
-def crop_to_panel(src, box, scale, out):
-    x0, y0, x1, y1 = [int(v * scale) for v in box]
-    w, h = x1 - x0, y1 - y0
-    # 3% breathing room, then fit inside the common cell without stretching.
-    pad = max(4, int(0.03 * max(w, h)))
-    magick(src, "-crop", f"{w + 2 * pad}x{h + 2 * pad}+{max(0, x0 - pad)}+{max(0, y0 - pad)}",
-           "+repage", "-resize", f"{CELL[0]}x{CELL[1]}", "-background", "#c8c8c8",
-           "-gravity", "center", "-extent", f"{CELL[0]}x{CELL[1]}", out)
+def fit(img, box=None, pad_share=0.06):
+    """Crop to `box` (default: the figure) plus padding and fit it into a CELL, no stretching."""
+    box = box or figure_box(img)
+    if box is None:
+        return empty_cell("empty")
+    x0, y0, x1, y1 = box
+    pad = max(4, int(pad_share * max(x1 - x0, y1 - y0)))
+    img = img.convert("RGB")
+    img = ImageOps.expand(img, pad, fill=img.getpixel((0, 0)))   # padding beyond the edge
+    img = img.crop((x0, y0, x1 + 2 * pad, y1 + 2 * pad))
+    img.thumbnail(CELL, Image.LANCZOS)
+    cell = Image.new("RGB", CELL, BG)
+    cell.paste(img, ((CELL[0] - img.width) // 2, (CELL[1] - img.height) // 2))
+    return cell
+
+
+def concept_cells(run, tmp):
+    """{view: cell}: split_sheet panels (and the RTS drawing) of the compared sheet."""
+    sheet = run["sheet"]
+    if not sheet:
+        warn("no concept sheet found")
+        return {}
+    from split_sheet import split
+    cells = {}
+    for name, path in split(sheet, tmp, "c", run["layout"]).items():
+        img = Image.open(path)
+        cells[name] = fit(img)
+    return cells
+
+
+NO_STAGE2 = "stage 2 not run (clay)"
+
+
+def stamp(cell, text):
+    """`cell` with a label strip on its top edge."""
+    d = ImageDraw.Draw(cell)
+    f = font(13)
+    d.rectangle((0, 0, CELL[0], 20), fill=(60, 60, 60))
+    d.text((CELL[0] // 2, 10), text, fill=(255, 255, 255), font=f, anchor="mm")
+    return cell
+
+
+def render_cell(run, view, clay):
+    """Clay or textured render of `view`, or an empty cell naming the missing file. A run
+    without stage 2 has no textured render: that column shows the clay, labelled as such."""
+    if not run["views"]:
+        return empty_cell("no views/ in this run")
+    if not clay and run["stem"] is None:
+        return stamp(render_cell(run, view, True), NO_STAGE2)
+    shot = RENDER_NAME.get(view, view)
+    names = (f"clay-{shot}.png", f"clay-{view}.png") if clay else (f"{run['stem']}-{shot}.png",)
+    name = names[0]
+    path = next((p for p in (run["views"] / n for n in names) if p.exists()), None)
+    if path is None:
+        warn(f"{run['dir'].name}: {name} absent")
+        return empty_cell(f"{name} absent")
+    return fit(Image.open(path))
+
+
+def wire_cell(run, view):
+    """Clay with its triangle edges, shot by render_wire.py."""
+    if not run["views"]:
+        return empty_cell("no views/ in this run")
+    path = run["views"] / f"wire-{view}.png"
+    if not path.exists():
+        warn(f"{run['dir'].name}: {path.name} absent")
+        return empty_cell(f"{path.name} absent")
+    return fit(Image.open(path))
+
+
+def uv_cell(run, view):
+    """The atlas with its UV triangles (mesh_lint.uv_image), on the first row only: it is one
+    image per model, not per view. Clay runs and models without UVs get a note."""
+    if view != view_names(run)[0]:
+        return Image.new("RGB", CELL, EMPTY)
+    glb = run["dir"] / "model.glb"
+    img = glb.exists() and mesh_lint.uv_image(glb)
+    return fit(img, (0, 0, *img.size), 0.0) if img else empty_cell("no UV atlas (clay run)")
+
+
+def read_alpha(path):
+    return np.asarray(Image.open(path).convert("RGBA"))[..., 3] > 0
+
+
+def overlay_cell(run, view):
+    """Concept green, model red, hit grey, from the masks silhouette.py matched."""
+    mc, mm = run["sil"] / f"mask-concept-{view}.png", run["sil"] / f"mask-model-{view}.png"
+    if not (mc.exists() and mm.exists()):
+        return empty_cell(f"sil/{run['against']}/mask-*-{view}.png absent")
+    c, m = read_alpha(mc), read_alpha(mm)
+    out = np.full((*c.shape, 3), EMPTY, np.uint8)
+    out[c] = OVERLAY["concept"]
+    out[m] = OVERLAY["model"]
+    out[c & m] = OVERLAY["hit"]
+    img = Image.fromarray(out)
+    return fit(img, (0, 0, *img.size), 0.0)
+
+
+# --- text ------------------------------------------------------------------------------------
+
+def tone(word):
+    return {"PASS": PASS, "FAIL": FAIL}.get(word, DIM)
+
+
+def draw_parts(d, xy, parts, f):
+    """Draw [(text, colour), ...] left to right from xy."""
+    x, y = xy
+    for text, colour in parts:
+        d.text((x, y), text, fill=colour, font=f)
+        x += d.textlength(text, font=f)
+
+
+def coupling_parts(r):
+    """Footer part: the share of the sheet the model leaves bare (the overlay colour of the
+    concept) and of the model outside the sheet (the model's colour), PIPELINE 21.F7."""
+    if "uncovered" not in r:
+        return []
+    return [(f"   bare {100 * r['uncovered']:.0f}%", OVERLAY["concept"]),
+            (f" spill {100 * r['spill']:.0f}%", OVERLAY["model"])]
+
+
+def footer_parts(run, view):
+    """Row footer: the numbers the report holds for `view`."""
+    r = run["report"].get(view)
+    parts = [(view.upper().ljust(7), INK)]
+    if not r:
+        return parts + [("no measurement", DIM)]
+    gate = r.get("gate")
+    ok = "n/a" if gate is None else ("PASS" if r["iou"] >= gate else "FAIL")
+    parts += [(f"IoU {r['iou']:.3f}", INK),
+              (f" gate {'-' if gate is None else gate} {ok}", tone(ok)),
+              (f"   32px {r.get('iou_32', 0):.3f}  L1 {r.get('width_l1', 0):.3f}  SD {r.get('chamfer', 0):.4f}  tilt {r.get('tilt')}", INK)]
+    parts += coupling_parts(r)
+    z = r.get("zones")
+    if z:
+        parts.append((f"   zones mean {z['mean']:.3f} cover {z['cover']:.3f} lost {len(z['lost'])}",
+                      FAIL if z.get("fails") else INK))
+    return parts
+
+
+def sd_mean(report):
+    """Header part: mean contour chamfer over the measured views (silhouette.chamfer)."""
+    sd = [r["chamfer"] for r in report.values() if "chamfer" in r]
+    return [(f"   SD mean {sum(sd) / len(sd):.4f}", INK)] if sd else []
+
+
+def stage_label(run):
+    m = run["meta"]
+    stages = m.get("stages", {})
+    return [("stage 1 shape ", INK), (stages.get("1", "n/a"), tone(stages.get("1"))),
+            ("   stage 2 colour ", INK), (stages.get("2", "n/a"), tone(stages.get("2"))),
+            ("   verdict ", INK), (m.get("verdict", "n/a"), tone(m.get("verdict"))),
+            ("   status ", INK), (m.get("status", "n/a"), INK)]
+
+
+def header(run, width, title=None):
+    img = Image.new("RGB", (width, HEAD_H), (245, 245, 245))
+    d = ImageDraw.Draw(img)
+    m = run["meta"]
+    d.text((10, 8), title or f"{run['unit']}  run {run['run']}", fill=INK, font=font(24))
+    d.text((10, 42), f"author {m.get('author', '?')}   model {m.get('model', '?')}   "
+                     f"vs {run['against']} sheet", fill=DIM, font=font(15))
+    draw_parts(d, (10, 66), stage_label(run) + sd_mean(run["report"]), font(16))
+    return img
+
+
+# --- grid ------------------------------------------------------------------------------------
+
+def titles(labels, width):
+    img = Image.new("RGB", (width, TITLE_H), (60, 60, 60))
+    d = ImageDraw.Draw(img)
+    for i, text in enumerate(labels):
+        d.text((i * CELL[0] + CELL[0] // 2, TITLE_H // 2), text, fill=(255, 255, 255),
+               font=font(17), anchor="mm")
+    return img
+
+
+def footer(parts, width):
+    img = Image.new("RGB", (width, FOOT_H), (245, 245, 245))
+    draw_parts(ImageDraw.Draw(img), (10, 6), parts, font(15))
+    return img
+
+
+def stack(images):
+    """Images one under another, a GAP of dark line between."""
+    h = sum(i.height for i in images) + GAP * (len(images) - 1)
+    out = Image.new("RGB", (images[0].width, h), (85, 85, 85))
+    y = 0
+    for i in images:
+        out.paste(i, (0, y))
+        y += i.height + GAP
+    return out
+
+
+def join(cells):
+    out = Image.new("RGB", (CELL[0] * len(cells), CELL[1]), BG)
+    for i, c in enumerate(cells):
+        out.paste(c, (i * CELL[0], 0))
+    return out
+
+
+def turn_rows(run, width):
+    """The extra row of the F6 turntable: overlays of the 4 three-quarter views (concept green, clay red,
+    hit grey) from sil/<against>/turn/, footer with IoU @ model azimuth. Empty when the run has none."""
+    turn = run["sil"] / "turn" / "turn.json"
+    if not turn.exists():
+        return []
+    report, cells, parts = json.loads(turn.read_text()), [], [("TURN 3/4  ", INK)]
+    for angle, r in report.items():
+        mc, mm = (run["sil"] / "turn" / f"mask-{k}-{angle}.png" for k in ("concept", "model"))
+        c, m = read_alpha(mc), read_alpha(mm)
+        out = np.full((*c.shape, 3), EMPTY, np.uint8)
+        out[c], out[m], out[c & m] = OVERLAY["concept"], OVERLAY["model"], OVERLAY["hit"]
+        cells.append(stamp(fit(Image.fromarray(out), (0, 0, *c.shape[::-1]), 0.0), f"{angle} deg"))
+        parts.append((f"{angle}: {r['iou']:.3f} @ {r['azim']}   ", INK))
+    cells += [Image.new("RGB", CELL, EMPTY)] * (len(COLUMNS) - len(cells))
+    return [join(cells), footer(parts, width)]
+
+
+def build_grid(run):
+    width = CELL[0] * len(COLUMNS)
+    with tempfile.TemporaryDirectory() as tmp:
+        concepts = concept_cells(run, pathlib.Path(tmp))
+    rows = [header(run, width), titles(COLUMNS, width)]
+    for view in view_names(run):
+        cells = [concepts.get(view) or empty_cell("concept absent"), render_cell(run, view, True),
+                 wire_cell(run, view), overlay_cell(run, view), render_cell(run, view, False),
+                 uv_cell(run, view)]
+        rows += [join(cells), footer(footer_parts(run, view), width)]
+    rows += turn_rows(run, width)
+    return stack(rows)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("sheet", type=pathlib.Path)
-    ap.add_argument("views", type=pathlib.Path)
-    ap.add_argument("stem")
-    ap.add_argument("out", type=pathlib.Path)
-    ap.add_argument("--layout", default="unit", choices=("unit", "building"))
+    ap.add_argument("pos", nargs="*", help="<sheet> <views_dir> <stem> <out> (spec_pipeline form)")
+    ap.add_argument("--run", type=pathlib.Path)
+    ap.add_argument("--against", choices=("approved", "hard"))
+    ap.add_argument("--out", type=pathlib.Path)
+    ap.add_argument("--layout", choices=("unit", "building"))
     args = ap.parse_args()
-
-    tmp = args.out.parent / ".compare-tmp"
-    tmp.mkdir(parents=True, exist_ok=True)
-    from views import LAYOUTS
-    names = LAYOUTS[args.layout]
-    cpan = S.concept_panels(args.sheet, 768, args.layout)
-    sheet_w = int(subprocess.run(["magick", "identify", "-format", "%w", str(args.sheet)],
-                                 check=True, capture_output=True, text=True).stdout)
-    sscale = sheet_w / 768
-    for name in (*names, "wc3"):
-        rgb = S.read_rgba(args.views / f"{args.stem}-{name}.png", 512)[..., :3].astype(np.int16)
-        bg = np.median(np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]), axis=0)
-        crop_to_panel(args.views / f"{args.stem}-{name}.png",
-                      bbox(np.abs(rgb - bg).sum(axis=2) > 24), 1.0, f"{tmp}/model-{name}.png")
-    for name in names:
-        crop_to_panel(args.sheet, bbox(cpan[name]), sscale, f"{tmp}/concept-{name}.png")
-    rts = S.rts_path(args.sheet)
-    if rts.exists():  # the gameplay camera, paired with the model's wc3 render
-        rts_w = int(subprocess.run(["magick", "identify", "-format", "%w", str(rts)],
-                                   check=True, capture_output=True, text=True).stdout)
-        crop_to_panel(rts, bbox(S.foreground(rts, 768)), rts_w / 768, f"{tmp}/concept-wc3.png")
-
-    rows_made = []
-
-    def row(items):
-        files = [f"{tmp}/{i}.png" for i in items if i]
-        while len(files) < 3:
-            files.append(f"{tmp}/empty.png")
-        out = f"{tmp}/row-{len(rows_made)}.png"
-        magick(*files, "+append", out)
-        rows_made.append(out)
-        return out
-
-    if not pathlib.Path(f"{tmp}/empty.png").exists():
-        magick("-size", f"{CELL[0]}x{CELL[1]}", "xc:#c8c8c8", f"{tmp}/empty.png")
-
-    rows = [
-        row(["concept-front", "concept-left", "concept-back"]),
-        row(["model-front", "model-left", "model-back"]),
-        row([f"concept-{names[3]}", f"concept-{names[4]}", "concept-wc3" if rts.exists() else None]),
-        row([f"model-{names[3]}", f"model-{names[4]}", "model-wc3" if (args.views / f"{args.stem}-wc3.png").exists() else None]),
-    ]
-
-    # 32 px gameplay row: concept/model pairs, front -> bottom.
-    px = []
-    for name in names:
-        for side in ("concept", "model"):
-            magick(f"{tmp}/{side}-{name}.png", "-filter", "point", "-resize", f"{PX[0]}x{PX[1]}",
-                   f"{tmp}/px-{side}-{name}.png")
-            px.append(f"{tmp}/px-{side}-{name}.png")
-    magick(*px, "+append", "-background", "#c8c8c8", "-gravity", "west",
-           "-extent", f"{3 * CELL[0]}x{PX[1]}", f"{tmp}/pxrow.png")
-
-    strip = f"{tmp}/strip.png"
-    width = 3 * CELL[0]
-    magick("-size", f"{width}x6", "xc:#555555", strip)
-    magick(rows[0], strip, rows[1], strip, rows[2], strip, rows[3], strip, f"{tmp}/pxrow.png",
-           "-append", args.out)
-    shutil.rmtree(tmp, ignore_errors=True)
-    print("wrote", args.out)
+    if args.run:
+        run = load_run(args.run, args.against or "approved", layout=args.layout)
+        out = args.out or args.run / "compare.png"
+    elif len(args.pos) == 4:
+        sheet, views, stem, out = map(pathlib.Path, args.pos)
+        against = args.against or ("hard" if "hard" in sheet.stem else "approved")
+        run = load_run(out.parent, against, sheet, views, stem.name, args.layout)
+    else:
+        ap.error("give --run <dir> or <sheet> <views_dir> <stem> <out>")
+    build_grid(run).save(out)
+    print("wrote", out)
 
 
 if __name__ == "__main__":

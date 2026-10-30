@@ -37,6 +37,26 @@ TILTS = tuple(range(-40, 50, 10))
 # viewer's right (+X), but it is measured, not assumed.
 RTS = tuple((e, a) for e in (35, 45, 55, 65) for a in (-60, -45, -30, 30, 45, 60))
 RTS_DEFAULT = (45, 45)
+# PIPELINE 25.L7-1: how much each view counts in fit_spec's objective and deform_to_sheet's acceptance, per rig
+# (1 where absent). Legs and tails of the spider / quadruped only read from above and from the gameplay camera.
+VIEW_WEIGHTS = {"spider": {"rts": 2.0, "top": 2.0, "bottom": 2.0},
+                "quadruped": {"rts": 2.0, "top": 2.0, "bottom": 2.0},
+                "biped": {"rts": 1.5}}
+
+
+# PIPELINE 30.L12-5: how much a view the sheet contradicts (silhouette.sheet_report "incoherent") counts in the fit, the deformation
+# and the vertex optimiser. None (default) = as any view (VIEW_WEIGHTS); 0 = ignored, still measured and printed (opt-in
+# `--incoherent-weight 0`: it did not meet the acceptance, see the PIPELINE subsection).
+INCOHERENT_WEIGHT = None
+
+
+def weight_of(rig, view, sheet_report=None, incoherent_weight=None):
+    """The weight of `view` in the fit's objective and the deformation's acceptance: `incoherent_weight` (default
+    INCOHERENT_WEIGHT, when not None) if the sheet report lists the view as incoherent, whatever the rig, else VIEW_WEIGHTS."""
+    w = INCOHERENT_WEIGHT if incoherent_weight is None else incoherent_weight
+    if w is not None and view in (sheet_report or {}).get("incoherent", ()):
+        return w
+    return VIEW_WEIGHTS.get(rig, {}).get(view, 1.0)
 
 
 def camera(name, tilt=0):
@@ -64,3 +84,38 @@ def parse_tilts(arg):
         parts = tuple(int(v) for v in value.split("/"))
         out[name] = parts if len(parts) > 1 else parts[0]
     return out
+
+
+def rest_pose():
+    """Every imported armature in its rest pose. The glTF importer activates the first
+    clip (alphabetically "attack") and leaves the rig on its frame 1; since the clips
+    come from retargeted references that frame is a swing, not the spec, and every
+    silhouette and review view measured the swing (n01X 0.87 -> 0.47 on the same spec).
+    Blender only: imports bpy when called."""
+    import bpy
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE":
+            obj.data.pose_position = "REST"
+
+
+def make_unlit():
+    """Review renders show what the game shows: the texture colour, no light. Every
+    material's base colour (texture or value) moves to Emission and the Principled
+    surface is made black and non-specular, so lights, world and gloss add nothing.
+    Alpha is kept. Blender only: imports bpy when called."""
+    import bpy
+    for mat in bpy.data.materials:
+        bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.use_nodes else None
+        if bsdf is None:
+            continue
+        base, emit = bsdf.inputs["Base Color"], bsdf.inputs["Emission Color"]
+        if base.is_linked:
+            link = base.links[0]
+            mat.node_tree.links.new(link.from_socket, emit)
+            mat.node_tree.links.remove(link)   # left linked, the lights shine on the texture too: x2 brighter
+        else:
+            emit.default_value = base.default_value
+        base.default_value = (0.0, 0.0, 0.0, 1.0)
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+        bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        bsdf.inputs["Roughness"].default_value = 1.0

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Render a 5-view turnaround of one exported unit GLB, plus one walk frame.
 
-    blender -b -P tools/blender/render_unit.py -- <unit.glb> <outdir> [tilt=top:20,bottom:30]
+    blender -b -P tools/blender/render_unit.py -- <unit.glb> <outdir> [tilt=top:20,bottom:30] [lit]
 
-Workbench engine, flat lighting, material colours, orthographic cameras square on
+EEVEE, unlit by default (texture colour only, like the game; `lit` adds key/fill), material colours, orthographic cameras square on
 to each axis and a #CCCCCC world, so the frames line up with the AI sheets.
 Frames land in <outdir> as <stem>-front.png, -left, -back, -top, -bottom, -walkleft.
 """
@@ -15,7 +15,7 @@ import bpy
 import mathutils
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from views import RTS_DEFAULT, VIEWS, camera, parse_tilts, rts_offset  # noqa: E402
+from views import RTS_DEFAULT, VIEWS, camera, make_unlit, parse_tilts, rest_pose, rts_offset  # noqa: E402
 
 D = math.radians
 
@@ -80,11 +80,14 @@ def main():
     tilts = parse_tilts(next((a[5:] for a in argv[2:] if a.startswith("tilt=")), ""))
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    rest_pose()                     # the importer leaves the rig on clip frame 1
     # the importer links a bone-shape helper called Icosphere; it is not part of the
     # model and its unit sphere drags the bounding box, so the camera framed empty air.
     for o in [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name.startswith("Icosphere")]:
         bpy.data.objects.remove(o, do_unlink=True)
     scene, cam = setup_scene()
+    if "lit" not in argv[2:]:       # default: texture colour only, like the game; `lit` = old key/fill look
+        make_unlit()
     fix_orientation()
     centre, extent = bounds()
     print("BOUNDS extent", [round(v, 2) for v in extent], "centre", [round(v, 2) for v in centre])
@@ -122,6 +125,7 @@ def main():
     if arm and walk:
         arm.animation_data_create()
         arm.animation_data.action = walk
+        arm.data.pose_position = "POSE"
         scene.frame_set(16)
         frame("walkleft", (-8, 0, 0), (90, 0, -90))
     print("rendered", stem, "->", out)

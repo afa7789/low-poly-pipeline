@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Render five orthographic silhouette frames of one GLB, RGBA with transparent film.
 
-    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> [size]
+    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> [size] [ids]
+    blender -b -P tools/blender/render_silhouette.py -- <unit.glb> <outdir> turn <azimuth>...
 
 Top and bottom are also rendered at every tilt in views.TILTS, as
 <stem>-sil-top@<tilt>.png, and the gameplay camera at every views.RTS angle as
@@ -10,6 +11,10 @@ Top and bottom are also rendered at every tilt in views.TILTS, as
 The silhouette is the only thing that survives at 32 px, so it gets its own render
 pass: flat white geometry, no lights, no background. `silhouette.py` compares these
 masks with the concept panels.
+
+`ids`: the GLB is the stage 1 shape rebuilt with the spec's palette (one flat colour per
+material, no texture): only the flat-colour zone shots are written, and they are the "ID"
+render silhouette.py --ids compares with the sheet's colour zones.
 """
 import math
 import pathlib
@@ -19,9 +24,10 @@ import bpy
 import mathutils
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from views import RTS, TILTED, TILTS, VIEWS, camera, rts_offset  # noqa: E402
+from views import RTS, TILTED, TILTS, VIEWS, camera, rest_pose, rts_offset  # noqa: E402
 
 D = math.radians
+ZONE_VIEWS = ("front", "left", "back", "top", "bottom")
 
 
 def bounds():
@@ -35,13 +41,53 @@ def bounds():
     return (lo + hi) / 2, (hi - lo)
 
 
+def paint_normals():
+    """A "nrm" colour attribute on every mesh: each face corner carries its face's world normal as
+    (n + 1) / 2, linear. With color_type VERTEX the zone shots then write the normal G-buffer."""
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH":
+            continue
+        mesh, turn = obj.data, obj.matrix_world.to_3x3()
+        attr = mesh.color_attributes.new("nrm", "FLOAT_COLOR", "CORNER")
+        for poly in mesh.polygons:
+            n = (turn @ poly.normal).normalized()
+            for li in poly.loop_indices:
+                attr.data[li].color = (n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5, 1.0)
+        mesh.color_attributes.active_color = attr
+        mesh.color_attributes.render_color_index = mesh.color_attributes.find("nrm")
+
+
+def zones(scene, cam, centre, out, stem, prefix="zone", color="TEXTURE"):
+    """<stem>-zone-<view>.png: front/left/back/top/bottom in flat material colours, no light
+    and no anti-aliasing (every pixel is one slot's colour), for silhouette.py's colour zones.
+    Top and bottom also come as <stem>-zone-<view>@<tilt>.png at every views.TILTS, like their
+    silhouettes, so the colour zones use the camera the silhouette matched.
+    Run after the silhouette shots: it changes the shading and leaves it changed."""
+    scene.display.render_aa = "OFF"
+    scene.view_settings.view_transform = "Standard"   # the default tone map darkens every colour
+    scene.display.shading.color_type = color
+    shots = [(name, 0, f"{stem}-{prefix}-{name}.png") for name in ZONE_VIEWS]
+    shots += [(name, t, f"{stem}-{prefix}-{name}@{t}.png") for name in TILTED for t in TILTS if t]
+    for name, tilt, filename in shots:
+        offset, rot = camera(name, tilt)
+        cam.location = centre + mathutils.Vector(offset)
+        cam.rotation_euler = (D(rot[0]), D(rot[1]), D(rot[2]))
+        scene.render.filepath = str(out / filename)
+        bpy.ops.render.render(write_still=True)
+    scene.display.render_aa = "8"
+    scene.display.shading.color_type = "SINGLE"
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     glb, outdir = args[0], args[1]
-    size = int(args[2]) if len(args) > 2 else 512
+    size = int(args[2]) if len(args) > 2 and args[2].isdigit() else 512
+    ids = "ids" in args
+    turn = [int(a) for a in args[3:] if a.lstrip("-").isdigit()] if "turn" in args else None
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=glb)
+    rest_pose()                     # the importer leaves the rig on clip frame 1
     for o in [o for o in bpy.context.scene.objects
               if o.type == "MESH" and o.name.startswith("Icosphere")]:
         bpy.data.objects.remove(o, do_unlink=True)
@@ -77,7 +123,23 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stem = pathlib.Path(glb).stem
     span = max(extent) * 1.15
+    if ids:
+        cam.data.ortho_scale = span
+        zones(scene, cam, centre, out, stem)
+        paint_normals()      # the normal G-buffer <stem>-nrm-<view>.png beside the ID shots (colour_stage.fit_luma)
+        zones(scene, cam, centre, out, stem, "nrm", "VERTEX")
+        print("id renders ->", out)
+        return
 
+    if turn is not None:
+        for azim in turn:     # level camera, azimuth from the front toward +X (views.rts_offset at elevation 0)
+            cam.location = centre + mathutils.Vector(rts_offset(0, azim))
+            cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
+            cam.data.ortho_scale = span
+            scene.render.filepath = str(out / f"{stem}-sil-turn@{azim}.png")
+            bpy.ops.render.render(write_still=True)
+        print("turn silhouettes ->", out)
+        return
     shots = [(name, 0, f"{stem}-sil-{name}.png") for name in VIEWS]
     shots += [(name, t, f"{stem}-sil-{name}@{t}.png") for name in TILTED for t in TILTS if t]
     for name, tilt, filename in shots:
@@ -87,6 +149,7 @@ def main():
         cam.data.ortho_scale = span
         scene.render.filepath = str(out / filename)
         bpy.ops.render.render(write_still=True)
+    zones(scene, cam, centre, out, stem)
     for elev, azim in RTS:
         cam.location = centre + mathutils.Vector(rts_offset(elev, azim))
         cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()

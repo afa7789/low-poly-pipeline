@@ -2,7 +2,7 @@
 """Pre-flight for a unit spec: the rules this project learned the hard way, checked
 BEFORE anything is built, so the first attempt is already inside the design.
 
-    python3 tools/blender/preflight.py <spec.json> <kind> [<approved sheet.jpg>]
+    python3 tools/blender/preflight.py <spec.json> <kind> [<approved sheet.jpg>] [--fix <out.json> [--dsl-repair on|off|all]]
 
 Rules (each one exists because an iteration failed on it):
 
@@ -17,22 +17,54 @@ Rules (each one exists because an iteration failed on it):
   head_top       the head may rise over the shoulders as far as the sheet's shoulder line
                  sits below its top (+0.05 H); an ornamented head at least 0.25 H
   ornament_cost  head-wheel geometry <= 22% of the triangle budget (v9: 15% on spokes)
+  boot_height    boot height 0.7-1.6 x the sheet's, head_width 0.6-1.4 x the sheet's
+  props_present  one part per prop of prompts/<id>/props.json, on one of its bones, as long as
+                 the prop's extent bracket (fractions of H); a presence check, not a shape one
+  prop_clearance a part marked opts {"prop", "anchor"} has at most 20 % of its box inside the
+                 body (torso, pelvis, head boxes); report only (PIPELINE 23.L5-3)
   ground         no part below y = 0
-  overlap        each distal limb segment intersects its parent (no floating pieces)
+  overlap        each distal limb segment intersects its parent (no floating pieces); a prop
+                 only has to touch its anchor (hand.R/hand.L/back/belt/head)
+  overlap_80     the same with every box shrunk to 80 % (a corner touch does not connect); report only
+  box_ceiling    "box" parts <= 1/3 of the parts (not for buildings): prism/frustum/dome/cyl
+  budget_split   tris per body group (head, body, legs) within a band around the sheet's own area
+                 split (EdgeRunner 2024); the head wheel is counted by ornament_cost
+  symmetry       a .L part has its .R twin: same kind, dims (5%) and mirrored rot, unless
+                 opts.asym (Wiersma 2026); weapons and shields carry asym
+  outside_hull   per part, the share of its box outside the visual hull of the approved sheet's
+                 front x left silhouettes (64^3 grid) <= 25%; names the part and wide/tall/deep
+                 (Sano 2026). Needs the sheet.
+  decal_place    a face decal (eyes, mask...) sits on a head/jaw/face bone, never the chest
+  hood_recess    a hood needs a face part recessed in it; prop_axis / prop_coverage: a prop lies along and over its sheet mask;
+  prop_axis      leg_joints: every spider leg has a bend where the sheet shows it (dsl_rules.py, PIPELINE 30.L12-6; `n/a: <why>`
+  prop_coverage  when a rule does not apply to the unit). --fix <out.json> writes the spec after dsl_rules.repair (no model call).
+  leg_joints
 """
 import json
 import math
 import pathlib
 import sys
 
+import numpy as np
+
+import lathe_limb
+
 # Same estimates as build_unit.BASE_TRIS; ring counts its real mesh.
-BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28,
-             "dome": 28, "ring": 144}
+BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28,
+             "dome": 28, "ring": 144, "lathe": 68, "limb": 32}
+# Rules about the sheet's measure or the estimate, not about the model: when the real silhouette
+# covers the sheet (gates met, uncovered within UNCOVERED_MAX) and the GLB is within its triangle
+# gate, spec_pipeline.preflight_ok reports them (soft FAIL) without failing stage 1 (PIPELINE §26.L8-9).
+SOFT_RULES = ("budget", "budget_split", "shoulder_span", "stance")
+CUT_TRIS = 56   # budget of a part cut by the sheet silhouette (cut_hull.py): build_unit.cut_part decimates (QEM) to it
 PALETTE = {"iron", "darkiron", "brass", "flame", "lamp"}
 # triangle budgets, WC3 SD standard (PIPELINE.md §6); spec_pipeline.py reads them from here
 BUDGETS = {"mass": (400, 700), "hero": (900, 1600), "building": (600, 800), "large": (2000, 3000)}
 ORNAMENT = ("ring", "wheel")
 MATERIAL_SLOTS = (3, 8)   # one atlas holds every slot, so more materials cost no texture
+# animation clips of an animated rig: idle, walk, attack, death, spell, plus attack2/attack3
+# when the unit's combo has them (PIPELINE §17); static rigs and buildings carry none
+CLIPS = (5, 7)
 # Biped landmarks, as fractions of the height, read in the same height bands the sheet
 # measure uses (silhouette.measure): rows 10-30% from the top are the shoulders, 60-80% the
 # fists, the bottom 5% the stance. Targets come from the unit's own sheet (--sheet); the
@@ -40,8 +72,296 @@ MATERIAL_SLOTS = (3, 8)   # one atlas holds every slot, so more materials cost n
 # their sheets; every hfoo run so far is 30-53% wider than its sheet at the shoulders.
 BANDS = {"shoulder_span": (0.70, 0.90), "fist_span": (0.20, 0.40), "stance": (0.0, 0.05)}
 TOLERANCE = 0.15
+FOOT_MOST = 1.4     # boot length ceiling, x the sheet's foot length (floor is 0.8 x)
 N01X_TARGETS = {"shoulder_span": 0.635, "fist_span": 0.863, "stance": 0.506,
-                "foot_length": 0.228, "head_clear": 0.25}
+                "foot_length": 0.228, "head_clear": 0.25, "boot_height": 0.07, "head_width": 0.237,
+                "area_head": 0.041, "area_body": 0.455, "area_legs": 0.504}
+# floor and ceiling of the boot height and the head width, x the sheet's own (lesson 2026-10-26:
+# every mass rule has both; the sheet is the approved one, never the hard)
+BOOT_BAND = (0.7, 1.6)
+HEAD_BAND = (0.6, 1.4)
+
+
+# Tris per group of bones (head, body = torso+pelvis+arms+props, legs), as a share of the
+# non-ornament tris. The target blends the sheet's front-silhouette area per band with the
+# corpus prior (area alone is wrong: legs are cylinders, 0.4x their area in tris; the head
+# has a floor). Calibrated on the 6 units / 37 biped specs of runs/draft: n01X hard-v1 and
+# every n01X run that passes the shape gate sit inside (PIPELINE §19.B2).
+GROUPS = ("head", "body", "legs")
+SPLIT_PRIOR = (0.13, 0.63, 0.24)
+SPLIT_AREA_WEIGHT = 0.5
+SPLIT_SALIENCE = False  # True: the other half is the hard sheet's edge density per band, not the prior. Off: it fails 45/49 biped specs and n01X hard-v1 (PIPELINE §20.E15)
+SPLIT_REL = 0.25     # +-25% around the target ...
+SPLIT_SLACK = 0.08   # ... and this much absolute, so a small group is not judged to the tri
+SYM_TOL = 0.05       # twin dims within 5%, mirrored rot within 5 degrees
+
+
+def group_of(bone):
+    if bone.split(".")[-1].startswith(FACE_BONES):
+        return 0
+    return 2 if is_leg(bone) else 1
+
+
+def split_bands(targets):
+    """[(low, high)] share of the tris for each of GROUPS, from the sheet's band areas."""
+    area = [targets[f"area_{g}"] for g in GROUPS]
+    other = [targets[f"edge_{g}"] for g in GROUPS] if SPLIT_SALIENCE and "edge_head" in targets else SPLIT_PRIOR
+    mid = [SPLIT_AREA_WEIGHT * a + (1 - SPLIT_AREA_WEIGHT) * q for a, q in zip(area, other)]
+    return [(max((1 - SPLIT_REL) * m - SPLIT_SLACK, 0.0), (1 + SPLIT_REL) * m + SPLIT_SLACK) for m in mid]
+
+
+def split_shares(parts):
+    """Tri share per GROUPS, ornaments left out (ornament_cost owns them)."""
+    tris = [0, 0, 0]
+    for p in parts:
+        if not (p[0] == "head" and p[1] in ORNAMENT):
+            tris[group_of(p[0])] += part_tris(p)
+    total = max(sum(tris), 1)
+    return [v / total for v in tris]
+
+
+def mirror_gap(a, b):
+    """Why twin parts a (.L) and b (.R) are not mirrors of each other, or None."""
+    if a[1] != b[1]:
+        return f"{a[1]} vs {b[1]}"
+    for x, y in zip(a[2], b[2]):
+        if abs(x - y) > SYM_TOL * max(abs(x), abs(y), 1e-6):
+            return f"dims {a[2]} vs {b[2]}"
+    ra, rb = rot_euler(a[5]), rot_euler(b[5])
+    if any(abs(u - v) > 100 * SYM_TOL for u, v in zip(ra, (rb[0], -rb[1], -rb[2]))):
+        return f"rot {list(ra)} vs {list(rb)} (mirror = [rx, -ry, -rz])"
+    return None
+
+
+def asymmetric(parts):
+    """'bone: reason' for every .L/.R part without a mirrored twin on the other side. A part
+    marked opts.asym, or a bone pair where either side has it, is exempt. Twins are matched
+    by (kind, y, z) order inside each bone pair."""
+    bad = []
+    for left in sorted({p[0] for p in parts if p[0].endswith(".L") and not is_prop(p)}):
+        right = left[:-2] + ".R"
+        if any(isinstance(p[5], dict) and p[5].get("asym") for p in parts if p[0] in (left, right)):
+            continue
+        side = {b: sorted((p for p in parts if p[0] == b and not is_prop(p)), key=lambda p: (p[1], centre(p)[1], centre(p)[2]))
+                for b in (left, right)}
+        if len(side[left]) != len(side[right]):
+            bad.append(f"{left[:-2]}: {len(side[left])} parts left, {len(side[right])} right")
+            continue
+        bad += [f"{left[:-2]}: {why}" for a, b in zip(side[left], side[right])
+                if (why := mirror_gap(a, b))]
+    return bad
+
+
+PROPS_DIR = pathlib.Path(__file__).resolve().parents[2] / "artifacts/model-sheets/prompts"
+
+
+def load_props(unit):
+    """The unit's props [{name, where, bones, extent: [min, max] in H}] in the order they are
+    drawn on its props sheet (left to right), or [] when it carries none."""
+    path = PROPS_DIR / unit / "props.json"
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+def props_missing(parts, boxes, height, props):
+    """Names of the props with no part of their own: each prop claims one unclaimed part on
+    one of its bones whose longest side lies in its extent bracket (a part serves one prop)."""
+    used, missing = set(), []
+    order = sorted(range(len(parts)), key=lambda i: not is_prop(parts[i]))    # a marked prop part claims first
+    for prop in props:
+        lo, hi = prop["extent"]
+        hit = next((i for i in order if i not in used and (p := parts[i])[0] in prop["bones"]
+                    and lo <= max(boxes[id(p)][1][k] - boxes[id(p)][0][k] for k in range(3)) / height <= hi),
+                   None)
+        if hit is None:
+            missing.append(prop["name"])
+        else:
+            used.add(hit)
+    return missing
+
+
+IDENTITY_BLOCKING = False   # reports only: the FAIL rate over the draft specs is in PIPELINE 23.L5-6
+REFS_DIR = PROPS_DIR.parents[0] / "refs"
+EYE_WORDS = ("eye", "lens", "visor")
+GENERIC = {"with", "hand", "held", "right", "left", "belt", "back", "from", "that"}
+
+
+def identity_items(unit, sheet=None, biped=True, layout="unit", parts_path=None):
+    """The unit's identity checklist, [{"name", "kind", ...}] with kind prop | eyes | zone | text.
+    From refs/<unit>/parts.json "identity" (strings: an eye word -> eyes, a word of a props.json name -> that
+    prop, else text, listed in the brief but not scored) when it exists, else props.json plus the eyes of a
+    biped; plus the sheet's small saturated colours (silhouette.identity_details) as zone items."""
+    props = load_props(unit)
+    path = pathlib.Path(parts_path) if parts_path else REFS_DIR / unit / "parts.json"
+    texts = json.loads(path.read_text()).get("identity") if path.exists() else None
+    if texts is None:
+        items = [{"name": p["name"], "kind": "prop"} for p in props] + ([{"name": "eyes", "kind": "eyes"}] if biped else [])
+    else:
+        items = [identity_text_item(t, props) for t in texts]
+    if sheet:
+        from silhouette import identity_details
+        items += [{"name": f"{d['name']} detail {d['hex']}", "kind": "zone", "hex": d["hex"], "views": sorted(d["shares"])}
+                  for d in identity_details(pathlib.Path(sheet), layout)]
+    return items
+
+
+def identity_text_item(text, props):
+    words = {w for w in text.lower().replace(",", " ").split() if len(w) >= 4} - GENERIC
+    if any(w.startswith(EYE_WORDS) or w in EYE_WORDS for w in words):
+        return {"name": text, "kind": "eyes"}
+    prop = next((p for p in props if words & set(p["name"].lower().split())), None)
+    return {"name": prop["name"], "kind": "prop"} if prop else {"name": text, "kind": "text"}
+
+
+def identity_colours(parts, doc):
+    """[(hex, via)] of every colour the spec carries: the palette colour of each material a part uses, the
+    decal_color of each decal."""
+    pal = doc.get("palette") or {}
+    out = [(pal[m]["color"], "material") for m in sorted({p[4] for p in parts})
+           if isinstance(pal.get(m), dict) and pal[m].get("color")]
+    return out + [(p[5]["decal_color"], "decal") for p in parts
+                  if isinstance(p[5], dict) and p[5].get("decal") and p[5].get("decal_color")]
+
+
+def identity_rows(items, parts, doc, lost):
+    """[{"name", "kind", "present", "via"}] of the scored items (text is not): `lost` = props_missing names.
+    present: a prop has its part, eyes a decal on a face bone, a zone a material (or decal colour) of its hue."""
+    from silhouette import hex_rgb, hue_chroma, same_colour
+    carried = [(float(hue_chroma(hex_rgb(h))[0]), float(hue_chroma(hex_rgb(h))[1]), via) for h, via in identity_colours(parts, doc)]
+    decals = [p for p in parts if isinstance(p[5], dict) and p[5].get("decal") and is_face_bone(p[0])]
+    rows = []
+    for it in items:
+        if it["kind"] == "text":
+            continue
+        via = {"prop": "part", "eyes": "decal"}.get(it["kind"])
+        ok = {"prop": it["name"] not in lost, "eyes": bool(decals)}.get(it["kind"])
+        if it["kind"] == "zone":
+            ref = float(hue_chroma(hex_rgb(it["hex"]))[0])
+            hit = sorted(v for h, c, v in carried if same_colour(h, c, ref))
+            ok, via = bool(hit), (hit or [None])[0]
+        rows.append({"name": it["name"], "kind": it["kind"], "present": ok, "via": via})
+    return rows
+
+
+def identity_status(rows, reads=None):
+    """{"total", "ok", "missing"}: a row counts when present and, for a zone carried by a material, read in
+    the ID render (`reads` = silhouette.identity_reads, by hex in the row name); no reads = presence only."""
+    hexes = {r["hex"]: r for r in reads or []}
+    missing = []
+    for r in rows:
+        if not r["present"]:
+            missing.append(r["name"])
+        elif r["via"] == "material" and reads is not None:
+            seen = hexes.get(r["name"].rsplit(" ", 1)[-1])
+            if seen is not None and not seen["read"]:
+                missing.append(f"{r['name']} (not in the render: {seen['ratio']:.0%} of the sheet's area)")
+    return {"total": len(rows), "ok": len(rows) - len(missing), "missing": missing}
+
+
+def identity_summary(items, parts, doc, props, reads=None):
+    """identity_status of a spec: the rows (identity_rows) of its parts against the checklist `items`."""
+    boxes = {id(p): bbox(p) for p in parts}
+    height = max(max(b[1][1] for b in boxes.values()), 1e-6)
+    return identity_status(identity_rows(items, parts, doc, props_missing(parts, boxes, height, props)), reads)
+
+
+JOINT_TOL = 0.06        # joint_place: a joint within this many H of the sheet's (silhouette.joint_measures)
+JOINT_BLOCKING = False  # reports only: FAIL rate over the draft specs is in PIPELINE 22.L4-6
+# joint key -> (upper bones, lower bones) whose meeting height is the joint
+JOINTS = {"knee_h": (("thigh.L", "thigh.R"), ("shin.L", "shin.R")),
+          "elbow_h": (("arm.L", "arm.R"), ("forearm.L", "forearm.R"))}
+JOINT_KEYS = tuple(JOINTS)
+
+
+def joint_height(parts, boxes, height, key):
+    """Height of a joint in H: the mean of the upper bone parts' lowest y and the lower bone parts'
+    highest y (the bones meet there), a `limb` on the thigh bone giving its knee point; None without
+    both sides."""
+    upper, lower = JOINTS[key]
+    limb = [p for p in parts if p[1] == "limb" and p[0] in upper]
+    if limb:
+        return lathe_limb.knee_of(limb[0][5])[1] / height
+    ups = [boxes[id(p)][0][1] for p in parts if p[0] in upper and p[1] != "limb"]
+    los = [boxes[id(p)][1][1] for p in parts if p[0] in lower and p[1] != "limb"]
+    return (min(ups) + max(los)) / 2 / height if ups and los else None
+
+
+def own_joints(parts, boxes, height):
+    """{joint type: height in H} of the unit's own head top, chin, shoulder, elbow, wrist, hip, knee and
+    ankle, read from the parts' boxes (a type with no part on its bones is left out)."""
+    def on(*bones):
+        return [boxes[id(p)] for p in parts if p[0] in bones]
+
+    def long(bones):    # a forearm part, not the hand: the hand is under 0.15 H on its longest side
+        bs = on(*bones)
+        return [b for b in bs if max(b[1][k] - b[0][k] for k in range(3)) >= 0.15 * height] or bs
+    head, arm, fore = on("head"), on("arm.L", "arm.R"), long(("forearm.L", "forearm.R"))
+    thigh, shin = on("thigh.L", "thigh.R"), on("shin.L", "shin.R")
+    got = {"head_top": max((b[1][1] for b in head), default=None), "chin": min((b[0][1] for b in head), default=None),
+           "shoulder": max((b[1][1] for b in arm), default=None), "wrist": min((b[0][1] for b in fore), default=None),
+           "hip": max((b[1][1] for b in thigh), default=None), "ankle": min((b[0][1] for b in shin), default=None)}
+    out = {k: v / height for k, v in got.items() if v is not None}
+    for name, key in (("elbow", "elbow_h"), ("knee", "knee_h")):
+        h = joint_height(parts, boxes, height, key)
+        if h is not None:
+            out[name] = h
+    return out
+
+
+def parts_joints(sheet):
+    """{joint type: height in H} the VLM segmentation of the sheet (refs/<id>/parts.json, L5-1) read, the two
+    sides averaged; {} when the sheet has none."""
+    path = pathlib.Path(sheet).with_name("parts.json")
+    if not path.exists():
+        return {}
+    doc = json.loads(path.read_text())
+    ys = {}
+    for name, j in doc["joints"].items():
+        if j.get("xyz"):
+            ys.setdefault(name.split(".")[0], []).append(j["xyz"][1] / doc["H"])
+    return {k: sum(v) / len(v) for k, v in ys.items()}
+
+
+def joint_checks(parts, boxes, height, targets):
+    """joint_place: each joint the sheet shows lies within JOINT_TOL H of the unit's own; nothing for a
+    joint the sheet does not show. With the sheet's parts.json (targets["vlm_joints"]) all eight joint types
+    are compared, else only the knee and elbow the width steps give. [(rule, passed, detail)] (a report
+    while JOINT_BLOCKING is False)."""
+    if targets.get("vlm_joints"):
+        own = own_joints(parts, boxes, height)
+        rows = [(k, own[k], want) for k, want in targets["vlm_joints"].items() if k in own]
+        return joint_rows(rows)
+    rows = [(k, joint_height(parts, boxes, height, k), targets[k]) for k in JOINT_KEYS if k in targets]
+    rows = [(k, got, want) for k, got, want in rows if got is not None]
+    return joint_rows([(k[:-2], got, want) for k, got, want in rows])
+
+
+def joint_rows(rows):
+    """The joint_place row of [(joint, got, want)] in H, [] without any."""
+    if not rows:
+        return []
+    bad = [k for k, got, want in rows if abs(got - want) > JOINT_TOL]
+    return [("joint_place", not bad or not JOINT_BLOCKING,
+             f"{len(rows)} joints: " + ", ".join(f"{k} {got:.2f} H (sheet {want:.2f}, +/-{JOINT_TOL})" + (" - OUT" if k in bad else "")
+                                                 for k, got, want in rows))]
+
+
+FAMILY_BAND = (0.8, 1.25)    # family_place: the unit's length and wing span within -20 % / +25 % of the sheet's
+FAMILY_BLOCKING = False      # reports only: the FAIL rate is in PIPELINE 22.L4-4b
+
+
+def family_checks(parts, boxes, height, m):
+    """family_place (quadruped, wyrm, drake): the unit's length (z extent of the body parts) and, with wings, its span (x
+    extent of the plates) against the sheet's silhouette.measure_rig numbers, floor and ceiling of FAMILY_BAND.
+    [(rule, passed, detail)] (a report while FAMILY_BLOCKING is False)."""
+    body = [boxes[id(p)] for p in parts if p[1] != "plate"]
+    wings = [boxes[id(p)] for p in parts if p[1] == "plate"]
+    rows = [("length", (max(b[1][2] for b in body) - min(b[0][2] for b in body)) / height, m["len"])] if body else []
+    if wings and "wing" in m:
+        rows.append(("wing span", (max(b[1][0] for b in wings) - min(b[0][0] for b in wings)) / height, 2 * m["wing"]["span"]))
+    bad = [k for k, got, want in rows if not FAMILY_BAND[0] <= got / want <= FAMILY_BAND[1]]
+    return [("family_place", not bad or not FAMILY_BLOCKING,
+             ", ".join(f"{k} {got:.2f} H (sheet {want:.2f}, x{FAMILY_BAND[0]}-{FAMILY_BAND[1]})" + (" - OUT" if k in bad else "")
+                       for k, got, want in rows))] if rows else []
 
 
 def targets_from(sheet):
@@ -50,7 +370,112 @@ def targets_from(sheet):
         return dict(N01X_TARGETS)
     from silhouette import measure
     m = measure(pathlib.Path(sheet))
-    return {k: float(m[k]) for k in N01X_TARGETS}
+    targets = {k: float(m[k]) for k in N01X_TARGETS}
+    targets.update({k: float(m[k]) for k in JOINT_KEYS if k in m})   # only the joints the drawing shows
+    targets["vlm_joints"] = parts_joints(sheet)       # L5-1: all eight joint types when the sheet was segmented
+    hard = pathlib.Path(sheet).with_name("sheet-hard.jpg")
+    if hard.exists():       # edge density per band (head, body = torso, legs) of the hard sheet
+        from silhouette import edge_bands
+        bands = edge_bands(hard, m["shoulder_frac"])
+        targets.update({f"edge_{g}": bands[b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
+    return targets
+
+
+HULL_MAX = 0.25      # a part may sit this much of its box outside the sheet's visual hull
+HULL_BLOCKING = False  # outside_hull reports but does not fail until the 25% is calibrated
+HULL_GRID = 64
+OVERLAP_SHRINK = 0.8   # overlap_80 compares boxes at this share of their size
+# overlap_80 reports but does not fail: on 2026-10-27 it failed 48 of 63 draft specs (rule: < 1/3)
+OVERLAP_BLOCKING = False
+HULL_SLIDE = 0.12    # how far the panel may slide sideways, x the figure's height
+HULL_PAD = 0.03      # margin around the hull, x the figure's height
+
+
+def hull_masks(sheet, layout="unit"):
+    """[(mask, pad)] for the sheet's front and left: the figure cropped, then grown by HULL_PAD of
+    its height on every side (pad pixels of margin: a plate proud of the body, an ink line), or
+    None when the sheet's panels cannot be read."""
+    from scipy.ndimage import binary_dilation
+    from silhouette import concept_panels, crop
+    try:
+        panels = concept_panels(pathlib.Path(sheet), layout=layout)
+    except SystemExit:
+        return None
+    out = []
+    for name in ("front", "left"):
+        m = crop(panels[name])
+        pad = round(HULL_PAD * m.shape[0])
+        out.append((binary_dilation(np.pad(m, pad), iterations=pad), pad))
+    return out
+
+
+ROUND = ("prism", "cyl", "dome")    # kinds whose cross-section is an ellipse, not the box's corners
+AXIS_ROUND = {"up": (0, 2), "side": (1, 2), "fwd": (0, 1)}   # the two axes the ellipse spans
+
+
+def sample_points(part, cell):
+    """(n, 3) spec-space points filling the part (its rotated box; a round unrotated part keeps
+    its ellipse, a from/to part only its axis, a ring or wheel nothing: its box is mostly air),
+    one per `cell`."""
+    lo, hi = bbox(part)
+    opts = part[5]
+    if part[1] in ORNAMENT:
+        return np.empty((0, 3))
+    if "from" in opts and "to" in opts:
+        t = np.linspace(0, 1, max(int(math.dist(opts["from"], opts["to"]) / cell), 1) + 1)
+        return np.array(opts["from"]) + t[:, None] * (np.array(opts["to"]) - np.array(opts["from"]))
+    axes = [np.linspace(a, b, max(int(math.ceil((b - a) / cell)), 1) + 1) for a, b in zip(lo, hi)]
+    pts = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    if part[1] in ROUND and not any(rot_euler(opts)):
+        a, b = AXIS_ROUND[opts.get("axis", "fwd" if part[1] == "cyl" else "up")]
+        c, h = (np.array(lo) + hi) / 2, np.maximum((np.array(hi) - lo) / 2, 1e-9)
+        pts = pts[((pts[:, a] - c[a]) / h[a]) ** 2 + ((pts[:, b] - c[b]) / h[b]) ** 2 <= 1.0]
+    return pts
+
+
+def view_misses(pts, mask, pad, k, height, centre, mirror=False):
+    """(above, miss) bool per point for one panel: above = over the figure's height, miss = not
+    on the panel's hull. The panel is scaled so the figure is `height` tall, set on `centre`
+    along axis k (mirror: facing the other way), then slid sideways (HULL_SLIDE of the height) to where the fewest points
+    miss: the sheet may carry a weapon or a pose the spec lacks, which skews its box."""
+    mask = mask[:, ::-1] if mirror else mask
+    ppm = (mask.shape[0] - 2 * pad) / height               # pixels per spec metre
+    r = np.rint(mask.shape[0] - pad - pts[:, 1] * ppm - 0.5).astype(int)
+    c0 = (pts[:, k] - centre) * ppm + mask.shape[1] / 2 - 0.5
+    above = r < 0
+    best = None
+    for slide in range(-round(HULL_SLIDE * mask.shape[0]), round(HULL_SLIDE * mask.shape[0]) + 1, 2):
+        c = np.rint(c0 + slide).astype(int)
+        ok = ~above & (r < mask.shape[0]) & (c >= 0) & (c < mask.shape[1])
+        ok[ok] = mask[r[ok], c[ok]]
+        miss = ~ok & ~above
+        if best is None or miss.sum() < best.sum():
+            best = miss
+    return above, best
+
+
+def hull_outside(parts, masks, height):
+    """{bone: (share outside the visual hull, 'wide'|'tall'|'deep')} per part over HULL_MAX.
+    The hull is front[y, x] and left[y, z]: the front's columns run along +x (right), the left's
+    along +z (forward) or -z. Each panel is scaled by the spec's own height and
+    centred on its extent, as silhouette.normalize does to the sheet."""
+    boxes = [bbox(p) for p in parts]
+    centre_of = [(min(b[0][k] for b in boxes) + max(b[1][k] for b in boxes)) / 2 for k in range(3)]
+    clouds = [sample_points(p, height / HULL_GRID) for p in parts]
+    pts = np.concatenate(clouds)
+    cuts = np.cumsum([len(c) for c in clouds])[:-1]
+    (m, pad), (ml, padl) = masks
+    above, wide = view_misses(pts, m, pad, 0, height, centre_of[0])
+    # the left panel faces either way (the biped's toe points right, the spider's head left)
+    _, deep = min((view_misses(pts, ml, padl, 2, height, centre_of[2], flip) for flip in (False, True)),
+                  key=lambda v: v[1].sum())
+    bad = {}
+    for p, up, w, d in zip(parts, *(np.split(a, cuts) for a in (above, wide, deep))):
+        share = float((up | w | d).mean()) if len(up) else 0.0
+        if share > HULL_MAX:
+            votes = {"wide": w.sum(), "deep": d.sum(), "tall": up.sum()}
+            bad[p[0]] = max(bad.get(p[0], (0, "")), (share, max(votes, key=votes.get)))
+    return bad
 
 
 def band_span(boxes, height, band):
@@ -77,13 +502,62 @@ def ground_fix(parts):
     return lifted
 
 
+BOX_SHARE = 1 / 3
+FACE_BONES = ("head", "jaw", "face", "skull")
+
+
+def is_face_bone(bone):
+    """head, jaw, rider.head...: the last dotted segment names a face."""
+    return bone.split(".")[-1].startswith(FACE_BONES)
+
+
+def misplaced_decals(parts):
+    """(index, bone) of every decal part whose bone is not a head/face bone."""
+    return [(i, p[0]) for i, p in enumerate(parts)
+            if isinstance(p[5], dict) and p[5].get("decal") and not is_face_bone(p[0])]
+
+
 def is_leg(bone):
     return bone.startswith(("thigh", "shin", "foot", "leg"))
 
 
+GRID = 256   # EdgeRunner 2024 / MeshGPT 2024: coordinates on a 1/256 grid of the height
+
+
+def _snap(v, q):
+    return round(round(v / q) * q, 6)
+
+
+def normalise(parts, family="biped", extra=()):
+    """Canonical form of a spec's parts, in place: at, dims and from/to on a (rig height)/GRID grid (a dim
+    never below one cell), then ordered by the rig's bone order (+ the spec's extra bones), then y, with the .L part
+    right before its .R twin. Same spec in, same bytes out; a mirrored pair stays mirrored."""
+    import rig_families as RF
+    q = RF.top(family) / GRID        # the rig's own height, so a second pass moves nothing
+    for p in parts:
+        opts = p[5] if isinstance(p[5], dict) else {}
+        if p[3] is not None:
+            p[3] = [_snap(v, q) for v in p[3]]
+        p[2] = [max(_snap(v, q), q) if v > 0 else v for v in p[2]]
+        for end in ("from", "to"):
+            if end in opts:
+                opts[end] = [_snap(v, q) for v in opts[end]]
+    order = {name: i for i, name in enumerate([*RF.bones(family), *sorted(extra)])}
+
+    def key(p):
+        base = p[0][:-2] if p[0].endswith((".L", ".R")) else p[0]
+        return (order.get(base, order.get(p[0], len(order))), round(centre(p)[1] / q),
+                p[0].endswith(".R"), centre(p)[0])
+    parts.sort(key=key)
+    return parts
+
+
 def load(path):
     """(parts, spec document) of a spec file."""
+    import rig_families as RF
     doc = json.loads(pathlib.Path(path).read_text())
+    RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
+    lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     return load_parts(doc), doc
 
 
@@ -104,8 +578,12 @@ def load_parts(doc):
 
 def part_tris(part):
     _, kind, dims, _, _, opts = part
-    if kind == "prism":
-        return 4 * int(opts.get("sides", 8)) - 4
+    if opts.get("cut") == "sheet":      # <= 14-gon extrusions intersected, decimated to the budget (PIPELINE 24.L6-2)
+        return opts.get("hull", {}).get("tris", CUT_TRIS)      # a building's base volume knows its own
+    if kind in ("prism", "cyl") or (kind == "frustum" and int(opts.get("sides", 4)) > 4):
+        return 4 * int(opts.get("sides", 8 if kind != "frustum" else 4)) - 4
+    if kind in ("lathe", "limb", "chain", "plate"):
+        return lathe_limb.tris(kind, opts)
     if kind != "ring":
         return BASE_TRIS.get(kind, 12)
     sides = int(opts.get("sides", 10))
@@ -156,21 +634,302 @@ SPAN_RADIUS = {"prism": lambda d: max(d[0], d[1]), "cyl": lambda d: d[0],
                "dome": lambda d: d[0], "wheel": lambda d: d[0], "ring": lambda d: d[0]}
 
 
+ROT_KINDS = ("box", "prism", "dome", "frustum")    # kinds build_unit rotates by opts["rot"]
+
+
+def rot_euler(opts):
+    """opts["rot"] as (right, up, forward) degrees; a bare number turns around forward."""
+    rot = opts.get("rot", 0.0)
+    return (0.0, 0.0, float(rot)) if isinstance(rot, (int, float)) else tuple(float(v) for v in rot)
+
+
+def rot_matrix(rx, ry, rz):
+    """The build's rotation in spec (right, up, forward) axes: right first, then forward,
+    then up (Blender XYZ euler after the axis swap). Right-handed, degrees."""
+    (sx, cx), (sy, cy), (sz, cz) = ((math.sin(math.radians(v)), math.cos(math.radians(v)))
+                                    for v in (rx, ry, rz))
+    about_right = ((1, 0, 0), (0, cx, -sx), (0, sx, cx))
+    about_fwd = ((cz, -sz, 0), (sz, cz, 0), (0, 0, 1))
+    about_up = ((cy, 0, sy), (0, 1, 0), (-sy, 0, cy))
+    return _matmul(about_up, _matmul(about_fwd, about_right))
+
+
+def _matmul(a, b):
+    return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
+
+
+def rotated_half(half, euler):
+    """Half extents of the box `half` after the rotation, as an axis-aligned box."""
+    m = rot_matrix(*euler)
+    return tuple(sum(abs(m[i][j]) * half[j] for j in range(3)) for i in range(3))
+
+
+def plate_box(dims, at, opts):
+    """Box of a plate: its points turned by opts rot about `at`, as build_unit.build_part turns a box."""
+    m = rot_matrix(*rot_euler(opts))
+    pts = [tuple(sum(m[i][j] * (p[j] - at[j]) for j in range(3)) + at[i] for i in range(3))
+           for ring in lathe_limb.plate_rings(dims, at, opts) for p in ring]
+    return tuple(min(p[i] for p in pts) for i in range(3)), tuple(max(p[i] for p in pts) for i in range(3))
+
+
 def bbox(part):
-    _, kind, dims, _, _, opts = part
+    _, kind, dims, at, _, opts = part
+    if kind == "plate":
+        return plate_box(dims, at, opts)
+    if kind in ("lathe", "limb", "chain"):
+        return lathe_limb.half_extent(kind, dims, at, opts, part[0])
     if "from" in opts and "to" in opts:
         a, b = opts["from"], opts["to"]
         r = SPAN_RADIUS.get(kind, lambda d: max(d[0], d[2]) / 2)(dims)
         return (tuple(min(a[i], b[i]) - r for i in range(3)),
                 tuple(max(a[i], b[i]) + r for i in range(3)))
     x, y, z = centre(part)
-    hx, hy, hz = HALF.get(kind, lambda d, o: (d[0] / 2, d[1] / 2, d[2] / 2))(dims, opts)
+    half = HALF.get(kind, lambda d, o: (d[0] / 2, d[1] / 2, d[2] / 2))(dims, opts)
+    if kind in ROT_KINDS and any(rot_euler(opts)):
+        half = rotated_half(half, rot_euler(opts))
+    hx, hy, hz = half
     return (x - hx, y - hy, z - hz), (x + hx, y + hy, z + hz)
 
 
-def overlaps(a, b):
-    (al, ah), (bl, bh) = bbox(a), bbox(b)
+def shrunk(box, k):
+    """The box scaled to k of its size about its centre."""
+    lo, hi = box
+    return (tuple((l + h) / 2 - (h - l) / 2 * k for l, h in zip(lo, hi)),
+            tuple((l + h) / 2 + (h - l) / 2 * k for l, h in zip(lo, hi)))
+
+
+def overlaps(a, b, k=1.0):
+    """The two parts' boxes, each shrunk to k of its size, intersect: at k = OVERLAP_SHRINK a box
+    that only touches the other at a corner or an edge does not count as connected."""
+    (al, ah), (bl, bh) = shrunk(bbox(a), k), shrunk(bbox(b), k)
     return all(al[i] <= bh[i] and bl[i] <= ah[i] for i in range(3))
+
+
+# A prop is a separate object held by an anchor point (PIPELINE 23.L5-3): a part with opts
+# {"prop": "<name>", "anchor": "hand.R" | "hand.L" | "back" | "belt" | "head"}.
+PROP_ANCHORS = {"hand.R": "forearm.R", "hand.L": "forearm.L", "back": "spine", "belt": "pelvis", "head": "head"}
+PROP_BODY = ("spine", "pelvis", "head", "body", "abdomen")   # prop_clearance: these bones' non-prop parts are the body
+HAND_SHARE = 0.4          # a hand anchor is the lower 40 % (in y) of the forearm parts
+CLEARANCE_MAX = 0.20      # share of a prop's box allowed inside the body
+CLEARANCE_BLOCKING = True   # a gate since PIPELINE 24.L6-3: massing and the fit push a prop out of the body (clear_props)
+PROP_GAP = 0.02           # clear_props: a prop stands at least this share of H outside the body boxes
+CLEARANCE_GRID = 12
+PROP_REACH = 0.08         # (was 0.05: PROP_GAP of a 2.72 m figure is 0.054) a prop's box may stand this far (spec metres) off its anchor's and still be held
+
+
+def is_prop(part):
+    return isinstance(part[5], dict) and bool(part[5].get("prop"))
+
+
+# prop_reads: the ID render paints each prop (by order of first appearance) in one of these flat colours
+PROP_IDS = ((1.0, 0.0, 1.0), (0.0, 1.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.5, 0.0))
+
+
+def prop_names(parts):
+    """The distinct opts "prop" names, in order of first appearance."""
+    return list(dict.fromkeys(str(p[5]["prop"]) for p in parts if is_prop(p)))
+
+
+def anchor_bone(prop, bones):
+    """The bone a prop's anchor names when the rig has it, else the part's own bone."""
+    bone = PROP_ANCHORS.get(prop[5].get("anchor"))
+    return bone if bone in bones else prop[0]
+
+
+def anchor_box(parts, prop, bones):
+    """Box of the body a prop hangs on: the non-prop parts on its anchor bone (a hand: their lower
+    HAND_SHARE), or None when the bone carries none."""
+    bone = anchor_bone(prop, bones)
+    boxes = [bbox(p) for p in parts if not is_prop(p)
+             and bone in {p[0], *((lathe_limb.limb_bones(p[0], bones) or ()) if p[1] == "limb" else ())}]
+    if not boxes:
+        return None
+    lo = [min(b[0][i] for b in boxes) for i in range(3)]
+    hi = [max(b[1][i] for b in boxes) for i in range(3)]
+    if str(prop[5].get("anchor", "")).startswith("hand"):
+        hi[1] = lo[1] + HAND_SHARE * (hi[1] - lo[1])
+    return lo, hi
+
+
+def boxes_meet(a, b, slack=1e-6):
+    return all(a[0][i] <= b[1][i] + slack and b[0][i] <= a[1][i] + slack for i in range(3))
+
+
+def loose_props(parts, bones, k=1.0):
+    """Bones of the props that do not reach their anchor: a prop part (box shrunk to k) counts as held when
+    its box is within PROP_REACH of the anchor's, or touches a held part of the same prop (a valve on a
+    tank). A prop whose anchor carries no part is not judged."""
+    props = [p for p in parts if is_prop(p)]
+    anchors = {id(p): anchor_box(parts, p, bones) for p in props}
+    held = {id(p) for p in props if anchors[id(p)] is None
+            or boxes_meet(shrunk(bbox(p), k), anchors[id(p)], PROP_REACH)}
+    grew = True
+    while grew:
+        more = {id(p) for p in props if id(p) not in held and any(
+            id(q) in held and q[5]["prop"] == p[5]["prop"] and boxes_meet(shrunk(bbox(p), k), bbox(q))
+            for q in props)}
+        grew = bool(more)
+        held |= more
+    return [p[0] for p in props if id(p) not in held]
+
+
+def prop_inside(prop_box, body_boxes, n=CLEARANCE_GRID):
+    """Share of the prop's box inside the union of body_boxes (n^3 sample points)."""
+    lo, hi = np.array(prop_box[0]), np.array(prop_box[1])
+    axes = [lo[i] + (np.arange(n) + 0.5) / n * (hi[i] - lo[i]) for i in range(3)]
+    pts = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+    inside = np.zeros(len(pts), bool)
+    for bl, bh in body_boxes:
+        inside |= ((pts >= bl) & (pts <= bh)).all(axis=1)
+    return float(inside.mean())
+
+
+def clearance_checks(parts):
+    """prop_clearance: the share of each prop's box inside the body boxes is at most CLEARANCE_MAX (a report
+    while CLEARANCE_BLOCKING is False). [] without a marked prop."""
+    props = [p for p in parts if is_prop(p)]
+    if not props:
+        return []
+    body = [bbox(p) for p in parts if not is_prop(p) and p[0] in PROP_BODY]
+    shares = {}
+    for p in props:       # the parts of one prop count as the worst of them
+        shares[p[5]["prop"]] = max(shares.get(p[5]["prop"], 0.0), prop_inside(bbox(p), body))
+    bad = [n for n, s in shares.items() if s > CLEARANCE_MAX]
+    return [("prop_clearance", not bad or not CLEARANCE_BLOCKING,
+             ", ".join(f"{n} {s:.0%} in the body" + (" - OUT" if n in bad else "") for n, s in shares.items())
+             + f" (max {CLEARANCE_MAX:.0%})")]
+
+
+def shift_part(part, d):
+    """Part moved by the vector d (spec metres), in place: its centre and the ends of a from/to part."""
+    if part[3] is not None:
+        part[3] = [part[3][i] + d[i] for i in range(3)]
+    for end in ("from", "to"):
+        if end in part[5]:
+            part[5][end] = [part[5][end][i] + d[i] for i in range(3)]
+
+
+def touching(box, bodies, gap):
+    return [b for b in bodies if all(box[0][i] < b[1][i] + gap and b[0][i] - gap < box[1][i] for i in range(3))]
+
+
+def sweep(box, bodies, gap, axis, sign):
+    """The least distance box must travel along `axis` in direction `sign` to stand off every body by gap."""
+    ends = [(b[1][axis] + gap - box[0][axis]) if sign > 0 else (box[1][axis] - b[0][axis] + gap) for b in bodies]
+    for t in sorted(e for e in ends if e > 0):
+        moved = [[v + sign * t * (i == axis) for i, v in enumerate(c)] for c in box]
+        if not touching(moved, bodies, gap - 1e-9):
+            return t
+    return 0.0
+
+
+PUSH_DIRS = {"back": ((2, -1),), "belt": ((0, 1), (0, -1))}    # a pack goes behind, a lantern to the hip; the rest the cheapest way
+ALL_DIRS = tuple((i, s) for i in range(3) for s in (1, -1))
+
+
+def push_out(box, bodies, gap, dirs=ALL_DIRS):
+    """The vector that moves `box` off every body box it touches (each grown by gap) along the single (axis, sign)
+    of `dirs` that costs least; zero when it already stands clear."""
+    if not touching(box, bodies, gap):
+        return [0.0, 0.0, 0.0]
+    dist, axis, sign = min((sweep(box, bodies, gap, i, s), i, s) for i, s in dirs)
+    d = [0.0, 0.0, 0.0]
+    d[axis] = sign * dist
+    return d
+
+
+PROP_CUT = 0.4            # clear_props: a lone box prop is cut at the body's face (its far face stays where the sheet has it)
+                          # when at least this share of its depth survives, else it moves whole
+
+
+def move_prop(mine, d):
+    """The prop's parts moved by d; a lone unturned box is instead cut on the side facing the body (its far face
+    keeps the sheet's silhouette) while PROP_CUT of its size is left."""
+    axis = max(range(3), key=lambda i: abs(d[i]))
+    part = mine[0]
+    if len(mine) == 1 and part[1] == "box" and "rot" not in part[5] and abs(d[axis]) <= (1 - PROP_CUT) * part[2][axis]:
+        part[2] = [v - (abs(d[axis]) if i == axis else 0.0) for i, v in enumerate(part[2])]
+        part[3] = [c + (d[axis] / 2 if i == axis else 0.0) for i, c in enumerate(part[3])]
+        return
+    for p in mine:
+        shift_part(p, d)
+
+
+def clear_props(parts, height):
+    """Every prop (the parts sharing an opts "prop" name move together) stands PROP_GAP * height outside the body
+    parts of its anchor bone, and, when it still has more than CLEARANCE_MAX / 2 of its box inside any other body
+    part (PROP_BODY bones), clear of those too: the prop is pushed away, never the body toward it (PIPELINE
+    24.L6-3). In place; returns parts."""
+    bones = {p[0] for p in parts}
+    body = [(p[0], bbox(p)) for p in parts if not is_prop(p) and p[0] in PROP_BODY]
+    for name in prop_names(parts):
+        mine = [p for p in parts if is_prop(p) and str(p[5]["prop"]) == name]
+        bone = anchor_bone(mine[0], bones)
+        near = [b for n, b in body if n == bone]     # a hand or a shoulder carries its prop: no gap to a body it is not on
+        for gap, bodies in ((PROP_GAP * height, near), (0.0, [b for _, b in body])):
+            if not bodies:
+                continue
+            boxes = [bbox(p) for p in mine]
+            box = ([min(b[0][i] for b in boxes) for i in range(3)], [max(b[1][i] for b in boxes) for i in range(3)])
+            if gap == 0.0 and prop_inside(box, bodies) <= CLEARANCE_MAX / 2:
+                break
+            move_prop(mine, push_out(box, bodies, gap, PUSH_DIRS.get(mine[0][5].get("anchor"), ALL_DIRS)))
+    return parts
+
+
+# Spider rules that fail the preflight: FAIL rate over the 15 spider specs of runs/draft/*/*/ was
+# spider_leg 3/15 (blocks), spider_body 7/15 and spider_reach 11/15 (> 1/3: report only), PIPELINE section 20.L14
+SPIDER_BLOCKING = {"spider_leg"}
+SPIDER_BAND = (0.7, 1.4)  # a body or a leg within -30%/+40% of the sheet's measure
+LEG_W_BAND = (0.6, 1.4)   # leg radius within +-40% of the sheet's leg_w (report only, PIPELINE 21.F3)
+
+
+def leg_radius(part):
+    """Mean radius of a spider leg part: a prism tapers from dims[0] to dims[1]."""
+    d = part[2]
+    if part[1] == "limb":      # dims are the radii at the top, the knee and the foot (PIPELINE 25.L7-3)
+        return sum(d) / 3
+    return (d[0] + d[1]) / 2 if part[1] == "prism" else SPAN_RADIUS.get(part[1], lambda d: max(d[0], d[2]) / 2)(d)
+
+
+def leg_length(part):
+    """Length of a spider leg part along its bone: from -> to, through the knee when it is a `limb` (hip-knee-foot, PIPELINE 25.L7-3: a
+    limb on leg.upper spans the whole leg, so the chord alone reads short)."""
+    a, b = part[5].get("from"), part[5].get("to")
+    if not (a and b):
+        return 0.0
+    if part[1] != "limb":
+        return math.dist(a, b)
+    knee = lathe_limb.knee_of(part[5])
+    return math.dist(a, knee) + math.dist(knee, b)
+
+
+def spider_checks(parts, boxes, height, m):
+    """The spider rules (the fourth, spider_leg_w, when the measure has leg_w) against the sheet's measures (silhouette.measure_spider, kept in
+    the spec as rig_measure), each a fraction of the unit's own height: body width, leg reach
+    and leg length. [(rule, passed, detail)]."""
+    import rig_families as RF
+    body = [boxes[id(p)] for p in parts if p[0] in ("body", "abdomen")]
+    legs = [p for p in parts if p[0].startswith("leg")]
+    width = (max(b[1][0] for b in body) - min(b[0][0] for b in body)) / height if body else 0.0
+    reach = max([max(abs(boxes[id(p)][i][a]) for i in (0, 1) for a in (0, 2)) for p in legs] or [0.0]) / height
+    per_leg = {}
+    for p in legs:
+        per_leg[p[0].split(".")[0]] = per_leg.get(p[0].split(".")[0], 0.0) + leg_length(p)
+    length = sorted(per_leg.values())[len(per_leg) // 2] / height if per_leg else 0.0
+    rows = [("spider_body", width, 2 * m["body_r"], "body+abdomen width", SPIDER_BAND),
+            ("spider_reach", reach, max(m["knee_r"], m["foot_r"]), "leg reach from the axis", SPIDER_BAND),
+            ("spider_leg", length, RF.spider_leg_len(m), "leg length hip-knee-foot", SPIDER_BAND)]
+    if "leg_w" in m and legs:
+        radii = sorted(leg_radius(p) for p in legs)
+        rows.append(("spider_leg_w", radii[len(radii) // 2] / height, m["leg_w"], "leg radius", LEG_W_BAND))
+    out = []
+    for rule, got, want, what, band in rows:
+        ok = band[0] * want <= got <= band[1] * want
+        out.append((rule, ok or rule not in SPIDER_BLOCKING,
+                    f"{what} {got:.3f} H vs sheet {want:.3f} H (band {band[0]}-{band[1]} x)"
+                    + ("" if ok else " - OUT")))
+    return out
 
 
 def biped_checks(parts, boxes, height, targets):
@@ -185,21 +944,33 @@ def biped_checks(parts, boxes, height, targets):
     if feet:
         fh = min(b[1][1] - b[0][1] for b in feet) / height
         fl = min(b[1][2] - b[0][2] for b in feet) / height
-        need = 0.8 * targets["foot_length"]
-        checks.append(("feet_mass", fh >= 0.045 and fl >= need,
-                       f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f})"))
+        need, most = 0.8 * targets["foot_length"], FOOT_MOST * targets["foot_length"]
+        # a ceiling too: with only a floor the repair pass kept growing the boot (n005 v3 ended
+        # with a 2.1 m boot, 77% of the height) and nothing asked it to shrink
+        lo, hi = (BOOT_BAND[0] * targets["boot_height"], BOOT_BAND[1] * targets["boot_height"])
+        checks.append(("boot_height", lo <= fh <= hi,
+                       f"{fh:.3f} H (sheet {targets['boot_height']:.3f}, want {lo:.3f}-{hi:.3f})"))
+        checks.append(("feet_mass", fh >= 0.045 and need <= fl <= most,
+                       f"height {fh:.3f} H, length {fl:.3f} H (sheet {targets['foot_length']:.2f}, "
+                       f"want {need:.2f}-{most:.2f})"))
     else:
         checks.append(("feet_mass", False, "no foot parts"))
 
-    shins = [p for p in parts if p[0] in ("shin.L", "shin.R") and p[1] == "prism"]
+    # a limb on the thigh bone carries the shin too (dims = r_top, r_knee, r_base)
+    shins = [p for p in parts if (p[0] in ("shin.L", "shin.R") and p[1] == "prism")
+             or (p[0] in ("thigh.L", "thigh.R") and p[1] == "limb")]
     if shins:
-        sw = max(max(p[2][0], p[2][1]) * 2 for p in shins) / height
+        sw = max(max(p[2][-2:] if p[1] == "limb" else p[2][:2]) * 2 for p in shins) / height
         checks.append(("shin_mass", sw >= 0.09, f"width {sw:.3f} H"))
     else:
         checks.append(("shin_mass", False, "no shin parts"))
 
     head = [b for p, b in ((p, boxes[id(p)]) for p in parts) if p[0] == "head"]
     if head:
+        hw = max(max(abs(b[0][0]), abs(b[1][0])) for b in head) * 2 / height
+        lo, hi = (HEAD_BAND[0] * targets["head_width"], HEAD_BAND[1] * targets["head_width"])
+        checks.append(("head_width", lo <= hw <= hi,
+                       f"{hw:.3f} H (sheet {targets['head_width']:.3f}, want {lo:.3f}-{hi:.3f})"))
         head_top = max(b[1][1] for b in head)
         shoulder_top = max((boxes[id(p)][1][1] for p in parts if p[0].startswith("arm.")),
                            default=head_top)
@@ -212,28 +983,30 @@ def biped_checks(parts, boxes, height, targets):
     return checks
 
 
-def floating_parts(parts, parent_of):
-    """Bones whose parts touch neither another part on the bone nor one on its parent."""
-    floating = []
+def floating_parts(parts, parent_of, k=1.0):
+    """Bones whose parts touch neither another part on the bone nor one on its parent
+    (boxes at k of their size). A prop only has to touch its anchor (prop_touches)."""
+    bones = set(parent_of) | set(parent_of.values())
+    floating = loose_props(parts, bones, k)
     for p in parts:
         parent = parent_of.get(p[0])
-        if not parent:
+        if not parent or is_prop(p):
             continue
         # A distal piece may sit on its own bone: the fist overlaps the forearm
         # shell, not the upper arm. Check the bone and its parent together.
         group = {p[0], parent}
-        siblings = [q for q in parts if q[0] in group and q is not p]
-        if siblings and not any(overlaps(p, q) for q in siblings):
+        siblings = [q for q in parts if q[0] in group and q is not p and not is_prop(q)]
+        if siblings and not any(overlaps(p, q, k) for q in siblings):
             floating.append(p[0])
     return sorted(set(floating))
 
 
-def main():
+def checks_of(parts, doc, kind, targets, props, sheet=None, identity=None, na=None):
+    """[(rule, passed, detail)] of one spec. `targets` = targets_from(sheet), `props` =
+    load_props(unit): both read once by the caller, so fit_spec can re-run the rules cheaply.
+    `na`: a dict that takes {rule: reason} for the DSL rules (dsl_rules) that do not apply to this unit."""
     import rig_families as RF
-    path = sys.argv[1]
-    kind = sys.argv[2] if len(sys.argv) > 2 else "mass"
     lo, hi = BUDGETS[kind]
-    parts, doc = load(path)
     family = doc.get("rig", "biped")                       # specs without "rig" are bipeds
     palette = PALETTE | set(doc.get("palette") or {})      # n01X names + the spec's slots
     checks = []
@@ -246,14 +1019,54 @@ def main():
                    and mats <= palette,
                    f"{sorted(mats)} ({len(mats)} slots)"))
 
-    missing = RF.required(family) - {p[0] for p in parts}
+    need = RF.required(family)
+    covered = ({p[0] for p in parts} | {b for p in parts if p[1] == "limb" for b in lathe_limb.limb_bones(p[0], need) or ()}
+               | {b for p in parts if p[1] == "chain" for b in lathe_limb.chain_bones(p[0], p[5]["bones"]) or ()})
+    missing = need - covered       # a limb covers its upper and lower bone, a chain its bones
     checks.append(("bones", not missing, f"{family}: missing {sorted(missing) or 'none'}"))
 
     boxes = {id(p): bbox(p) for p in parts}
     height = max(max(b[1][1] for b in boxes.values()), 1e-6)
     if family == "biped":
-        checks += biped_checks(parts, boxes, height,
-                               targets_from(sys.argv[3] if len(sys.argv) > 3 else None))
+        checks += biped_checks(parts, boxes, height, targets) + joint_checks(parts, boxes, height, targets)
+    if doc.get("rig_measure") and family in RF.SPIDERS:
+        checks += spider_checks(parts, boxes, height, doc["rig_measure"])
+    if doc.get("rig_measure") and family in RF.SCALABLE:
+        checks += family_checks(parts, boxes, height, doc["rig_measure"])
+
+    if family == "biped":
+        shares = split_shares(parts)
+        bands = split_bands(targets)
+        off = [g for g, s, (lo_s, hi_s) in zip(GROUPS, shares, bands) if not lo_s <= s <= hi_s]
+        checks.append(("budget_split", not off,
+                       ", ".join(f"{g} {s:.0%} ({lo_s:.0%}-{hi_s:.0%})"
+                                 for g, s, (lo_s, hi_s) in zip(GROUPS, shares, bands))))
+        lopsided = asymmetric(parts)
+        checks.append(("symmetry", not lopsided,
+                       f"{lopsided or 'every .L has its .R twin'} (opts.asym exempts a weapon or shield)"))
+
+    if sheet:
+        masks = hull_masks(sheet, "building" if family == "building" else "unit")
+        bad_hull = hull_outside(parts, masks, height) if masks else {}
+        # Reporting only until calibrated: on 2026-10-27 the rule failed 42 of 53 draft specs.
+        checks.append(("outside_hull", not bad_hull or not HULL_BLOCKING,
+                       ", ".join(f"{b} {s:.0%} outside the sheet's hull, too {d}"
+                                 for b, (s, d) in bad_hull.items())
+                       or f"every part inside the sheet's front x left hull (max {HULL_MAX:.0%} out)"))
+
+    if props:
+        lost = props_missing(parts, boxes, height, props)
+        checks.append(("props_present", not lost,
+                       f"missing: {lost or 'none'} (one part per prop, on its bone, sized like the "
+                       "props sheet; see props.json)"))
+
+    st = identity_summary(identity, parts, doc, props) if identity else None
+    if st and st["total"]:
+        checks.append(("identity_present", not st["missing"] or not IDENTITY_BLOCKING,
+                       f"{st['ok']}/{st['total']}, missing: {st['missing'] or 'none'} (each is a part or a decal)"))
+    checks += clearance_checks(parts)
+    import dsl_rules
+    checks += dsl_rules.checks(parts, doc, sheet, na=na)[0]       # hood_recess, prop_axis, prop_coverage, leg_joints: hard where they apply
 
     head_ornaments = [p for p in parts if p[0] == "head" and p[1] in ORNAMENT]
     if head_ornaments:
@@ -271,14 +1084,58 @@ def main():
     below = [p[0] for p in parts if boxes[id(p)][0][1] < -0.02]
     checks.append(("ground", not below, f"below y=0: {below or 'none'}"))
 
-    floating = floating_parts(parts, RF.parents(family, doc.get("bones")))
-    checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))
+    if family != "building":
+        boxes_n = sum(p[1] == "box" for p in parts)
+        checks.append(("box_ceiling", boxes_n <= BOX_SHARE * len(parts) + 1e-9,
+                       f"{boxes_n} of {len(parts)} parts are boxes (max {int(BOX_SHARE * len(parts))}); "
+                       "use prism/frustum/dome/cyl"))
 
+    bad_decals = misplaced_decals(parts)
+    checks.append(("decal_place", not bad_decals,
+                   f"decal off the head: {bad_decals or 'none'} (eyes go on a head/jaw part)"))
+
+    parent_of = RF.parents(family, doc.get("bones"))
+    floating = floating_parts(parts, parent_of)
+    checks.append(("overlap", not floating, f"detached: {floating or 'none'}"))
+    loose = floating_parts(parts, parent_of, OVERLAP_SHRINK)
+    checks.append(("overlap_80", not loose or not OVERLAP_BLOCKING,
+                   f"detached at {OVERLAP_SHRINK:.0%} boxes: {loose or 'none'}"))
+
+    return checks
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("argv", nargs="+")
+    ap.add_argument("--fix", default=None)
+    ap.add_argument("--dsl-repair", choices=("on", "off", "all"), default="on")
+    opt = ap.parse_args()
+    argv, fix, repairs = opt.argv, opt.fix, opt.dsl_repair
+    sheet = argv[2] if len(argv) > 2 else None
+    kind = argv[1] if len(argv) > 1 else "mass"
+    parts, doc = load(argv[0])
+    if fix and repairs == "on":
+        import dsl_rules
+        parts, log = dsl_rules.repair(parts, doc, sheet, opt_in=repairs == "all")
+        doc["parts"] = parts
+        pathlib.Path(fix).write_text(json.dumps(doc, indent=2))
+        for rule, part, before, after in log:
+            print(f"  repaired {rule} {part}: {before} -> {after}")
+    unit = pathlib.Path(sheet).parent.name if sheet else None
+    layout = "building" if doc.get("rig") == "building" else "unit"
+    identity = identity_items(unit, sheet, doc.get("rig", "biped") == "biped", layout) if sheet else None
+    gone = {}
+    checks = checks_of(parts, doc, kind, targets_from(sheet), load_props(unit) if sheet else [], sheet, identity, gone)
+    tris = sum(part_tris(p) for p in parts)
+    share = sum(part_tris(p) for p in parts if p[0] == "head" and p[1] in ORNAMENT) / BUDGETS[kind][1]
     width = max(len(name) for name, *_ in checks)
     bad = 0
     for name, ok, detail in checks:
         bad += 0 if ok else 1
         print(f"  {name.ljust(width)}  {'PASS' if ok else 'FAIL'}  {detail}")
+    for name, why in gone.items():
+        print(f"  {name.ljust(width)}  n/a: {why}")
     leg_share = sum(part_tris(p) for p in parts if is_leg(p[0])) / max(tris, 1)
     print(f"  {'tri_mix'.ljust(width)}  {'INFO':4}  legs+feet {leg_share:.0%}, "
           f"ornament {share:.0%}, parts {len(parts)}")

@@ -56,7 +56,7 @@ class ForwardKinematics(unittest.TestCase):
         random.seed(3)
         poses = {fam: {b: (random.uniform(-60, 60), random.uniform(-40, 40), random.uniform(-60, 60),
                            random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2)) for b in RF.bones(fam)}
-                 for fam in ("biped", "quadruped", "spider", "mounted", "hydra")}
+                 for fam in ("biped", "quadruped", "spider", "spider_high", "mounted", "hydra")}
         probe = ROOT / "tests/tools/blender/blender_pose_probe.py"
         out = subprocess.run(["blender", "-b", "--python", str(probe), "--", repr(poses)],
                              capture_output=True, text=True, cwd=ROOT, timeout=120).stdout
@@ -103,6 +103,15 @@ class Motions(unittest.TestCase):
                     elif fam not in RF.HOVER and hop == 0.0 and frame in motion["keys"]:
                         self.assertAlmostEqual(low, floor, places=4, msg=(fam, name, frame))
 
+    def test_retargeted_spider_clips_keep_the_feet_on_the_floor(self):
+        if not (RT.REF_DIR / "n00U/joints.json").exists():
+            self.skipTest("needs the captured references")
+        floor = M.lowest("spider_high", {})
+        for name in ("idle", "walk", "bite"):
+            clip = M.motion("spider_high", name)["clip"]
+            lows = [M.lowest("spider_high", pose) for pose in clip]
+            self.assertAlmostEqual(min(lows), floor, delta=0.05, msg=name)
+
     def test_hand_keyed_clips_end_exactly_at_rest(self):
         for fam, motions in M.MOTIONS.items():
             for name in motions:
@@ -145,7 +154,7 @@ def unit(v):
 class Aim(unittest.TestCase):
     def test_aim_points_every_bone_where_asked(self):
         random.seed(5)
-        for fam in ("biped", "spider", "quadruped", "mounted", "drake"):
+        for fam in ("biped", "spider", "spider_high", "quadruped", "mounted", "drake"):
             pose = {b: (random.uniform(-70, 70), 0, random.uniform(-70, 70), 0) for b in RF.bones(fam)}
             pose["root"] = (0, 0, 0, 0)
             js = P.joints(fam, pose)
@@ -228,7 +237,7 @@ class Library(unittest.TestCase):
         self.assertEqual(M.motion("drake", "fly")["frames"], RT.duration("e006", "AnimalArmature|Idle"))
 
     def test_loops_do_not_key_the_seam_twice(self):
-        for fam in ("biped", "quadruped", "spider", "drake"):
+        for fam in ("biped", "quadruped", "spider", "spider_high", "drake"):
             walk = dict((c[0], c[1]) for c in M.clips(fam))["walk"]
             frames = sorted(walk)
             self.assertNotEqual(walk[frames[0]], walk[frames[-1]], fam)

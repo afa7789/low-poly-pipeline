@@ -6,14 +6,18 @@
     python3 tools/blender/check_gates.py <dir> --kind building # 600-800 tris
 
 Gates (PIPELINE.md §6): triangle budget for the asset kind, 3-8 palette materials, one skin,
-four animation clips. Exit 1 if any row fails, so it can gate a batch run.
+5-7 animation clips (preflight.CLIPS; 0 with --static), and the obvious mesh_lint gates
+(flipped faces, UV range, one atlas, feet on the ground, root scale; texture gates skipped for
+clay.glb). The lint columns: flipped, slivers (% of faces under 10 degrees), components. Exit 1 if any row fails, so it can
+gate a batch run.
 """
 import argparse
 import json
 import pathlib
 import sys
 
-from preflight import BUDGETS, MATERIAL_SLOTS  # one table for every gate
+import mesh_lint
+from preflight import BUDGETS, CLIPS, MATERIAL_SLOTS  # one table for every gate
 
 
 def stats(glb):
@@ -29,16 +33,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("folder", type=pathlib.Path)
     ap.add_argument("--kind", default="mass", choices=BUDGETS)
+    ap.add_argument("--static", action="store_true", help="static rigs and buildings: no clips")
     args = ap.parse_args()
     lo, hi = BUDGETS[args.kind]
+    clips = (0, 0) if args.static else CLIPS
     bad = 0
-    print(f"{'file':28} {'tris':>5}  {'budget':>9}  mats skin anims  gate")
+    print(f"{'file':28} {'tris':>5}  {'budget':>9}  mats skin anims flip sliver% comps  gate")
     for glb in sorted(args.folder.glob("*.glb")):
         tris, mats, skins, anims = stats(glb)
-        ok = (lo <= tris <= hi and MATERIAL_SLOTS[0] <= mats <= MATERIAL_SLOTS[1]
-              and skins == 1 and anims == 4)
+        m = mesh_lint.lint(glb)
+        lint_bad = mesh_lint.failing(m, glb.name != "clay.glb")
+        ok = (not lint_bad and lo <= tris <= hi and MATERIAL_SLOTS[0] <= mats <= MATERIAL_SLOTS[1]
+              and skins == 1 and clips[0] <= anims <= clips[1])
         bad += 0 if ok else 1
-        print(f"{glb.name:28} {tris:5}  {f'{lo}-{hi}':>9}  {mats:4} {skins:4} {anims:5}  {'PASS' if ok else 'FAIL'}")
+        print(f"{glb.name:28} {tris:5}  {f'{lo}-{hi}':>9}  {mats:4} {skins:4} {anims:5} {m['flipped']:4} {m['sliver_pct']:7} {m['components']:5}  "
+              f"{'PASS' if ok else 'FAIL'}{' ' + ','.join(lint_bad) if lint_bad else ''}")
     print(f"\n{len(list(args.folder.glob('*.glb')))} models, {bad} failing")
     return 1 if bad else 0
 

@@ -18,11 +18,13 @@ import json
 import math
 import pathlib
 import sys
+import time
 
 import bmesh
 import bpy
 import mathutils
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 # ---------------------------------------------------------------- materials
 MATERIALS = {
@@ -38,6 +40,18 @@ MATERIALS["lamp"] = MATERIALS["flame"]
 # material -> painted surface (surfaces.py). The n01X slots above are all "metal",
 # so specs written before the palette existed paint exactly as they did.
 SURFACE = {}
+RAMP = None        # cel: tone change across a cell's vertical ramp (ramp=<x> on the CLI); None = surfaces.RAMP_SLOPE
+STYLE = "painted"   # "cel": flat tone per face by orientation (surfaces.paint_cel); style=cel on the CLI
+CLAY = False     # clay mode (arg `clay`): one grey material, no texture, decal or glow: the shape alone
+CLAY_GREY = (0.62, 0.62, 0.62, 1.0)
+RAMPS = {}       # material -> (p10, p90) luma of its sheet zone (palette "ramp"): the cel ramp's width
+TONES = {}       # material -> (up, side, down) cel multipliers measured on its sheet zone (palette "tones", fit_luma.py)
+SHARED = None    # (arg shared=<table.json>) the race's shared 128 px atlas table (shared_atlas.py, PIPELINE 27.T3); cel only
+POSTERIZE = 15   # compact atlas: decal paint rounded to POSTERIZE + 1 levels per channel (a picture decal is the atlas's whole PNG weight)
+PALETTE_SNAP = False   # (arg palette_snap) shared atlas: snap a slot colour to the race palette within dE .03 (27.T7); off: it moved hfoo's boots to green (judge 4-0 against) and saves no column
+SHARED_PICTURE_FACES = 3   # shared atlas (27.T3): a picture decal cell used by fewer faces than this (and not a prop's own crop) is 16 px, not 32
+COMPACT_ATLAS = True    # default since 27.T1 (84 KB -> 5 KB, luma_l1 within .008); cel: 2 px ramp slots, 16 px decals, shelf-packed POT image (surfaces.pack_cells, PIPELINE 27.T1); cel_atlas=compact|legacy on the CLI
+MERGE_MATERIALS = True   # cel: slots sharing the atlas, emission and opacity fold into one material, one draw (27.T5); materials=split on the CLI restores them
 ALPHA = {}       # material -> opacity below 1: glass, flame tongues (glTF alphaMode BLEND)
 
 
@@ -50,6 +64,10 @@ def register_palette(palette):
         SURFACE[name] = entry.get("surface", "metal")
         if float(entry.get("alpha", 1.0)) < 1.0:
             ALPHA[name] = float(entry["alpha"])
+        if entry.get("ramp"):
+            RAMPS[name] = tuple(entry["ramp"])
+        if entry.get("tones"):
+            TONES[name] = tuple(entry["tones"])
 
 # ---------------------------------------------------------------- skeleton
 # name, parent, head, tail   (spec space: right, up, forward)
@@ -88,14 +106,17 @@ def families():
     return sibling("rig_families")
 
 
-def load_family(name, extras=None):
+def load_family(name, extras=None, measure=None):
     """Swap the rig family before building: a spec can ask for spider, quadruped...,
-    plus its own prop bones (rig_families.with_extras)."""
+    plus its own prop bones (rig_families.with_extras). A spec's "rig_measure" (the sheet's
+    numbers, silhouette.measure_rig) scales the skeleton of a spider, quadruped, wyrm or drake."""
     fam = families()
+    fam.scale_rig(name, measure)
     global BONES, BONE_MAP, FAMILY
     FAMILY = name if name in fam.FAMILIES else "biped"
     BONES = fam.with_extras(FAMILY, extras)
     BONE_MAP = {bone: (head, tail) for bone, _, head, tail in BONES}
+    sibling("lathe_limb").set_rig(FAMILY, extras)
     return FAMILY
 
 # ---------------------------------------------------------------- specs
@@ -194,6 +215,22 @@ def soften(body, angle=48.0):
     body.data.update()
 
 
+def clean_mesh(body, merge=0.001, angle=6.0):
+    """MeshGPT-style pre-clean: weld vertices closer than `merge` (m), then dissolve coplanar
+    faces within `angle` degrees, never across materials. Run before UVs/texture."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=merge)
+    bm.to_mesh(body.data)
+    bm.free()
+    dec = body.modifiers.new("Planar", "DECIMATE")
+    dec.decimate_type = "DISSOLVE"
+    dec.angle_limit = math.radians(angle)
+    dec.delimit = {"MATERIAL"}
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.modifier_apply(modifier=dec.name)
+
+
 def shading_report(body):
     faces = len(body.data.polygons)
     smooth = sum(1 for p in body.data.polygons if p.use_smooth)
@@ -239,6 +276,9 @@ def srgb(rgb):
 
 
 def material(name):
+    if CLAY:
+        MATERIALS["clay"] = CLAY_GREY
+        name = "clay"
     if name in _MAT_CACHE:
         return _MAT_CACHE[name]
     mat = bpy.data.materials.new(name)
@@ -284,8 +324,8 @@ def build_armature(rest_pose=None):
     return arm
 
 
-BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 44, "wheel": 80, "prism": 28, "dome": 28,
-             "ring": 144}
+BASE_TRIS = {"box": 12, "frustum": 12, "cyl": 28, "wheel": 80, "prism": 28, "dome": 28,
+             "ring": 144, "lathe": 68, "limb": 32, "plate": 28}
 CHAMFER_EXTRA = 32  # a chamfered box is 44 tris instead of 12
 
 
@@ -293,7 +333,8 @@ def plan_chamfers(spec, budget):
     """Spend the spare triangles on the biggest masses first. WC3 SD models put the
     roundness in a few large chamfered volumes and the rest in painted texture; a
     chamfer on every box would triple the budget for nothing at 32 px."""
-    room = budget - sum(BASE_TRIS[k] for _, k, *_ in spec)
+    LL = sibling("lathe_limb")
+    room = budget - sum(LL.tris(k, o) if k == "chain" else BASE_TRIS[k] for _, k, _, _, _, o in spec)
     chosen = set()
     for dim, idx in sorted(((max(d), i) for i, (_, kind, d, *_ ) in enumerate(spec) if kind == "box"),
                            reverse=True):
@@ -327,25 +368,30 @@ def prism(dims, at, rot=0.0, sides=8, axis="up", rot_euler=None):
     return obj
 
 
-def frustum(dims, at, top=(1.0, 1.0), shift=(0.0, 0.0), rot=(0.0, 0.0, 0.0)):
+def frustum(dims, at, top=(1.0, 1.0), shift=(0.0, 0.0), rot=(0.0, 0.0, 0.0), sides=4):
     """A box with independent top scale and top offset: wedge boots, trapezoid
     pelvis, tapered fists. Six quads, 12 tris - the shape WC3 uses instead of
-    bevelling every edge."""
+    bevelling every edge. `sides` 6-8: an n-gon inscribed in the w x d box (a rounded
+    boot, torso slice or head), 4 * sides - 4 tris."""
     w, h, d = dims
     sx, sz = top
     dx, dz = shift
     hw, hd, hh = w / 2, d / 2, h / 2
-    lo = [(-hw, -hd, -hh), (hw, -hd, -hh), (hw, hd, -hh), (-hw, hd, -hh)]
-    hi = [(-hw * sx + dx, -hd * sz + dz, hh), (hw * sx + dx, -hd * sz + dz, hh),
-          (hw * sx + dx, hd * sz + dz, hh), (-hw * sx + dx, hd * sz + dz, hh)]
+    if sides == 4:
+        lo = [(-hw, -hd, -hh), (hw, -hd, -hh), (hw, hd, -hh), (-hw, hd, -hh)]
+    else:
+        lo = [(hw * math.cos(2 * math.pi * i / sides), hd * math.sin(2 * math.pi * i / sides), -hh)
+              for i in range(sides)]
+    hi = [(x * sx + dx, y * sz + dz, hh) for x, y, _ in lo]
     me = bpy.data.meshes.new("frustum")
     bm = bmesh.new()
     vs = [bm.verts.new(v) for v in lo + hi]
-    bm.faces.new(vs[3::-1])                 # bottom
-    bm.faces.new(vs[4:8])                   # top
-    for i in range(4):
-        j = (i + 1) % 4
-        bm.faces.new((vs[i], vs[j], vs[4 + j], vs[4 + i]))
+    n = len(lo)
+    bm.faces.new(vs[n - 1::-1])             # bottom
+    bm.faces.new(vs[n:2 * n])               # top
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((vs[i], vs[j], vs[n + j], vs[n + i]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(me)
     bm.free()
@@ -435,6 +481,135 @@ def fit_length(kind, dims, a, b, margin=1.08):
     return dims
 
 
+def extrude(poly, lo, hi, axis):
+    """The outline `poly` of (a, b) points as a prism from `lo` to `hi` along the third spec axis;
+    axis "z": (x, y) points, the prism runs along z; "x": (z, y) points, along x; "y": (x, z) points, along y."""
+    place = {"z": lambda a, b, d: (a, b, d), "x": lambda a, b, d: (d, b, a), "y": lambda a, b, d: (a, d, b)}[axis]
+    me = bpy.data.meshes.new("cut")
+    bm = bmesh.new()
+    rings = [[bm.verts.new(bp(place(a, b, d))) for a, b in poly] for d in (lo, hi)]
+    for ring_ in rings:
+        bm.faces.new(ring_)
+    n = len(poly)
+    for i in range(n):
+        bm.faces.new((rings[0][i], rings[0][(i + 1) % n], rings[1][(i + 1) % n], rings[1][i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new("cut", me)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def apply_modifier(obj, mod):
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+def cut_part(bone, mat_name, idx, base=None):
+    """A part cut by the sheet's silhouette (opts "cut"): the front outline extruded along z
+    intersected with the left outline extruded along x and the top outline along y (cut_hull.py made
+    the outlines, fitted to the part's box). Sano 2026, visual hull. `base` is a part already built
+    (a lathe): the prisms trim it; without one the front prism is the part. The result is decimated
+    (QEM) to the part's triangle budget."""
+    cut = CUTS[str(idx)]
+    lo, hi = cut["box"]
+    m = [0.1 * (hi[a] - lo[a]) + 0.01 for a in range(3)]
+    prisms = [("left", "x", lo[0] - m[0], hi[0] + m[0]), ("top", "y", lo[1] - m[1], hi[1] + m[1])]
+    obj = base or extrude(cut["front"], lo[2] - m[2], hi[2] + m[2], "z")
+    if base:
+        prisms.insert(0, ("front", "z", lo[2] - m[2], hi[2] + m[2]))
+    for key, axis, d0, d1 in prisms:
+        if key not in cut:
+            continue
+        other = extrude(cut[key], d0, d1, axis)
+        mod = obj.modifiers.new("Hull", "BOOLEAN")
+        mod.operation, mod.solver, mod.object = "INTERSECT", "EXACT", other
+        apply_modifier(obj, mod)
+        bpy.data.objects.remove(other, do_unlink=True)
+    if cut.get("dissolve"):             # a building's base volume: merge the coplanar triangles
+        dis = obj.modifiers.new("Dissolve", "DECIMATE")
+        dis.decimate_type, dis.angle_limit = "DISSOLVE", D(1.0)
+        apply_modifier(obj, dis)
+    else:
+        decimate_to(obj, sibling("preflight").CUT_TRIS)
+    obj.name = f"{bone}_{idx}"
+    obj.data.materials.clear()          # the boolean leaves an empty slot behind
+    obj.data.materials.append(material(mat_name))
+    return obj
+
+
+def decimate_to(obj, budget):
+    """QEM collapse of `obj` to at most `budget` triangles (nothing when it is under)."""
+    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+    if tris <= budget:
+        return
+    mod = obj.modifiers.new("Budget", "DECIMATE")
+    mod.decimate_type, mod.ratio = "COLLAPSE", budget / tris
+    mod.use_collapse_triangulate = True
+    apply_modifier(obj, mod)
+
+
+def swept_part(kind, dims, at, opts, name, idx, bone=None):
+    """A lathe, limb, chain or plate (lathe_limb.py makes the rings): quads between consecutive rings,
+    n-gon ends. A limb keeps its vertex order (from ring, knee ring, to ring) and a chain its (ring per
+    joint) for the skin weights. A plate is built around its own origin at `at` and turned by opts rot
+    like a box."""
+    LL = sibling("lathe_limb")
+    sheet = (CUTS.get(str(idx)) or {}).get("profile")
+    rings = {"lathe": lambda: LL.lathe_rings(dims, at, opts, sheet),
+             "chain": lambda: LL.chain_rings(bone, dims, opts, (CUTS.get(str(idx)) or {}).get("radii")),
+             "plate": lambda: LL.plate_rings(dims, (0, 0, 0), opts, sheet)
+             }.get(kind, lambda: LL.limb_rings(dims, opts))()
+    me = bpy.data.meshes.new(kind)
+    bm = bmesh.new()
+    grid = [[bm.verts.new(bp(p)) for p in ring_] for ring_ in rings]
+    n = len(grid[0])
+    for lo, hi in zip(grid, grid[1:]):
+        for i in range(n):
+            bm.faces.new((lo[i], lo[(i + 1) % n], hi[(i + 1) % n], hi[i]))
+    for cap in (grid[0], grid[-1]):
+        bm.faces.new(cap)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    if kind == "limb":
+        obj["limb_sides"] = n
+    if kind == "chain":
+        obj["chain_bones"] = LL.chain_bones(bone, opts["bones"])
+        obj["chain_sides"] = n
+    if kind == "plate":
+        rots = opts.get("rot", 0.0)
+        rx, ry, rz = (D(v) for v in ((0.0, 0.0, rots) if isinstance(rots, (int, float)) else rots))
+        obj.location, obj.rotation_euler = bp(at), (rx, -rz, ry)
+    return obj
+
+
+def skin_part(obj, bone):
+    """Rigid skin: weight 1 on the part's bone. A limb whose rig has an upper/lower pair
+    (leg1.upper/.lower, thigh/shin, arm/forearm) weights its upper tube on the upper bone, its lower
+    tube on the lower bone and the knee ring half and half, so the knee bends. A chain weights
+    ring i (n vertices) on bone i, the last ring on the last bone."""
+    if obj.get("chain_bones"):
+        n, names = obj["chain_sides"], list(obj["chain_bones"])
+        for i, b in enumerate(names):
+            end = len(obj.data.vertices) if i == len(names) - 1 else (i + 1) * n
+            obj.vertex_groups.new(name=b).add(range(i * n, end), 1.0, "REPLACE")
+        return
+    n = obj.get("limb_sides")
+    pair = sibling("lathe_limb").limb_bones(bone, {b[0] for b in BONES}) if n else None
+    if not pair:
+        obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+        return
+    up, low = (obj.vertex_groups.new(name=b) for b in pair)
+    up.add(range(0, 2 * n), 1.0, "REPLACE")
+    up.add(range(n, 2 * n), 0.5, "REPLACE")
+    low.add(range(n, 3 * n), 1.0, "REPLACE")
+    low.add(range(n, 2 * n), 0.5, "REPLACE")
+
+
 def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     rots = opts.get("rot", 0.0)
     if isinstance(rots, (int, float)):
@@ -473,7 +648,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         return obj
     if kind == "frustum":
         obj = frustum(dims, at, top=opts.get("top", (1.0, 1.0)),
-                      shift=opts.get("shift", (0.0, 0.0)), rot=(rx, ry, rz))
+                      shift=opts.get("shift", (0.0, 0.0)), rot=rots, sides=int(opts.get("sides", 4)))
         if opts.get("spin"):
             obj.rotation_euler.z += D(float(opts["spin"]))
         if opts.get("scale"):
@@ -486,7 +661,7 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
     if kind == "box":
         size = bd(dims)
         if chamfer and not has_span:
-            obj = chamfer_cube(size, at, (rx, ry, rz), 0.02)
+            obj = chamfer_cube(size, at, rots, 0.02)
             obj.name = f"{bone}_{idx}"
             obj.data.materials.append(material(mat_name))
             return obj
@@ -502,11 +677,12 @@ def build_part(bone, kind, dims, at, mat_name, opts, idx, chamfer=False):
         obj.rotation_mode = "QUATERNION"
         obj.rotation_quaternion = base @ mathutils.Quaternion((1, 0, 0), D(opts.get("tilt", 0.0)))
     else:
+        sides = int(opts.get("sides", 8))
         if axis == "up":
             # axis along the spec's up: cylinder default axis is +Z, already up
-            bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=dims[0], depth=dims[1], location=loc)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=sides, radius=dims[0], depth=dims[1], location=loc)
         else:
-            bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=dims[0], depth=dims[1],
+            bpy.ops.mesh.primitive_cylinder_add(vertices=sides, radius=dims[0], depth=dims[1],
                                                 location=loc, rotation=(D(90), 0, 0))
     obj = bpy.context.active_object
     obj.name = f"{bone}_{idx}"
@@ -758,27 +934,181 @@ CHAIN_OF = {"pelvis": "torso", "spine": "torso", "head": "torso",
             "thigh.R": "legR", "shin.R": "legR", "foot.R": "legR"}
 
 
-def union_parts(parts, meta, per_chain=False):
-    """Boolean-union the plates into one connected shell so the junctions stop showing
-    as steps and teeth, then bevel the new intersection edges. Keeps the hard-surface
-    read (unlike a remesh) and keeps per-part materials through the material indices."""
-    groups = {}
-    for obj, bone in parts:
-        key = CHAIN_OF.get(bone, bone) if per_chain else "all"
-        groups.setdefault(key, []).append(obj)
-    merged = []
-    for key, objs in groups.items():
-        base = objs[0]
-        bpy.context.view_layer.objects.active = base
-        for obj in objs[1:]:
-            mod = base.modifiers.new("Bool", "BOOLEAN")
-            mod.operation = "UNION"
-            mod.solver = "EXACT"
-            mod.object = obj
+NOUNION = False
+BODY = "sdf"         # how the body (parts that are not props) becomes ONE shell: "union" boolean (24.L6-4), "sdf" distance field (28.L10-7), "join" none
+UNION_BODY = True    # BODY != "join" (main() derives it and NOUNION from BODY; spec_pipeline reads this line by regex)
+UNION_FLOOR = 0.9    # the tolerance decimate keeps at least this share of the tri budget (Chen 2023: d bounds the loss)
+TIE_EPS = 1e-4       # two source parts closer than this to a vertex both own it: their weights blend (m)
+
+
+def union_decimate(body_u, faces_budget, floor=0):
+    """Decimate the unioned shell as far as it stays within height/32 of its own surface
+    (PIPELINE 20.M12) but not under `floor` faces; the budget wins over the tolerance."""
+    print("union decimate:", sibling("cull").decimate_union(body_u, faces_budget, blind=False, floor=floor))
+
+
+def world_hull(mesh, matrix):
+    """(bbox lo, bbox hi, signed volume) of `mesh` under `matrix`."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.transform(matrix)
+    pts = [v.co.copy() for v in bm.verts]
+    vol = bm.calc_volume(signed=True) if pts else 0.0
+    bm.free()
+    return (Vector(min(p[i] for p in pts) for i in range(3)), Vector(max(p[i] for p in pts) for i in range(3)), vol) \
+        if pts else (Vector(), Vector(), 0.0)
+
+
+def union_holds(a, b, got, tol=0.001):
+    """The boolean of hulls a, b (each (lo, hi, volume)) gave `got`: inside both boxes together, no
+    smaller than the bigger part, no bigger than the two parts side by side. The EXACT solver
+    sometimes returns a shell with a hole through it or stray far vertices from a plate it dislikes."""
+    inside = all(got[0][i] >= min(a[0][i], b[0][i]) - tol and got[1][i] <= max(a[1][i], b[1][i]) + tol
+                 and got[0][i] <= min(a[0][i], b[0][i]) + tol and got[1][i] >= max(a[1][i], b[1][i]) - tol
+                 for i in range(3))
+    return inside and max(a[2], b[2]) * 0.98 <= got[2] <= (a[2] + b[2]) * 1.02
+
+
+def boolean_union(base, obj, self_hit):
+    """base = base UNION obj (EXACT, then MANIFOLD if EXACT's shell does not hold). False, base untouched,
+    when neither did: the plate is joined as its own shell instead."""
+    backup = base.data.copy()
+    a, b = world_hull(base.data, base.matrix_basis), world_hull(obj.data, obj.matrix_basis)
+    bpy.context.view_layer.objects.active = base
+    for solver in ("EXACT", "MANIFOLD"):
+        mod = base.modifiers.new("Bool", "BOOLEAN")
+        mod.operation, mod.solver, mod.object = "UNION", solver, obj
+        if solver == "EXACT":
+            mod.use_self = self_hit
+        try:
             bpy.ops.object.modifier_apply(modifier=mod.name)
-            bpy.data.objects.remove(obj, do_unlink=True)
-        merged.append(base)
-    return merged
+            ok = union_holds(a, b, world_hull(base.data, base.matrix_basis))
+        except RuntimeError:
+            ok = False
+            base.modifiers.remove(mod)
+        if ok:
+            bpy.data.meshes.remove(backup)
+            return True
+        base.data = backup.copy()
+    bpy.data.meshes.remove(backup)
+    return False
+
+
+def union_parts(parts):
+    """Boolean-union the plates into one shell so the junctions stop being steps and teeth. A plate
+    the solver cannot take is joined as its own shell instead. Returns (shell, names of those plates)."""
+    base, failed = parts[0][0], []
+    for obj, _ in parts[1:]:
+        if not boolean_union(base, obj, bool(failed)):
+            failed.append(obj.name)
+            bpy.ops.object.select_all(action="DESELECT")
+            obj.select_set(True)
+            base.select_set(True)
+            bpy.context.view_layer.objects.active = base
+            bpy.ops.object.join()
+            continue
+        bpy.data.objects.remove(obj, do_unlink=True)
+    return base, failed
+
+
+def snapshot_parts(parts):
+    """Per part, in world space: BVH tree, polygons, per-vertex bone weights, material name. What the
+    union hands back to the shell: it is read BEFORE the boolean eats the plates."""
+    snap = []
+    for obj, _ in parts:
+        co = [obj.matrix_basis @ v.co for v in obj.data.vertices]
+        polys = [tuple(p.vertices) for p in obj.data.polygons]
+        names = {g.index: g.name for g in obj.vertex_groups}
+        weights = [{names[g.group]: g.weight for g in v.groups} for v in obj.data.vertices]
+        snap.append((BVHTree.FromPolygons(co, polys), co, polys, weights, obj.data.materials[0].name.split(".")[0]))
+    return snap
+
+
+def source_of(snap, point):
+    """The source parts that own `point` (those whose surface is the closest, ties within TIE_EPS):
+    [(snap row, vertex of its face nearest the point)]."""
+    hits = []
+    for row in snap:
+        loc, _n, face, dist = row[0].find_nearest(point)
+        if loc is not None:
+            hits.append((dist, row, min(row[2][face], key=lambda i: (row[1][i] - loc).length_squared)))
+    best = min(h[0] for h in hits)
+    return [(row, vi) for d, row, vi in hits if d <= best + TIE_EPS]
+
+
+def transfer_from_parts(body, snap):
+    """The shell's bone weights and face materials come from the plate each point came from (a
+    joint vertex blends both), so the rig and the colour blocking survive the union. World space."""
+    mesh = body.data
+    world = mathutils.Matrix.Identity(4)     # the shell's transform is applied: local is world
+    mats = list(dict.fromkeys(row[4] for row in snap))
+    mesh.materials.clear()
+    for name in mats:
+        mesh.materials.append(material(name))
+    for poly in mesh.polygons:
+        poly.material_index = mats.index(source_of(snap, world @ poly.center)[0][0][4])
+    body.vertex_groups.clear()
+    groups = {}
+    for v in mesh.vertices:
+        owners = source_of(snap, world @ v.co)
+        blend = {}
+        for row, vi in owners:
+            for bone, w in row[3][vi].items():
+                blend[bone] = blend.get(bone, 0.0) + w / len(owners)
+        for bone, w in blend.items():
+            groups.setdefault(bone, body.vertex_groups.new(name=bone)).add([v.index], w, "REPLACE")
+
+
+def components(mesh):
+    """Connected components of the mesh (vertices joined by edges)."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    seen, count = set(), 0
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        count += 1
+        todo = [v]
+        seen.add(v.index)
+        while todo:
+            for e in todo.pop().link_edges:
+                for o in e.verts:
+                    if o.index not in seen:
+                        seen.add(o.index)
+                        todo.append(o)
+    bm.free()
+    return count
+
+
+def triangulate(body):
+    """Triangles only, cut by the beauty rule (fat triangles over slivers)."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method="BEAUTY", ngon_method="BEAUTY")
+    bm.to_mesh(body.data)
+    bm.free()
+
+
+def union_body(parts, budget, rest_tris):
+    """Chen 2023 on the body: boolean union -> weld + planar dissolve -> triangulate -> decimate to
+    height/32 (never under UNION_FLOOR of the budget, never over it) -> one skinned, material-labelled
+    shell. `rest_tris` are the props' and the flame's, which share the budget. Returns (shell, report)."""
+    snap = snapshot_parts(parts)
+    shell, failed = union_parts(parts)
+    bpy.ops.object.select_all(action="DESELECT")
+    shell.select_set(True)
+    bpy.context.view_layer.objects.active = shell
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    transfer_from_parts(shell, snap)
+    clean_mesh(shell)
+    triangulate(shell)
+    union_decimate(shell, budget - rest_tris, int(UNION_FLOOR * budget) - rest_tris)
+    report = {"plates": len(parts), "joined_instead": failed, "tris": len(shell.data.polygons),
+              "components": components(shell.data)}
+    print(f"union: {len(parts)} plates -> {report['components']} shell(s), {report['tris']} tris, "
+          f"{len(failed)} joined instead")
+    return shell, report
+
 
 # ---------------------------------------------------------------- painted atlas
 def painted_image(name, rgb, size=64):
@@ -808,19 +1138,23 @@ def painted_image(name, rgb, size=64):
     return img
 
 
-DECALS = []      # (centre, half, kind, colour) of parts whose front face carries a decal
+INSCRIBE = None  # (arg inscribe=<npz>) inscribe.build_args's visual hull: sdf_dense intersects the body's field with it (PIPELINE 31.L13-5)
+CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut", {"profile"} of a lathe (cut_hull.py)
+FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
+DECALS = []      # (centre, half, kind, colour, side, owner) of parts whose front face (side 1; a back prop: -1) carries a decal;
+#                  owner = the part's meta entry for a prop crop (only that part's faces wear it), else None
 
 
-def decal_uv(centre_w, normal_w, co):
+def decal_uv(centre_w, normal_w, co, near=None):
     """(cell, u, v) when this face (world centre and normal) is the front of a decal
     part, else None. The front is projected over the part's box, so the decal lands
-    where it was placed."""
-    if normal_w.y > -0.5:                          # front faces look down -Y in Blender
-        return None
-    for i, (centre, half, _, _) in enumerate(DECALS):
+    where it was placed. `near` = the meta entry nearest the face: a prop crop is worn by its own part only."""
+    for i, (centre, half, _, _, side, owner) in enumerate(DECALS):
+        if normal_w.y * side > -0.5 or (owner is not None and owner != near):   # front faces look down -Y in Blender
+            continue
         if all(abs(centre_w[a] - centre[a]) <= half[a] * 1.02 + 1e-4 for a in range(3)):
-            return (8 + i, (co.x - centre.x + half.x) / max(2 * half.x, 1e-6),
-                    (co.z - centre.z + half.z) / max(2 * half.z, 1e-6))
+            u = (co.x - centre.x + half.x) / max(2 * half.x, 1e-6)
+            return 8 + i, (u if side > 0 else 1.0 - u), (co.z - centre.z + half.z) / max(2 * half.z, 1e-6)
     return None
 
 
@@ -840,9 +1174,29 @@ def nearest_part(meta, co):
     return best
 
 
+def relative_height(meta, co):
+    """0 (bottom) .. 1 (top) of `co` inside the vertical extent of the part nearest to it."""
+    _, _, centre, half = nearest_part(meta, co)
+    return min(1.0, max(0.0, 0.5 + 0.5 * (co[2] - centre[2]) / max(half[2], 1e-6)))
+
+
+def face_span(mesh, poly, axis):
+    """(u, v) per loop of `poly`, its corners normalised over the face's own box in the
+    plane of its dominant axis, so a cel face spans its whole cell and the cell's border
+    (the ink line) lands on the face's edges."""
+    pts = []
+    for li in poly.loop_indices:
+        co = mesh.vertices[mesh.loops[li].vertex_index].co
+        pts.append((co.x, co.y) if axis == 2 else ((co.y, co.z) if axis == 0 else (co.x, co.z)))
+    lo = [min(q[i] for q in pts) for i in (0, 1)]
+    span = [max(max(q[i] for q in pts) - lo[i], 1e-6) for i in (0, 1)]
+    return [((q[0] - lo[0]) / span[0], (q[1] - lo[1]) / span[1]) for q in pts]
+
+
 def atlas_uvs(body, meta, block, cols, rows):
     """World-planar UVs per face, into the body-slot cell of its material's block.
     Bipeds use TEX_SLOTS; other rig families spread their bones over the same 8 cells."""
+    SF = sibling("surfaces")
     mesh = body.data
     if not mesh.uv_layers:
         mesh.uv_layers.new(name="UVMap")
@@ -854,19 +1208,30 @@ def atlas_uvs(body, meta, block, cols, rows):
     world, turn = body.matrix_world, body.matrix_world.to_3x3()   # meta is in world space
     for poly in mesh.polygons:
         centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
-        bone = nearest_part(meta, centre_w)[0]
+        near = nearest_part(meta, centre_w)
+        bone = near[0]
         cell = TEX_SLOTS.get(bone, order.get(bone, 1))
         bx, by = block[slot_base[poly.material_index]]
         tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
         axis = max(range(3), key=lambda i: abs(poly.normal[i]))
-        for li in poly.loop_indices:
+        if STYLE == "cel":                      # the face's tone cell and ramp slot, flat per face
+            cell = SF.tone_index(normal_w.z)
+            tile_x, tile_y = bx * 4 + cell % 4, by * 4 + cell // 4
+            slot = SF.ramp_slot(normal_w.z, relative_height(meta, centre_w),
+                                all(abs(c) > 0.3 for c in normal_w))
+        span = face_span(mesh, poly, axis) if STYLE == "cel" else None
+        for k, li in enumerate(poly.loop_indices):
             co = mesh.vertices[mesh.loops[li].vertex_index].co
             lu, lv = (co.x * 0.6, co.y * 0.6) if axis == 2 else ((co.x + co.y) * 0.6, co.z * 0.6)
-            dec = decal_uv(centre_w, normal_w, world @ co)
+            dec = decal_uv(centre_w, normal_w, world @ co, near)
             if dec:
                 cell, du, dv = dec
                 tx, ty = bx * 4 + cell % 4, by * 4 + cell // 4
                 uvs[li].uv = ((tx + 0.04 + 0.92 * du) / (4.0 * cols), (ty + 0.04 + 0.92 * dv) / (4.0 * rows))
+                continue
+            if span:                           # cel: the whole ramp slot, ink border included
+                uvs[li].uv = ((tile_x + 0.01 + 0.98 * span[k][0]) / (4.0 * cols),
+                              (tile_y + SF.slot_v(slot, span[k][1])) / (4.0 * rows))
                 continue
             uvs[li].uv = ((tile_x + 0.04 + 0.92 * (lu % 1.0)) / (4.0 * cols),
                           (tile_y + 0.04 + 0.92 * (lv % 1.0)) / (4.0 * rows))
@@ -888,21 +1253,264 @@ def bind_atlas(body, img):
         # palette colour is applied twice and the model goes black.
         bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
         slot.material.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        if STYLE == "cel":
+            tex_node.interpolation = "Closest"   # point filter: flat slots, exported as a NEAREST sampler
         seen[base] = slot.material
+
+
+def slot_key(mat):
+    """(image, emission colour or None, alpha) of a material bound to the atlas."""
+    nodes = mat.node_tree.nodes
+    bsdf = nodes["Principled BSDF"]
+    image = next((n.image.name for n in nodes if n.type == "TEX_IMAGE" and n.image), None)
+    glow = tuple(bsdf.inputs["Emission Color"].default_value) if bsdf.inputs["Emission Strength"].default_value > 0 else None
+    return image, glow, bsdf.inputs["Alpha"].default_value
+
+
+def merge_materials(body):
+    """One material per (image, emission, opacity): faces move to the group's first slot and the
+    emptied slots go. Shape and UVs are untouched. Returns the material count."""
+    slots = body.material_slots
+    names = [s.material.name for s in slots]
+    groups = sibling("surfaces").merge_groups([(n, *slot_key(s.material)) for n, s in zip(names, slots)])
+    index = {n: i for i, n in reversed(list(enumerate(names)))}
+    remap = [index[groups[n]] for n in names]
+    for poly in body.data.polygons:
+        poly.material_index = remap[poly.material_index]
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.material_slot_remove_unused()
+    return len(body.material_slots)
+
+
+def sheet_face(cell):
+    """(rgb, alpha) of the sheet's head sampled to a cell x cell decal (nearest); FACE is
+    already bottom-up, as Blender hands pixels over and the atlas stores them."""
+    import numpy as np
+    idx = ((np.arange(cell) + 0.5) * FACE.shape[0] / cell).astype(int)
+    face = FACE[idx][:, idx]
+    return face[..., :3], face[..., 3]
+
+
+def crop_face(path, cell, upright):
+    """(rgb, alpha) of a props-sheet crop sampled to a cell x cell decal (nearest), bottom-up like the atlas;
+    the background is the colour of the crop's border: transparent where a pixel is close to it. The sheet
+    draws a club or a spear lying down: on an `upright` part a wider-than-tall crop is turned a quarter, head up."""
+    import numpy as np
+    img = bpy.data.images.load(path, check_existing=True)
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(img.size[1], img.size[0], 4)[..., :3]
+    if upright and px.shape[1] > 1.2 * px.shape[0]:
+        px = np.rot90(px, -1)           # rows run bottom-up: -1 sends the right edge to the top
+    border = np.median(np.concatenate([px[0], px[-1], px[:, 0], px[:, -1]]), axis=0)
+    alpha = (np.abs(px - border).max(axis=-1) > 0.12).astype(np.float32)
+    idx_y = ((np.arange(cell) + 0.5) * px.shape[0] / cell).astype(int)
+    idx_x = ((np.arange(cell) + 0.5) * px.shape[1] / cell).astype(int)
+    return px[idx_y][:, idx_x], alpha[idx_y][:, idx_x]
 
 
 def paint_decals(pixels, SF, x0, y0, size):
     """Paint each decal into its spare cell (8 + i) of one material block."""
     cell = size // 4
-    for i, (_, _, kind, colour) in enumerate(DECALS):
+    for i, (_, half, kind, colour, _, _) in enumerate(DECALS):
         rgb = None
-        if colour:
+        if colour and kind != "propcrop":
             hexv = colour.lstrip("#")
             rgb = tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
-        paint, alpha = SF.decal(kind, rgb, cell)
+        if kind == "propcrop":
+            paint, alpha = crop_face(colour, cell, half.z > 1.3 * half.x)
+        else:
+            paint, alpha = sheet_face(cell) if kind == "sheet" else SF.decal(kind, rgb, cell)
         cx, cy = x0 + ((8 + i) % 4) * cell, y0 + ((8 + i) // 4) * cell
         region = pixels[cy:cy + cell, cx:cx + cell, :3]
         region[:] = region * (1 - alpha[..., None]) + paint * alpha[..., None]
+
+
+def slot_paint(base):
+    """(surface, rgb, cel kwargs) of a material slot: the ramp comes from the command line (ramp=), else from the
+    slot's measured palette ramp, else it is flat (slope left at its default)."""
+    kw = {"tones": TONES.get(base)}
+    if RAMP is not None:
+        kw["slope"] = RAMP
+    elif base in RAMPS:
+        kw["slope"] = ramp_of(base)
+    return SURFACE.get(base, "metal"), MATERIALS[base][:3], kw
+
+
+def ramp_of(base):
+    return sibling("surfaces").ramp_slope(RAMPS[base], MATERIALS[base][:3])
+
+
+def paint_slot(SF, base, size):
+    """The size x size image of one material slot in the current style."""
+    surface, rgb, kw = slot_paint(base)
+    return SF.paint(surface, rgb, size) if STYLE != "cel" else SF.paint_cel(surface, rgb, size, **kw)
+
+
+def arg_value(rest, name):
+    """The text after `name` of the first command-line argument that starts with it, else None."""
+    return next((a[len(name):] for a in rest if a.startswith(name)), None)
+
+
+def decal_hash(i, column, size):
+    """Short hash of decal i on the slot `column` (shared_atlas key): what two units of a race must have in common to share its cell.
+    A picture decal adds its source (the sheet's head pixels, the prop crop and its aspect)."""
+    import hashlib
+    _, half, kind, colour, _, _ = DECALS[i]
+    source = FACE.tobytes() if kind == "sheet" and FACE is not None else repr((colour, half.z > 1.3 * half.x)) if kind == "propcrop" else colour
+    return hashlib.sha1(repr((kind, source, size, column)).encode()).hexdigest()[:10]
+
+
+def texturize_shared(body, meta):
+    """The race-wide 128 x 128 atlas (shared_atlas.py, PIPELINE 27.T3) instead of a per-unit one: a column per slot (snapped to the
+    race palette, 27.T7), tone and decal cells from the same faces and UV code as the compact atlas, the decal cells at the places the
+    table at SHARED holds (appended when new). Returns the slot count, 0 when the table is full (the unit then gets its own atlas)."""
+    import collections
+    import numpy as np
+    SA = sibling("shared_atlas")
+    faces = compact_faces(body, meta)
+    palette = SA.palette_hint(pathlib.Path(SHARED).stem) if PALETTE_SNAP else []
+    bases = list(dict.fromkeys(f[1] for f in faces))
+    have = SA.load(SHARED)["columns"]
+    keys = {b: SA.snap_new(have, SA.key(MATERIALS[b][:3], SURFACE.get(b, "metal")), palette) for b in bases}
+    try:
+        table = SA.extend(SHARED, keys.values())
+        col = {b: SA.find(table["columns"], k) for b, k in keys.items()}
+        used = collections.Counter((f[1], f[4]) for f in faces if f[4] is not None)
+        size = {k: decal_px(k[1]) if n >= SHARED_PICTURE_FACES or k[0].startswith("prop_") else sibling("surfaces").DECAL_PX
+                for k, n in used.items()}    # a stray cell of 1-2 faces (not a prop's own crop) gets the 16 px cell: the 128 px band holds 12 of 32
+        hashes = {k: decal_hash(k[1], table["columns"][col[k[0]]], size[k]) for k in used}
+        table = SA.extend(SHARED, keys.values(), [(h, size[k]) for k, h in hashes.items()])
+    except ValueError as err:
+        print(f"{err}: own atlas instead")
+        return 0
+    cells = {(b, t): SA.tone_cell_xywh(col[b], t) for b in bases for t in range(3)}
+    cells.update({(b, "d", i): tuple(table["decals"][h]) for (b, i), h in hashes.items()})
+    compact_uvs(body, faces, cells, (SA.SIZE, SA.SIZE))
+    pixels = np.ones((SA.SIZE, SA.SIZE, 4))
+    pixels[..., :3] = SA.image(table)
+    drawn = paint_compact(sibling("surfaces"), {k: c for k, c in cells.items() if len(k) == 3}, (SA.SIZE, SA.SIZE))
+    for x, y, w, h in (c for k, c in cells.items() if len(k) == 3):
+        pixels[y:y + h, x:x + w] = np.round(drawn[y:y + h, x:x + w] * POSTERIZE) / POSTERIZE    # the blend with the tone is posterized too: it halves the PNG (6.8 -> 4.3 KB, Human)
+    img = bpy.data.images.new("tex_atlas", width=SA.SIZE, height=SA.SIZE, alpha=False)
+    img.pixels.foreach_set(pixels.astype(np.float32).ravel())
+    bind_atlas(body, img)
+    print(f"shared atlas: {len(table['columns'])} columns used of {SA.COLUMNS}, {len(hashes)} decal cells, {len(table['decals'])} in the table")
+    return len(bases)
+
+
+def compact_faces(body, meta):
+    """One record per polygon for the compact cel atlas: (poly, base, tone, slot, decal index or None,
+    world centre, world normal, nearest part). Same tone / slot / decal tests as atlas_uvs. """
+    SF = sibling("surfaces")
+    world, turn = body.matrix_world, body.matrix_world.to_3x3()
+    slot_base = [ms.material.name.split(".")[0] for ms in body.material_slots]
+    out = []
+    for poly in body.data.polygons:
+        centre_w, normal_w = world @ poly.center, (turn @ poly.normal).normalized()
+        near = nearest_part(meta, centre_w)
+        dec = decal_uv(centre_w, normal_w, centre_w, near)
+        slot = SF.ramp_slot(normal_w.z, relative_height(meta, centre_w), all(abs(c) > 0.3 for c in normal_w))
+        out.append((poly, slot_base[poly.material_index], SF.tone_index(normal_w.z), slot,
+                    dec[0] - 8 if dec else None, centre_w, normal_w, near))
+    return out
+
+
+def tone_rows(base):
+    """Texel rows of the tone cells of material `base`."""
+    surface, _, kw = slot_paint(base)
+    return sibling("surfaces").cell_rows(surface, kw.get("slope", sibling("surfaces").RAMP_SLOPE))
+
+
+def decal_px(i):
+    """Texels a side of decal i's cell: 16 for the procedural dots, 32 for a picture (the sheet's head, a prop crop)."""
+    SF = sibling("surfaces")
+    return SF.DECAL_PX_PICTURE if DECALS[i][2] in ("sheet", "propcrop") else SF.DECAL_PX
+
+
+def compact_layout(faces):
+    """({cell key: (x, y, w, h)}, (W, H)): one tone cell per (material, tone) used and one decal cell per
+    (material, decal) used, shelf-packed. Keys: (base, tone) or (base, "d", decal index)."""
+    SF = sibling("surfaces")
+    keys = list(dict.fromkeys((f[1], "d", f[4]) if f[4] is not None else (f[1], f[2]) for f in faces))
+    sizes = [(decal_px(k[2]),) * 2 if len(k) == 3 else (SF.TONE_W, tone_rows(k[0])) for k in keys]
+    width, height, pos = SF.pack_cells(sizes)
+    return {k: (x, y, *size) for k, (x, y), size in zip(keys, pos, sizes)}, (width, height)
+
+
+def compact_uvs(body, faces, cells, wh):
+    """UVs into the compact atlas, vertices untouched: a decal face into its decal cell, any other face
+    across its tone cell's width and inside its ramp slot's sampled row."""
+    SF = sibling("surfaces")
+    mesh, world = body.data, body.matrix_world
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    if mesh.uv_layers.active is None:
+        mesh.uv_layers.active = mesh.uv_layers[0]
+    uvs = mesh.uv_layers.active.data
+    for poly, base, tone, slot, dec_i, centre_w, normal_w, near in faces:
+        if dec_i is not None:
+            x, y, w, h = cells[(base, "d", dec_i)]
+        else:
+            x, y, w, h = cells[(base, tone)]
+            span = face_span(mesh, poly, max(range(3), key=lambda i: abs(poly.normal[i])))
+        for k, li in enumerate(poly.loop_indices):
+            if dec_i is not None:
+                _, du, dv = decal_uv(centre_w, normal_w, world @ mesh.vertices[mesh.loops[li].vertex_index].co, near)
+                du, dv = min(max(du, 0.0), 1.0), min(max(dv, 0.0), 1.0)    # a face wider than the decal's box stays in its cell
+                fu, row = 0.04 + 0.92 * du, (0.04 + 0.92 * dv) * h
+            else:
+                fu, row = (SF.INK_EDGE_PX + (w - 2 * SF.INK_EDGE_PX) * span[k][0]) / w, SF.face_row(h, slot, span[k][1])
+            uvs[li].uv = ((x + fu * w) / wh[0], (y + row) / wh[1])
+
+
+def paint_compact(SF, cells, wh):
+    """(H, W, 4) pixels of the compact atlas: each tone cell painted by tone_cell, each decal cell the mid
+    tone cell of its material, repeated down the cell, with the decal over it. The rest is white."""
+    import numpy as np
+    pixels = np.ones((wh[1], wh[0], 4))
+    for key, (x, y, w, h) in cells.items():
+        surface, rgb, kw = slot_paint(key[0])
+        if len(key) == 2:
+            pixels[y:y + h, x:x + w, :3] = SF.tone_cell(surface, rgb, key[1], width=w, **kw)
+            continue
+        base = np.tile(SF.tone_cell(surface, rgb, 1, width=w, **kw), (h // tone_rows(key[0]), 1, 1))   # the mid tone cell repeated: ink every 4th row, as the 256 px decal cell
+        paint, alpha = paint_decal(SF, key[2], h)
+        paint = np.round(paint * POSTERIZE) / POSTERIZE
+        pixels[y:y + h, x:x + w, :3] = base * (1 - alpha[..., None]) + paint * alpha[..., None]
+    return pixels
+
+
+def decal_colour(colour, kind):
+    """The (r, g, b) 0..1 of a decal's hex colour, None for no colour or a prop crop."""
+    if not colour or kind == "propcrop":
+        return None
+    hexv = colour.lstrip("#")
+    return tuple(int(hexv[k:k + 2], 16) / 255.0 for k in (0, 2, 4))
+
+
+def paint_decal(SF, i, cell):
+    """(rgb, alpha) of decal i at cell x cell texels."""
+    _, half, kind, colour, _, _ = DECALS[i]
+    if kind == "propcrop":
+        return crop_face(colour, cell, half.z > 1.3 * half.x)
+    return sheet_face(cell) if kind == "sheet" else SF.decal(kind, decal_colour(colour, kind), cell)
+
+
+def texturize_compact(body, meta):
+    """The cel atlas at its smallest: see compact_faces / compact_layout / compact_uvs / paint_compact.
+    Prints the mip report (mesh_lint.mip_bleed) and writes the cell layout beside the GLB."""
+    SF = sibling("surfaces")
+    faces = compact_faces(body, meta)
+    cells, wh = compact_layout(faces)
+    compact_uvs(body, faces, cells, wh)
+    pixels = paint_compact(SF, cells, wh)
+    img = bpy.data.images.new("tex_atlas", width=wh[0], height=wh[1], alpha=False)
+    img.pixels.foreach_set(pixels.astype("float32").ravel())
+    bind_atlas(body, img)
+    bpy.context.scene.render.image_settings.compression = 100   # the glTF exporter encodes the PNG with the scene's setting (default 15)
+    bleed = sibling("mesh_lint").mip_bleed(wh, list(cells.values()))
+    print(f"compact atlas: {wh[0]}x{wh[1]}, {len(cells)} cells, mixed texels at 1/2 1/4 1/8: {bleed}, "
+          f"cells {[(k, c[2:]) for k, c in cells.items()]}")
+    return len(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
 
 
 def texturize(body, meta, size=256):
@@ -914,14 +1522,19 @@ def texturize(body, meta, size=256):
     sample the same image, so the GLB carries one texture."""
     import numpy as np
     SF = sibling("surfaces")
+    if SHARED and STYLE == "cel":
+        done = texturize_shared(body, meta)
+        if done:
+            return done
+    if COMPACT_ATLAS and STYLE == "cel":
+        return texturize_compact(body, meta)
     bases = list(dict.fromkeys(ms.material.name.split(".")[0] for ms in body.material_slots))
     cols, rows = SF.atlas_layout(len(bases))
     block = {b: (i % cols, i // cols) for i, b in enumerate(bases)}
     atlas_uvs(body, meta, block, cols, rows)
     pixels = np.ones((rows * size, cols * size, 4))
     for base, (bx, by) in block.items():
-        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = SF.paint(
-            SURFACE.get(base, "metal"), MATERIALS[base][:3], size)
+        pixels[by * size:(by + 1) * size, bx * size:(bx + 1) * size, :3] = paint_slot(SF, base, size)
         paint_decals(pixels, SF, bx * size, by * size, size)
     img = bpy.data.images.new("tex_atlas", width=cols * size, height=rows * size, alpha=False)
     img.pixels.foreach_set(pixels.astype(np.float32).ravel())
@@ -1103,7 +1716,7 @@ def load_spec(target):
         pose = doc.get("rest_pose")
         ANIM = doc.get("anim") or registry_picks(doc, p)
         if doc.get("rig") or doc.get("bones"):
-            print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones")))
+            print("rig family:", load_family(doc.get("rig", "biped"), doc.get("bones"), doc.get("rig_measure")))
         register_palette(doc.get("palette"))
         if "segments" in doc:          # skeleton-first spec: placement comes from the rig
             return p.stem, doc, pose
@@ -1113,16 +1726,73 @@ def load_spec(target):
     return target, SPECS[target], None
 
 
+def load_cuts(argv):
+    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py); propcrops=<json>; inscribe=<npz>."""
+    global INSCRIBE
+    for arg in argv:
+        if arg.startswith("inscribe="):
+            INSCRIBE = arg[len("inscribe="):]
+        if arg.startswith("cuts="):
+            CUTS.update(json.loads(pathlib.Path(arg[len("cuts="):]).read_text()))
+        if arg.startswith("propcrops="):
+            PROPCROPS.update(json.loads(pathlib.Path(arg[len("propcrops="):]).read_text()))
+
+
+PROPCROPS = {}   # (arg propcrops=<json>) {part index: png of the props sheet's drawing}: a prop part's front face wears it
+PROPID = False   # (arg propid) each prop in a flat colour of its own (preflight.PROP_IDS): the ID render's prop_reads reads them
+
+
+def prop_rows(spec):
+    """The spec rows with each prop (opts "prop" + "anchor", PIPELINE 23.L5-3) on its anchor's bone, so its
+    skin is 100 % there, and on a material of its own: when the body shares the prop's material the prop
+    gets a copy, prop_<name>, in the palette's colour and surface (while the rig has material slots to spare)."""
+    PF = sibling("preflight")
+    bones = {b[0] for b in BONES}
+    body = {row[4] for row in spec if not PF.is_prop(row)}
+    rows = []
+    for row in spec:
+        if PF.is_prop(row):
+            bone, mat = PF.anchor_bone(row, bones), row[4]
+            if mat in body and len(body | {r[4] for r in rows}) < PF.MATERIAL_SLOTS[1]:
+                new = "prop_" + "".join(c if c.isalnum() else "_" for c in str(row[5]["prop"]).lower())
+                for table in (MATERIALS, SURFACE, ALPHA, RAMPS, TONES):
+                    if mat in table:
+                        table[new] = table[mat]
+                mat = new
+            row = (bone, row[1], row[2], row[3], mat, row[5])
+        rows.append(row)
+    return rows
+
+
 def build_spec_parts(spec, chamfers):
     """(object, bone) per spec row; a row with opts "decal" marks its object so
     texturize paints that decal on the part's front face."""
     parts = []
+    spec = prop_rows(spec)
+    PF = sibling("preflight")
+    names = PF.prop_names(spec)
     for idx, (bone, kind, dims, at, mat_name, opts) in enumerate(spec):
-        obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
-                         idx in chamfers)
-        if (opts or {}).get("decal"):
-            obj["decal"] = opts["decal"]
+        if PROPID and (opts or {}).get("prop") and not CLAY:
+            mat_name = f"propid{names.index(str(opts['prop']))}"
+            MATERIALS[mat_name], SURFACE[mat_name] = (*PF.PROP_IDS[int(mat_name[6:]) % len(PF.PROP_IDS)], 1.0), "metal"
+        cut = (opts or {}).get("cut") == "sheet" and "front" in CUTS.get(str(idx), {})
+        if cut and kind != "lathe":
+            obj = cut_part(bone, mat_name, idx)
+        elif kind in ("lathe", "limb", "chain", "plate"):
+            obj = swept_part(kind, tuple(dims), tuple(at), opts or {}, f"{bone}_{idx}", idx, bone)
+            obj.data.materials.append(material(mat_name))
+            obj = cut_part(bone, mat_name, idx, obj) if cut else obj
+        else:
+            obj = build_part(bone, kind, tuple(dims), tuple(at), mat_name, opts or {}, idx,
+                             idx in chamfers)
+        if (opts or {}).get("prop"):
+            obj["prop"] = str(opts["prop"])
+        if (opts or {}).get("decal") and not CLAY:
+            obj["decal"] = "face" if opts["decal"] == "sheet" and FACE is None else opts["decal"]
             obj["decal_color"] = opts.get("decal_color", "")
+        elif str(idx) in PROPCROPS and not CLAY:      # the prop wears its drawing on the front face (a decal of its own)
+            obj["decal"], obj["decal_color"] = "propcrop", PROPCROPS[str(idx)]
+            obj["decal_side"] = "back" if opts.get("anchor") == "back" else "front"      # a tank shows its back to the camera
         parts.append((obj, bone))
     return parts
 
@@ -1139,25 +1809,275 @@ def parts_meta(parts):
         hi = Vector((max(c[i] for c in corners) for i in range(3)))
         meta.append((bone, mat_name, (lo + hi) / 2, (hi - lo) / 2))
         if obj.get("decal") and len(DECALS) < 8:
-            DECALS.append(((lo + hi) / 2, (hi - lo) / 2, obj["decal"], obj["decal_color"]))
+            crop = obj["decal"] == "propcrop"
+            DECALS.append(((lo + hi) / 2, (hi - lo) / 2, obj["decal"], obj["decal_color"],
+                           -1 if obj.get("decal_side") == "back" else 1, meta[-1] if crop else None))
     return meta
 
 
+PROP_GAP = 0.1      # attach: a prop's mesh may stand this far (spec metres) off its anchor's before it is loose (0.03 until 24.L6-3: the clearance gap, 0.02 H, is the contact now)
+
+
+def mesh_gap(obj, near, trees):
+    """Distance from a prop's mesh to the closest of the `near` parts (0 when they cross)."""
+    if any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
+        return 0.0
+    return min((trees[id(o)].find_nearest(obj.matrix_world @ v.co)[3] for o in near for v in obj.data.vertices),
+               default=0.0)
+
+
+def prop_gaps(parts, parent, trees):
+    """{part name: gap} of every prop part to the body on its anchor bone (or its parent); a part of a
+    prop that stands off the body but touches a held part of the same prop (a valve on a tank) takes
+    the gap to that part instead."""
+    props = [(o, b) for o, b in parts if o.get("prop")]
+    gaps = {o.name: mesh_gap(o, [q for q, qb in parts if not q.get("prop") and qb in (b, parent.get(b))], trees)
+            for o, b in props}
+    for _ in props:
+        for o, _b in props:
+            held = [q for q, _qb in props if q is not o and q["prop"] == o["prop"] and gaps[q.name] <= PROP_GAP]
+            if gaps[o.name] > PROP_GAP and held:
+                gaps[o.name] = min(gaps[o.name], mesh_gap(o, held, trees))
+    return gaps
+
+
+def attach_report(parts):
+    """Parts whose mesh crosses no other part on their bone or on the parent bone: the same
+    rule as preflight.overlap, measured on the real meshes instead of the boxes (PIPELINE
+    20.N12). A prop (own component, PIPELINE 23.L5-3) only has to stand within PROP_GAP of the body
+    on its anchor bone and is listed under "props" with its gap. Never raises: the build goes on and
+    the report carries the error."""
+    from mathutils.bvhtree import BVHTree
+    try:
+        bpy.context.view_layer.update()
+        parent = {bone: up for bone, up, *_ in BONES if up and up != "root"}
+        trees = {id(o): BVHTree.FromPolygons([o.matrix_world @ v.co for v in o.data.vertices],
+                                             [tuple(f.vertices) for f in o.data.polygons])
+                 for o, _ in parts}               # FromObject would stay in each part's local space
+        gaps = prop_gaps(parts, parent, trees)
+        loose, props = [], []
+        for obj, bone in parts:
+            near = [o for o, b in parts if o is not obj and not o.get("prop") and b in (bone, parent.get(bone))]
+            if obj.get("prop"):
+                props.append({"part": obj.name, "prop": obj["prop"], "bone": bone, "gap": round(gaps[obj.name], 4)})
+                if gaps[obj.name] > PROP_GAP:
+                    loose.append({"part": obj.name, "bone": bone, "parent": parent.get(bone)})
+            elif bone in parent and near and not any(trees[id(obj)].overlap(trees[id(o)]) for o in near):
+                loose.append({"part": obj.name, "bone": bone, "parent": parent[bone]})
+        return {"parts": len(parts), "loose": loose, "props": props}
+    except Exception as err:  # noqa: BLE001 - a report must not stop a build
+        return {"parts": len(parts), "loose": [], "error": repr(err)}
+
+
+def sdf_mesh(field, adaptivity=0.0, name="sdf"):
+    """The zero set of an sdf_body.Field as a Blender object (PIPELINE 28.L10-2): openvdb level set from `field.grid`
+    -> convertToPolygons(isovalue 0, adaptivity) -> world points (origin + idx * voxel), quads cut to triangles,
+    welded, normals recalculated outward. Not skinned or materialled; the union_body path is untouched (L10-7)."""
+    import numpy as np
+    import openvdb as vdb
+    SB = sibling("sdf_body")
+    grid = vdb.FloatGrid(float(field.margin))
+    grid.copyFromArray(np.ascontiguousarray(field.grid, np.float32))
+    grid.gridClass = vdb.GridClass.LEVEL_SET
+    pts, tris, quads = grid.convertToPolygons(isovalue=0.0, adaptivity=float(adaptivity))
+    world = SB.index_to_world(pts, field.origin, field.voxel)
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(world.tolist(), [], SB.quads_to_tris(world, tris, quads).tolist())
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
+
+SDF_WELD = 0.03       # sdf_body_object welds vertices closer than this many voxels
+SDF_SPECK = 2.0       # sdf_dense drops the pieces (never the biggest) whose bounding box diagonal is under this many voxels (28.L10-8)
+
+
+def drop_specks(bm, size):
+    """Delete the connected pieces of `bm` (never the one with most vertices) whose bounding box diagonal is under `size`:
+    the speck a fitted-away part leaves in the field (n00U part 33: 12 triangles in 0.3 voxel). Returns the triangles removed."""
+    seen, pieces = set(), []
+    bm.verts.index_update()
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        seen.add(v.index)
+        todo, piece = [v], []
+        while todo:
+            piece.append(todo.pop())
+            for e in piece[-1].link_edges:
+                o = e.other_vert(piece[-1])
+                if o.index not in seen:
+                    seen.add(o.index)
+                    todo.append(o)
+        pieces.append(piece)
+    pieces.sort(key=len)
+    gone = []
+    for piece in pieces[:-1]:
+        lo, hi = [min(v.co[a] for v in piece) for a in range(3)], [max(v.co[a] for v in piece) for a in range(3)]
+        if sum((h - l) ** 2 for l, h in zip(lo, hi)) ** 0.5 < size:
+            gone += piece
+    faces = {f for v in gone for f in v.link_faces}
+    bmesh.ops.delete(bm, geom=gone, context="VERTS")
+    return len(faces)
+
+
+def skin_sdf(obj, field, spec, rig, **bands):
+    """Bone weights (sdf_body.weights: nearest part, mixed with the near ones inside a junction's band, limb ramp, chain segment; `bands` = band_scale / free_scale) as
+    vertex groups, and one material slot per body material, each face on the material of the part nearest its centre
+    (PIPELINE 28.L10-5). Same conventions as transfer_from_parts: a group per bone, weights normalized."""
+    import numpy as np
+    SB = sibling("sdf_body")
+    mesh = obj.data
+    pos = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", pos)
+    names, W = SB.weights(pos.reshape(-1, 3), field, spec, rig, **bands)
+    W[W < 0.01] = 0.0
+    W /= W.sum(1, keepdims=True)
+    groups = {b: obj.vertex_groups.new(name=b) for b in (names[c] for c in np.nonzero(W.any(0))[0])}
+    for v, col in zip(*np.nonzero(W)):
+        groups[names[col]].add([int(v)], float(W[v, col]), "REPLACE")
+    made = {spec[part["i"]][4]: material(spec[part["i"]][4]) for part in field.parts}       # clay: every name is one material
+    slots = list(dict.fromkeys(made.values()))
+    for mat in slots:
+        mesh.materials.append(mat)
+    centres = np.array([tuple(p.center) for p in mesh.polygons]).reshape(-1, 3)
+    for poly, name in zip(mesh.polygons, SB.materials(centres, field, spec)):
+        poly.material_index = slots.index(made[name])
+
+
+def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", k_mode="base"):
+    """(object, field): the unskinned, welded openvdb mesh of the body of `spec` (rows [bone, kind, dims, at, material, opts];
+    props and the flame slit stay out) from sdf_body.field. `thin`: the policy of sdf_body.field for the parts under 2 voxels; `k_mode`: its K_MODES."""
+    field = sibling("sdf_body").field([tuple(r) for r in spec], CUTS if cuts is None else cuts, sibling("lathe_limb").RIG,
+                                      k, grid, False, thin=thin, k_mode=k_mode)
+    if INSCRIBE:
+        pathlib.Path(INSCRIBE).with_suffix(".carve.json").write_text(json.dumps(sibling("inscribe").carve(field, INSCRIBE)))
+    obj = sdf_mesh(field, adaptivity, name)
+    bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=SDF_WELD * field.voxel)
+    obj["specks"] = drop_specks(bm, SDF_SPECK * field.voxel)
+    bm.to_mesh(obj.data)
+    bm.free()
+    return obj, field
+
+
+def sdf_body_object(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin="off", k_mode="base", **bands):
+    """The skinned, material-labelled body of `spec`, dense: sdf_dense -> skin_sdf (props and the flame slit are separate
+    components skinned on their anchor, as in a union build). Returns (object, field). Needs load_spec to have set the rig.
+    main() uses sdf_union, which retopologizes between the two."""
+    obj, field = sdf_dense(spec, cuts, grid, adaptivity, k, name, thin, k_mode)
+    skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG, **bands)
+    return obj, field
+
+
+RETOPO_DEV = 0.02     # sdf_retopo: a collapse may not leave a triangle farther than this share of the height from the zero set (28.L10-3)
+
+
+def sdf_retopo(obj, field, target, lowest=0, method="qem"):
+    """Replace the mesh of `obj` by retopo.reduce of it: at most `target` triangles, at least `lowest` unless the guard stops it,
+    the collapses projected onto the zero set of `field` (the grid for the loop, Field.d for the final polish). `method`: RT.retopo's ("qem" = RT.reduce;
+    "cvt", PIPELINE 29.L11-6). Returns the report."""
+    import numpy as np
+    RT = sibling("retopo")
+    mesh = obj.data
+    pos = np.empty(len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", pos)
+    tri = np.array([p.vertices[:] for p in mesh.polygons], int).reshape(-1, 3)
+    height = max(p["hi"][2] for p in field.parts) - min(p["lo"][2] for p in field.parts)
+    verts, tris, report = RT.retopo(pos.reshape(-1, 3), tri, target, sdf=RT.grid_sdf(field.grid, field.origin, field.voxel), method=method,
+                                    polish=field.d, grad_h=0.5 * field.voxel, max_dev=RETOPO_DEV * height,
+                                    floor=min(1.0, lowest / target) if target > 0 else 0.0)
+    mesh.clear_geometry()
+    mesh.from_pydata(verts.tolist(), [], tris.tolist())
+    mesh.update()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    return report
+
+
+SDF_GRID, SDF_ADAPT, SDF_K, SDF_THIN = 96, 0.0, 1.0, "inflate"     # body=sdf defaults (grid=, adapt=, k=, thin= on the command line)
+
+
+def sdf_union(spec, parts, budget, keep, grid=None, adaptivity=None, k=None, thin=None, k_mode="base", retopo="qem"):
+    """body=sdf (PIPELINE 28.L10-7): the SDF body of `spec` retopologized to `budget` minus the triangles of `keep` (props, the
+    flame slit) and of the thin parts the "keep" policy leaves out, then skinned and materialled on the final positions
+    (sdf_dense -> sdf_retopo -> skin_sdf). `parts` = (object, bone) per spec row. Returns (shell, kept thin parts, report, field)."""
+    grid, adaptivity, k, thin = grid or SDF_GRID, SDF_ADAPT if adaptivity is None else adaptivity, SDF_K if k is None else k, thin or SDF_THIN
+    t0 = time.perf_counter()
+    obj, field = sdf_dense(spec, None, grid, adaptivity, k, "sdf", thin, k_mode)
+    kept = [parts[i] for i in field.kept]
+    spare = sum(len(q.vertices) - 2 for o, _ in keep + kept for q in o.data.polygons)
+    dense = len(obj.data.polygons)
+    rep = sdf_retopo(obj, field, budget - spare, int(UNION_FLOOR * budget) - spare, retopo)
+    skin_sdf(obj, field, [tuple(r) for r in spec], sibling("lathe_limb").RIG)
+    report = {"method": "sdf", "grid": grid, "k": k, "k_mode": k_mode, "adaptivity": adaptivity, "thin": thin, "kept": field.kept,
+              "inflated": [p["i"] for p in field.parts if p.get("inflate")], "voxel": round(field.voxel, 5), "dense_tris": dense,
+              "tris": len(obj.data.polygons), "components": components(obj.data), "specks": obj.get("specks", 0), "retopo": rep,
+              "seconds": round(time.perf_counter() - t0, 3)}
+    print(f"sdf body: {dense} -> {report['tris']} tris, {report['components']} shell(s), {len(kept)} thin part(s) kept, "
+          f"{report['seconds']} s")
+    return obj, kept, report, field
+
+
+def sdf_args(rest):
+    """sdf_union's keywords from the command line: sdf_grid= sdf_adapt= sdf_k= sdf_thin=off|inflate|keep sdf_k_mode=base|class|hard|ext sdf_retopo=qem|cvt (absent: the SDF_* defaults)."""
+    return {key: conv(v) for key, flag, conv in (("grid", "sdf_grid=", int), ("adaptivity", "sdf_adapt=", float), ("k", "sdf_k=", float),
+                                                 ("thin", "sdf_thin=", str), ("k_mode", "sdf_k_mode=", str), ("retopo", "sdf_retopo=", str)) if (v := arg_value(rest, flag))}
+
+
+def body_flags(body, nounion):
+    """(BODY, UNION_BODY, NOUNION) of the command line: `body=` union | sdf | join over the module default; the old word
+    `nounion` is body=join."""
+    body = "join" if nounion else (body or BODY)
+    if body not in ("union", "sdf", "join"):
+        raise ValueError(f"body={body}: union, sdf or join")
+    return body, body != "join", body == "join"
+
+
 def main():
-    target, out = sys.argv[sys.argv.index("--") + 1:][:2]
+    target, out =sys.argv[sys.argv.index("--") + 1:][:2]
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS, PALETTE_SNAP
+    CLAY = "clay" in rest
+    global PROPID, NOUNION, BODY, UNION_BODY
+    PROPID = "propid" in rest
+    BODY, UNION_BODY, NOUNION = body_flags(arg_value(rest, "body="), "nounion" in rest)     # nounion: the join build, for before/after
     for arg in rest:
-        if arg.startswith("atlas="):
+        if arg.startswith("style="):  # style=cel|painted
+            STYLE = arg[len("style="):]
+        if arg.startswith("ramp="):   # ramp=0.5: cel cells become vertical ramps
+            RAMP = float(arg[len("ramp="):])
+        if arg.startswith("face=") and not CLAY:   # face=<rgba png>: the "sheet" decal's image
+            import numpy as np
+            img = bpy.data.images.load(arg[len("face="):])
+            FACE = np.array(img.pixels[:]).reshape(img.size[1], img.size[0], 4)
+        if arg.startswith("atlas=") and not CLAY:
             atlas_path = arg[len("atlas="):]
         if arg.startswith("pal="):  # pal=8A8F94,C9A46A,FFE600 overrides the palette
             for name, hexv in zip(("iron", "brass", "flame"), arg[4:].split(",")):
                 MATERIALS[name] = tuple(int(hexv[i:i + 2], 16) / 255.0 for i in (0, 2, 4)) + (1.0,)
+    COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
+    MERGE_MATERIALS = (arg_value(rest, "materials=") or ("merge" if MERGE_MATERIALS else "split")) == "merge"
+    PALETTE_SNAP = "palette_snap" in rest
+    SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
+    load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours
     unit, spec, rest_pose = load_spec(target)
     if isinstance(spec, dict) and spec.get("rig"):
-        print("rig family:", load_family(spec["rig"]))
+        print("rig family:", load_family(spec["rig"], None, spec.get("rig_measure")))
     if isinstance(spec, dict) and spec.get("mode") == "boxmod":
         import boxmod as BM
         body = BM.build(spec)
@@ -1221,10 +2141,10 @@ def main():
     wipe()
     arm = build_armature(rest_pose)
 
-    # chamfer is opt-in: measured on n01X it inflated the plates and read worse than
-    # the crisp blockout, because the WC3 roundness comes from painted shading, not
-    # from geometry at this budget. Pass a triple budget as the third argument to enable.
-    chamfers = plan_chamfers(spec, int(cli[0])) if cli else set()
+    # chamfer is on by default (PIPELINE 23.L5-5): the spare triangles under the budget (first
+    # argument, default 700) bevel the biggest boxes; no box left over, nothing changes.
+    # a union build skips them: the tolerance decimate would collapse the bevels again
+    chamfers = {} if UNION_BODY and not NOUNION else plan_chamfers(spec, int(cli[0]) if cli and cli[0].isdigit() else 700)
 
     parts = build_spec_parts(spec, chamfers)
 
@@ -1232,54 +2152,40 @@ def main():
     # engine draws a single mesh with three material slots
     bpy.ops.object.select_all(action="DESELECT")
     for obj, bone in parts:
-        obj.vertex_groups.new(name=bone).add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+        skin_part(obj, bone)
     meta = parts_meta(parts)
-    if "union" in cli:
+    report = attach_report(parts)
+    stem = pathlib.Path(out).stem       # the run's clay.glb / model.glb: attach.json; a trial: <name>-attach.json
+    name = "attach.json" if stem in ("clay", "model") else f"{stem}-attach.json"
+    (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
+    print(f"attach: {len(report['loose'])} loose of {report['parts']} parts")
+    unioned = False
+    if UNION_BODY and not NOUNION:
         # the flame slit is a lit decal, not a plate: keep it out of the union or the
         # boolean absorbs its faces into the iron material and the accent disappears
-        keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"]
-        union_targets = [p for p in parts if p not in keep]
-        merged = union_parts(union_targets, meta, per_chain=True)
-        for obj, _ in keep:
-            merged.append(obj)
-        if len(merged) > 1:
-            bpy.ops.object.select_all(action="DESELECT")
-            for o in merged:
-                o.select_set(True)
-            bpy.context.view_layer.objects.active = merged[0]
-            bpy.ops.object.join()
-        body_u = merged[0]
-        parts = [(body_u, parts[0][1])]
-        body_u.vertex_groups.clear()
-        for bone, *_ in meta:
-            if bone not in body_u.vertex_groups:
-                body_u.vertex_groups.new(name=bone)
-        for v in body_u.data.vertices:
-            best, bd = meta[0], 1e9
-            for m in meta:
-                d = sum((v.co[i] - m[2][i]) ** 2 for i in range(3))
-                if d < bd:
-                    best, bd = m, d
-            body_u.vertex_groups[best[0]].add([v.index], 1.0, "REPLACE")
-        if "nobev" not in cli:
-            bev = body_u.modifiers.new("Junction", "BEVEL")
-            bev.width = 0.006
-            bev.segments = 1
-            bev.limit_method = "ANGLE"
-            bev.angle_limit = math.radians(35)
-            bpy.ops.object.modifier_apply(modifier=bev.name)
-        plan = body_u.modifiers.new("Planar", "DECIMATE")
-        plan.decimate_type = "DISSOLVE"
-        plan.angle_limit = math.radians(6)
-        bpy.ops.object.modifier_apply(modifier=plan.name)
-        faces = len(body_u.data.polygons)
-        budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
-        if faces > budget // 2:
-            dec = body_u.modifiers.new("Dec", "DECIMATE")
-            dec.decimate_type = "COLLAPSE"
-            dec.ratio = max(0.02, (budget // 2) / float(faces))
-            bpy.ops.object.modifier_apply(modifier=dec.name)
-        print(f"union: {len(body_u.data.polygons)} faces after boolean + bevel + decimate")
+        keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"
+                or p[0].get("prop")]       # a prop stays its own component too (skinned on its anchor)
+        body_parts = [p for p in parts if p not in keep]
+        if len(body_parts) > 1:
+            budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
+            spare = sum(len(q.vertices) - 2 for o, _ in keep for q in o.data.polygons)
+            if BODY == "sdf":
+                shell, kept, info, field = sdf_union(spec, parts, budget, keep, **sdf_args(rest))
+                for part in body_parts:
+                    if part not in kept:
+                        bpy.data.objects.remove(part[0], do_unlink=True)
+                keep += kept
+                sdf_name = "clay.sdf.json" if stem in ("clay", "model") else f"{stem}.sdf.json"
+                (pathlib.Path(out).parent / sdf_name).write_text(json.dumps(field.to_json()))
+            else:
+                if stem in ("clay", "model"):
+                    (pathlib.Path(out).parent / "clay.sdf.json").unlink(missing_ok=True)      # not the field of an older sdf build
+                shell, info = union_body(body_parts, budget, spare)
+            parts = [(shell, body_parts[0][1])] + keep
+            info.update(components_body=info.pop("components"), props=len(keep))
+            report["union"] = info
+            (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
+            unioned = True
     for obj, _ in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0][0]
@@ -1287,6 +2193,12 @@ def main():
     body = bpy.context.view_layer.objects.active
     body.name = body.data.name = unit
 
+    if "clean" in rest:
+        before = len(body.data.polygons)
+        clean_mesh(body)
+        print(f"clean: {before} -> {len(body.data.polygons)} faces")
+    if "cull" in rest or "cull=remove" in rest:
+        sibling("cull").cull(body, out, remove="cull=remove" in rest)
     if len(cli) > 1 and cli[1] == "morph":
         faces = morph(body, target=int(cli[2]) if len(cli) > 2 else 650)
         print(f"morph: {faces} faces after subdiv + decimate")
@@ -1295,12 +2207,14 @@ def main():
     elif len(cli) > 3 and cli[3] == "tex":
         n = texturize(body, meta)
         print(f"texture: {n} painted tiles + world-space UVs")
+        if MERGE_MATERIALS and STYLE == "cel":
+            print("materials merged:", n, "->", merge_materials(body))
     if len(cli) > 1 and cli[1] == "fuse":
         faces = fuse(body, meta, target=int(cli[2]) if len(cli) > 2 else 650,
                      voxel=float(cli[4]) if len(cli) > 4 else 0.025)
         print(f"fused: {faces} faces after remesh + decimate")
     else:
-        soften(body)
+        soften(body, 35.0 if unioned else 48.0)
     print("shading:", shading_report(body))
 
     body.parent = arm

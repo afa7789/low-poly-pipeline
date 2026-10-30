@@ -1,0 +1,4 @@
+applied  {"part": "forearm.R#2", "action": "move", "axis": "z", "value": 0.2, "why": "Move the club  ok
+applied  {"part": "forearm.R#3", "action": "move", "axis": "z", "value": 0.2, "why": "Move the club  ok
+applied  {"part": "forearm.L#0", "action": "radius", "value": 1.3, "why": "The fists are too small;  ok (+twin)
+applied  {"part": "pelvis#2", "action": "scale", "axis": "z", "value": 0.85, "why": "The square bel  ok
