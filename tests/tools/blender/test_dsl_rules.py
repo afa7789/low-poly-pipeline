@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "tools/blender"))
 import dsl_rules as D  # noqa: E402
 import numpy as np  # noqa: E402
 import preflight as PF  # noqa: E402
+import rig_families as RF  # noqa: E402
 
 DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
 REFS = ROOT / "artifacts/model-sheets/refs"
@@ -146,6 +147,14 @@ def real(unit):
 
 class RealSpecs(unittest.TestCase):
     """The roadmap's acceptance: the v13 specs of n005 (hood) and n00U (spider tibia) are rejected, and the repair passes them."""
+
+    def setUp(self):
+        self.families = dict(RF.FAMILIES)    # preflight.load scales the rig of n00U: the other suites (rig_poses) want the fixed tables
+
+    def tearDown(self):
+        RF.FAMILIES.clear()
+        RF.FAMILIES.update(self.families)
+        RF._drop_caches()
 
     def check(self, unit, rule):
         parts, doc, sheet = real(unit)
