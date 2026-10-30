@@ -132,6 +132,7 @@ NOT_A_VARIANT = {
     "shape_only": "stage selector: the shape variants are --shape-only, the c-* ones are not",
     "colour_on_fail": "stage 2 after a failing stage 1: only matters to a battery with a failing unit",
     "fit_luma": "colour wave: variant c-luma",
+    "polish": "needs the LLM agent (L13-1: measured in its own pilot, not in a deterministic matrix)",
 }
 
 

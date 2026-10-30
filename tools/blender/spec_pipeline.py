@@ -2221,6 +2221,9 @@ def build_parser():
                          "the verdict stays CHECK); off = the old rule, stage 2 only after a passing stage 1 (PIPELINE 30.L12-4)")
     ap.add_argument("--colour-pass", type=int, default=0,
                     help="stage 2 colour-pass tries when the zone gate fails (palette/decals only)")
+    ap.add_argument("--polish", choices=("on", "off"), default="off",
+                    help="after the clay is final and before stage 2, the model polishes it through the MCP server of polish.py "
+                         "(5 min, 12 ops, every op gated and reverted when a view gets worse; PIPELINE 31.L13-1); needs --model session:<claude>")
     ap.add_argument("--no-silhouette", action="store_true", help="skip the IoU gate")
     ap.add_argument("--no-rts", action="store_true",
                     help="do not draw the RTS concept view when the sheet has none")
@@ -2425,6 +2428,7 @@ def main():
     spec, shape = stage_one(args, brief, [sheet] + [p for _, p in refs] + shots, tmp, layout)
     spec, shape = run_loop(args, spec, shape, layout)
     save_guard(args)
+    run_polish(args, shape)
     colour = None
     if wants_colour(args, shape):
         t0 = time.monotonic()
@@ -2553,9 +2557,20 @@ def run_colour(spec, shape, args):
     work = args.out / "stage2"
     work.mkdir(parents=True, exist_ok=True)
     ok, report = stage.stage_colour(spec, shape["glb"], args, shape["tilts"], work)
+    if getattr(args, "polish", "off") == "on" and (args.out / "polish.json").exists():
+        import polish
+        polish.after_colour(args)          # the textured model.glb was rebuilt from the spec: it gets the clay's polish
     if (args.out / "model.glb").exists():      # whatever the colour gate said: the judge looks at the turntable (L12-4)
         turntable(args, args.out / "model.glb")
     return ok, report
+
+
+def run_polish(args, shape):
+    """--polish on: the polish stage on the final clay (L13-1); its report, or None (off, no clay, or a model that is not a Claude session)."""
+    if args.polish != "on" or shape["glb"] is None or not args.model.startswith(SESSION):
+        return None
+    import polish
+    return polish.run_in_pipeline(args)
 
 
 def wants_colour(args, shape):
