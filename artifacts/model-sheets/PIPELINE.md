@@ -5929,3 +5929,53 @@ O usuário olhou a v15 e disse "está muito ruim". A leva troca métrica de silh
   viu em v10 vs v15 não vem do corpo (specs, ajuste e textura mudaram juntos). `planarity` (k-means de normais, k = 12) quase não separa os dois: .00–.10.
 - **Aberto.** Orçamento 1000 só no sdf e só para unidades com patas/mãos finas (n02X) — sem critério de seleção medido; a decimação do union para no 90 % do orçamento;
   nenhum run deste item tem spill ≤ .03 (forma, não corpo).
+
+## 33. Leva 15 (2026-10-30): peças, não massa — gate por peça, peças rígidas fora do SDF, cor por peça, preflight do autor
+
+### 33.L15-4 Preflight vê o que o autor não vê: lado do prop, peça existe, pose do braço, incoerência por peça (2026-10-30)
+
+C5 + C6 do diagnóstico L14-3. Módulo novo `tools/blender/part_rules.py` (chamado de `dsl_rules.checks/repair`, logo de `preflight.py` e
+do `--dsl-repair`); só números de `refs/<id>/parts.json` (box2d, box3d, joints) e pixels do sheet aprovado; sem modelo.
+
+| regra | mede | reparo (sem LLM) |
+|---|---|---|
+| `prop_side` | prop fora do torso no painel left (sobreposição < 50 % da largura) cai do mesmo lado (frente/trás da direção do rosto: chin vs head_top) no spec e no sheet; ambíguo (< .06 da largura / < .05 H) não julga | z do prop vai para o offset do sheet em relação ao centro do torso (box2d x z_scale), em pé se a caixa é alta e estreita (clava) |
+| `part_exists` | peça com material de cor (palette) ≠ pele, caixa projetada (front/back, regressão box3d→box2d) com pixels dentro de ΔE 12 ≥ 1 % do painel ou ≥ 25 % da caixa; prop que o sheet nomeia nunca é rejeitada | `reject-part`: remove (nunca a única da osso); no `review.md` |
+| `arm_pose` | ângulo no plano frontal de arm/forearm (prisma/cyl/frustum com from/to) contra os joints xyz do sheet (shoulder→elbow→wrist), erro > 25° | gira o osso até o ângulo medido; o que pende dele acompanha (props deslizam, não giram) |
+| `incoherent_part` | zona de acento (saturada) em lados opostos do corpo em front e back; o painel com mais área ganha; `opts: {"prop": nome, "side": "front"\|"back"}` sobrescreve | grava `refs/<id>/sheet.json` `part_coherence` (`ignored_views()` para o gate do L15-1); só relatório |
+
+`prop_side` e `arm_pose` são FAIL duros no preflight (a medida vai ao autor). `part_exists` só relata (`EXIST_BLOCKING = False`): o teste de cor
+erra palpites de paleta (hfoo capacete de aço, n01X cabeça `z3` e punhos de latão, n005 punho: 3–6 peças de 15 em sheets que as têm).
+`part_exists` e `incoherent_part` não se aplicam ao quadrúpede (spec sem `rig` lê-se biped: `dsl_stage` passa `args.rig`).
+
+**Aceite (v15 `spec.json` das 6 unidades, specs de n02X e n005 pegos pelas regras; n00U só por `part_exists` relatório):**
+n02X FAIL `prop_side` (clava atrás), `arm_pose` (forearm.R −104° vs +170°, erro 86°), `part_exists` (placa do cinto, placa do peito,
+capacete, 2 manoplas) e `incoherent_part` (tanga: front +.15, back −.18); n005 FAIL `arm_pose` (27/25/29°); hfoo FAIL `prop_side`; n00U relata
+`leg3.lower`; n017 e n01X: n01X relata 6 peças, n017 nada (n/a). Reparo sem LLM faz as regras passarem (testes). Specs v15 de n02X/n005
+são pegos; n00U (patas de bloco no front, finas no top) não: a regra de forma por painel não foi feita (aberto).
+
+**Medida: bateria das 6, `--shape`/estágios completos, `--deterministic`, câmaras e ruído da v15, controle `--dsl-repair off` no mesmo código** (o
+controle v15 antigo difere até .05 de uma re-execução, por isso o controle é o `l15-ctl`; runs em `runs/draft/<id>/l15-{ctl,on,preflight}`).
+IoU por vista (controle → com a regra; `!` = cai > 2σ, piso .01):
+
+| unidade | repara | front | left | back | top | bottom | rts | prop_iou |
+|---|---|---|---|---|---|---|---|---|
+| n02X | `on` (prop_side + arm_pose) | .883→.899 | .868→.840 ! | .890→.902 | .786→.627 ! | .769→.571 ! | .773→.759 ! | left .026→.218, front .618→.472 |
+| n02X | `all` (+ reject-part) | .883→.873 ! | .868→.813 ! | .890→.873 ! | .786→.461 ! | .769→.431 ! | .773→.752 ! | left .026→.203 |
+| n005 | `on` (arm_pose) | .911→.895 ! | .942→.915 ! | .932→.904 ! | .807→.807 | .820→.844 + | .884→.844 ! | front .562→.388 |
+| hfoo | `on` (prop_side) | .831→.828 | .549→.281 ! | .826→.821 | .745→.384 ! | .781→.412 ! | .553→.502 ! | left .293→.470 |
+| n01X | `on` | idêntico (nenhuma regra dispara) | | | | | | |
+| n01X | `all` (reject-part ×3) | .832→.766 ! | .892 | .835→.771 ! | .913→.888 ! | .887→.842 ! | .860→.778 ! | front .717→.218 |
+| n00U, n017 | `all` | dentro de ±.03 (n017 sem regra aplicável) | | | | | | |
+
+Spill n02X top/bottom cai (.150→.073 / .102→.068 com `on`; .086 / .090 com `all`) mas é a massa que some: a IoU de top/bottom cai junto
+(as câmaras pinadas do n02X são do modelo, C4/L15-1). A clava vai para a frente (left prop_iou .03→.22, não ≥ .5: o disco/ponta ainda erra
+em profundidade e o top/bottom pinado discorda).
+
+**Aceite NÃO atendido; nenhum default muda:** `--dsl-repair on` continua só as pernas de aranha; `all` ganha prop_side, arm_pose e
+reject-part (opt-in). Motivos medidos: n02X `prop_iou left` .22 < .5; vistas coerentes caem > 2σ em n02X, n005, hfoo (hfoo left .55→.28 com o
+reparo do lado do pike) e n01X (`part_exists`); as regras acertam o diagnóstico, os reparos não são seguros. Aberto: o lado do prop do hfoo
+(o reparo piora o left) e o do n005 (joints do sheet com erro ~25° = ruído de leitura) pedem o laço com olho (L15-5) em vez de reparo numérico;
+`part_exists` por cor precisa de cor medida do sheet por zona (não a paleta do autor); incoerência por forma (patas do n00U front × top).
+Testes: `tests/tools/blender/test_part_rules.py` (fixtures por regra + specs v15 de n02X/n005).
+

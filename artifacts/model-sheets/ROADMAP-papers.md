@@ -698,3 +698,6 @@ unidades; L12-3 bateria v15). Fonte: Pokorný, WSCG 2026 (`docs/references.md`).
 
 
 **Estado L14-1 (2026-10-30): corpo `union` x `sdf`, 700 x 1000 tris medidos (24 runs, v15, 6 unidades); aceite NÃO atendido, nenhum default mudou.** Juiz forma a favor do union em 1/6 (sdf 4-0 em 4/6), 17/36 vistas do union caem > 2σ de IoU, slivers 11–18 % contra 0–7 %; planarity sobe 5/6 mas só .00–.10 (sem poder). 1000 no sdf: forma ≥ 3-1 em 1/6, tempo até +46 %. Ferramenta `body_compare.py`; imagens em `history/2026-10-30-l14-body/` (PIPELINE §32.L14-1).
+
+**Estado L15-4 (2026-10-30): preflight com `prop_side`, `part_exists`, `arm_pose`, `incoherent_part` (`part_rules.py`); regras acertam n02X (clava atrás, braço, 5 peças sem cor no sheet, tanga em lados opostos) e n005 (braços 25–29°); aceite NÃO atendido, nenhum default muda.** Reparo sem LLM faz as regras passarem (opt-in `--dsl-repair all`), mas contra o controle `--dsl-repair off` do mesmo código: n02X `prop_iou left` .03→.22 (não ≥ .5), vistas caem > 2σ em n02X (left/top/bottom/rts), n005 (4 de 6), hfoo (left .55→.28) e n01X (`part_exists`, FP de paleta). `part_exists` só relata. Ver PIPELINE §33.L15-4.
+
