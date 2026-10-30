@@ -4866,6 +4866,17 @@ das juntas é preciso comparar com o pipeline completo e N ≥ 3 repetições; n
   Runs: `runs/draft/<id>/l11-cvt-qem` e `l11-cvt` (+ `-invalid*`: runs que o SIGTERM do ambiente interrompeu, mantidos).
 
 
+## 30. Leva 12 (2026-10-29/30): consertar o que o peer review achou
+
+Fonte: `analysis/2026-10-29-peer-review-v14.md`; critério do usuário: vermelho (spill) <= .03 em cada uma das 6 vistas, verde (bare) pouco, "PASS != certo".
+Itens L12-1 a L12-9 em worktrees próprios, integrados em `feat/models-v2-hard`; L12-10a (matriz de ablação, outro worktree) e L12-10b (bateria v15, abaixo).
+**Defaults que mudaram:** câmera pinada no otimizador e no deform (L12-1), gate de spill .03 / bare .10 por vista sem média + `contact` no relatório (L12-2), stage 2 sempre e
+`FAIL(infra)` com exit 2 (L12-4), gate no corpo com prop em CHECK e colunas corpo/prop (L12-5), regras da DSL no preflight e reparo de `leg_joints` (L12-6),
+régua `z_err`/`relief_agreement` e métricas `look` sempre ligadas (L12-8, L12-9). **Opt-in com número:** `CF_SPILL_W=3` (spill −.00..−.06 por vista, bare +.03..+.10, IoU até −.10), `--author-guard revert` (L12-3; medido com autor novo em 30.L12-10b),
+`--incoherent-weight 0|1` (L12-5, peso 0 piora left/top do n017), `--dsl-repair all` (capuz/props: n005 front −.006..−.013), `--depth-source tri` (L12-8), `--look-snap/--look-creases/--look-ink` (L12-9, crease recall +.08 contra +.15),
+`--noise` (σ por vista, L12-7). **Resultado da bateria v15 (6 unidades, autor session:opus): PASS honesto 0/6, spill <= .03 em 0/36 vistas (2/36 com a guarda); o aceite do roadmap não foi atendido.**
+O limite é a forma (volume de prismas/SDF contra a silhueta desenhada), não o peso do custo; ver 30.L12-10b. L12-11 (polimento MCP) é a próxima leva.
+
 ### 30.L12-1 Câmara pinada: otimizador e deform medem com a câmara do gate (2026-10-29)
 
 - **Diagnóstico (6 unidades, v13-r1).** A lacuna `verts.after − gate` (.06–.09 em n005/n017/n02X top, .13 em n00U rts) tinha **duas** causas, não uma:
@@ -5366,3 +5377,115 @@ relief_agreement (precisão/recall, front / left / back) e caixas null
 - **Aberto.** (a) z de peça que o hull não separa do corpo (patas da aranha, lança, braço segurando o porrete): precisa de uma segmentação por cor/zona do topo ou do rts (a tinta e o `zone_labels` já existem) ou de um 4.º painel; (b) a calibração do Depth Anything com sinal e n maiores (as juntas do n00U/n017 vêm de poucos marcos: o VLM leu 6 de 16 e 8 de 15); (c) marcos de n017 e n00U: o sinal do z do sheet precisa de um decisor melhor que a linha do dedo do pé (`side_of`) para rig de quadrúpede/aranha; (d) `relief_agreement` com os degraus medidos em unidades de H por pixel em vez de salto fixo, e T-junções da tinta como ordem de oclusão (candidato 2 do peer review); (e) a validação do marco pelo topo é fraca para marcos dentro do corpo (qualquer ponto interno cai na figura): só pega marcos fora do hull.
 - **Testes.** `test_depth_rule.py` (18: z exato com tilt pinado e erro grande com tilt 0, top e bottom; `fit_top` acha o painel girado e o resíduo separa marco dentro e fora da figura; z_err de clay deslocado .1 H = .1, marco incoerente descartado e contado, reta sem clay = miss, sinal do z trocado, frente do rosto; `zbuffer`, degraus só no contorno da placa, `agreement` 1 com degrau e tinta juntos e 0 a 8 px; `tri_shifts`; `complete_box`; célula do `sdf_batch`), `test_segment_sheet.py` (+2: parte de um painel ganha z do hull ou diz por que fica null), `test_depth_map.py` (+2: reta dos marcos, r < .7 ou negativo não move), `test_flag_liveness.py` (+`depth_source`). Suite completa: 744 testes OK (11 skipped). Ruff com complexidade ≤ 10 limpo nos arquivos tocados.
 - **Arquivos.** `tools/blender/depth_rule.py` (novo), `segment_sheet.py` (`complete_boxes`, `--reply` com o recorte gravado, `--run`), `depth_map.py` (`landmark_calibration`, `MIN_R` .7), `fit_spec.py` (`--depth` passa a reta dos marcos), `spec_pipeline.py` (`depth_stage`, `--depth-source`, hook `depth_rule.apply` depois do `look.apply`, linha no `review.md`), `sdf_batch.py` (coluna `depth`), `refs/<id>/parts.json` (8 unidades; `*.pre-l12-8` = os antigos), testes. Runs: `runs/draft/<id>/l12-depth` (tri), `l12-depth-none` (n00U, n017: controle do HEAD), `l12-depth-none-oldparts` (n00U), `l12-depth-mirror` (n02X com z espelhado, front −.013), `l12-depth-v1` (n00U, mesma coisa antes de `depth-stage.json`) / `l12-depth-chain` (n017 com a `chain` mexida: sem efeito, o `at` é ignorado), `-invalid*` / `-partial` (baterias sobrepostas, descartadas).
+
+#**30.L12-10b Bateria v15 (autor LLM + tudo da Leva 12) pareada com v13, e a guarda sobre o spec novo (2026-10-30)
+
+- **Protocolo.** `spec_pipeline.py --model session:opus --kind mass --run v15-r1 --pair v13-r1` nas 6 unidades (2 a 2, `nice -n 10`, `SOFT_SIL_THREADS=4`; defaults atuais, sem `--tilts`). Controle de guarda
+  `v15-r1-guard`: o spec da v15 reconstruído sem LLM (`--spec`, `--no-repair --no-diagnose`) com `--author-guard revert --incoherent-weight 1.0 --noise runs/draft/noise-l12.json` e as câmeras da v15 pinadas
+  (hfoo sem pinar, ver abaixo). 0 `FAIL(infra)` (a regra do L12-4 não disparou); exit 1 em 6/6 (gate de forma), nenhum bug bloqueou, código intocado. v13-r1 foi remedido com os gates novos: IoU idêntico
+  ao original; `contact` recalculado (`sil-recheck`). Imagens e tabelas em `history/2026-10-30-v15/` (README com a tabela completa, `<id>-full.png`, `<id>-spill.png`).
+- **Resultado (spill/bare/IoU/contact por vista na README).** Média das 6 unidades (6 vistas): IoU .823 (v13) / .814 (v15) / .823 (guard); spill .118 / .117 / .104; bare .081 / .092 / .090.
+  Vistas com spill <= .03: 0 / 0 / 2 de 36. Vistas com bare <= .10: ver README. **PASS honesto 0/6 nas três versões.**
+- **Aceite do roadmap (L12-10): NÃO.** spill <= 3 % em >= 5 vistas/unidade em >= 4/6: 0/6. PASS honesto >= 3/6: 0/6. Número real: o spill por vista fica em .05–.30 (v15), 2–10 vezes o teto.
+- **Juiz pareado v15 x v13.** Forma: v13 4/6 (4-0 em n00U, hfoo, n017, n02X), v15 1/6 (n005 4-0), empate n01X. Sheet/artista/wc3: v13 8 de 18 eixos, v15 3, empate 7 (n01X artista/wc3 v15 4-0; n02X sheet v15 3-1). O stage 2 agora existe nas
+  duas versões (L12-4), então a comparação de look é de texturizado contra texturizado; ainda assim a v13 ganha em forma.
+- **z_err** (régua L12-8) <= .05 H em 2/6 (n005 .020, n01X .024; n00U .135, n017 .141): aceite de z não atendido, a régua só mede. **planarity** .010–.059 (sem look opt-in).
+- **Guarda (L12-3 "não medido com autor novo").** Ações: n005, n017, hfoo `reject-bare`; n00U `intact`; n02X, n01X `revert`. Média IoU +.009 sobre a v15 (igual à v13) e spill .117 -> .104; hfoo left .626 -> .729, n005 bottom +.026;
+  perde n005 rts (.884 -> .831, spill .067 -> .135) e n02X front −.014. Nenhuma unidade vira PASS (spill/bare ainda 3–10x o teto): a guarda protege contra o spec do autor, não cria forma.
+  **Bug de protocolo achado (não corrigido, fora do território):** pinar `--tilts` de um spec cujo painel top/bottom tem orientação oposta à do massing faz o massing/`reject-bare` medir o modelo girado
+  180º (hfoo top .177 / bottom .186, bare .82); o run foi guardado como `hfoo/v15-r1-guard-pintilt-invalid` e refeito sem `--tilts`. A guarda deveria pinar o tilt do massing para o massing.
+- **Onde está o vermelho (tabela da L12-5, v15).** corpo: n005 (ombros/braços no top), n00U (pernas largas, rts .247, left .180), n02X (placas do peito/cinto no top/bottom .20/.17), n01X (antebraço e pés); prop: hfoo (pique em left/top/bottom/rts,
+  mochila no left), n02X (clava atrás do corpo); vista incoerente: n017 rts (.268, sheet .58), hfoo rts (.376, sheet .57), n00U top/bottom (.53/.49).
+  Em front/back de todas as unidades o spill é .05–.13 só do corpo (v15), sem prop nem incoerência: o corpo de prismas/SDF não encosta por dentro do contorno.
+- **Decisão.** Nenhum default muda. `--author-guard revert` continua opt-in: IoU médio +.009, spill médio −.013, mas perde rts no n005; fica para depois do polimento. A causa do vermelho que sobra é de forma, não de peso: próximo
+  trabalho é o polimento MCP (L12-11) com o spill por vista como gate e as listas de partes vermelhas do `diagnosis` como brief.
+- **Aberto.** (1) pinar o tilt do massing na guarda; (2) spill <= .03 exige um passo de forma que encoste por dentro (L12-11 ou prismas com inscrição por construção); (3) hfoo: o pique inclinado do sheet (front vertical + left diagonal) com `rot` por peça; (4) tokens do autor não são logados; (5) matriz de ablação L12-10a (outro worktree) não incluída aqui.
+
+v15-r1-guard = o spec da v15 reconstruído sem LLM com `--author-guard revert --incoherent-weight 1.0 --noise noise-l12.json`.
+
+| un. | versão | IoU f/l/b/top/bot/rts | spill | bare | contact | spill ≤ .03 | bare ≤ .10 | veredito honesto |
+|---|---|---|---|---|---|---|---|---|
+| n005 | v13 | .921 / .947 / .932 / .764 / .833 / .878 | .050 / .031 / .049 / .159 / .071 / .074 | .032 / .024 / .021 / .106 / .110 / .056 | .553 / .628 / .613 / .090 / .219 / .284 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| n005 | v15 | .913 / .944 / .934 / .807 / .822 / .884 | .056 / .039 / .050 / .117 / .062 / .067 | .034 / .019 / .018 / .096 / .131 / .057 | .496 / .624 / .657 / .147 / .233 / .331 | 0/6 | 5/6 | FAIL (spill > .03 em 6/6) |
+| n005 | v15-guard | .909 / .946 / .917 / .814 / .848 / .831 | .055 / .027 / .055 / .114 / .061 / .135 | .040 / .029 / .031 / .090 / .103 / .045 | .529 / .649 / .527 / .214 / .271 / .272 | 1/6 | 5/6 | FAIL (spill > .03 em 5/6) |
+| n00U | v13 | .886 / .782 / .885 / .738 / .704 / .665 | .073 / .176 / .079 / .212 / .241 / .273 | .048 / .061 / .043 / .079 / .094 / .113 | .348 / .256 / .323 / .153 / .163 / .089 | 0/6 | 5/6 | FAIL (spill > .03 em 6/6) |
+| n00U | v15 | .897 / .770 / .887 / .785 / .778 / .702 | .050 / .180 / .060 / .132 / .182 / .247 | .058 / .073 / .059 / .109 / .058 / .089 | .303 / .233 / .263 / .254 / .229 / .180 | 0/6 | 5/6 | FAIL (spill > .03 em 6/6) |
+| n00U | v15-guard | .906 / .775 / .895 / .754 / .799 / .722 | .051 / .165 / .061 / .138 / .149 / .205 | .048 / .085 / .049 / .143 / .072 / .113 | .296 / .225 / .274 / .196 / .238 / .194 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| hfoo | v13 | .847 / .415 / .853 / .796 / .859 / .703 | .081 / .404 / .081 / .109 / .092 / .217 | .086 / .422 / .078 / .118 / .059 / .128 | .606 / .107 / .631 / .201 / .233 / .152 | 0/6 | 3/6 | FAIL (spill > .03 em 6/6) |
+| hfoo | v15 | .853 / .626 / .854 / .661 / .695 / .450 | .123 / .288 / .129 / .122 / .118 / .376 | .031 / .163 / .022 / .272 / .233 / .382 | .611 / .240 / .557 / .090 / .107 / .068 | 0/6 | 2/6 | FAIL (spill > .03 em 6/6) |
+| hfoo | v15-guard | .785 / .729 / .789 / .655 / .700 / .593 | .128 / .185 / .128 / .039 / .026 / .345 | .113 / .127 / .107 / .328 / .287 / .137 | .386 / .297 / .401 / .131 / .115 / .072 | 1/6 | 0/6 | FAIL (spill > .03 em 5/6) |
+| n017 | v13 | .924 / .775 / .870 / .822 / .871 / .700 | .048 / .077 / .095 / .077 / .057 / .242 | .030 / .171 / .043 / .117 / .081 / .098 | .503 / .382 / .317 / .434 / .509 / .161 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| n017 | v15 | .918 / .797 / .861 / .881 / .861 / .684 | .059 / .083 / .107 / .076 / .064 / .268 | .027 / .141 / .040 / .050 / .085 / .087 | .475 / .366 / .306 / .488 / .438 / .176 | 0/6 | 5/6 | FAIL (spill > .03 em 6/6) |
+| n017 | v15-guard | .903 / .802 / .858 / .862 / .893 / .730 | .072 / .079 / .114 / .084 / .048 / .213 | .029 / .139 / .036 / .064 / .065 / .091 | .394 / .336 / .308 / .411 / .468 / .159 | 0/6 | 5/6 | FAIL (spill > .03 em 6/6) |
+| n02X | v13 | .907 / .837 / .918 / .766 / .774 / .805 | .070 / .098 / .061 / .185 / .127 / .095 | .026 / .080 / .023 / .072 / .128 / .120 | .502 / .492 / .533 / .108 / .152 / .239 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| n02X | v15 | .896 / .852 / .898 / .757 / .760 / .747 | .048 / .059 / .044 / .204 / .169 / .097 | .061 / .100 / .063 / .061 / .101 / .188 | .499 / .455 / .464 / .056 / .080 / .222 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| n02X | v15-guard | .882 / .862 / .892 / .810 / .759 / .748 | .069 / .063 / .061 / .146 / .147 / .092 | .056 / .085 / .053 / .059 / .127 / .191 | .365 / .452 / .450 / .145 / .113 / .200 | 0/6 | 4/6 | FAIL (spill > .03 em 6/6) |
+| n01X | v13 | .866 / .881 / .869 / .908 / .901 / .840 | .101 / .086 / .101 / .042 / .075 / .129 | .041 / .039 / .038 / .055 / .028 / .042 | .558 / .511 / .548 / .316 / .299 / .250 | 0/6 | 6/6 | FAIL (spill > .03 em 6/6) |
+| n01X | v15 | .821 / .892 / .822 / .912 / .836 / .859 | .102 / .068 / .103 / .054 / .095 / .113 | .095 / .046 / .092 / .038 / .084 / .036 | .434 / .460 / .414 / .356 / .230 / .271 | 0/6 | 6/6 | FAIL (spill > .03 em 6/6) |
+| n01X | v15-guard | .849 / .934 / .851 / .905 / .873 / .853 | .104 / .043 / .104 / .062 / .059 / .116 | .058 / .025 / .055 / .037 / .077 / .039 | .462 / .646 / .443 / .284 / .284 / .288 | 0/6 | 6/6 | FAIL (spill > .03 em 6/6) |
+
+Colunas por vista na ordem front / left / back / top / bottom / rts. Gates da L12-2: spill <= .03 e bare <= .10 por vista, sem média; **veredito honesto =
+FAIL se alguma vista passa do teto** (os `PASS` que o `compare_runs` mostra para v13-r1 são do gate antigo; o v13 foi remedido aqui com os tetos novos,
+IoU idêntico ao `silhouette.json` original). `contact` do v13-r1 recalculado das máscaras (`silhouette.py` sobre `v13-r1/clay.glb` com as câmeras
+pinadas do próprio run; IoU de 6/6 vistas × 6 unidades diferença 0.000; saída em `runs/draft/<id>/v13-r1/sil-recheck`, `contact-v13.json`; `v13-r1/sil/approved` e `views/`
+foram regenerados para as imagens, os originais tinham sido podados).
+
+Médias das 6 unidades (média das 6 vistas): IoU .823 / .814 / .823 (v13 / v15 / v15-guard); spill .118 / .117 / .104; bare .081 / .092 / .090.
+Vistas com spill <= .03 no total (36 vistas): **0 / 0 / 2** (n005 left .027 e hfoo bottom .026 na guarda).
+
+**Aceite do roadmap L12-10**
+
+- spill <= 3 % em >= 5 vistas/unidade em >= 4/6 unidades: **NÃO, 0/6** (v15) e 0/6 (v15-guard; melhor unidade: 1 vista).
+- PASS honesto >= 3/6: **NÃO, 0/6** nas duas versões (e 0/6 no v13 com o gate novo).
+- Stage 2 (cor) PASS em 5/6 (hfoo stage 2 FAIL por cobertura de zonas do top/bottom, verdito real, não infra); 0 FAIL(infra), exit 1 em 6/6 (gate de forma).
+
+**Juiz pareado v15 x v13 (4 votos, A/B trocados; vencedor e votos; 'v13' = A, 'v15' = B)**
+
+| un. | sheet | artista | wc3 | forma |
+|---|---|---|---|---|
+| n005 | v13 4-0 | v13 4-0 | v13 4-0 | **v15 4-0** |
+| n00U | 2-2 | v13 4-0 | v13 4-0 | v13 4-0 |
+| hfoo | 2-2 | 2-2 | 2-2 | v13 4-0 |
+| n017 | v13 3-1 | v13 4-0 | v13 4-0 | v13 4-0 |
+| n02X | **v15 3-1** | 2-2 | 2-2 | v13 4-0 |
+| n01X | 2-2 | **v15 4-0** | **v15 4-0** | 2-2 |
+
+O juiz prefere v13 em forma em 4/6 (empata em 1, v15 em 1). Cor/estilo: v13 em 8 eixos, v15 em 3, empate em 7 de 18 (stage 2 agora existe nas duas, 6/6).
+
+**Métricas novas (v15-r1)**
+
+| un. | z_err (H) | marcos | planarity | wire entropy | tempo autor / build / passes / cor (s) | verdito |
+|---|---|---|---|---|---|---|
+| n005 | .020 | 11/13 | .059 | .965 | 88 / 360 / 160 / 53 | CHECK |
+| n00U | .135 | 7/11 | .010 | .991 | 95 / 352 / 64 / 57 | CHECK |
+| hfoo | .056 | 6/14 | .016 | .988 | 104 / 366 / 312 / 54 | CHECK |
+| n017 | .141 | 4/11 | .027 | .990 | 82 / 357 / 15 / 59 | CHECK |
+| n02X | .061 | 18/20 | .048 | .986 | 128 / 378 / 86 / 56 | CHECK |
+| n01X | .024 | 11/12 | .018 | .991 | 68 / 349 / 66 / 53 | CHECK |
+
+z_err <= .05 H em 2/6 (n005, n01X). Tokens do autor não são registrados pela chamada `session:opus` (só o tempo `t_gen`).
+
+**Guarda (v15-r1-guard; `--author-guard revert --incoherent-weight 1.0 --noise noise-l12.json`, spec do autor da v15, câmeras pinadas da v15)**
+
+Ação da guarda: n005 `reject-bare`, n00U `intact`, hfoo `reject-bare` (6 ossos revertidos e ainda abaixo do massing em left/top/bottom/rts), n017 `reject-bare`, n02X `revert`, n01X `revert`.
+IoU médio .823 (= v13, +.009 sobre a v15) e spill médio .117 -> .104. Ganhos: hfoo left .626 -> .729 (corpo), n005 top/bottom +.007/+.026, n00U bottom +.021.
+Perdas: n005 rts .884 -> .831 (spill .067 -> .135), n02X front −.014, hfoo rts/top. Nenhuma unidade vira PASS; spill por vista continua 3–10x o teto.
+**Protocolo hfoo:** o primeiro guard do hfoo (`v15-r1-guard-pintilt-invalid`) usou as câmeras pinadas da v15 (top −20/bottom +20); o massing do hfoo escolhe o espelho oposto
+(+20/−20, painel girado), então com a câmera pinada o massing e o `reject-bare` mediam top .177 / bottom .186 (modelo girado 180º contra o painel). Medida inválida; o `v15-r1-guard` do hfoo foi refeito sem `--tilts`
+(a câmera sai do próprio varrimento). Aberto: `--tilts` copiado de um spec com orientação de painel diferente do massing quebra a guarda; a guarda deveria pinar o tilt **do massing** para o massing.
+
+**Onde está o vermelho (v15, por causa; tabela da L12-5)**
+
+| un. | vistas piores (spill) | causa (corpo / prop / vista incoerente) |
+|---|---|---|
+| n005 | top .117, front .056 | corpo: ombros/braços (arm.L, forearm) grossos no top; botas no top; sem recesso do capuz |
+| n00U | rts .247, bottom .182, left .180 | corpo: pernas largas (prismas) — top/bottom incoerentes (.53/.49), por isso não gateadas para IoU, mas o spill continua medido |
+| hfoo | rts .376, left .288, top/bottom .12 | prop: pique (left, top, bottom, rts); corpo: mochila e botas (left); rts incoerente (.57) |
+| n017 | rts .268, back .107 | vista incoerente (rts .58) + placas do dorso largas, corda reta no chão (left) |
+| n02X | top .204, bottom .169 | corpo: placas do peito e cinto (1.10 x 1.04) no top/bottom; clava atrás do corpo (prop left IoU .12) |
+| n01X | front/back .10, rts .113, bottom .095 | corpo: antebraço colado ao torso, cabeça deslocada, pés fundos em z |
+
+**Imagens**
+
+`<id>-full.png`: colunas concept | clay | wire | overlay | textured para v13-r1 | v15-r1 | v15-r1-guard, 6 vistas. `<id>-spill.png`: overlay das 6 vistas por versão
+(amarelo = acerto, vermelho = modelo fora do sheet, verde = sheet descoberto), com spill% e bare% por célula (vermelho se spill > 3 %).
