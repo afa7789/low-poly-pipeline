@@ -270,6 +270,27 @@ def live_shape_only():
     return SP.wants_colour(parse(), shape), SP.wants_colour(parse("--shape-only"), shape)
 
 
+def live_colour_only():
+    """--colour-only RUN: stage 2 gets RUN's spec, its clay copied into --out, and the cameras its silhouette.json pinned."""
+    import pathlib
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        src, out = pathlib.Path(t, "src"), pathlib.Path(t, "out")
+        src.mkdir()
+        (src / "spec.json").write_text('{"parts": []}')
+        (src / "silhouette.json").write_text('{"tilt": {"top": 10, "rts": [35, 30]}}')
+        for name in ("clay.glb", "clay.sdf.json", "model.glb"):
+            (src / name).write_text("x")
+        got = {}
+        orig = SP.run_colour
+        SP.run_colour = lambda spec, shape, args: got.update(spec=spec, tilts=shape["tilts"]) or (True, "")
+        try:
+            code = SP.colour_only(parse("--colour-only", str(src), "--out", str(out)))
+        finally:
+            SP.run_colour = orig
+        return code, got["tilts"], sorted(f.name for f in out.iterdir())
+
+
 def noop_for(*flags):
     return SP.noop_notes(parse(*flags))
 
@@ -303,6 +324,7 @@ LIVE_CUSTOM = {         # dest -> (check, expected)
     "sdf_k_mode": (live_sdf_k_mode, (False, False)),          # clay_args differ, pair_k differs: "equal" is False for both
     "sdf_retopo": (live_sdf_retopo, (False, ["qem", "cvt"])),
     "fit_luma": (live_fit_luma, [True]),
+    "colour_only": (live_colour_only, (0, {"top": 10, "rts": (35, 30)}, ["clay.glb", "clay.sdf.json", "silhouette.json", "spec.json"])),
     "inscribe": (live_inscribe_wiring, ([[], ["inscribe=h.npz"]], ["inscribe-uncut.glb"])),
 }
 NOOP = {         # dest -> (argv that switch it on without its precondition, text noop_notes says)

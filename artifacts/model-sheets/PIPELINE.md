@@ -5854,3 +5854,49 @@ primitiva** (como `l14fix_lib`), não empurrar vértices (L13-1 chegou a −.008
 
 **Aceite.** "Até ao menos lembrar": pelo olho e pelo juiz **sim** (sheet 12-0); pelo gate honesto **não** (0/6, IoU menor). Nenhum
 default muda. Aberto: C1–C6 como itens de código, cada um com a sua medida.
+
+O usuário olhou a bateria v15 e disse "está muito ruim". A leva ataca o que se vê, não a métrica de silhueta: L14-1 o corpo (union × sdf), L14-2 a textura, L14-3 o conserto à mão.
+
+### 32.L14-2 Textura: `cel` × `cel-luma` × `cel-ink` × `painted` × `sheet` sobre o mesmo corpo (2026-10-30)
+
+**Pergunta.** O usuário diz que as texturas de 10-26/10-28 liam melhor que as de hoje (cor plana por zona, sem sombra, sem linha). O que das três texturas existentes (+ `--fit-luma`, `--look-ink`) faz o modelo parecer o concept?
+
+**Ferramenta nova: `--colour-only RUN`** (`spec_pipeline.colour_only`, opt-in). Copia a forma congelada de RUN (`spec.json`, `clay*`, `silhouette.json` com os tilts pinados) para `--out` e roda só o estágio 2 (`run_colour`): sem autor, sem fit, ~70 s por run (o estágio 2 refaz `build_unit` + deform + fit-verts) em vez de ~3 min. Prova de equivalência: n01X `cel` reproduz o `stage2/colour.json` do v15-r1 (zones mean front .2995 × .3023, luma L1 .0257 × .0257). Teste: `test_flag_liveness.live_colour_only` (spec, clay e tilts chegam ao estágio 2). Também: `tex_compare.py` (métricas de look e a imagem de comparação; `test_tex_compare.py`) e `spec_pipeline.utility_command` (`--check-rts`/`--redo-rts` saíram do `main`, que passou de 11 a 10 de complexidade).
+
+**Bug achado e corrigido: `--texture sheet` quebrava em toda unidade desde 10-28.** `project_concept.py` roda no Python do Blender, que não tem scipy; desde 10-28 `concept_panels` divide unidades por blob (scipy) e o script morria com `ModuleNotFoundError` (`colour_stage.run` descarta o stderr: o estágio 2 só dizia `BUILD FAILED`). Agora `concept_panels(..., columns=True)` (o corte por colunas para o qual o projetor foi escrito). Sem isso o `sheet` não era medível.
+
+**Protocolo.** 6 unidades v15 (`n005 n00U hfoo n017 n02X n01X`), forma do `v15-r1` (specs, clay e tilts copiados), `--deterministic`, 5 runs por unidade (`l14-tex-cel` controle, `-cel-luma` `--fit-luma`, `-cel-ink` `--look-ink on`, `-painted`, `-sheet`), 30 runs, 2 de cada vez. A primeira passada rodou com `rig=None` (o `main` põe `biped`): renomeada `-invalid10301117`, refeita. As 6 `sheet` da primeira passada, que morreram no scipy, também `-invalid…`. Juiz: `review_pair.py <cel> <variante> --model session:opus` (4 votos A/B trocados; A = `cel`), 24 pareamentos. As vistas de zona são front/left/back/top/bottom (o rts não tem zona no gate).
+
+**Métricas** (média sobre as 5 vistas e as 6 unidades; `de` = ΔE Oklab ×100 médio por zona contra o concept, zonas achadas por matiz com luma casada, cor lida do render como atirado; `shade` = desvio de luma dentro da zona ÷ o do concept; `luma L1` e `zones` do gate):
+
+| textura | zones mean | zones cover | luma L1 | de | shade | atlas KB | segundos |
+|---|---|---|---|---|---|---|---|
+| `cel` (controle) | .336 | .638 | .060 | 5.41 | .93 | 3.7 | 68 |
+| `cel-luma` | .347 (+.011) | .656 | .045 | 4.91 | .96 | 3.7 | 80 |
+| `cel-ink` | .336 (±.000) | .638 | .059 | 5.38 | .94 | 3.7 | 75 |
+| `painted` | .326 (−.010) | .630 | .095 | 6.77 | 1.58 | 293 | 70 |
+| `sheet` | .316 (−.020) | .741 | .075 | 4.59 | 1.55 | 438 | 17 |
+
+Zones mean por unidade (n005 n00U hfoo n017 n02X n01X): cel .573 .343 .208 .253 .352 .285; cel-luma .578 .344 .214 .263 .351 .333; painted .597 .283 .202 .234 .343 .293; sheet .514 .320 .155 .297 .297 .311. Stage 2 PASS em 29/30 (hfoo `sheet` falha o gate de zona).
+
+**Juiz** (B = variante; `sheet`/`artist`/`wc3`/`form`; "cel" = o controle vence; tie = 2-2, quase sempre "position bias" = imagens que o juiz não distingue):
+
+| variante | n005 | n00U | hfoo | n017 | n02X | n01X | aceite (artist e wc3 ≥ 3-1 para B) |
+|---|---|---|---|---|---|---|---|
+| `cel-luma` | cel 4-0 nos 3 eixos | tie | cel 4-0 | tie | cel 4-0 | cel 4-0/3-1 | **0/6** |
+| `cel-ink` | tie | B 3-1 / 3-1 | tie | tie (wc3 cel 3-1) | tie | tie | **1/6** |
+| `painted` | tie | cel 4-0 | tie | B 4-0 / 4-0 | B 4-0 / 4-0 | B 3-1 / 4-0 | **3/6** |
+| `sheet` | sheet B 4-0, artist/wc3 cel 4-0 | sheet B 4-0, artist cel 4-0, wc3 tie | cel 4-0 | cel 4-0 | sheet B 4-0, artist/wc3 cel 4-0 | sheet B 4-0, artist/wc3 cel 4-0 | 0/6 (regra do usuário: nunca default) |
+
+**Aceite (uma variante procedural vence o `cel` em artist+wc3 ≥ 3-1 em ≥ 4/6 sem piorar zones > .02): NÃO atendido.** Melhor: `painted` 3/6 (zones −.010, mas luma L1 +.035, ΔE +1.4 e atlas 293 KB contra 3.7). `cel-luma` melhora a métrica (luma L1 −.015, ΔE −.5, zones +.011) e **perde** no juiz em 4/6 (n01X: as pernas ficam mais claras que o resto do robô, o concept as tem do mesmo cinza): confirma que a métrica de luma não é o look. **Nenhum default mudou.**
+
+**`sheet` (a regra do usuário o mantém opt-in).** Se a regra caísse: ganha o eixo "parece o concept" 4-0 em 4/6 unidades (n005, n00U, n02X, n01X), `cover` .741 contra .638, ΔE 4.59 contra 5.41, traz a cara (óculos e presas do n02X, olhos vermelhos e máscara do n005, mochila do hfoo), as costuras e a tinta; custa 438 KB de atlas (118 vezes o cel) e perde artist/wc3/form 4-0 em 6/6 pelo mesmo defeito: a projeção por painel estica faixas listradas nas faces que não olham para a câmera do painel (o corte por colunas ainda erra as bordas) e quebra nas vistas de cima. Ganharia mais com projeção triplanar com mistura por normal, e não como textura única; não foi feito.
+
+**O que falta para ler como o concept (olhado nos 6 PNG; defeito de textura × de forma por baixo).**
+- **Linha de tinta (o que mais pesa; textura).** O concept é cor chapada + contorno preto contínuo de 3–4 px na silhueta e nas placas. Nenhum `cel` tem contorno. `--look-ink on` marca 36/30 arestas (n005: 36 marcadas, 30 faces) e 67/91 (n01X) de ~700 triângulos: `ink_faces` só reescreve o u de triângulos com vértices não compartilhados e uma única aresta por face, um fio de 1 texel; em 512 px não se vê (juiz: 5/6 empates, ΔE e `shade` idênticos ao `cel`). Falta o contorno da silhueta (inverted hull ou pós-processo no render do jogo), não mais arestas marcadas.
+- **Cara/decal (textura).** n005 sem óculos vermelhos nem máscara (o crânio é um capuz preto liso); n02X sem óculos e presas; n017 sem focinho e dentes; hfoo cabeça cinza clara sem rosto; n00U sem olhos e quelíceras. O decal `sheet` só existe para a parte "head" que pede; as faces dos concepts não viram decal. Só `sheet` as traz.
+- **Contraste entre zonas (textura).** n005 é um bloco quase preto (zones .57 = a unidade fácil, tudo é uma zona): a tanque cinza e a lanterna azul leem, o resto não separa; n017 é azul claro quase em todo o corpo, o concept tem o dorso escuro e a barriga clara (a regra "up/side/down" do cel pinta o lado de claro e o topo de escuro, mas o cão tem o dorso virado de lado na vista lateral); n01X cabeça marrom escura contra cabeça cinza com viseira dourada no concept. O `painted` dá profundidade (sombra no torso, luz nos ombros do n01X) mas suja a cor (mottle) e fica escuro demais.
+- **Zona errada (textura).** n01X `cel-luma` clareia as pernas; hfoo chapéu/cabeça com sombras do `cel` em branco-rosado (a "cara" vira a tampa); n02X sacola laranja correta, ombreira escura correta.
+- **Forma por baixo (não é textura; L14-1).** Pilhas de degraus no casco do n00U; pernas de n017 como lajes; cabeça do n01X como bloco aberto; torso do hfoo com a mochila como caixa preta; n005 sem pescoço/capuz definido. A textura não corrige isso.
+
+**Aberto.** (1) Contorno de silhueta (a falta mais visível; não é opção de textura existente). (2) Decal de cara por unidade (olhos, máscara, focinho) a partir do concept. (3) `sheet` triplanar com mistura; a regra do usuário o mantém opt-in. (4) `cel` mais forte entre faces (as bandas do cel por orientação são sutis demais: `shade` .93 já iguala o concept, o que mostra que a falta é de linha e detalhe, não de gradiente). Imagens: `artifacts/model-sheets/history/2026-10-30-l14-texture/<id>.png` (concept | cel | cel+luma | cel+ink | painted | sheet; front left back top bottom rts), números em `<id>.json` e `summary.json`.
