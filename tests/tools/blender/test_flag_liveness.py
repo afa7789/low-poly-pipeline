@@ -339,7 +339,38 @@ def live_polish():
     return calls(), calls("--polish", "on")
 
 
+def silhouette_argv(*flags):
+    """The argv silhouette_vs hands silhouette.py for these spec_pipeline flags (the tool stubbed)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        args = parse(*flags)
+        args.out, args.tilts = pathlib.Path(tmp), ""
+        (args.out / "sil" / "approved").mkdir(parents=True)
+        (args.out / "sil" / "approved" / "silhouette.json").write_text("{}")
+        with mock.patch.object(SP, "tool", return_value=mock.Mock(stdout="", returncode=0)) as tool:
+            SP.silhouette_vs(args, pathlib.Path("m.glb"), "unit", pathlib.Path("s.jpg"), "approved")
+        return tool.call_args.args
+
+
+def live_gate():          # L15-1: stage 1 runs silhouette.py --gate parts
+    return silhouette_argv(), silhouette_argv("--gate", "parts")
+
+
+def live_orient():        # L15-1: the sheet's orientation (refs/<id>/sheet.json) or the model's own
+    return silhouette_argv(), silhouette_argv("--orient", "model")
+
+
+def live_judge_gate():    # L15-1: a run that loses form 3-1 to --pair is CHECK, not PASS, when on
+    lost = {a: {"winner": "tie"} for a in ("sheet", "artist", "wc3")} | {"form": {"winner": "A"}}
+    out = []
+    for flags in ((), ("--judge-gate", "on")):
+        args = parse(*flags)
+        args.pairwise = lost
+        out.append(SP.judge_verdict(args, "PASS"))
+    return tuple(out)
+
+
 LIVE_PAIRS = {
+    "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,

@@ -1365,13 +1365,16 @@ def zone_report(concept, model, names):
             "zones": zones, "pieces": pieces}
 
 
-def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None, rotate=()):
+def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None, rotate=(), keep=None):
     """view -> zone_report for front/left/back/top/bottom: the sheet and the model's flat-colour
     render, both in the sheet's own zones and normalized like the silhouettes.
     `silhouettes` maps view -> the model mask best_match chose (picks the mirror);
     `tilts` maps top/bottom -> the tilt that mask was shot at, so the colour is shot from
-    the same camera. `rotate` = the views whose sheet panel is drawn upside down (detect_rotated)."""
+    the same camera. `rotate` = the views whose sheet panel is drawn upside down (detect_rotated). `keep` (a dict) receives
+    {view: (sheet labels, model labels)} and "_centres": what parts_gate judges the material of each part by."""
     names, centres, _ = zone_palette(sheet)
+    if keep is not None:
+        keep["_centres"] = centres
     rgb = read_rgba(sheet, 768)[..., :3] / 255.0
     panels = concept_panels(sheet, layout=layout)
     out = {}
@@ -1387,6 +1390,8 @@ def zone_views(sheet, renders, stem, silhouettes, layout="unit", tilts=None, rot
         model = max(variants(mode_filter(normalize(lab)), view), key=lambda v: iou(v > 0, silhouettes[view]))
         sheet_lab = zone_labels(sheet_rgb, sheet_mask, centres, ink=True)
         concept = mode_filter(normalize(sheet_lab))
+        if keep is not None:
+            keep[view] = (concept, model)
         out[view] = zone_report(concept, model, names)
         out[view]["luma_l1"] = luma_l1(lit, lab, rgb, sheet_lab, len(names))
     return out
@@ -1521,29 +1526,35 @@ def head_of(view, rotate):
     return {"head": HEAD[view][view in rotate]} if view in HEAD else {}
 
 
-def detect_rotated(panels, model, forced=""):
+def detect_rotated(panels, model, forced="", orient=None):
     """The set of top/bottom views whose sheet panel is drawn turned 180 degrees: the best IoU over
     the tilt sweep (and the mirror) with the panel turned beats the one as drawn by FLIP_MARGIN.
-    `forced` (--rotate, "top,bottom" or "none") skips the detection."""
+    `forced` (--rotate, "top,bottom" or "none") skips the detection, and so does the sheet's own orientation `orient`
+    (parts_gate.load_orientation: decided once per unit, not per model; PIPELINE 33.L15-1)."""
     if forced:
         return set(forced.split(","))
+    if orient is not None:
+        return set(orient.get("rotate", ()))
     def score(view, turned):      # both sides framed by their bbox: the orientation does not depend on the frame
         mask = np.rot90(np.asarray(panels[view]), 2) if turned else np.asarray(panels[view])
         return best_match(normalize(mask), model[view], view)[0]
     return {v for v in HEAD if v in panels and model.get(v) and score(v, True) - score(v, False) > FLIP_MARGIN}
 
 
-def best_match(concept, tilted, name, boxes=None):
+def best_match(concept, tilted, name, boxes=None, mirror=None):
     """Best IoU over the mirror variants of every rendered tilt: (iou, mask, tilt, flipped). A side view
     (one tilt) takes the mirror pick_variant chooses; its score is the plain IoU of that mask.
     `boxes` {tilt: (x0, y0, x1, y1)}: the model's body box in the mask's pixels (model_boxes), framed like the
-    concept's (framed_panels); a tilt without one is framed by its bbox."""
+    concept's (framed_panels); a tilt without one is framed by its bbox. `mirror` (the sheet's, refs/<id>/sheet.json): True / False
+    fixes the mirror variant, None lets the IoU pick it."""
     best = (-1.0, None, 0, False)
     for tilt, mask in tilted.items():
         box = (boxes or {}).get(tilt)
         options = variants(normalize(mask if box is None else framed(mask, box)), name)
         ks = range(len(options))
-        if name in SIDE_VIEWS:
+        if mirror is not None and len(options) > 1:
+            options, ks = [options[int(mirror)]], [int(mirror)]
+        elif name in SIDE_VIEWS:
             k = pick_variant(concept, options, name)
             options, ks = [options[k]], [k]
         for variant, k in zip(options, ks):
@@ -1553,9 +1564,39 @@ def best_match(concept, tilted, name, boxes=None):
     return best
 
 
-def model_boxes(glb, model, panels):
-    """{view: {camera: box}} for best_match(boxes=): the body box (deform_to_sheet.body_fractions: the largest welded
-    component) of the model in the pixels of each rendered mask, for the views whose panel is body-framed. {} otherwise."""
+BODY_DOMINANT = 0.5    # a model whose largest welded component has this share of the vertices is one fused body plus pieces: that component is the body
+PROP_VERTS = 0.5    # a welded component of the model with this share of its vertices in the sheet's prop masks is a prop
+
+
+def body_fractions(D, pos, tri, ru, rv, mask, props, mirror=None):
+    """(x0, y0, x1, y1) as fractions of the model's projected bbox (y down) of its body in one view: the welded components that
+    are not props, a prop being a component PROP_VERTS of whose vertices land in `props` (the sheet's prop masks, bbox frame)
+    or, when the view's mirror is not decided (`mirror` None), in their mirror, the variant that flags fewer vertices. Not "the largest component": a model built of separate primitives (a hand-made one) has a torso for
+    its largest component and the head, arms and legs would be left out of the frame (n02X l14-fix front .34). None when
+    nothing is a prop (the body is the bbox). A model with a dominant component (BODY_DOMINANT: the SDF body, props apart) keeps
+    the largest-component rule; the sheet's masks decide only for a model of separate pieces."""
+    owner, main = D.owner_body(tri, len(pos))
+    if (owner == main).mean() >= BODY_DOMINANT:
+        return D.body_fractions(pos, tri, ru, rv)
+    uv = np.stack([pos @ ru, pos @ rv], 1)
+    lo, hi = uv.min(0), uv.max(0)
+    ys, xs = np.where(mask)
+    (sx, sy), (tx, ty) = geometry(mask)
+    fx, fy = (uv[:, 0] - lo[0]) / (hi[0] - lo[0]), (hi[1] - uv[:, 1]) / (hi[1] - lo[1])
+    cx = np.clip((xs.min() + fx * (np.ptp(xs) + 1)) * sx + tx, 0, CANVAS_W - 1).astype(int)
+    cy = np.clip((ys.min() + fy * (np.ptp(ys) + 1)) * sy + ty, 0, CANVAS_H - 1).astype(int)
+    flagged = [np.array([(props[cy, CANVAS_W - 1 - cx if flip else cx])[owner == o].mean() >= PROP_VERTS
+                         for o in range(owner.max() + 1)])[owner] for flip in ((False, True) if mirror is None else (bool(mirror),))]
+    flagged = [p for p in flagged if p.any() and not p.all()]
+    if not flagged:
+        return None
+    prop = min(flagged, key=lambda p: p.sum())     # a prop is a small part of the model: the variant that flags the body is the wrong one
+    return (fx[~prop].min(), fy[~prop].min(), fx[~prop].max(), fy[~prop].max())
+
+
+def model_boxes(glb, model, panels, mirrors=None):
+    """{view: {camera: box}} for best_match(boxes=): the body box (body_fractions) of the model in the pixels of each rendered
+    mask, for the views whose panel is body-framed. {} otherwise."""
     views = [v for v in model if getattr(panels.get(v), "box", None) is not None]
     if not views:
         return {}
@@ -1565,8 +1606,10 @@ def model_boxes(glb, model, panels):
     for view in views:
         out[view] = {}
         for cam, mask in model[view].items():
-            frac = D.body_fractions(pos, tri, *D.view_axes(view, cam))
-            if frac is None or not mask.any():
+            if not mask.any():
+                continue
+            frac = body_fractions(D, pos, tri, *D.view_axes(view, cam), mask, panels[view].props, (mirrors or {}).get(view))
+            if frac is None:
                 continue
             ys, xs = np.where(mask)
             (x0, y0), (w, h) = (xs.min(), ys.min()), (np.ptp(xs) + 1, np.ptp(ys) + 1)
@@ -1601,14 +1644,17 @@ class Framed(np.ndarray):
     """A panel mask that remembers the box (x0, y0, x1, y1, raw pixels) normalize() frames instead of its bbox: the
     body without its props. Arrays derived from it (slices, ufuncs, rot90) frame by their own bbox."""
     box = None
+    props = None      # the union of the panel's prop masks, in the bbox frame (model_boxes: which components of the model are props)
 
     def __array_finalize__(self, obj):
         self.box = None
+        self.props = None
 
 
-def framed(mask, box):
+def framed(mask, box, props=None):
     out = np.asarray(mask).view(Framed)
     out.box = box
+    out.props = props
     return out
 
 
@@ -1864,8 +1910,9 @@ def framed_panels(path, layout="unit", **kw):
     panels = concept_panels(path, layout=layout, **kw)
     if FRAME != "body":
         return panels
-    boxes = {v: body_box(p, prop_masks(path, v, layout, panels)) for v, p in panels.items()}
-    return {v: p if boxes[v] is None else framed(p, boxes[v]) for v, p in panels.items()}
+    props = {v: prop_masks(path, v, layout, panels) for v in panels}
+    boxes = {v: body_box(p, props[v]) for v, p in panels.items()}
+    return {v: p if boxes[v] is None else framed(p, boxes[v], np.any(list(props[v].values()), axis=0)) for v, p in panels.items()}
 
 
 def body_mask(sheet, view, layout="unit", panels=None):
@@ -1978,13 +2025,57 @@ def write_overlay(concept, model, path):
                     "rgba:-", str(path)], input=rgba.tobytes(), check=True)
 
 
-def bbox_masks(panels, model, rotate, masks):
+def bbox_masks(panels, model, rotate, masks, mirror=None):
     """`masks` ({view: model mask best_match chose}) for the colour stage, which frames by bbox: with FRAME "body" the
-    masks are matched again against the bbox-framed panels (the mirror it picks is against those)."""
+    masks are matched again against the bbox-framed panels (the mirror it picks is against those); a view with no panel of its own (the rts one) keeps its mask."""
     if FRAME != "body":
         return masks
     plain = oriented({k: np.asarray(v) for k, v in panels.items()}, rotate)
-    return {n: best_match(plain[n], model[n], n)[1] for n in masks}
+    return {n: best_match(plain[n], model[n], n, mirror=(mirror or {}).get(n))[1] if n in plain else m for n, m in masks.items()}
+
+
+def view_ok(mode, name, gate, r):
+    """One view's gate: the IoU and coupling caps ("silhouette"), or only the guards of parts_gate ("parts")."""
+    g_iou, cov = gated_values(r)
+    if mode == "parts":
+        import parts_gate
+        return parts_gate.guard_ok(g_iou, cov, gate)
+    return (gate is None or g_iou >= gate) and coupling_ok(name, cov)
+
+
+def gate_mode(args):
+    """args.gate, except that a sheet without parts.json has no parts to judge: "parts" then runs as "silhouette"."""
+    import parts_fit
+    if args.gate == "parts" and not parts_fit.load(args.sheet):
+        print("no parts.json for this sheet: --gate parts runs as silhouette")
+        return "silhouette"
+    return args.gate
+
+
+def parts_stage(args, panels, concept, masks, keep, report, mode):
+    """The parts gate rows of the run: printed, written to outdir/parts_gate.json and to report[view]["parts"] = [k, n].
+    (rows, failures it adds to the verdict): in "parts" mode a share under PARTS_MIN is one."""
+    import parts_gate as pg
+    rows = pg.evaluate(args.sheet, args.layout, panels, concept, masks, keep or None, keep.get("_centres"))
+    if not rows:
+        return rows, 0
+    print(pg.text(rows))
+    (args.outdir / "parts_gate.json").write_text(json.dumps({"rows": rows, **pg.summary(rows)}, indent=1))
+    for view, (k, n) in pg.summary(rows)["by_view"].items():
+        if view in report:
+            report[view]["parts"] = [k, n]
+    return rows, int(mode == "parts" and pg.summary(rows)["share"] < pg.PARTS_MIN)
+
+
+def final_line(mode, gated, report, waived, gates, rows, bad):
+    """The closing line and the exit code."""
+    if mode != "parts":
+        print(f"\n{len(gated) - bad}/{len(gated)} view gates pass")
+        return 1 if bad else 0
+    import parts_gate as pg
+    held = {v: pg.guard_ok(*gated_values(report[v]), gates.get(v)) for v in gated if v in report and v not in waived}
+    print(f"\n{sum(held.values())}/{len(held)} view guards hold; {pg.verdict(held, rows)[0]}")
+    return 1 if bad else 0
 
 
 def main():
@@ -2013,6 +2104,12 @@ def main():
                          "(the colour stage reuses the shape stage's cameras)")
     ap.add_argument("--flip-side", action="store_true",
                     help="front/left/back pick the mirror by the shift-tolerant IoU (29.L11-0), not the plain IoU")
+    ap.add_argument("--orient", choices=("sheet", "model"), default="sheet",
+                    help="sheet: the top/bottom rotation and the mirror of each view come from refs/<id>/sheet.json when it exists "
+                         "(parts_gate.py freeze; decided once per unit, PIPELINE 33.L15-1); model: decided again for each model by the IoU")
+    ap.add_argument("--gate", choices=("silhouette", "parts"), default="silhouette",
+                    help="silhouette: IoU and spill gate every view (the gate of Levas 1-14); parts: IoU and spill are guards "
+                         "(body IoU >= min(gate, .75), body spill <= .15), the acceptance is parts >= 80 percent (parts_gate.py)")
     ap.add_argument("--frame", choices=("bbox", "body"), default=None,
                     help="frame the panels by the figure's bbox or by its body without the props (29.L11-0b; default CF_FRAME or bbox)")
     args = ap.parse_args()
@@ -2041,16 +2138,20 @@ def main():
         from views import parse_tilts
         model = pin_tilts(model, parse_tilts(args.tilts))
 
-    rotate = detect_rotated(panels, model, args.rotate)
+    import parts_gate
+    mode = gate_mode(args)
+    orient = parts_gate.load_orientation(args.sheet) if args.orient == "sheet" else None
+    mirrors = (orient or {}).get("mirror", {})
+    rotate = detect_rotated(panels, model, args.rotate, orient)
     concept = oriented(panels, rotate)
-    boxes = model_boxes(args.glb, model, panels)
+    boxes = model_boxes(args.glb, model, panels, mirrors)
     if rts_path(args.sheet).exists():
         concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
     waived = write_sheet_report(args)    # views where the sheet contradicts itself: measured, not gated
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  {'spill':>5} {'bare':>5} {'cont':>5}  gate")
     report, bad, best_masks = {}, 0, {}
     for name in [v for v in concept if model.get(v)]:
-        best, best_mask, tilt, flipped = best_match(concept[name], model[name], name, boxes.get(name))
+        best, best_mask, tilt, flipped = best_match(concept[name], model[name], name, boxes.get(name), mirrors.get(name))
         l1 = float(np.abs(profile(concept[name]) - profile(best_mask)).mean())
         px = iou(downsample(concept[name]), downsample(best_mask))
         gate = gates.get(name)
@@ -2060,8 +2161,7 @@ def main():
                         "contact": round(contact(concept[name], best_mask), 4),
                         **split_of(args.sheet, name, args.layout, panels, concept[name], best_mask),
                         **head_of(name, rotate)}
-        g_iou, g_cov = gated_values(report[name])
-        ok = (gate is None or g_iou >= gate) and coupling_ok(name, g_cov)
+        ok = view_ok(mode, name, gate, report[name])
         report[name]["incoherent"] = name in waived
         ok, verdict = verdict_of(gate, ok, name in waived)
         bad += 0 if ok else 1
@@ -2073,10 +2173,13 @@ def main():
         write_overlay(concept[name], best_mask, args.outdir / f"overlay-{name}.png")
         best_masks[name] = best_mask
 
+    keep = {}
     if not args.shape:
-        bad += zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, bbox_masks(panels, model, rotate, best_masks), args.layout,
-                                             report_tilts(report),
-                                             rotate))
+        zone_bad = zone_gate(report, zone_views(args.sheet, renders, args.glb.stem, bbox_masks(panels, model, rotate, best_masks, mirrors), args.layout,
+                                                 report_tilts(report), rotate, keep))
+        bad += 0 if mode == "parts" else zone_bad      # the zones are measured per part in parts mode
+    rows, parts_bad = parts_stage(args, panels, concept, best_masks, keep, report, mode)
+    bad += parts_bad
     (args.outdir / "silhouette.json").write_text(json.dumps(report, indent=2))
     if args.turn:
         print("turn views (3/4 IoU @ azimuth):",
@@ -2087,8 +2190,7 @@ def main():
         # no render (missing GLB, failed Blender) must not read as a pass
         print(f"\nno measurement for gated views {missing}: FAIL")
         return 1
-    print(f"\n{len(gated) - bad}/{len(gated)} view gates pass")
-    return 1 if bad else 0
+    return final_line(mode, gated, report, waived, gates, rows, bad)
 
 
 if __name__ == "__main__":

@@ -98,9 +98,10 @@ class Battery(unittest.TestCase):
         self.assertEqual(noise["global"]["rts"], 0.02)
 
     def test_repeat_names(self):
-        a = types.SimpleNamespace(repeat=3, prefix="l12-noise")
+        a = types.SimpleNamespace(repeat=3, prefix="l12-noise", run="")
         self.assertEqual(B.repeat_name(a, 2), "l12-noise-r2")
-        self.assertIsNone(B.repeat_name(types.SimpleNamespace(repeat=1, prefix="x"), 1))
+        self.assertIsNone(B.repeat_name(types.SimpleNamespace(repeat=1, prefix="x", run=""), 1))
+        self.assertEqual(B.repeat_name(types.SimpleNamespace(repeat=1, prefix="x", run="l15-gate-sdf"), 1), "l15-gate-sdf")
         u = {"unit": "u", "rig": "biped", "spec": pathlib.Path("/s")}
         self.assertIn("l12-noise-r2", B.command(u, "sdf", 0, "", "l12-noise-r2"))
 

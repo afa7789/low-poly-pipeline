@@ -131,6 +131,9 @@ VARIANTS = {
 }
 # live flags the matrix does not turn on as a variant, each with the reason (test_ablation_matrix: nothing live may be missing)
 NOT_A_VARIANT = {
+    "gate": "the acceptance, not a shape: stage 1 runs the same build, the verdict differs (L15-1: its own table over the v15 battery)",
+    "orient": "how the gate reads the sheet (refs/<id>/sheet.json), not a shape variant (L15-1)",
+    "judge_gate": "needs the paired judge (a Claude session) on top of --pair; not a deterministic variant (L15-1)",
     "loop": "needs the LLM author (L11-2/L11-4: measured in the v14 battery)",
     "deterministic": "on in every run of the matrix (base is deterministic)",
     "parts": "the input of fit-parts / fit-depth / depth-tri (refs/<id>/parts.json by default)",
