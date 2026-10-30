@@ -698,3 +698,6 @@ unidades; L12-3 bateria v15). Fonte: Pokorný, WSCG 2026 (`docs/references.md`).
 
 
 **Estado L14-1 (2026-10-30): corpo `union` x `sdf`, 700 x 1000 tris medidos (24 runs, v15, 6 unidades); aceite NÃO atendido, nenhum default mudou.** Juiz forma a favor do union em 1/6 (sdf 4-0 em 4/6), 17/36 vistas do union caem > 2σ de IoU, slivers 11–18 % contra 0–7 %; planarity sobe 5/6 mas só .00–.10 (sem poder). 1000 no sdf: forma ≥ 3-1 em 1/6, tempo até +46 %. Ferramenta `body_compare.py`; imagens em `history/2026-10-30-l14-body/` (PIPELINE §32.L14-1).
+
+**Estado L15-3 (2026-10-30): contorno `--outline hull`, cara `--face decal` e `--zone-contrast on` feitos, todos opt-in; aceite completo NÃO atendido, nenhum default mudou.** A premissa C2 já era verdade no cel (a face já herda o material da peça pelo dono do campo SDF; o bege da v15 é forma), então não há `--colour-by`. Juiz contra o cel: contorno artist+wc3 ≥ 3-1 em 6/6 (v15) e 3/3 (consertos à mão); +cara 5/6 e 0/3; contraste 3/6. Zona-IoU por material ≥ .5 nas 3 unidades: NÃO (n02X `#35302E` .05, `#818181` perdido; forma, L15-1/2). Atlas 3.7 KB (cara 20 KB), tris com casco = 2× o orçamento. Recomendado como default depois de provar o GLB de 2 malhas no jogo. PIPELINE §33.L15-3; imagens `history/2026-10-30-l15-colour/`.
+

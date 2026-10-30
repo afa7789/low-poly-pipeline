@@ -30,6 +30,7 @@ import align_features
 import deform_to_sheet
 import look
 import optimize_verts
+import outline
 import overrides
 import shared_atlas as SA
 import silhouette as SIL
@@ -199,6 +200,31 @@ def fit_luma(spec, args, tilts, work):
     return out, report
 
 
+def zone_contrast(spec, floor=8.0, dark=0.8):
+    """A copy of `spec` where, of two palette slots closer than `floor` (Oklab distance x100), the darker is scaled x`dark` in
+    luma (--zone-contrast on, PIPELINE 33.L15-3): neighbouring zones the cel would paint as one."""
+    import numpy as np
+    out = copy.deepcopy(spec)
+    pal = out.get("palette", {})
+    rgb = {k: np.array([int(e["color"][i:i + 2], 16) for i in (1, 3, 5)], float) / 255 for k, e in pal.items()}
+    lab = {k: SIL.oklab(v[None])[0] for k, v in rgb.items()}
+    for a, b in ((a, b) for a in rgb for b in rgb if a < b):
+        if 100 * np.linalg.norm(lab[a] - lab[b]) < floor:
+            k = a if lab[a][0] < lab[b][0] else b
+            rgb[k] = rgb[k] * dark
+            lab[k] = SIL.oklab(rgb[k][None])[0]
+            pal[k]["color"] = "#%02X%02X%02X" % tuple(int(round(c * 255)) for c in rgb[k])
+    return out
+
+
+def face_quad(spec, args, work):
+    """The 128 px head cut for --face decal (a part wears the "sheet" decal), else None."""
+    if getattr(args, "face", "off") != "decal" or not any(isinstance(p[5], dict) and p[5].get("decal") == "sheet" for p in spec["parts"]):
+        return None
+    from split_sheet import head_face
+    return head_face(pathlib.Path(args.sheet), work / "face128.png", cell=128)
+
+
 def build_textured(spec, glb_clay, args, glb, work):
     """The spec in `args.texture`, written to `glb`. True when the file came out."""
     glb.unlink(missing_ok=True)
@@ -206,6 +232,12 @@ def build_textured(spec, glb_clay, args, glb, work):
         run("project_concept.py", glb_clay, args.build, glb, blender=True)
         return glb.exists()
     path = work / "spec-colour.json"
+    if getattr(args, "zone_contrast", "off") == "on":
+        spec = zone_contrast(spec)
+    quad = face_quad(spec, args, work)
+    if quad:       # the quad wears the face: the lathe's striped decal goes
+        spec = {**spec, "parts": [[*p[:5], {k: v for k, v in p[5].items() if k != "decal"}] if isinstance(p[5], dict) and p[5].get("decal") == "sheet" else p
+                                  for p in spec["parts"]]}
     if getattr(args, "ramp", False) and args.texture == "cel":
         spec = with_ramps(spec, args.sheet)
     path.write_text(json.dumps(spec, indent=2))
@@ -218,6 +250,8 @@ def build_textured(spec, glb_clay, args, glb, work):
         align_features.apply(glb, args)
         optimize_verts.apply(glb, args)
         look.apply(glb, args)
+        if quad:
+            outline.apply(glb, False, quad)
     return glb.exists()
 
 
@@ -309,6 +343,8 @@ def attempt(spec, glb_clay, args, tilts, work, name):
     if not build_textured(spec, glb_clay, args, glb, work):
         return glb, None, work
     zones = zones_of(measure(glb, args, tilts, work))
+    if getattr(args, "outline", "off") == "hull":     # after the measure: the zone shots (workbench) draw both sides of the hull, black over the body
+        outline.apply(glb)
     render_views(glb, args, tilts, work / "views")
     return glb, zones, work
 

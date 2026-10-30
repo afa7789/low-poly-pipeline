@@ -5929,3 +5929,40 @@ O usuário olhou a v15 e disse "está muito ruim". A leva troca métrica de silh
   viu em v10 vs v15 não vem do corpo (specs, ajuste e textura mudaram juntos). `planarity` (k-means de normais, k = 12) quase não separa os dois: .00–.10.
 - **Aberto.** Orçamento 1000 só no sdf e só para unidades com patas/mãos finas (n02X) — sem critério de seleção medido; a decimação do union para no 90 % do orçamento;
   nenhum run deste item tem spill ≤ .03 (forma, não corpo).
+
+## 33. Leva 15 (2026-10-30): peças, não massa — gate por peça, peças rígidas fora do SDF, cor por peça, preflight do autor
+
+### 33.L15-3 Cor por peça, contorno preto, cara como quad (2026-10-30)
+
+**Premissa C2 já era verdade no `cel`.** O diagnóstico (§32.L14-3 C2) dizia "a cor é projetada do painel". Lido o código: o `cel` nunca projeta o painel; cada face já recebe o material da peça de origem (`skin_sdf` → `sdf_body.materials` = dono do campo no centro da face; `transfer_from_parts` no union) e o `spec-colour.json` já traz a paleta certa. O "bege uniforme" da v15 é forma: no n02X a calça/cinto/bota são `canvas`/`darkiron`/`iron` pequenos dentro de um tronco `skin` grande. Por isso **não há flag `--colour-by`**: `part` é o que existe, `panel` só seria `--texture sheet`. Zona-IoU por material, v15 (front): n02X `#5F554B` .26, `#35302E` .05, `#818181` perdido; n005 `#2E2F31` .80, `#5D6568` .15; n00U `#4B3B36` .39, `#322C27` .07, `#838282` perdido. Iguais com e sem esta leva: **o aceite ≥ .5 por material NÃO é atendido e a causa é a forma** (L15-1/L15-2), não a atribuição.
+
+**O que a leva entrega (todos opt-in; `colour_stage.py`, `outline.py` novo, `spec_pipeline.py` só 3 flags).**
+- `--outline hull|off`: `outline.py` copia o corpo (mesmo skin, mesmo armature), empurra cada vértice `.012 H` pela normal (normal soldada por posição: aresta dura não racha), inverte o winding, material preto com backface culling; segunda malha irmã no mesmo GLB. Roda por último (depois de deform / verts / look) e **depois da medição de zona**: o Workbench das fotos de zona desenha as duas faces e o casco pintaria o corpo de preto (primeira versão: zones .000). `render_unit` (EEVEE) honra o culling. Custo: **tris do corpo ×2** (700 → 1400 = 2× o orçamento, no limite do aceite), +0 KB de atlas. `anim_check` aceita as malhas `outline`/`face` (mede só o corpo: n02X walk 2.457, igual ao v15). O loader do jogo (`ModelCook.cpp`) cozinha todas as `model.meshes` (`meshCount`), então 2 malhas carregam; **não testado no jogo** (`RecolorLoaded`/cor de time e custo de 2 draws × skin por unidade ficam abertos).
+- `--face decal|off`: `head_face(cell=128)` (era 64) do recorte do concept, num quad (2 tris) logo à frente dos vértices do osso `head`, skinned 100 % no osso; o decal `sheet` da lathe (listras) sai do spec daquele build. Atlas +16–24 KB (o PNG 128 px; total ≤ 24 KB). `--face parts` (primitivas pequenas por zona) **não feito**: é trabalho de autor (L15-4), não de textura.
+- `--zone-contrast on`: dois slots da paleta a ΔE (Oklab ×100) < 8 → o mais escuro ×.8 em luma. Sem checar adjacência no spec (ponytail: adicionar quando um par distante for escurecido sem necessidade).
+- `tex_compare.py` agora lê as runs `l15-col-*` e conta tris por malha (`tris`, `tris_extra_meshes`). Testes: `test_outline.py` (casco: mesmas faces, winding invertido, vértices partidos andam juntos; recorte ≥ 128 px; contraste), liveness de `outline`/`face`/`zone_contrast`, matriz `c-outline`/`c-face`/`c-zone-contrast`.
+
+**Protocolo.** 6 unidades v15 (forma do `v15-r1`, `--colour-only`, `--deterministic`), runs `l15-col-cel` (controle), `-part` (= cel + `--zone-contrast on`), `-part-outline`, `-part-outline-face`; 24 runs (hfoo falha o gate de zona em todas, controle incluído). Os 3 consertos à mão (`l14-fix/model.glb`, GLB de primitivas com material chapado, **não passam pelo `build_unit`**, então sem `--colour-only`): `l15-fix-cel` (o GLB como está), `-outline`, `-outline-face`, feitos por `outline.apply` direto. Juiz `review_pair.py` (A = controle, 4 votos A/B trocados), 24 pareamentos.
+
+| média 6 unidades v15 | zones mean | cover | ΔE | atlas KB | tris |
+|---|---|---|---|---|---|
+| cel | .336 | .637 | 5.41 | 3.7 | 700 |
+| part (+contraste) | .338 | .636 | 5.37 | 3.7 | 700 |
+| part+outline | .338 | .636 | 4.68 | 3.7 | 1400 |
+| part+outline+face | .335 | .629 | 4.54 | 20.0 | 1402 |
+
+Juiz contra o `cel` (artist / wc3; B = variante): 
+
+| variante | n005 | n00U | hfoo | n017 | n02X | n01X | artist+wc3 ≥ 3-1 |
+|---|---|---|---|---|---|---|---|
+| part | B 4-0 / 4-0 | B 3-1 / 3-1 | cel 3-1 / tie | tie / tie | tie / tie | B 3-1 / 4-0 | 3/6 |
+| part+outline | B 4-0 / 4-0 | B 4-0 / 4-0 | B 4-0 / 4-0 | B 4-0 / 4-0 | B 4-0 / 3-1 | B 4-0 / 3-1 | **6/6** |
+| part+outline+face | B 4-0 / 4-0 | B 4-0 / 4-0 | B 4-0 / 4-0 | B 4-0 / 4-0 | cel 3-1 / 3-1 | B 4-0 / 4-0 | 5/6 |
+
+"form" (superfície contínua): o casco perde em quase tudo (A 4-0) porque o contorno grosso lê como degrau; nos eixos que o aceite pede (artist, wc3) ganha. "sheet": B em 5/6 com outline, hfoo A 4-0 só no `outline` (sem face).
+
+Consertos (cel = o GLB sem contorno): `outline` artist+wc3 B 4-0 / 4-0 nos 3 (3/3); `outline+face` **0/3** (n02X e n005 artist A 4-0; n00U A 4-0 em todos): o conserto já modela óculos e máscara, o quad estica a cara do concept por cima e duplica. Tris dos consertos: 724 / 612 / 548 → ×2 com o casco.
+
+**Aceite (juiz ≥ 3-1 em ≥ 4/6 v15 e 3/3 consertos; zona-IoU por material ≥ .5 nas 3 unidades; atlas ≤ 64 KB; tris com casco ≤ 2×): contorno atende juiz (6/6 e 3/3), atlas (3.7 KB) e tris (exatos 2×); a zona-IoU NÃO atende (forma), logo o aceite completo NÃO é atendido e nenhum default muda.** Recomendação, decisão do orquestrador: `--outline hull` como default (muda uma linha do argparse) depois de provar o GLB de 2 malhas no jogo (cor de time, custo do draw). `--face decal` só onde a cabeça do modelo não tem as peças da cara (n005, n00U, hfoo, n017, n01X sim; n02X e consertos não): opt-in por unidade. `--zone-contrast` sozinho 3/6, sem efeito nas zonas (.336 → .338).
+
+**Aberto.** Contorno testado só em Workbench/EEVEE, não no jogo. O quad fica nos vértices do osso `head`: em modelos com a cabeça afundada no tronco (v15 n02X) é pequeno e sai torto em `bottom`. A espessura é relativa à altura (`.012`): uma unidade de silhueta fina (spider) fica com linha grossa; medir em 2 px no frame do jogo. Imagens: `history/2026-10-30-l15-colour/<id>.png` (concept | cel | part | +outline | +face, 6 vistas) e `<id>-fix.png` (consertos).
