@@ -78,6 +78,8 @@ VARIANTS = {
     "look-creases": var(["--look-snap", "on", "--look-creases", "on"], note="30.L12-9: snap + the sheet's drawn lines as region borders (read against base: includes the snap)"),
     "look-ink": var(["--look-ink", "on"], note="30.L12-9: ink on the atlas edges (cel)"),
     "depth-tri": var(["--depth-source", "tri"], needs="parts.json", note="30.L12-8: part z from the front x left triangulation"),
+    "inscribe": var(["--inscribe", "on"], note="31.L13-5: the sdf body cut by the visual hull of the coherent views + a guarded clamp of the vertices still outside"),
+    "inscribe-cut": var(["--inscribe", "cut"], note="31.L13-5: only the cut (read against base: no clamp)"),
     "noise": var(["--noise", str(NOISE)], note="30.L12-7: guards read 2 sigma from noise-l12.json"),
     # fit (fit_spec / fit_grad)
     "fit-grad": var(["--fit-grad"], note="26.L8-7: Adam on the soft silhouette"),

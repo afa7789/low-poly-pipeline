@@ -73,6 +73,7 @@ import building_hull
 import cut_hull
 import align_features
 import deform_to_sheet
+import inscribe
 import optimize_verts
 import overrides
 import diagnose
@@ -982,6 +983,16 @@ def clay_args(kind):
             *([f"sdf_retopo={SDF_RETOPO}"] if BODY == "sdf" and SDF_RETOPO != "qem" else [])]
 
 
+def inscribe_args(spec_path, spec, args):
+    """build_unit.py arguments of --inscribe cut|on (inscribe.py, PIPELINE 31.L13-5): the visual hull's views and mirrors are the ones the
+    gate picks on the uncut body, so the spec is built once without the cut (<out>/inscribe-uncut.glb)."""
+    if args.inscribe == "off":
+        return []
+    uncut = args.out / "inscribe-uncut.glb"
+    tool("build_unit.py", spec_path, uncut, *clay_args(args.kind), *cut_hull.args(spec, args.sheet, args.kind, args.out), blender=True)
+    return inscribe.build_args(spec, args, args.out, uncut) if uncut.exists() else []
+
+
 def tilts_of(report):
     """{view: tilt} the silhouette sweep chose, in views.parse_tilts form: top/bottom an int,
     rts an (elevation, azimuth) tuple. What stage 2 shoots its views from."""
@@ -1595,7 +1606,7 @@ def stage_shape(spec_path, args, layout):
     glb = args.out / "clay.glb"
     spec = json.loads(pathlib.Path(spec_path).read_text())
     build = tool("build_unit.py", spec_path, glb, *clay_args(args.kind),
-                 *cut_hull.args(spec, args.sheet, args.kind, args.out),
+                 *cut_hull.args(spec, args.sheet, args.kind, args.out), *inscribe_args(spec_path, spec, args),
                  "cull=remove" if args.cull else "cull", blender=True)
     if not glb.exists():
         print(f"{args.id}\t{args.tag}\tBUILD FAILED\t{build.stderr[-200:]}")
@@ -1614,6 +1625,7 @@ def stage_shape(spec_path, args, layout):
     if fitted:
         print(f"fit-verts: {fitted['steps']} steps in {fitted['seconds']} s, objective {fitted['objective'][0]} -> "
               f"{fitted['objective'][1]}, slivers {fitted['slivers_before']} -> {fitted['slivers_after']}")
+    inscribe.apply(glb, args)                         # L13-5 (--inscribe): the cut's report; on: the vertices the deform and the fit pushed out of the masks go back in
     looked = look.apply(glb, args)                    # L12-9: planar snap / ink of the sheet's lines (opt-in) and the look metrics
     if looked:
         print(look.line(looked))
@@ -2294,6 +2306,12 @@ def build_parser():
                     help="--body sdf: how each junction's smooth-min k is chosen (sdf_body.K_MODES, PIPELINE 29.L11-5)")
     ap.add_argument("--sdf-retopo", choices=("qem", "cvt"), default="qem",
                     help="--body sdf: the retopology of the dense body (retopo.retopo method; cvt = curvature-guided Voronoi, PIPELINE 29.L11-6)")
+    ap.add_argument("--inscribe", choices=("off", "cut", "on"), default="off",
+                    help="inscribe the model in the sheet's visual hull (inscribe.py, PIPELINE 31.L13-5): cut = the SDF body is intersected with the "
+                         "coherent views' masks before the retopology (--body sdf), on = cut + the vertices still outside the masks after the "
+                         "deform and the vertex fit are pulled in")
+    ap.add_argument("--inscribe-erode", type=int, default=inscribe.ERODE_PX, metavar="PX",
+                    help="--inscribe: the masks are eroded this many canvas px (default 1)")
     ap.add_argument("--tilts", default="",
                     help="pin the approved silhouette's top/bottom/rts cameras (silhouette.py --tilts, e.g. bottom:20,rts:55/-60): "
                          "lets two builds of one spec be compared on the same cameras (sdf_batch.py)")
@@ -2361,7 +2379,7 @@ def noop_notes(args):
                                 ("--parts", args.parts), ("--constraints", args.constraints)) if on and not args.fit]
     stage1_only = [f for f, on in (("--colour-pass", args.colour_pass), ("--ramp", args.ramp), ("--fit-luma", args.fit_luma)) if on and args.shape_only]
     sdf_only = [f for f, on in (("--sdf-grid", args.sdf_grid), ("--sdf-k-mode", args.sdf_k_mode != "base"),
-                                ("--sdf-retopo", args.sdf_retopo != "qem")) if on and args.body != "sdf"]
+                                ("--sdf-retopo", args.sdf_retopo != "qem"), ("--inscribe cut", args.inscribe == "cut")) if on and args.body != "sdf"]
     unioned_only = (["--align"] if args.align and args.body == "join" else [])
     why = [(cel_only, "stage 2 reads it for --texture cel only"), (fit_only, "--no-fit"), (stage1_only, "--shape-only: no stage 2"),
            (sdf_only, f"--body {args.body}, it is for --body sdf"), (unioned_only, "--body join: no unioned body to deform"),

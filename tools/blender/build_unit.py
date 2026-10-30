@@ -1138,6 +1138,7 @@ def painted_image(name, rgb, size=64):
     return img
 
 
+INSCRIBE = None  # (arg inscribe=<npz>) inscribe.build_args's visual hull: sdf_dense intersects the body's field with it (PIPELINE 31.L13-5)
 CUTS = {}        # (arg cuts=<json>) {part index: outlines} of the parts with opts "cut", {"profile"} of a lathe (cut_hull.py)
 FACE = None      # (arg face=<png>) RGBA array of the approved sheet's head, the "sheet" decal
 DECALS = []      # (centre, half, kind, colour, side, owner) of parts whose front face (side 1; a back prop: -1) carries a decal;
@@ -1726,8 +1727,11 @@ def load_spec(target):
 
 
 def load_cuts(argv):
-    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py); propcrops=<json>."""
+    """The cuts=<json> argument: the outlines of the parts with opts "cut" (cut_hull.py); propcrops=<json>; inscribe=<npz>."""
+    global INSCRIBE
     for arg in argv:
+        if arg.startswith("inscribe="):
+            INSCRIBE = arg[len("inscribe="):]
         if arg.startswith("cuts="):
             CUTS.update(json.loads(pathlib.Path(arg[len("cuts="):]).read_text()))
         if arg.startswith("propcrops="):
@@ -1953,6 +1957,8 @@ def sdf_dense(spec, cuts=None, grid=96, adaptivity=0.5, k=1.0, name="sdf", thin=
     props and the flame slit stay out) from sdf_body.field. `thin`: the policy of sdf_body.field for the parts under 2 voxels; `k_mode`: its K_MODES."""
     field = sibling("sdf_body").field([tuple(r) for r in spec], CUTS if cuts is None else cuts, sibling("lathe_limb").RIG,
                                       k, grid, False, thin=thin, k_mode=k_mode)
+    if INSCRIBE:
+        pathlib.Path(INSCRIBE).with_suffix(".carve.json").write_text(json.dumps(sibling("inscribe").carve(field, INSCRIBE)))
     obj = sdf_mesh(field, adaptivity, name)
     bm = bmesh.new()      # the adaptive extraction leaves edges of 1e-3 voxels: one vertex of two bones' weights each
     bm.from_mesh(obj.data)

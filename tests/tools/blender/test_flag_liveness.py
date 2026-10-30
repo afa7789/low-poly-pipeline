@@ -20,6 +20,7 @@ sys.path.insert(0, str(TOOLS))
 
 import colour_stage  # noqa: E402
 import fit_spec  # noqa: E402
+import inscribe  # noqa: E402
 import look  # noqa: E402
 import numpy as np  # noqa: E402
 import parts_fit  # noqa: E402
@@ -205,6 +206,21 @@ def live_depth_source():      # tri moves a spec part whose z is outside the box
     return tuple(out)
 
 
+def live_inscribe_wiring():  # the composed pipeline: with --inscribe cut spec_pipeline builds the uncut body and passes the hull to the real build
+    built, out = [], []
+    for flags in ((), ("--inscribe", "cut")):
+        args = parse(*flags)
+        with tempfile.TemporaryDirectory() as tmp:
+            args.out, args.kind, args.sheet = pathlib.Path(tmp), "mass", "s.jpg"
+
+            def tool(name, spec, glb, *a, **k):
+                built.append(pathlib.Path(glb).name)
+                pathlib.Path(glb).write_bytes(b"glb")
+            with mock.patch.object(SP, "tool", tool), mock.patch.object(inscribe, "build_args", return_value=["inscribe=h.npz"]):
+                out.append(SP.inscribe_args("spec.json", {"parts": []}, args))
+    return out, built
+
+
 def live_sdf_k_mode():       # the flag reaches build_unit, and the mode changes the junction width
     a = {"r": .1, "bone": "arm.L"}
     return (clay() == clay(sdf_k_mode="hard"), sdf_body.pair_k(a, a, .01, 2, 1) == sdf_body.pair_k(a, a, .01, 2, 1, "hard"))
@@ -287,6 +303,7 @@ LIVE_CUSTOM = {         # dest -> (check, expected)
     "sdf_k_mode": (live_sdf_k_mode, (False, False)),          # clay_args differ, pair_k differs: "equal" is False for both
     "sdf_retopo": (live_sdf_retopo, (False, ["qem", "cvt"])),
     "fit_luma": (live_fit_luma, [True]),
+    "inscribe": (live_inscribe_wiring, ([[], ["inscribe=h.npz"]], ["inscribe-uncut.glb"])),
 }
 NOOP = {         # dest -> (argv that switch it on without its precondition, text noop_notes says)
     "ramp": (["--texture", "painted", "--ramp"], "--ramp"),
@@ -299,7 +316,7 @@ PLAIN = {      # read by every run (or by the mode they name): the static check 
     "id", "race", "name", "role", "run", "sheet", "hard", "hard_clean", "props", "image1", "with_sheet", "model", "tag", "rig",
     "fixed_rig", "height", "kind", "texture", "atlas_dir", "no_silhouette", "no_rts", "spec", "hull", "cull", "fit", "no_fewshot",
     "no_massing", "variants", "decimate", "budgets", "tilts", "deform", "fit_verts", "flip_side", "frame", "no_repair", "passes",
-    "diagnose", "pair", "out",
+    "diagnose", "pair", "out", "inscribe_erode",
 }
 ENV = {"CF_SPILL_W", "CF_VERTS_SECONDS", "CF_FLIP_SIDE", "CF_FRAME", "CF_OVERRIDES", "CF_BUILD_ARGS"}       # each is read in the source (checked below) and documented here
 
