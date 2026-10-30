@@ -81,6 +81,16 @@ class DepthInit(unittest.TestCase):
         self.assertIn((3, 0), self.pf.pairs)
         self.assertNotIn((0, 3), self.pf.pairs)
 
+    def test_a_depth_that_changes_nothing_says_why(self):
+        """L13-3: r under the floor and a parts.json with depth_order: --depth is --fit-parts, and the report names the reason"""
+        disp = {0: 0.1, 1: 0.3, 2: 0.5, 3: 0.7, 4: 0.7}
+        self.doc["parts"][3]["depth_order"] = 1
+        with mock.patch.object(D, "part_disparity", return_value=disp):
+            _, low = D.depth_init(self.parts, self.pf, self.doc, {}, 2.0, self.centres, {"a": 1.0, "b": -0.6, "r": 0.3, "n": 9})
+            _, high = D.depth_init(self.parts, self.pf, self.doc, {}, 2.0, self.centres, {"a": 1.0, "b": -0.6, "r": 0.95, "n": 9})
+        self.assertIn("r=0.30, r < 0.7", low["noop"])
+        self.assertNotIn("noop", high)
+
 
 if __name__ == "__main__":
     unittest.main()

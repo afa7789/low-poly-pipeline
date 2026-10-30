@@ -86,8 +86,16 @@ def live_fit_parts():
     return fit_kwargs()["partfit"], fit_kwargs("--fit-parts")["partfit"]
 
 
-def live_depth():
-    return fit_kwargs()["depth"], fit_kwargs("--depth")["depth"]
+def live_depth():      # L13-3: the flag reaches fit AND, with a trusted line (r >= MIN_R), depth_init moves a part z (kwarg arrival alone proved nothing)
+    import depth_map
+    assert (fit_kwargs()["depth"], fit_kwargs("--depth")["depth"]) == (False, True)
+    spec = ["a", "box", [1, 1, 1], [0, 0, 0], "m", {}]
+    pf = types.SimpleNamespace(assoc=[0], masks={(0, "front"): None}, pairs=[])
+    doc = {"H": 2.0, "parts": [{"box3d": [[0, 0, 0], [1, 1, 0]], "depth_order": 0}]}
+    calib = {"a": 1.0, "b": 0.0, "r": 0.95, "n": 9}
+    with mock.patch.object(depth_map, "part_disparity", return_value={0: 0.1}):
+        moved = depth_map.depth_init([spec], pf, doc, {}, 2.0, [(0, 0, 0)], calib)[0][0][3][2]
+    return spec[3][2], moved
 
 
 def live_parts():
