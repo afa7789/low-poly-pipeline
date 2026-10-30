@@ -53,11 +53,11 @@ def run_name(body, grid=0):
     return f"l10-batch-{body}" + (f"g{grid}" if grid else "")
 
 
-def command(u, body, grid=0, tilts="", name=None):
+def command(u, body, grid=0, tilts="", name=None, gate=""):
     cmd = [sys.executable, str(ROOT / "tools/blender/spec_pipeline.py"), "--id", u["unit"], "--race", "Human", "--name", u["unit"],
            "--kind", "mass", "--rig", u["rig"], "--spec", str(u["spec"]), "--shape-only", "--no-repair", "--no-diagnose",
            "--run", name or run_name(body, grid), "--body", body]
-    return cmd + (["--sdf-grid", str(grid)] if grid and body == "sdf" else []) + (["--tilts", tilts] if tilts else [])
+    return cmd + (["--sdf-grid", str(grid)] if grid and body == "sdf" else []) + (["--tilts", tilts] if tilts else []) + (["--gate", gate] if gate else [])
 
 
 def cause_of(text):
@@ -93,6 +93,16 @@ def gated_iou(sil, view):
     return sil.get("body_iou", {}).get(view, sil.get("approved", {}).get(view))
 
 
+def parts_of(sil):
+    """[k, n] of the parts gate summed over the views it judges (silhouette.json "parts": {view: [k, n]}), None without parts."""
+    got = list((sil.get("parts") or {}).values())
+    return [sum(k for k, _ in got), sum(n for _, n in got)] if got and sum(n for _, n in got) else None
+
+
+def parts_cell(parts):
+    return "–" if not parts else f"{parts[0]}/{parts[1]}"
+
+
 def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, grid=0):
     """One measurements row (all inputs already parsed) -> flat dict. `plates` = [(spec row, owned triangles, buried)] per 'plate' part."""
     un, ap = attach.get("union", {}), sil.get("approved", {})
@@ -103,7 +113,7 @@ def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, gr
             "dev_max": stat(lint, "max"), "euler": lint["euler"], "comp": lint["components_body"],
             "iou": [ap.get(v) for v in VIEWS], "unc": mean(sil.get("uncovered", {})), "spill": mean(sil.get("spill", {})),
             "spill_v": [sil.get("spill", {}).get(v) for v in VIEWS], "unc_v": [sil.get("uncovered", {}).get(v) for v in VIEWS],
-            "contact_v": [sil.get("contact", {}).get(v) for v in VIEWS],
+            "contact_v": [sil.get("contact", {}).get(v) for v in VIEWS], "parts": parts_of(sil),
             "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and v not in incoherent and (gated_iou(sil, v) < gates[v] or over_caps(sil, v))],
             "incoherent": [v for v in VIEWS if v in incoherent],
             "body_v": {k: [sil.get(f"body_{k}", {}).get(v) for v in VIEWS] for k in ("iou", "spill", "bare")} if sil.get("body_iou") else None,
@@ -169,15 +179,15 @@ def depth_cell(depth):
 def table(rows):
     """Markdown: one line per (unit, body)."""
     head = ("| unit | rig | body | build s | total s | tris | sliver % (raw→final) | nd | sdf_dev p95 / max % H | euler | comp | "
-            "IoU f/l/b/top/bot/rts | spill | bare | contact | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates | look | depth |\n" + "|---" * 21 + "|")
+            "IoU f/l/b/top/bot/rts | spill | bare | contact | parts | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates | look | depth |\n" + "|---" * 22 + "|")
     out = [head]
     for r in sorted(rows, key=lambda r: (r["unit"], r["body"] != "sdf")):
         if not r["ok"]:
-            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 15)
+            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 16)
             continue
         iou = per_view(r["iou"], r.get("incoherent", ()))
         out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | {f(r['build_s'])} | {r['total_s']} | {r['tris']} | {f(r['sliver_raw'])} → {f(r['sliver'])} "
-                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'], r.get('incoherent', ()))} | {per_view(r['unc_v'], r.get('incoherent', ()))} | {per_view(r['contact_v'], r.get('incoherent', ()))} "
+                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'], r.get('incoherent', ()))} | {per_view(r['unc_v'], r.get('incoherent', ()))} | {per_view(r['contact_v'], r.get('incoherent', ()))} | {parts_cell(r.get('parts'))} "
                    f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} | {look_cell(r.get('look'))} | {depth_cell(r.get('depth'))} |")
     return "\n".join(out)
 
@@ -304,7 +314,7 @@ def collect(u, body, grid, total_s, skip_anim, name=None):
             "infra": json.loads(infra.read_text()) if infra.exists() else [], "look": read_json(run / "clay.look.json").get("look_after"), "depth": read_json(run / "clay.depth.json")}
 
 
-def build(u, body, grid, name=None):
+def build(u, body, grid, name=None, gate=""):
     """Runs spec_pipeline for one (unit, body); the output goes to <run>/batch.log. Returns the wall seconds. The l10-batch-* dir
     of an earlier battery is removed first (it is this tool's own output): the pipeline reuses a run dir's fit/ and spec, so
     a rebuild over it is not a rebuild from the origin spec (n00H, n010, n01N moved 0.03-0.2 IoU between two runs)."""
@@ -312,7 +322,7 @@ def build(u, body, grid, name=None):
     shutil.rmtree(run, ignore_errors=True)
     run.mkdir(parents=True)
     t0 = time.perf_counter()
-    done = subprocess.run(command(u, body, grid, tilts_arg(read_json(u["spec"].parent / "silhouette.json")), name), capture_output=True, text=True, cwd=ROOT)
+    done = subprocess.run(command(u, body, grid, tilts_arg(read_json(u["spec"].parent / "silhouette.json")), name, gate), capture_output=True, text=True, cwd=ROOT)
     (run / "batch.log").write_text(done.stdout + done.stderr)
     total = time.perf_counter() - t0
     (run / "batch.json").write_text(json.dumps({"total_s": round(total, 1), "returncode": done.returncode}))
@@ -320,7 +330,9 @@ def build(u, body, grid, name=None):
 
 
 def repeat_name(args, rep):
-    """The run dir of rebuild `rep` (1-based) of a --repeat battery: <--prefix>-r<rep>; None for the plain battery."""
+    """The run dir of rebuild `rep` (1-based) of a --repeat battery: <--prefix>-r<rep>; --run: that name; None for the plain battery."""
+    if args.run:
+        return args.run
     return f"{args.prefix}-r{rep}" if args.repeat > 1 else None
 
 
@@ -328,7 +340,7 @@ def one(u, body, args, rep=1):
     grid = args.grid if body == "sdf" else 0
     name = repeat_name(args, rep)
     total = (read_json(DRAFT / u["unit"] / (name or run_name(body, grid)) / "batch.json").get("total_s", 0.0) if args.collect_only
-             else build(u, body, grid, name))
+             else build(u, body, grid, name, args.gate))
     row = {**collect(u, body, grid, total, args.no_anim, name), "rep": rep}
     print(f"{u['unit']} {body} r{rep}: {'ok' if row['ok'] else 'FAIL ' + row['cause']} ({row['total_s']} s)", file=sys.stderr, flush=True)
     return row
@@ -365,6 +377,8 @@ def main(argv=None):
                                                           "N=1: the plain battery")
     ap.add_argument("--prefix", default="l12-noise", help="run name prefix of a --repeat battery")
     ap.add_argument("--spec-run", default=None, help="build the spec of this run of every unit (v13-r1) instead of the latest v1x")
+    ap.add_argument("--run", default="", help="run dir name under runs/draft/<id>/ instead of l10-batch-<body> (a new dir: an existing one is rebuilt from scratch)")
+    ap.add_argument("--gate", choices=("silhouette", "parts"), default="silhouette", help="spec_pipeline --gate: with parts the table has the parts k/n column judged")
     ap.add_argument("--noise-out", type=pathlib.Path, default=None, help="where --repeat writes noise.json (default: next to --json)")
     args = ap.parse_args(argv)
     units = discover(units=[x for x in args.units.split(",") if x], spec_run=args.spec_run)

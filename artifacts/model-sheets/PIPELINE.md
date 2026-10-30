@@ -5929,3 +5929,64 @@ O usuário olhou a v15 e disse "está muito ruim". A leva troca métrica de silh
   viu em v10 vs v15 não vem do corpo (specs, ajuste e textura mudaram juntos). `planarity` (k-means de normais, k = 12) quase não separa os dois: .00–.10.
 - **Aberto.** Orçamento 1000 só no sdf e só para unidades com patas/mãos finas (n02X) — sem critério de seleção medido; a decimação do union para no 90 % do orçamento;
   nenhum run deste item tem spill ≤ .03 (forma, não corpo).
+
+## 33. Leva 15 (2026-10-30): peças, não massa — gate por peça, peças rígidas fora do SDF, cor por peça, preflight do autor
+
+A Leva 14 provou à mão (L14-3) que o gate de silhueta e o olho discordam: o conserto por primitivas ganhou o juiz em 11 de 12 eixos e perdeu o IoU
+em todas as vistas coerentes. A Leva 15 ataca as causas C1–C6 do diagnóstico (`analysis/2026-10-30-l14-fix-diagnosis.md`), uma por item.
+
+### 33.L15-1 O gate mede peças; a silhueta vira guarda; o juiz vira gate de não-regressão (C3, C4, `--frame body`) (2026-10-30)
+- **`parts_gate.py` (novo).** Para cada peça de `refs/<id>/parts.json` com box no painel front/left, três testes por (peça, vista):
+  *cover* (a silhueta do modelo cobre ≥ `PART_COVER_MIN` .5 dos pixels da peça no sheet; papéis head, hand, foot, leg, arm, wing, tail, prop),
+  *material* (a zona de cor da peça, `silhouette.cover` sobre o render de cor chato do modelo, ≥ .5; só quando existe o render de cor, i.e. não no clay
+  cinza; os papéis sem contorno próprio, face/torso/pelvis/other, só têm este teste) e, para props **fora** do corpo (a clava, o disco), *tamanho*
+  (os pixels do modelo junto ao prop e fora do corpo do sheet = 1 ± `PART_SIZE_TOL` .4 dos do prop) e *lado* (mesmo lado do centro do corpo que o prop do
+  sheet: a clava atrás do corpo reprova, o IoU não vê). Peça com < 60 px numa vista não é julgada. Saída: tabela por peça/vista, `parts k/n`,
+  `parts_gate.json` e `silhouette.json[vista].parts = [k, n]`. Reusa `prop_masks`, `parts_fit.part_mask`, `zone_views` (novo `keep=` devolve os mapas de rótulo)
+  e `cover`; nenhuma máscara nova.
+- **Silhueta vira guarda (`silhouette.py --gate parts`, `spec_pipeline --gate parts`; default `silhouette` = o gate das Levas 1–14).** Guardas por vista: IoU do
+  corpo ≥ `min(gate da vista, BODY_FLOOR .75)` e spill do corpo ≤ `SPILL_GUARD` .15 (detetor de desastre). O aceite é `parts ≥ PARTS_MIN` 80 %.
+  Veredito: `PASS` | `CHECK(guard <vistas>)` | `CHECK(parts k/n)`; spill/bare/contact seguem impressos por vista. As zonas deixam de reprovar no modo parts (são
+  medidas por peça). Sheet sem `parts.json`: roda como `silhouette` (diz na saída).
+- **Juiz como gate de não-regressão.** `review_pair.py --gate A B --id X`: exit 1 se o run novo perde *form* ou *artist* para o anterior 3-1/4-0
+  (`regressed`; empate e viés de posição não perdem); `spec_pipeline --pair A --judge-gate on` (opt-in, 1 chamada de juiz por unidade) faz um veredito de passe virar
+  `CHECK` e escreve `judge gate vs A: PASS|FAIL (...)` no `review.md`.
+- **C4, orientação do sheet (`refs/<id>/sheet.json`, `parts_gate.py freeze <id>...`, `--orient sheet|model`, default `sheet`).** `rotate` = painéis top/bottom desenhados
+  a 180º (maioria ≥ 75 % dos runs da unidade em disco: nenhuma das 6 unidades é girada, 111–192 runs cada); `mirror`: front/back/top/bottom nunca espelham (o rig e o sheet
+  partilham o eixo x) e **left** espelha quando o sheet olha para a esquerda, lido do `parts.json` (rosto + mãos + cabeça à frente do torso no painel left;
+  fraco < .05 = o modelo decide). **Não é voto dos runs passados:** eles escolhiam o espelho pelo IoU, e uma clava atrás do corpo encaixa num painel que olha
+  para a esquerda tão bem quanto uma à frente (n02X: 0 de 153 runs espelhados; o conserto à mão precisa do espelho). `detect_rotated` e `best_match(mirror=)` leem de lá; o
+  gate não re-detecta por modelo. Seed: as 6 unidades (n005 R, n00U L, hfoo R, n017 L, n02X L, n01X R).
+- **`--frame body` consertado.** (1) o modelo de peças soltas (conserto à mão) tinha por "corpo" a maior componente soldada (o tronco): front .34. Agora um modelo sem componente
+  dominante (< 50 % dos vértices) tem por props as componentes com ≥ 50 % dos vértices dentro das máscaras de prop do sheet (`silhouette.body_fractions`, o espelho só
+  quando a vista não o fixa); com componente dominante (SDF + peças) vale a regra antiga. (2) `bbox_masks` quebrava com `KeyError: 'rts'` no modo body fora do `--shape`.
+  (3) `spec_pipeline` fixava `CF_FRAME` depois de `deform_to_sheet`/`optimize_verts`/`inscribe` terem importado `silhouette` (lido no import): agora também seta
+  `silhouette.FRAME` (2 linhas), logo os estágios em-processo enquadram como o gate.
+- **Medida** (`history/2026-10-30-l15-gate/table.md`, `<id>.png`; runs em `runs/draft/<id>/l15-gate/<run>-<rótulo>/`). Gate antigo = pinado da v15 (como a pipeline faz); gate novo =
+  `--gate parts --orient sheet`, câmaras livres. v15 = `v15-r1/model.glb`, fix = `l14-fix/model.glb`.
+
+  | un. | run | IoU antigo f/l/b/top/bot/rts | IoU novo | guardas | parts k/n | veredito novo | juiz (fix) sheet/art/wc3/forma |
+  |---|---|---|---|---|---|---|---|
+  | n005 | v15 | .91/.94/.93/.81/.83/.88 | .91/.94/.93/.81/.82/.88 | 6/6 | 26/28 | PASS | |
+  | n005 | fix | .74/.80/.73/.67/.63/.74 | .74/.80/.73/.71/.71/.76 | 1/6 | 25/28 | CHECK(guard f,b,top,bot,rts) | 4-0/4-0/4-0/0-4 |
+  | n00U | v15 | .90/.77/.89/.78/.77/.70 | .90/.77/.88/.78/.77/.70 | 2/4 | 14/21 | CHECK(guard left,rts) | |
+  | n00U | fix | .56/.61/.56/.59/.66/.56 | .56/.61/.56/.59/.66/.62 | 0/4 | 9/21 | CHECK(guard f,l,b,rts) | 4-0/4-0/4-0/4-0 |
+  | n02X | v15 | .90/.87/.90/.81/.78/.76 | .90/**.44**/.90/.81/.78/.76 | 5/6 | 18/39 | CHECK(guard left) | |
+  | n02X | fix | .75/.78/.75/**.39/.35**/.63 | .75/.78/.75/**.82/.70**/.70 | 5/6 | 23/39 | CHECK(guard bottom) | 4-0/4-0/4-0/4-0 |
+  | hfoo | v15 | .84/.56/.84/.64/.68/.45 | .84/**.26**/.84/.64/.67/.45 | 3/5 | 13/25 | CHECK(guard left,top) | |
+  | n017 | v15 | .92/.80/.86/.88/.87/.69 | .90/.80/.86/.88/.86/.69 | 5/5 | 9/19 | CHECK(parts 9/19) | |
+  | n01X | v15 | .82/.89/.82/.91/.83/.86 | .82/.79/.82/.91/.83/.86 | 6/6 | 18/30 | CHECK(parts 18/30) | |
+
+  C4: o conserto n02X com a orientação do sheet dá top/bottom .82/.70 (antes .39/.35 com câmaras pinadas de outro modelo; o varrimento livre da L14-3 dava .815/.695, igual).
+  O espelho fixo do left põe à mostra o que o IoU escondia: a clava do n02X v15 está atrás do corpo (left .87 → .44, a lacuna C5), e o hfoo v15 olha para o lado
+  errado (left .56 → .26: o bug hfoo-180 deixa de ser absorvido por um espelho escolhido pelo IoU). `--frame body` (IoU body/bbox): fix n02X front .75/.75 (antes .34), n005 fix .74/.74, n00U fix
+  .53/.56; v15 piora em n005 left .94 → .62, n02X front .90 → .69, n00U front .90 → .82, n01X front .82 → .78 e melhora em hfoo left .26 → .46: segue opt-in.
+- **Aceite (roadmap): NÃO atendido; `--gate parts` NÃO vira default.** (a) O gate novo dá veredito melhor ao conserto que ao v15 só em n02X (parts 23/39 contra 18/39; o v15 reprova a guarda
+  left pela clava atrás); em n005 o v15 tem PASS (guardas 6/6, parts 26/28) e o fix CHECK, em n00U o v15 14/21 e o fix 9/21 com 0/4 guardas. (b) das 6 v15 uma passa de CHECK a PASS: **n005**
+  (6/6 guardas, 26/28 peças): razão = os testes de peça medem cover/material/lado/tamanho e o v15 acerta todos; o que o juiz vê (rosto, óculos, capuz legíveis, sheet/artist/wc3 4-0 para o conserto) não está nos testes. (c) Correlação
+  juiz × gate nas 3 unidades (n = 3, fraca): antes (Δ IoU médio, antigo) −.97, depois (Δ parts share) −.06: deixou de ser negativa, não é positiva.
+  O que falta é medir o que só o olho vê (§4 do diagnóstico: rosto, barriga vs caixa, patas vs tenda); o gate de peças só cobre presença, cor, lado e tamanho.
+- **sdf_batch** ganhou a coluna `parts` (k/n somado nas vistas) e `--run NAME` / `--gate`; reexecutado nas 6 unidades v15 (`--run l15-gate-sdf --gate parts`, SDF, 700 tris, `runs/draft/l15-gate-sdf-batch.md`):
+  parts por unidade no clay cinza (só cover/lado/tamanho: sem cor) hfoo 15/19, n005 21/22, n00U 15/16, n017 15/17, n02X 26/31, n01X 25/25 (left com o espelho fixo: hfoo .29, n02X .48).
+- **Pulado.** Zonas por material como teste de peça no estágio 1 (clay cinza: não há cor; roda no modelo texturizado e no `--ids`); teste de tamanho para peça que não é prop (precisaria de uma máscara de
+  modelo por peça: id render); tilts por unidade (L13-2 já pina); espelho de top/bottom pelo sheet (não há sinal confiável; o varrimento escolhe).

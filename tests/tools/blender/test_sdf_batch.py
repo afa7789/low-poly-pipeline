@@ -108,6 +108,23 @@ class Pure(unittest.TestCase):
         self.assertIn("1/1 units", B.acceptance_table([row("sdf")]))
 
 
+class Parts(unittest.TestCase):
+    """L15-1: the parts k/n column."""
+    def test_parts_are_summed_over_the_views(self):
+        self.assertEqual(B.parts_of({"parts": {"front": [3, 5], "left": [2, 4]}}), [5, 9])
+        self.assertIsNone(B.parts_of({}))
+        self.assertIsNone(B.parts_of({"parts": {"front": [0, 0]}}))
+        self.assertEqual(B.parts_cell([5, 9]), "5/9")
+        self.assertEqual(B.parts_cell(None), "–")
+
+    def test_the_gate_and_the_run_name_reach_the_command(self):
+        u = {"unit": "n005", "rig": "biped", "spec": "s.json"}
+        cmd = B.command(u, "sdf", name="l15-x", gate="parts")
+        self.assertEqual(cmd[cmd.index("--gate") + 1], "parts")
+        self.assertEqual(cmd[cmd.index("--run") + 1], "l15-x")
+        self.assertNotIn("--gate", B.command(u, "sdf"))
+
+
 @unittest.skipUnless(os.environ.get("SLOW"), "SLOW=1: runs Blender")
 class Slow(unittest.TestCase):
     def test_one_unit(self):

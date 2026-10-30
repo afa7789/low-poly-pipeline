@@ -228,6 +228,22 @@ def lost(result):
     return 2 * sum(result[a]["winner"] == "A" for a in axes) > len(axes)
 
 
+GATE_AXES = ("form", "artist")      # the axes of the non-regression gate (L15-1): continuous form and "made by an artist"
+
+
+def regressed(result):
+    """True when the new run (B) loses form or artist to the earlier one (A) 3-1 or 4-0 (the votes counted, a tie and a position-bias
+    axis do not lose); a 2-2 does not regress. The judge as a gate of non-regression (PIPELINE 33.L15-1), not as a score."""
+    return any(result[a]["winner"] == "A" for a in GATE_AXES if a in result)
+
+
+def gate_line(result):
+    """'judge gate: PASS (form B 3-1, artist tie 2-2)' / 'judge gate: FAIL (...)' for the form and artist axes."""
+    axes = ", ".join(f"{a} {result[a]['winner']} {max(result[a]['A'], result[a]['B'])}-{min(result[a]['A'], result[a]['B'])}"
+                     for a in GATE_AXES if a in result)
+    return f"judge gate vs {result['A']}: {'FAIL' if regressed(result) else 'PASS'} ({axes})"
+
+
 def demote(status):
     """One status level down (rejected stays)."""
     return LEVELS[max(LEVELS.index(status) - 1, 0)] if status in LEVELS else status
@@ -247,10 +263,15 @@ def main():
     ap.add_argument("--kind", default="mass")
     ap.add_argument("--model", default="session:opus")
     ap.add_argument("--work", type=pathlib.Path, default=None)
+    ap.add_argument("--gate", action="store_true",
+                    help="non-regression gate: exit 0 when the new run (B) does not lose form or artist to A 3-1 / 4-0, 1 when it does")
     args = ap.parse_args()
     result = compare(args.run_a, args.run_b, args.id, args.kind, args.model, args.work)
     append_review(args.run_b, result)
     print(line(result))
+    if args.gate:
+        print(gate_line(result))
+        return int(regressed(result))
     return 0
 
 

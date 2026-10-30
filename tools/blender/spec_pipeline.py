@@ -1449,7 +1449,7 @@ def silhouette_vs(args, glb, layout, sheet, name):
     colour zones belong to stage 2."""
     sil_dir = args.out / "sil" / name
     pin = ["--tilts", args.tilts] if getattr(args, "tilts", "") and name == "approved" else []
-    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape", "--rig", args.rig, *pin)
+    sil = tool("silhouette.py", sheet, glb, sil_dir, "--layout", layout, "--shape", "--rig", args.rig, "--gate", args.gate, "--orient", args.orient, *pin)
     print(f"vs {name}:\n{sil.stdout.strip()}")
     return sil.returncode == 0, json.loads((sil_dir / "silhouette.json").read_text())
 
@@ -1481,7 +1481,7 @@ def shape_review(args, glb, layout):
         summary["flipped"] = {v: r["flipped"] for v, r in report.items() if "flipped" in r}
         summary["top_orientation"] = {v: report[v]["head"] for v in ("top", "bottom") if v in report}
         summary["chamfer"] = {k: r["chamfer"] for k, r in report.items() if "chamfer" in r}
-        for key in ("uncovered", "spill", "red", "contact", *BODY_PROP):     # coupling (PIPELINE 21.F7); body / prop (30.L12-5)
+        for key in ("uncovered", "spill", "red", "contact", "parts", *BODY_PROP):     # coupling (PIPELINE 21.F7); body / prop (30.L12-5)
             summary[key] = {k: r[key] for k, r in report.items() if key in r}
         summary["gates"] = gates_for(args.rig)
         summary["sheet"] = run_report(args)     # r_sym and coherence; incoherent views are not gated
@@ -2363,6 +2363,14 @@ def build_parser():
                     help="LLM diagnosis of the finished run (diagnose.py); default on for CHECK, "
                          "off for PASS. An output only: nothing goes back to the model")
     ap.add_argument("--no-diagnose", dest="diagnose", action="store_false", help="no diagnosis, even for CHECK")
+    ap.add_argument("--gate", choices=("silhouette", "parts"), default="silhouette",
+                    help="stage 1 gate (silhouette.py --gate): silhouette = IoU and spill of every view; parts = they are guards, the acceptance "
+                         "is parts >= 80 percent (parts_gate.py, PIPELINE 33.L15-1)")
+    ap.add_argument("--orient", choices=("sheet", "model"), default="sheet",
+                    help="top/bottom rotation and left mirror from refs/<id>/sheet.json (parts_gate.py freeze) or decided again for each model")
+    ap.add_argument("--judge-gate", choices=("on", "off"), default="off",
+                    help="on: with --pair, the paired judge is a non-regression gate: losing form or artist 3-1 / 4-0 to the earlier run "
+                         "makes a passing verdict CHECK (review_pair.regressed; 1 judge call per unit)")
     ap.add_argument("--pair", type=pathlib.Path, default=None,
                     help="an earlier run dir of this unit: pairwise vision review against it "
                          "(review_pair.py); losing both axes demotes the status one level")
@@ -2415,6 +2423,8 @@ def main():
     overrides.apply()          # ablation_matrix.py only (CF_OVERRIDES); nothing without it
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     os.environ["CF_FRAME"] = args.frame or os.environ.get("CF_FRAME", "bbox")
+    import silhouette
+    silhouette.FRAME = os.environ["CF_FRAME"]      # read at import: deform, verts and inscribe imported it before this line ran (L15-1)
     if args.variants < 1:
         ap.error("--variants must be at least 1")
     args.deterministic = args.deterministic or args.loop > 0
@@ -2468,6 +2478,7 @@ def main():
     save_infra(args)
     verdict = verdict_of(shape, colour, args.infra)
     args.pairwise = pairwise_of(args, shape)
+    verdict = judge_verdict(args, verdict)
     write_review(args, shape, colour, verdict)
     run_diagnose(args, verdict)       # after spec.json, review.md and compare.png: reads them, changes none
     stage2 = "-" if colour is None else ("PASS" if colour[0] else "FAIL")
@@ -3019,9 +3030,16 @@ EVALUATION = ("## Avaliação\n\n| eixo | nota (1-5) |\n|---|---|\n| consistênc
               "| estética da triangulação | |\n| qualidade geral | |\n\n")
 
 
+def judge_verdict(args, verdict):
+    """--judge-gate on: a passing verdict becomes CHECK when the paired judge says the run lost form or artist to --pair (3-1 / 4-0)."""
+    pw = getattr(args, "pairwise", None)
+    return "CHECK" if args.judge_gate == "on" and pw and review_pair.regressed(pw) and verdict in OK_VERDICTS else verdict
+
+
 def pairwise_line(args):
     pw = getattr(args, "pairwise", None)
-    return f"{review_pair.line(pw)}\n\n" if pw else ""
+    gate = f"{review_pair.gate_line(pw)}\n\n" if pw and args.judge_gate == "on" else ""
+    return f"{review_pair.line(pw)}\n\n{gate}" if pw else ""
 
 
 def write_review(args, shape, colour, verdict):
