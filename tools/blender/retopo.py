@@ -916,3 +916,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------- budget per separate piece (L15-2)
+RIGID_SHARE = 0.5       # piece_budgets: the separate (rigid) pieces together may take this share of the total, the core keeps the rest
+PIECE_FLOORS = {"face": 40, "hand": 12, "prop": 24}     # tris a piece keeps whatever its area says (PIPELINE 33.L15-2); any other: PIECE_FLOOR
+PIECE_FLOOR = 8
+
+
+def piece_budgets(total, pieces, share=RIGID_SHARE):
+    """{name: tris} for separate pieces under a `total` budget. `pieces` = [(name, tris, area, kind)], kind in PIECE_FLOORS or "".
+    A piece never grows (<= its tris) and never goes under min(its tris, its floor); the pieces together take at most `share` x total
+    (the floors win when they alone are over it), divided by area, a piece smaller than its area share gives the rest to the others."""
+    floors = {n: min(t, PIECE_FLOORS.get(k, PIECE_FLOOR)) for n, t, _, k in pieces}
+    cap = share * total
+    out, free = {}, {n: (t, max(a, 1e-12)) for n, t, a, _ in pieces}
+    if sum(t for t, _ in free.values()) <= cap:
+        return {n: t for n, (t, _) in free.items()}
+    while free:
+        rest = cap - sum(out.values())
+        area = sum(a for _, a in free.values())
+        fixed = {n: (min(t, max(floors[n], rest * a / area))) for n, (t, a) in free.items()
+                 if t <= rest * a / area or floors[n] >= rest * a / area}
+        if not fixed:
+            out.update({n: int(rest * a / area) for n, (_, a) in free.items()})
+            break
+        out.update({n: int(v) for n, v in fixed.items()})
+        free = {n: v for n, v in free.items() if n not in fixed}
+    return out

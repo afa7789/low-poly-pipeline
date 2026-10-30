@@ -335,9 +335,35 @@ def part_box(pieces, prisms):
     return lo, np.maximum(hi, lo)
 
 
+RIGID_BONES = ("head", "jaw", "hand", "foot", "toe")      # L15-2: a bone's prefix before the first '.': its parts are rigid pieces, not core
+ARTHROPODS = ("spider", "spider_high", "crustacean")      # their lower legs (below the knee) are rigid
+HARD_SURFACES = ("metal", "polished")
+
+
+def is_rigid(row, family="biped", surface=""):
+    """L15-2 (PIPELINE 33.L15-2): the ROLE of a spec row, not its name. Rigid = head / hands / feet by bone, any part with a decal, a
+    plate or box whose material paints as metal (`surface` = its palette surface), an arthropod's lower leg, a prop. The rest is core
+    (trunk, pelvis, thighs, arms): the only rows the SDF fuses when build_unit's sdf_core is on."""
+    opts = row[5] if isinstance(row[5], dict) else {}
+    base = str(row[0]).split(".")[0]
+    lower = family in ARTHROPODS and base.startswith("leg") and str(row[0]).endswith(".lower")
+    return bool(opts.get("prop") or opts.get("decal") or base in RIGID_BONES or lower
+                or (row[1] in ("plate", "box") and surface in HARD_SURFACES))
+
+
 def is_body(part):
     opts = part[5] if isinstance(part[5], dict) else {}
-    return not opts.get("prop") and part[4] not in NO_SDF
+    return not opts.get("prop") and not opts.get("rigid") and part[4] not in NO_SDF
+
+
+def core_rows(rows, family="biped", surfaces=None):
+    """(rows with opts "rigid" on the rigid ones, their indices): what field() leaves out. No core row left -> (rows, [])."""
+    surfaces = surfaces or {}
+    idx = [i for i, r in enumerate(rows) if is_rigid(r, family, surfaces.get(r[4], "")) and is_body(r)]
+    if len(idx) == sum(1 for r in rows if is_body(r)):
+        return list(rows), []
+    out = [(*r[:5], {**(r[5] or {}), "rigid": True}) if i in idx else r for i, r in enumerate(rows)]
+    return out, idx
 
 
 def normalize(parts, cuts=None, rig=("biped", ())):

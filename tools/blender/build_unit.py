@@ -2006,6 +2006,58 @@ def sdf_retopo(obj, field, target, lowest=0, method="qem"):
     return report
 
 
+SDF_CORE = False     # sdf_core=on|off (PIPELINE 33.L15-2): only the core (trunk, pelvis, thighs, arms) enters the SDF; head, hands, feet, props and hard plates stay rigid pieces
+
+
+def piece_area(obj):
+    """World surface area of a part's mesh (the share of the piece budget)."""
+    scale = sum(obj.matrix_world.to_scale()) / 3
+    return sum(p.area for p in obj.data.polygons) * scale * scale
+
+
+def piece_kind(row):
+    """The floor class of a spec row in retopo.PIECE_FLOORS: prop / face (a decal) / hand / any other."""
+    opts = row[5] or {}
+    return "prop" if opts.get("prop") else "face" if opts.get("decal") else "hand" if str(row[0]).startswith("hand") else ""
+
+
+def budget_pieces(pieces, budget):
+    """QEM-decimate each separate piece (object, row) to its retopo.piece_budgets share of `budget`. Returns {object name: (before, after, kind)}."""
+    RT = sibling("retopo")
+    tris = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o, _ in pieces}
+    got = RT.piece_budgets(budget, [(o.name, tris[o.name], piece_area(o), piece_kind(r)) for o, r in pieces])
+    for o, _ in pieces:
+        decimate_to(o, got[o.name])
+    return {o.name: (tris[o.name], sum(len(p.vertices) - 2 for p in o.data.polygons), piece_kind(r)) for o, r in pieces}
+
+
+def inside_mesh(tree, p, d=Vector((0.371, 0.557, 0.743))):
+    """True when point `p` is inside the closed mesh of `tree` (odd number of crossings of a ray along `d`)."""
+    hits = 0
+    while True:
+        loc = tree.ray_cast(p, d)[0]
+        if loc is None:
+            return hits % 2 == 1
+        hits, p = hits + 1, loc + d * 1e-5
+
+
+def core_report(shell, rigid_objs, spec, pieces):
+    """attach.json union.core: each rigid piece's bone, floor class, triangles before / after its budget and how deep the core enters it;
+    `head` = the triangles of all the head-bone pieces (the face the acceptance counts)."""
+    rigid = [{"part": o.name, "bone": spec[i][0], "kind": pieces[o.name][2], "was": pieces[o.name][0], "tris": pieces[o.name][1],
+              "joint_depth": round(joint_depth(shell, o), 4)} for i, o in rigid_objs]
+    props = [{"part": n, "kind": k, "was": a, "tris": b} for n, (a, b, k) in pieces.items() if k == "prop"]
+    return {"rigid": rigid, "props": props, "head": sum(r["tris"] for r in rigid if r["bone"] == "head"), "core_tris": len(shell.data.polygons)}
+
+
+def joint_depth(shell, piece):
+    """How far the core enters a rigid piece: the deepest shell vertex inside it (metres; 0 = the two only touch or stand apart)."""
+    from mathutils.bvhtree import BVHTree
+    tree = BVHTree.FromPolygons([piece.matrix_world @ v.co for v in piece.data.vertices], [tuple(f.vertices) for f in piece.data.polygons])
+    inside = [p for v in shell.data.vertices if inside_mesh(tree, p := shell.matrix_world @ v.co)]
+    return max((tree.find_nearest(p)[3] for p in inside), default=0.0)
+
+
 SDF_GRID, SDF_ADAPT, SDF_K, SDF_THIN = 96, 0.0, 1.0, "inflate"     # body=sdf defaults (grid=, adapt=, k=, thin= on the command line)
 
 
@@ -2050,7 +2102,7 @@ def main():
     rest = sys.argv[sys.argv.index("--") + 1:]
     cli = rest[2:]          # after <spec> <out.glb>: budget, mode, target, tex, voxel
     atlas_path = None
-    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS, PALETTE_SNAP
+    global STYLE, CLAY, FACE, RAMP, SHARED, COMPACT_ATLAS, MERGE_MATERIALS, PALETTE_SNAP, SDF_CORE
     CLAY = "clay" in rest
     global PROPID, NOUNION, BODY, UNION_BODY
     PROPID = "propid" in rest
@@ -2072,6 +2124,7 @@ def main():
     COMPACT_ATLAS = (arg_value(rest, "cel_atlas=") or ("compact" if COMPACT_ATLAS else "legacy")) == "compact"
     MERGE_MATERIALS = (arg_value(rest, "materials=") or ("merge" if MERGE_MATERIALS else "split")) == "merge"
     PALETTE_SNAP = "palette_snap" in rest
+    SDF_CORE = (arg_value(rest, "sdf_core=") or ("on" if SDF_CORE else "off")) == "on"
     SHARED = arg_value(rest, "shared=")     # shared=<table.json>: the race's shared gradient atlas
     load_cuts(rest)
     wipe()                                  # before any branch: the factory cube is not ours
@@ -2165,12 +2218,17 @@ def main():
         # boolean absorbs its faces into the iron material and the accent disappears
         keep = [p for p in parts if p[0].data.materials and p[0].data.materials[0].name.split(".")[0] == "flame"
                 or p[0].get("prop")]       # a prop stays its own component too (skinned on its anchor)
+        core_spec, rigid = (sibling("sdf_body").core_rows(spec, sibling("lathe_limb").RIG[0], SURFACE) if BODY == "sdf" and SDF_CORE
+                            else (spec, []))
+        keep += [parts[i] for i in rigid]          # ponytail: the rigid pieces are unbevelled primitives like the props; add chamfers when a judge asks
         body_parts = [p for p in parts if p not in keep]
         if len(body_parts) > 1:
             budget = int(cli[2]) if len(cli) > 2 and cli[2].isdigit() else 700
+            where = {id(p[0]): i for i, p in enumerate(parts)}
+            pieces = budget_pieces([(p[0], spec[where[id(p[0])]]) for p in keep if p[0].get("prop") or where[id(p[0])] in rigid], budget) if rigid else {}
             spare = sum(len(q.vertices) - 2 for o, _ in keep for q in o.data.polygons)
             if BODY == "sdf":
-                shell, kept, info, field = sdf_union(spec, parts, budget, keep, **sdf_args(rest))
+                shell, kept, info, field = sdf_union(core_spec, parts, budget, keep, **sdf_args(rest))
                 for part in body_parts:
                     if part not in kept:
                         bpy.data.objects.remove(part[0], do_unlink=True)
@@ -2181,8 +2239,11 @@ def main():
                 if stem in ("clay", "model"):
                     (pathlib.Path(out).parent / "clay.sdf.json").unlink(missing_ok=True)      # not the field of an older sdf build
                 shell, info = union_body(body_parts, budget, spare)
+            rigid_objs = [(i, parts[i][0]) for i in rigid]
             parts = [(shell, body_parts[0][1])] + keep
             info.update(components_body=info.pop("components"), props=len(keep))
+            if rigid:
+                info["core"] = core_report(shell, rigid_objs, spec, pieces)
             report["union"] = info
             (pathlib.Path(out).parent / name).write_text(json.dumps(report, indent=2))
             unioned = True

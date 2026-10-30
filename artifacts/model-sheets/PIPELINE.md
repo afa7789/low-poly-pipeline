@@ -5929,3 +5929,47 @@ O usuário olhou a v15 e disse "está muito ruim". A leva troca métrica de silh
   viu em v10 vs v15 não vem do corpo (specs, ajuste e textura mudaram juntos). `planarity` (k-means de normais, k = 12) quase não separa os dois: .00–.10.
 - **Aberto.** Orçamento 1000 só no sdf e só para unidades com patas/mãos finas (n02X) — sem critério de seleção medido; a decimação do union para no 90 % do orçamento;
   nenhum run deste item tem spill ≤ .03 (forma, não corpo).
+
+## 33. Leva 15 (2026-10-30): peças, não massa — gate por peça, peças rígidas fora do SDF, cor por peça, preflight do autor
+
+Origem: `analysis/2026-10-30-l14-fix-diagnosis.md` (o conserto à mão por primitivas vence o SDF no juiz 11/12 eixos e perde no gate de silhueta; causas-raiz C1–C6).
+
+### 33.L15-2 C1: peças rígidas fora do SDF (`--sdf-core on`) (2026-10-30)
+- **Mudança.** `--sdf-core on|off` (build_unit `sdf_core=`, default `off`): só o *núcleo* entra no SDF; as peças *rígidas* ficam como componentes separados, cada uma com o seu
+  material e o seu osso (peso 1.0, como `l14fix_lib`), sobrepostas ao núcleo na junta, sem boolean. Papel, não nome (`sdf_body.is_rigid`): rígida = cabeça / mão / pé / mandíbula
+  pelo osso, qualquer peça com `decal`, `plate` ou `box` de material `metal`/`polished`, perna de artrópode abaixo do joelho (`leg*.lower` em `spider`, `spider_high`, `crustacean`),
+  prop. Núcleo = o resto (tronco, pélvis, coxas, braços). Sem núcleo sobrando, nada muda. As linhas rígidas levam `opts["rigid"]` e `sdf_body.is_body` as deixa fora do campo, então
+  `thin: inflate` já não as engorda. `build_unit.budget_pieces` / `retopo.piece_budgets`: as peças separadas (rígidas + props) dividem no máximo 50 % do orçamento por área, mínimos
+  rosto 40 / mão 12 / prop 24 / outra 8 (nunca crescem; QEM do Blender por peça); o QEM guardado do SDF corre só no núcleo com o resto. `attach.json` `union.core` guarda por peça
+  tris antes/depois, classe e `joint_depth` (quanto o núcleo entra na peça); `head` = tris das peças do osso `head`.
+  Flag viva (`test_flag_liveness`), variante `core` na `ablation_matrix`; `tools/blender/parts_compare.py` mede e desenha.
+- **Protocolo.** v15 das 6 unidades (`runs/draft/<id>/l15-src/`), `--kind mass --spec --no-repair --no-diagnose --deterministic --tilts <v15> --body sdf`, controle `l15-sdf`
+  (`--sdf-core off`, defaults de hoje) × `l15-core` (`on`), stage 2 cel, 12 runs, 2 a 2, `nice -n 10`. Juiz pareado `review_pair.py l15-sdf l15-core` (session:opus, 4 votos).
+  Imagens `history/2026-10-30-l15-parts/<id>.png` (conceito | sdf clay, wire, textured | core clay, wire, textured | conserto à mão onde há).
+- **Tabela (sdf → core).** `comps` = componentes do GLB; tris = núcleo + rígidas+props (cabeça); `joint` = o máximo de `joint_depth` / H; stretch = pior p99.5 de walk/attack/death.
+
+| un. | comps | tris núcleo+peças (cabeça) | joint (H) | planarity | crease R | slivers % | stretch | body IoU f/l | IoU / spill / bare (médias) | vistas > 2σ |
+|---|---|---|---|---|---|---|---|---|---|---|
+| n005 | 7 → 11 | 516+0 → 372+144 (88) | .075 | .059 → .024 | .483 → .503 | 6.1 → 6.4 | 2.20 → 2.04 | .916/.943 → .916/.948 | .883/.065/.059 → .884/.068/.055 | back, rts |
+| n00U | 1 → 12 | 700+0 → 440+260 (100) | .055 | .000 → .091 | .462 → .519 | 0.1 → 5.3 | 2.84 → 2.47 | .902/.777 → .897/.722 | .810/.125/.086 → .788/.163/.073 | left, bottom, rts |
+| hfoo | 6 → 12 (2 corpos) | 600+0 → 412+188 (132) | .049 | .027 → .043 | .589 → .550 | 6.7 → 6.9 | 2.13 → 2.19 | .835/.674 → .791/.658 | .714/.196/.110 → .694/.222/.106 | front, back, top, bottom |
+| n017 | 4 → 10 | 588+0 → 516+72 (72) | .020 | .024 → .027 | .438 → .391 | 3.7 → 5.4 | 2.08 → 2.06 | – → – | .842/.104/.068 → .835/.114/.065 | left, back, top, bottom |
+| n02X | 4 → 13 | 640+0 → 396+244 (120) | .049 | .057 → .022 | .371 → .338 | 3.7 → 10.7 | 2.40 → 1.82 | .907/.872 → .903/.870 | .832/.091/.087 → .824/.104/.087 | top, bottom, rts |
+| n01X | 1 → 9 | 700+0 → 476+224 (184) | .000 | .037 → .049 | .517 → .543 | 0.0 → 0.1 | 2.29 → 2.17 | .848/– → .840/– | .870/.085/.051 → .848/.097/.062 | todas as 6 |
+
+  `mesh_lint`: 0 flipped / degenerate / não-manifold nos 12. Tempo (s, máquina dividida por 4 agentes): n005 211 → n/m (rodado à parte), n00U 622 → 744, hfoo 433 → 567, n017 334 → 301,
+  n02X 235 → 272, n01X 265 → 222. `joint` = quanto o núcleo entra na peça rígida (maior valor da unidade): .000–.075 H; as juntas de pé (.024–.049 H) e as pernas da aranha
+  (0–.015 H nas de baixo) ficam abaixo do .03 H que o brief tolera em alguns pontos; fendas nos joelhos/pés ficam sem medida própria além de `joint_depth`.
+- **Juiz pareado (core = B; sheet / artista / wc3 / forma).** n005 empate 2-2 / **core 4-0 / core 4-0 / core 4-0**; n00U empate / sdf 3-1 / sdf 3-1 / **core 4-0**; hfoo tudo empate 2-2
+  (viés de posição); n017 core 3-1 / sdf 4-0 / sdf 4-0 / sdf 4-0; n02X empate / sdf 4-0 / sdf 4-0 / sdf 4-0; n01X **core 3-1 / core 4-0 / core 4-0 / core 3-1**.
+- **Aceite (default `--sdf-core on`): NÃO atendido.** Forma + artista ≥ 3-1 para core em **2/6** (n005, n01X; precisava de 4/6); forma sozinha em 3/6. `body_iou` ≥ .75 em n005, n017 (sem painel
+  coerente), n02X, n01X; **falha** em n00U (.722 no left; o controle sdf .777) e hfoo (.791 / .658; o controle já .835 / .674). **Stretch ≤ 1.5: NÃO** (o pior p99.5 fica 1.8–2.5 nos core e
+  2.1–2.8 nos sdf: a esticada vem da pele do núcleo, braços e coxas; o conserto à mão tinha 1.0 porque *todas* as peças eram rígidas). Rosto ≥ 40 tris: **sim** nas 6 (72–184 tris
+  de cabeça; o decal de rosto sozinho tem 12–28 tris, é a cabeça inteira que passa de 40). **Nenhum default mudou** (`SDF_CORE = False`).
+- **Leitura honesta.** Peças separadas aparecem onde o spec as tem (n005: capuz e botas; n01X: cabeça e braços de latão): o juiz prefere core 4-0 em n005 e n01X. Onde o núcleo é um monte
+  de caixas planas (n02X: placas, ombreira) ou o corpo é fino (n017: cabeça em 6 troncos de cone de 12 tris), o núcleo sem a pele que unia as peças parece mais caixa e o juiz prefere o SDF
+  4-0. A aranha (n00U) continua uma tenda: as coxas das patas e o `thin: inflate` seguem no núcleo; só as 8 pernas de baixo (20 tris) saíram, e o gate IoU do left caiu .055. A métrica
+  `planarity` não separa (sobe em 2/6, desce em 4/6); as "vistas > 2σ" são muitas porque σ do ruído é .01–.02 e o IoU cai .003–.02 em toda unidade (n01X: 6/6).
+- **Aberto.** (1) braços e coxas rígidos também (testar um modo `limbs`) para o stretch ≤ 1.5: sem isso o aceite de stretch não fecha; (2) cabeça / mão com mais tris que o primitivo do spec (o decal
+  `face` tem 12 tris): o orçamento só reduz, nunca sobe; (3) chanfros nas peças rígidas (hoje primitivos sem bevel como os props); (4) a junta de pé abaixo de .03 H em algumas unidades;
+  (5) a aranha precisa das coxas fora do `thin: inflate` para as patas lerem como patas (hoje a tenda vem do gate/fit, igual nos dois lados).
