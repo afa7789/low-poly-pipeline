@@ -20,6 +20,7 @@ sys.path.insert(0, str(TOOLS))
 
 import colour_stage  # noqa: E402
 import fit_spec  # noqa: E402
+import look  # noqa: E402
 import numpy as np  # noqa: E402
 import parts_fit  # noqa: E402
 import retopo  # noqa: E402
@@ -106,6 +107,33 @@ def live_noise():      # --noise: the sigma table the guards read; without it No
         path = pathlib.Path(tmp) / "noise.json"
         path.write_text(json.dumps({"global": {"front": 0.02}}))
         return SP.noise_kw(parse())["noise"], SP.noise_kw(parse("--noise", str(path)))["noise"]
+
+
+def look_calls(*flags):
+    """The look.py stages look.apply reaches for these flags (the stages stubbed; a hard sheet and a unioned body present)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        glb = pathlib.Path(tmp) / "clay.glb"
+        glb.write_bytes(b"glb")
+        args = parse(*flags)
+        args.hard, args.union_body = glb, True
+        calls = []
+        stub = {"look_report": {}, "run": {}, "bake_ink": {}}
+        with mock.patch.multiple(look, **{k: mock.Mock(side_effect=lambda *a, _k=k, **kw: calls.append((_k, a[-1] if _k == "run" else None)) or v)
+                                          for k, v in stub.items()}):
+            look.apply(glb, args)
+    return tuple(calls)
+
+
+def live_look_snap():       # --look-snap on reaches look.run (the snap); off only measures
+    return look_calls(), look_calls("--look-snap", "on")
+
+
+def live_look_creases():    # --look-creases on hands the snap the sheet's lines as borders
+    return look_calls("--look-snap", "on"), look_calls("--look-snap", "on", "--look-creases", "on")
+
+
+def live_look_ink():        # --look-ink on bakes the ink into the atlas
+    return look_calls(), look_calls("--look-ink", "on")
 
 
 def live_loop():       # --loop 2 with an approved round 0 reaches loop_stage.run; 0 does not
@@ -206,6 +234,7 @@ LIVE_PAIRS = {
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
     "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight,
+    "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),
