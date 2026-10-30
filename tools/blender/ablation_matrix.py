@@ -1,14 +1,15 @@
-"""Ablation matrix of every opt-in of the shape and colour pipeline on the v13 specs (PIPELINE 29.L11-7), no LLM.
+"""Ablation matrix of every opt-in of the shape and colour pipeline on the v13 specs (PIPELINE 29.L11-7, rerun 30.L12-10a), no LLM.
 
     python3.14 tools/blender/ablation_matrix.py [--variants base,fit-grad,k-hard+fit-grad] [--units n005,hfoo] [--jobs 2]
-                                                [--collect-only] [--list] [--report]
+                                                [--collect-only] [--list] [--legacy DIR]
 
-A variant is a name -> flags of spec_pipeline.py, module globals (CF_OVERRIDES) and build_unit arguments (CF_BUILD_ARGS), see
-VARIANTS; `a+b` is the combination of two. For each unit the v13-r1 spec is rebuilt with `--shape-only --no-repair --no-diagnose
---deterministic --body sdf` (noise 0, L11-2), cameras pinned to the v13 run's silhouette.json, into runs/draft/<id>/l11-mx-<name>/
-(colour variants drop --shape-only: stage 2 runs on the units whose stage 1 passes). Rows are measured (silhouette.json,
-mesh_lint) and summarized against `base` into analysis/2026-10-29-l11-matrix.{csv,md}. The parsing, the aggregation and the
-tables are pure functions (tests/tools/blender/test_ablation_matrix.py); only `build`, `collect` and `main` touch disk or processes."""
+A variant is a name -> flags of spec_pipeline.py, module globals (CF_OVERRIDES), environment (CF_SPILL_W) and build_unit arguments
+(CF_BUILD_ARGS), see VARIANTS; `a+b` is the combination of two. For each unit the v13-r1 spec is rebuilt with `--shape-only
+--no-repair --no-diagnose --deterministic --body sdf` (noise 0, L11-2), cameras pinned to the v13 run's silhouette.json, into
+runs/draft/<id>/l12-mx-<name>/ (colour variants drop --shape-only). Rows are measured (silhouette.json, mesh_lint, clay.look.json,
+clay.depth.json) and summarized against `base` per variant: spill first (the gate's own numbers), then IoU, bare, contact, z_err,
+planarity, crease recall, and the views that fall more than 2 sigma of noise-l12.json. The parsing, the aggregation and the tables are
+pure functions (tests/tools/blender/test_ablation_matrix.py); only `build`, `collect` and `main` touch disk or processes."""
 import argparse
 import concurrent.futures as cf
 import csv
@@ -24,14 +25,22 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/blender"))
+import noise as NZ  # noqa: E402
+
 DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
 ANALYSIS = ROOT / "artifacts/model-sheets/analysis"
 DELTAS = ANALYSIS / "2026-10-29-l11-1-deltas"            # <id>/diagnosis.json of L11-1 (no LLM here: reused)
-UNITS = ("n005", "n00U", "hfoo", "n017", "n02X")
+NOISE = DRAFT / "noise-l12.json"
+# unit -> (race, name, role) as in the v13 battery (they label the run; with --spec they do not move the shape)
+UNITS = {"n005": ("Human", "Warlock Field Chemist", "area-damage caster"), "n00U": ("Nature", "Black Spider", "fast swarm unit"),
+         "hfoo": ("Human", "Footman", "basic line infantry with a spear"), "n017": ("Nature", "Frost Wolf", "fast melee beast"),
+         "n02X": ("Desert", "Ogre", "pipeline siege bruiser"), "n01X": ("Mech", "Iron Golem", "frontline melee construct")}
 ORIGIN = "v13-r1"
+PREFIX = "l12-mx-"
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
-DROP, GAIN, WIN_UNITS = 0.01, 0.005, 3         # a view falling more than DROP; a mean gain of at least GAIN; in WIN_UNITS of 5
-FLAT = 0.005                                   # |Δ mean| under this, nothing else moved: "neutral"
+SPILL_OK = 0.03          # a view whose spill is at most this counts as "clean"
+SPILL_EPS = 0.002        # a mean spill change smaller than this is not a change
+FLAT = 0.0005            # every delta under this: the variant moved nothing (a no-op)
 TAU_ANNEAL = [4, 2, 1, 0.5, 0.5]
 
 
@@ -46,18 +55,35 @@ def groups(flags):
     return out
 
 
-def var(flags=(), over=None, build="", colour=False, units=None, needs=None, note=""):
+
+
+def var(flags=(), over=None, build="", colour=False, units=None, needs=None, note="", env=None):
     """One variant: spec_pipeline flags (a `{deltas}` word becomes the unit's L11-1 diagnosis.json), module overrides
-    {"module.NAME": value}, build_unit arguments, colour (stage 2 runs), units (None = all), needs (a file of the unit that must exist)."""
-    return {"flags": groups(flags), "over": dict(over or {}), "build": build, "colour": colour, "units": units, "needs": needs, "note": note}
+    {"module.NAME": value}, build_unit arguments, colour (stage 2 runs), units (None = all), needs (a file of the unit that must exist),
+    env (environment variables of the build, e.g. CF_SPILL_W)."""
+    return {"flags": groups(flags), "over": dict(over or {}), "build": build, "colour": colour, "units": units, "needs": needs, "note": note,
+            "env": dict(env or {})}
 
 
 VARIANTS = {
     "base": var(note="the pipeline as it stands: fit, sdf body k=base, deform, fit-verts 8 it/stage"),
+    # Leva 12 opt-ins
+    "spill-w3": var(env={"CF_SPILL_W": "3"}, note="30.L12-2: model outside the sheet costs 3x (fit, deform, fit-verts)"),
+    "author-guard": var(["--author-guard", "revert"], note="30.L12-3: revert the author's parts that fall under the massing's (the massing is v13-r1/massing)"),
+    "incoh-1": var(["--incoherent-weight", "1.0"], note="30.L12-5: an incoherent sheet view weighs as a coherent one"),
+    "incoh-0": var(["--incoherent-weight", "0"], note="30.L12-5: an incoherent sheet view weighs nothing"),
+    "dsl-all": var(["--dsl-repair", "all"], note="30.L12-6: every DSL repair, also the ones with no rule failing"),
+    "dsl-off": var(["--dsl-repair", "off"], note="control: no DSL repair (default is on)"),
+    "look-snap": var(["--look-snap", "on"], note="30.L12-9: planar snap by region, guarded by IoU/spill/bare"),
+    "look-creases": var(["--look-snap", "on", "--look-creases", "on"], note="30.L12-9: snap + the sheet's drawn lines as region borders (read against base: includes the snap)"),
+    "look-ink": var(["--look-ink", "on"], note="30.L12-9: ink on the atlas edges (cel)"),
+    "depth-tri": var(["--depth-source", "tri"], needs="parts.json", note="30.L12-8: part z from the front x left triangulation"),
+    "noise": var(["--noise", str(NOISE)], note="30.L12-7: guards read 2 sigma from noise-l12.json"),
     # fit (fit_spec / fit_grad)
     "fit-grad": var(["--fit-grad"], note="26.L8-7: Adam on the soft silhouette"),
     "fit-stages": var(["--fit-stages"], note="22.L4-3: trunk, limbs, profiles one after the other"),
     "fit-edges": var(["--fit-edges"], note="21.F7: part outlines onto the hard sheet's inner edges"),
+    "fit-fast": var(["--fit-fast"], note="19.D1: the fast fit (wide steps)"),
     "fit-parts": var(["--fit-parts"], needs="parts.json", note="23.L5-4: each part inside its 2D mask"),
     "fit-depth": var(["--depth"], needs="parts.json", note="23.L5-4b: Depth Anything start + occlusion order"),
     "constraints": var(["--constraints", "{deltas}"], needs="deltas", note="29.L11-3 via B: L11-1 deltas as fit limits"),
@@ -65,8 +91,10 @@ VARIANTS = {
     "leg-grow": var(over={"fit_spec.LEG_GROW": True}, units=("n00U",), note="21.F3: spider legs may grow to the sheet's leg_w"),
     # body (sdf_body / build_unit)
     "body-union": var(["--body", "union"], note="control: boolean union + decimate (24.L6-4)"),
+    "body-join": var(["--body", "join"], note="24.L6-4: the parts joined, no single shell"),
     "k-class": var(["--sdf-k-mode", "class"], note="29.L11-5"),
     "k-hard": var(["--sdf-k-mode", "hard"], note="29.L11-5"),
+    "cvt": var(["--sdf-retopo", "cvt"], note="29.L11-6: Voronoi/CVT retopology guided by curvature"),
     "thin-keep": var(build="sdf_thin=keep", note="28.L10-7: parts under 2 voxels kept as their own plates"),
     "thin-off": var(build="sdf_thin=off", note="28.L10-7: parts under 2 voxels may vanish"),
     "grid-128": var(["--sdf-grid", "128"], note="28.L10-7: 128 voxels"),
@@ -81,7 +109,7 @@ VARIANTS = {
     "verts-dihedral": var(over={"optimize_verts.LAMBDA.dihedral": 30.0}, note="26.L8-4: dihedral regulariser, lambda 30"),
     "verts-gamma": var(over={"optimize_verts.DIST": "gamma_inv"}, note="26.L8-3: gamma_inv raster distribution"),
     "verts-uniform": var(over={"optimize_verts.DIST": "uniform"}, note="26.L8-3: uniform raster distribution"),
-    "iters-15": var(over={"optimize_verts.DETERMINISTIC_ITERS": 15}, note="29.L11-4: 15 iterations per stage instead of 8 (where does it match the clock?)"),
+    "iters-15": var(over={"optimize_verts.DETERMINISTIC_ITERS": 15}, note="29.L11-4: 15 iterations per stage instead of 8"),
     "verts-yager": var(over={"optimize_verts.AGG": "yager2"}, note="26.L8-3: yager2 aggregation"),
     # silhouette framing
     "flip-side": var(["--flip-side"], note="29.L11-0: shift-tolerant side picks the mirror"),
@@ -96,17 +124,26 @@ VARIANTS = {
     "c-snap": var(["--atlas", "shared"], build="palette_snap", colour=True, note="27.T7: shared atlas + palette snap"),
     "c-painted": var(["--texture", "painted"], colour=True, note="the older painted texture"),
 }
-BASE = {"base": "base", "c-base": "c-base"}      # which row a variant is compared with: colour variants against c-base
+# live flags the matrix does not turn on as a variant, each with the reason (test_ablation_matrix: nothing live may be missing)
+NOT_A_VARIANT = {
+    "loop": "needs the LLM author (L11-2/L11-4: measured in the v14 battery)",
+    "deterministic": "on in every run of the matrix (base is deterministic)",
+    "parts": "the input of fit-parts / fit-depth / depth-tri (refs/<id>/parts.json by default)",
+    "shape_only": "stage selector: the shape variants are --shape-only, the c-* ones are not",
+    "colour_on_fail": "stage 2 after a failing stage 1: only matters to a battery with a failing unit",
+    "fit_luma": "colour wave: variant c-luma",
+}
 
 
 def merge(a, b, name=""):
-    """The combination of two variants. Flags join (a repeated one once); a flag or a module override must agree or be
-    absent in one of them; units intersect."""
-    over = dict(a["over"])
-    for k, v in b["over"].items():
-        if k in over and over[k] != v:
-            raise ValueError(f"{name}: {k} is {over[k]!r} in one part and {v!r} in the other")
-        over[k] = v
+    """The combination of two variants. Flags join (a repeated one once); a flag, a module override or an environment variable
+    must agree or be absent in one of them; units intersect."""
+    over, env = dict(a["over"]), dict(a["env"])
+    for what, src, dst in (("override", b["over"], over), ("env", b["env"], env)):
+        for k, v in src.items():
+            if k in dst and dst[k] != v:
+                raise ValueError(f"{name}: {what} {k} is {dst[k]!r} in one part and {v!r} in the other")
+            dst[k] = v
     flags = list(a["flags"])
     for g in b["flags"]:
         clash = [h for h in flags if h[0] == g[0] and h != g]
@@ -116,7 +153,7 @@ def merge(a, b, name=""):
             flags.append(g)
     units = a["units"] if b["units"] is None else b["units"] if a["units"] is None else tuple(u for u in a["units"] if u in b["units"])
     return var([w for g in flags for w in g], over, f"{a['build']} {b['build']}".strip(), a["colour"] or b["colour"], units, a["needs"] or b["needs"],
-               f"{a['note']} + {b['note']}".strip(" +"))
+               f"{a['note']} + {b['note']}".strip(" +"), env)
 
 
 def resolve(name, table=None):
@@ -132,8 +169,8 @@ def resolve(name, table=None):
     return out if len(parts) > 1 else dict(out)
 
 
-def run_name(name):
-    return f"l11-mx-{name}"
+def run_name(name, prefix=PREFIX):
+    return f"{prefix}{name}"
 
 
 def base_of(name):
@@ -158,15 +195,17 @@ def tilts_arg(sil):
 def command(unit, name, v, tilts):
     """The spec_pipeline.py command line of one (unit, variant); a `{deltas}` word is the unit's L11-1 diagnosis.json."""
     flags = [str(DELTAS / unit / "diagnosis.json") if w == "{deltas}" else w for g in v["flags"] for w in g]
-    return [sys.executable, str(ROOT / "tools/blender/spec_pipeline.py"), "--id", unit, "--race", "Human", "--name", unit, "--kind", "mass",
-            "--rig", json.loads((DRAFT / unit / ORIGIN / "spec.json").read_text()).get("rig", "biped"), "--spec", str(DRAFT / unit / ORIGIN / "spec.json"), "--no-repair", "--no-diagnose", "--deterministic", "--run", run_name(name),
+    race, label, role = UNITS[unit]
+    return [sys.executable, str(ROOT / "tools/blender/spec_pipeline.py"), "--id", unit, "--race", race, "--name", label, "--role", role, "--kind", "mass",
+            "--rig", json.loads((DRAFT / unit / ORIGIN / "spec.json").read_text()).get("rig", "biped"), "--spec", str(DRAFT / unit / ORIGIN / "spec.json"),
+            "--no-repair", "--no-diagnose", "--deterministic", "--run", run_name(name),
             *([] if "--body" in flags else ["--body", "sdf"]), *([] if v["colour"] else ["--shape-only"]),
             *(["--tilts", tilts] if tilts else []), *flags]
 
 
 def environment(v):
-    """The environment of one build: SOFT_SIL_THREADS, plus CF_OVERRIDES / CF_BUILD_ARGS when the variant has any."""
-    env = {**os.environ, "SOFT_SIL_THREADS": os.environ.get("SOFT_SIL_THREADS", "4")}
+    """The environment of one build: SOFT_SIL_THREADS, plus the variant's env, CF_OVERRIDES and CF_BUILD_ARGS when it has any."""
+    env = {**os.environ, "SOFT_SIL_THREADS": os.environ.get("SOFT_SIL_THREADS", "4"), **v["env"]}
     if v["over"]:
         env["CF_OVERRIDES"] = json.dumps(v["over"])
     if v["build"]:
@@ -180,12 +219,34 @@ def mean(xs):
     return round(sum(xs) / len(xs), 4) if xs else None
 
 
-def make_row(unit, name, sil, lint, times, zones=None, model=None):
+def gate_view(sil, key, view):
+    """The number the gate judges `view` by (spill, bare, iou): the body's when the sheet has props there (L12-5), else the whole
+    silhouette's (`uncovered` is the key of bare in silhouette.json)."""
+    if view in sil.get("body_iou", {}):
+        return sil.get(f"body_{key}", {}).get(view)
+    return sil.get({"iou": "approved", "bare": "uncovered"}.get(key, key), {}).get(view)
+
+
+def look_numbers(look):
+    """(planarity, mean crease recall over the views) of clay.look.json's look_after; (None, None) without it."""
+    if not look:
+        return None, None
+    return look.get("planarity"), mean([r for _, r in look.get("crease_chamfer", {}).values()])
+
+
+def make_row(unit, name, sil, lint, times, zones=None, model=None, look=None, depth=None):
     """One flat measurements row (inputs already parsed). `lint` = mesh_lint of clay.glb (or None), `times` = {total_s, build_s,
-    verts_s}, `zones` = stage 2's per-view zone report, `model` = {atlas_kb, prims, images, materials, ...} of model.glb."""
+    verts_s}, `zones` = stage 2's per-view zone report, `model` = {atlas_kb, prims, images, materials, ...} of model.glb, `look` =
+    clay.look.json's look_after, `depth` = clay.depth.json."""
     ap, gates = sil.get("approved", {}), sil.get("gates", {})
     iou = [ap.get(v) for v in VIEWS]
+    spill, bare = ([gate_view(sil, k, v) for v in VIEWS] for k in ("spill", "bare"))
+    planarity, crease = look_numbers(look)
     row = {"unit": unit, "variant": name, "ok": True, "iou": iou, "mean": mean(iou),
+           "spill_v": spill, "bare_v": bare, "contact_v": [sil.get("contact", {}).get(v) for v in VIEWS],
+           "spill": mean(spill), "bare": mean(bare), "contact": mean([sil.get("contact", {}).get(v) for v in VIEWS]),
+           "spill_ok": sum(1 for x in spill if x is not None and x <= SPILL_OK),
+           "z_err": ((depth or {}).get("z_err") or {}).get("z_err"), "planarity": planarity, "crease": crease,
            "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and ap[v] < gates[v]],
            "tris": lint and lint["tris"], "sliver": lint and lint["sliver_pct"], "nd": lint and lint["normal_diff"]["mean"],
            "euler": lint and lint["euler"], "comp": lint and lint["components_body"],
@@ -211,57 +272,58 @@ def dv(a, b):
     return None if a is None or b is None else round(a - b, 4)
 
 
-def vs_base(row, base):
-    """Deltas of one row against the base row of its unit: per view, mean, views falling more than DROP, slivers, nd, seconds."""
+def vs_base(row, base, noise=None):
+    """Deltas of one row against the base row of its unit: per view and mean for IoU, spill, bare; the views that fall more than 2 sigma
+    (noise.threshold; 0.01 without a table); the views clean in spill; contact, z_err, planarity, crease, slivers, nd, tris, seconds."""
     if not (row["ok"] and base and base["ok"]):
         return None
     d = [dv(a, b) for a, b in zip(row["iou"], base["iou"])]
-    return {"iou": d, "mean": dv(row["mean"], base["mean"]), "drops": [v for v, x in zip(VIEWS, d) if x is not None and x < -DROP],
-            "sliver": dv(row["sliver"], base["sliver"]), "nd": dv(row["nd"], base["nd"]), "total_s": dv(row["total_s"], base["total_s"]),
-            "luma_l1": dv(row.get("luma_l1"), base.get("luma_l1")), "atlas_kb": dv(row.get("atlas_kb"), base.get("atlas_kb"))}
+    unit = row["unit"]
+    out = {"iou": d, "spill_v": [dv(a, b) for a, b in zip(row["spill_v"], base["spill_v"])],
+           "falls": [v for v, x in zip(VIEWS, d) if x is not None and x < -NZ.threshold(v, noise, unit=unit)]}
+    for k in ("mean", "spill", "bare", "contact", "z_err", "planarity", "crease", "sliver", "nd", "total_s", "luma_l1", "atlas_kb", "tris", "spill_ok"):
+        out[k] = dv(row.get(k), base.get(k))
+    return out
 
 
-def unit_pass(d):
-    """A unit counts for a flag when the mean rises by GAIN and no view falls more than DROP."""
-    return bool(d) and d["mean"] is not None and d["mean"] >= GAIN and not d["drops"]
-
-
-def summarize(rows):
-    """{variant: {n, wins, mean, drops, hurt, sliver, nd, seconds, units}}: each variant against the base row of its unit.
-    wins = units with mean gain >= GAIN and no falling view; hurt = units whose mean fell by GAIN or more; drops = views falling > DROP
-    summed over units; mean/sliver/nd/seconds = averages of the per-unit deltas."""
+def summarize(rows, noise=None):
+    """{variant: {n, mean, spill, spill_ok, base_spill_ok, bare, falls, contact, z_err, planarity, crease, tris, seconds, moved, units}}:
+    each variant against the base row of its unit; averages are over the per-unit deltas, spill_ok / falls are sums over units (views)."""
     by = {(r["unit"], r["variant"]): r for r in rows}
     out = {}
     for name in dict.fromkeys(r["variant"] for r in rows):
         if name in ("base", "c-base"):
             continue
         b = base_of(name)
-        ds = {u: vs_base(by[u, name], by.get((u, b))) for u in UNITS if (u, name) in by}
-        got = {u: d for u, d in ds.items() if d}
-        out[name] = {"n": len(got), "wins": sum(unit_pass(d) for d in got.values()),
-                     "mean": mean([d["mean"] for d in got.values()]), "drops": sum(len(d["drops"]) for d in got.values()),
-                     "hurt": sum(1 for d in got.values() if d["mean"] is not None and d["mean"] <= -GAIN),
-                     "sliver": mean([d["sliver"] for d in got.values()]), "nd": mean([d["nd"] for d in got.values()]),
-                     "seconds": mean([d["total_s"] for d in got.values()]), "units": got,
-                     "worst": min(((x, v) for d in got.values() for v, x in zip(VIEWS, d["iou"]) if x is not None), default=None)}
+        got = {u: d for u in UNITS if (u, name) in by and (d := vs_base(by[u, name], by.get((u, b)), noise))}
+        mine = [by[u, name] for u in got]
+        base = [by[u, b] for u in got]
+        out[name] = {"n": len(got), "units": got, "falls": sum(len(d["falls"]) for d in got.values()),
+                     "spill_ok": sum(r["spill_ok"] for r in mine), "base_spill_ok": sum(r["spill_ok"] for r in base),
+                     "views": 6 * len(got), "moved": any(abs(x) > FLAT for d in got.values() for x in (d["mean"], d["spill"], d["bare"]) if x is not None),
+                     **{k: mean([d[k] for d in got.values()]) for k in ("mean", "spill", "bare", "contact", "z_err", "planarity", "crease", "sliver", "nd", "tris")},
+                     "seconds": mean([d["total_s"] for d in got.values()])}
     return out
 
 
 def verdict(s):
-    """One line per variant: 'default' (it wins on WIN_UNITS of 5), 'neutral', or 'opt-in (loses ...)' with the worst view fall."""
+    """default-candidate: spill falls (mean by more than SPILL_EPS) and no view falls more than 2 sigma. opt-in: something improves
+    (spill or IoU) but a view falls. no: nothing improves (or nothing moved at all: said so)."""
     if s["n"] == 0:
         return "not measured"
-    if s["wins"] >= WIN_UNITS:
-        return "default (proposal)"
-    if s["mean"] is not None and abs(s["mean"]) < FLAT and not s["drops"] and abs(s["sliver"] or 0) < 1 and abs(s["nd"] or 0) < 1:
-        return "neutral"
-    loses = f"{s['worst'][1]} {s['worst'][0]:+.3f}" if s["worst"] and s["worst"][0] < -DROP else f"mean {s['mean']:+.4f}"
-    return f"opt-in (loses {loses}; {s['drops']} view(s) > {DROP})" if (s["mean"] or 0) >= 0 else f"no (loses {loses}; {s['hurt']}/{s['n']} units worse)"
+    if not s["moved"]:
+        return "no (no-op: nothing moved)"
+    better_spill = (s["spill"] or 0) < -SPILL_EPS
+    if better_spill and not s["falls"]:
+        return "default-candidate"
+    if better_spill or (s["mean"] or 0) > 0:
+        return f"opt-in ({s['falls']} view(s) fall > 2σ)" if s["falls"] else "opt-in (spill does not fall)"
+    return "no"
 
 
-def winners(summary, min_wins=WIN_UNITS):
-    """The variants (not combinations) that win on at least `min_wins` units, in the table's order."""
-    return [n for n, s in summary.items() if "+" not in n and not n.startswith(("no-", "body-", "c-", "grid")) and s["wins"] >= min_wins]
+def winners(summary):
+    """The shape variants (not combinations, not controls) with the verdict default-candidate, in the table's order."""
+    return [n for n, s in summary.items() if "+" not in n and not n.startswith(("no-", "body-", "c-", "dsl-off")) and verdict(s) == "default-candidate"]
 
 
 # ------------------------------------------------------------------------------------------------ tables
@@ -273,32 +335,46 @@ def sgn(v, nd=3):
     return "–" if v is None else f"{v:+.{nd}f}"
 
 
-def table(rows):
-    """Markdown: one line per (variant, unit) with IoU per view, mean, form and timing; deltas against the unit's base below it."""
-    head = ("| variant | unit | IoU f/l/b/top/bot/rts | mean | Δ mean | falls > .01 | slivers % | nd ° | euler | comp | tris | sdf p95 % H | hausdorff % H | s |\n"
-            + "|---" * 14 + "|")
+def order_of(name):
+    first = name.split("+")[0]
+    return (list(VARIANTS).index(first) if first in VARIANTS else 99, name)
+
+
+def table(rows, noise=None):
+    """Markdown: one line per (variant, unit) with IoU, spill and bare per view, then the deltas against the unit's base."""
+    head = ("| variant | unit | IoU f/l/b/top/bot/rts | spill f/l/b/top/bot/rts | spill ≤ .03 | bare mean | Δ IoU | Δ spill | falls > 2σ | contact | z_err | plan | crease R | tris | s |\n"
+            + "|---" * 15 + "|")
     by = {(r["unit"], r["variant"]): r for r in rows}
     out = [head]
-    for r in sorted(rows, key=lambda r: (list(VARIANTS).index(r["variant"].split("+")[0]) if r["variant"].split("+")[0] in VARIANTS else 99, r["variant"], r["unit"])):
+    for r in sorted(rows, key=lambda r: (order_of(r["variant"]), r["unit"])):
         if not r["ok"]:
-            out.append(f"| {r['variant']} | {r['unit']} | {'skipped: ' if r.get('skipped') else 'FAIL: '}{r['cause']} |" + " |" * 11)
+            out.append(f"| {r['variant']} | {r['unit']} | {'skipped: ' if r.get('skipped') else 'FAIL: '}{r['cause']} |" + " |" * 12)
             continue
-        d = vs_base(r, by.get((r["unit"], base_of(r["variant"]))))
-        out.append(f"| {r['variant']} | {r['unit']} | {' / '.join(f(x).lstrip('0') for x in r['iou'])} | {f(r['mean'], 4)} | {sgn(d and d['mean'], 4)} "
-                   f"| {', '.join(d['drops']) if d and d['drops'] else '–'} | {f(r['sliver'], 1)} | {f(r['nd'], 1)} | {f(r['euler'])} | {f(r['comp'])} | {f(r['tris'])} "
-                   f"| {f(r['dev_p95'], 2)} | {f(r['hausdorff'], 2)} | {f(r['total_s'], 0)} |")
+        d = vs_base(r, by.get((r["unit"], base_of(r["variant"]))), noise)
+        out.append(f"| {r['variant']} | {r['unit']} | {' / '.join(f(x).lstrip('0') for x in r['iou'])} | {' / '.join(f(x).lstrip('0') for x in r['spill_v'])} "
+                   f"| {r['spill_ok']}/6 | {f(r['bare'])} | {sgn(d and d['mean'], 4)} | {sgn(d and d['spill'], 4)} | {', '.join(d['falls']) if d and d['falls'] else '–'} "
+                   f"| {f(r['contact'])} | {f(r['z_err'])} | {f(r['planarity'], 2)} | {f(r['crease'], 2)} | {f(r['tris'])} | {f(r['total_s'], 0)} |")
     return "\n".join(out)
 
 
 def summary_table(summary):
-    """Markdown: one line per variant against base (Δ mean IoU, units won, views falling, units hurt, slivers, nd, seconds, decision)."""
-    out = ["| variant | units | Δ mean IoU | units won (≥ +.005, no fall) | views falling > .01 | units worse | Δ slivers % | Δ nd ° | Δ seconds | worst view | decision |",
-           "|---" * 11 + "|"]
+    """Markdown: one line per variant against base, spill first, then the rest of the brief's columns and the verdict."""
+    out = ["| variant | units | Δ spill | views spill ≤ .03 (base) | Δ IoU | Δ bare | views fall > 2σ | Δ contact | Δ z_err | Δ planarity | Δ crease R | Δ tris | Δ s | verdict |",
+           "|---" * 14 + "|"]
     for n, s in summary.items():
-        worst = f"{s['worst'][1]} {s['worst'][0]:+.3f}" if s["worst"] else "–"
-        out.append(f"| {n} | {s['n']} | {sgn(s['mean'], 4)} | {s['wins']}/{s['n']} | {s['drops']} | {s['hurt']} | {sgn(s['sliver'], 1)} | {sgn(s['nd'], 1)} "
-                   f"| {sgn(s['seconds'], 0)} | {worst} | {verdict(s)} |")
+        out.append(f"| {n} | {s['n']} | {sgn(s['spill'], 4)} | {s['spill_ok']}/{s['views']} ({s['base_spill_ok']}) | {sgn(s['mean'], 4)} | {sgn(s['bare'], 4)} | {s['falls']} "
+                   f"| {sgn(s['contact'], 4)} | {sgn(s['z_err'], 4)} | {sgn(s['planarity'], 3)} | {sgn(s['crease'], 3)} | {sgn(s['tris'], 0)} | {sgn(s['seconds'], 0)} | {verdict(s)} |")
     return "\n".join(out)
+
+
+def before_after_table(before, after):
+    """Markdown: the variants measured in both matrices whose verdict changed (before = L11-7 code, after = L12), with the numbers."""
+    out = ["| variant | verdict before (L11-7) | verdict after (L12) | Δ spill before → after | Δ IoU before → after | views fall > 2σ before → after |", "|---" * 6 + "|"]
+    for n in after:
+        if n in before and verdict(before[n]) != verdict(after[n]):
+            b, a = before[n], after[n]
+            out.append(f"| {n} | {verdict(b)} | {verdict(a)} | {sgn(b['spill'], 4)} → {sgn(a['spill'], 4)} | {sgn(b['mean'], 4)} → {sgn(a['mean'], 4)} | {b['falls']} → {a['falls']} |")
+    return "\n".join(out) if len(out) > 2 else "(no variant changed verdict)"
 
 
 def colour_table(rows):
@@ -311,17 +387,26 @@ def colour_table(rows):
     return "\n".join(out)
 
 
-COLUMNS = ("variant", "unit", "ok", *(f"iou_{v}" for v in VIEWS), "mean", "sil_fail", "tris", "sliver", "nd", "euler", "comp", "dev_p95", "hausdorff",
+COLUMNS = ("variant", "unit", "ok", *(f"iou_{v}" for v in VIEWS), *(f"spill_{v}" for v in VIEWS), *(f"bare_{v}" for v in VIEWS),
+           *(f"contact_{v}" for v in VIEWS), "mean", "spill", "bare", "contact", "spill_ok", "d_mean", "d_spill", "d_bare", "falls_2sigma",
+           "z_err", "planarity", "crease", "sil_fail", "tris", "sliver", "nd", "euler", "comp", "dev_p95", "hausdorff",
            "form", "total_s", "build_s", "verts_s", "fit_s", "zones_mean", "luma_l1", "atlas_kb", "prims", "materials", "cause")
 
 
-def csv_text(rows):
-    """The CSV of all rows (one line per (variant, unit); failed rows keep their cause)."""
+def csv_text(rows, noise=None):
+    """The CSV of all rows (one line per (variant, unit); failed rows keep their cause; d_* and falls_2sigma are against the unit's base)."""
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(COLUMNS)
+    by = {(r["unit"], r["variant"]): r for r in rows}
     for r in rows:
-        flat = {**r, **{f"iou_{v}": (r.get("iou") or [None] * 6)[i] for i, v in enumerate(VIEWS)}, "sil_fail": " ".join(r.get("sil_fail", []))}
+        flat = {**r}
+        for key in ("iou", "spill", "bare", "contact"):
+            vals = r.get("iou") if key == "iou" else r.get(f"{key}_v")
+            flat.update({f"{key}_{v}": (vals or [None] * 6)[i] for i, v in enumerate(VIEWS)})
+        d = vs_base(r, by.get((r["unit"], base_of(r["variant"]))), noise) if r["ok"] else None
+        flat.update(d_mean=d and d["mean"], d_spill=d and d["spill"], d_bare=d and d["bare"], falls_2sigma=" ".join(d["falls"]) if d else "",
+                    sil_fail=" ".join(r.get("sil_fail", [])))
         w.writerow(["" if flat.get(c) is None else flat[c] for c in COLUMNS])
     return buf.getvalue()
 
@@ -353,10 +438,10 @@ def model_of(run):
             "prims": sum(len(m["primitives"]) for m in doc["meshes"]), "materials": lint["materials"], "uv_out": lint["uv_out_of_range"]}
 
 
-def collect(unit, name, v, total_s):
+def collect(unit, name, v, total_s, root=DRAFT, prefix=PREFIX):
     """The row of one finished run (or a fail row: no clay.glb / silhouette.json, cause from batch.log)."""
     import mesh_lint as ML
-    run = DRAFT / unit / run_name(name)
+    run = root / unit / run_name(name, prefix)
     if not (run / "clay.glb").exists() or not (run / "silhouette.json").exists():
         log = run / "batch.log"
         lines = [ln.strip() for ln in (log.read_text() if log.exists() else "").splitlines() if ln.strip()]
@@ -364,7 +449,7 @@ def collect(unit, name, v, total_s):
     lint = ML.lint(run / "clay.glb", sdf=(run / "clay.sdf.json").exists())
     zones = read_json(run / "stage2" / "colour.json").get("zones") if v["colour"] else None
     return make_row(unit, name, read_json(run / "silhouette.json"), lint, times_of(run, total_s), zones if v["colour"] else None,
-                    model_of(run) if v["colour"] else None)
+                    model_of(run) if v["colour"] else None, read_json(run / "clay.look.json").get("look_after"), read_json(run / "clay.depth.json"))
 
 
 def lock(path):
@@ -386,8 +471,8 @@ def lock(path):
 
 
 def build(unit, name, v):
-    """Runs spec_pipeline for one (unit, variant) into runs/draft/<unit>/l11-mx-<name>/; output to batch.log. An earlier run without a
-    batch.json (killed) is renamed -invalid, never deleted. Returns the wall seconds."""
+    """Runs spec_pipeline for one (unit, variant) into runs/draft/<unit>/l12-mx-<name>/; output to batch.log. An earlier run is renamed
+    -invalid<ts>, never deleted. Returns the wall seconds."""
     run = DRAFT / unit / run_name(name)
     if run.exists():
         run.rename(run.with_name(f"{run.name}-invalid{int(time.time())}"))
@@ -397,8 +482,8 @@ def build(unit, name, v):
     done = subprocess.run(command(unit, name, v, tilts), capture_output=True, text=True, cwd=ROOT, env=environment(v))
     total = time.perf_counter() - t0
     (run / "batch.log").write_text(done.stdout + done.stderr)
-    (run / "batch.json").write_text(json.dumps({"total_s": round(total, 1), "returncode": done.returncode, "variant": name,
-                                                "over": v["over"], "build": v["build"], "flags": v["flags"]}))
+    (run / "batch.json").write_text(json.dumps({"total_s": round(total, 1), "returncode": done.returncode, "variant": name, "over": v["over"],
+                                                "env": v["env"], "build": v["build"], "flags": v["flags"]}))
     return total
 
 
@@ -419,45 +504,59 @@ def one(unit, name, args):
         finally:
             guard.unlink(missing_ok=True)
     row = collect(unit, name, v, total)
-    print(f"{unit} {name}: {'ok mean ' + str(row['mean']) if row['ok'] else 'FAIL ' + row['cause']} ({row['total_s']} s)", file=sys.stderr, flush=True)
+    print(f"{unit} {name}: {'ok mean ' + str(row['mean']) + ' spill ' + str(row['spill']) if row['ok'] else 'FAIL ' + row['cause']} ({row['total_s']} s)", file=sys.stderr, flush=True)
     return row
 
 
-def disk_rows():
-    """The rows of every variant that has a run on disk (a skip row where it does not apply), so the tables cover all the invocations."""
-    names = sorted({d.name[len("l11-mx-"):] for d in DRAFT.glob("*/l11-mx-*") if d.is_dir() and "-invalid" not in d.name},
-                   key=lambda n: (list(VARIANTS).index(n) if n in VARIANTS else 99, n))
+def disk_rows(root=DRAFT, prefix=PREFIX):
+    """The rows of every variant that has a run under `root` (a skip row where it does not apply), so the tables cover all the invocations."""
+    names = sorted({d.name[len(prefix):] for d in root.glob(f"*/{prefix}*") if d.is_dir() and "-invalid" not in d.name and resolvable(d.name[len(prefix):])},
+                   key=order_of)
     refs, rows = ROOT / "artifacts/model-sheets/refs", []
     for n in names:
         v = resolve(n)
         for u in UNITS:
             if not applies(v, u, refs):
                 rows.append(skip_row(u, n, "not applicable (unit not listed or its input file missing)"))
-            elif (DRAFT / u / run_name(n) / "batch.json").exists():
-                rows.append(collect(u, n, v, read_json(DRAFT / u / run_name(n) / "batch.json").get("total_s", 0.0)))
+            elif (root / u / run_name(n, prefix) / "batch.json").exists():
+                rows.append(collect(u, n, v, read_json(root / u / run_name(n, prefix) / "batch.json").get("total_s", 0.0), root, prefix))
     return rows
 
 
-def report(rows):
-    """The markdown of analysis/2026-10-29-l11-matrix.md."""
-    summary = summarize(rows)
+def resolvable(name):
+    try:
+        resolve(name)
+        return True
+    except ValueError:
+        return False
+
+
+def report(rows, noise=None, before=None):
+    """The markdown of analysis/2026-10-30-l12-matrix.md; `before` = summarize() of the L11-7 runs measured the same way."""
+    summary = summarize(rows, noise)
     shape = [r for r in rows if not resolve(r["variant"])["colour"]]
     colour = [r for r in rows if resolve(r["variant"])["colour"]]
-    return ("# L11-7 ablation matrix (PIPELINE 29.L11-7)\n\nEach variant rebuilds the v13 spec of the 5 units with `--deterministic` (noise 0), "
-            "cameras of v13 fixed; Δ against `base` (colour: against `c-base`).\n\n## Summary by variant\n\n" + summary_table(summary)
-            + "\n\n## Variant x unit (shape)\n\n" + table(shape) + ("\n\n## Stage 2 (colour)\n\n" + colour_table(colour) if colour else "") + "\n")
+    return ("# L12-10a ablation matrix (PIPELINE 30.L12-10a)\n\nEach variant rebuilds the v13 spec of the 6 units with `--deterministic` (noise 0), "
+            "cameras of v13 fixed, no LLM; Δ against `base` (colour: against `c-base`). Spill and bare are the gate's numbers (the body's where the sheet has props). "
+            "\"falls > 2σ\" counts the (unit, view) cells whose IoU falls by more than 2σ of `noise-l12.json`. Verdict: default-candidate = mean spill falls "
+            f"(by more than {SPILL_EPS}) and no view falls > 2σ; opt-in = spill or IoU improves but a view falls; no = nothing improves.\n\n"
+            "## Summary by variant\n\n" + summary_table(summary)
+            + ("\n\n## Before (L11-7 code) vs after (L12)\n\n" + before_after_table(before, summary) if before else "")
+            + "\n\n## Variant x unit (shape)\n\n" + table(shape, noise) + ("\n\n## Stage 2 (colour)\n\n" + colour_table(colour) if colour else "") + "\n")
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--variants", default="", help="comma-separated names (a+b combines); default: every shape variant")
-    ap.add_argument("--units", default="", help="comma-separated ids (default: the 5 of the v13 battery)")
+    ap.add_argument("--units", default="", help="comma-separated ids (default: the 6 of the battery)")
     ap.add_argument("--jobs", type=int, default=2, help="parallel spec_pipeline processes (2 max on this machine)")
     ap.add_argument("--collect-only", action="store_true", help="do not build, measure the runs already on disk")
     ap.add_argument("--rebuild", action="store_true", help="rebuild runs that already have a batch.json (the old one is renamed -invalid)")
     ap.add_argument("--list", action="store_true", help="print the variants and exit")
-    ap.add_argument("--out", type=pathlib.Path, default=ANALYSIS / "2026-10-29-l11-matrix", help="writes <out>.csv and <out>.md")
-    ap.add_argument("--copy", type=pathlib.Path, default=None, help="also copy the csv and md to this directory (ablation-matrix-2026-10-29.*)")
+    ap.add_argument("--out", type=pathlib.Path, default=ANALYSIS / "2026-10-30-l12-matrix", help="writes <out>.csv and <out>.md")
+    ap.add_argument("--copy", type=pathlib.Path, default=None, help="also copy the csv and md to this directory (as ablation-matrix-<out name>.*)")
+    ap.add_argument("--legacy", type=pathlib.Path, default=None,
+                    help="runs/draft of the L11-7 matrix (l11-mx-* runs): its verdicts, measured the same way, go in a before/after table")
     args = ap.parse_args(argv)
     if args.list:
         print("\n".join(f"{n:16} {v['note']}" for n, v in VARIANTS.items()))
@@ -467,14 +566,17 @@ def main(argv=None):
         resolve(n)
     units = [u for u in (args.units.split(",") if args.units else UNITS) if u]
     tasks = [(u, n) for n in names for u in units]
-    with cf.ThreadPoolExecutor(args.jobs) as pool:
-        list(pool.map(lambda t: one(*t, args), tasks))
+    if not args.collect_only:
+        with cf.ThreadPoolExecutor(args.jobs) as pool:
+            list(pool.map(lambda t: one(*t, args), tasks))
+    noise = NZ.load(NOISE)
     rows = disk_rows()
-    args.out.with_suffix(".csv").write_text(csv_text(rows))
-    args.out.with_suffix(".md").write_text(report(rows))
+    before = summarize(disk_rows(args.legacy, "l11-mx-"), noise) if args.legacy else None
+    args.out.with_suffix(".csv").write_text(csv_text(rows, noise))
+    args.out.with_suffix(".md").write_text(report(rows, noise, before))
     for ext in (".csv", ".md") if args.copy else ():
-        shutil.copy(args.out.with_suffix(ext), args.copy / f"ablation-matrix-2026-10-29{ext}")
-    print(summary_table(summarize(rows)))
+        shutil.copy(args.out.with_suffix(ext), args.copy / f"ablation-matrix-{args.out.name}{ext}")
+    print(summary_table(summarize(rows, noise)))
     return 0
 
 
