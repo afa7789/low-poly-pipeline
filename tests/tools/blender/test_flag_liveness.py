@@ -55,7 +55,7 @@ def fit_kwargs(*flags, with_constraints=False):
         args = parse(*flags, *extra)
         args.sheet, args.build, args.out, args.kind = pathlib.Path(tmp) / "s.jpg", pathlib.Path(tmp) / "h.jpg", pathlib.Path(tmp), "mass"
         with mock.patch.object(fit_spec, "fit", stub), mock.patch.object(SP, "run_tilts", return_value=None), \
-                mock.patch.object(SP, "ground_fix"), unittest.TestCase().assertRaises(Stop):
+                mock.patch.object(silhouette, "run_report", return_value={}), mock.patch.object(SP, "ground_fix"), unittest.TestCase().assertRaises(Stop):
             SP.fit_stage({"parts": []}, args)
     return seen
 
@@ -127,6 +127,14 @@ def live_author_guard():     # off never measures; revert measures the massing a
     return "off" in measured, "revert" in measured
 
 
+def live_incoherent_weight():     # main() sets views.INCOHERENT_WEIGHT from the flag; the fit's proxy weighs the incoherent view by it
+    out = []
+    for flags in ((), ("--incoherent-weight", "0")):
+        with mock.patch.object(SP.view_defs, "INCOHERENT_WEIGHT", parse(*flags).incoherent_weight):
+            out.append(fit_spec.Proxy({}, ("top",), rig="spider", sheet_rep={"incoherent": ["top"]}).weight["top"])
+    return tuple(out)
+
+
 def live_sdf_k_mode():       # the flag reaches build_unit, and the mode changes the junction width
     a = {"r": .1, "bone": "arm.L"}
     return (clay() == clay(sdf_k_mode="hard"), sdf_body.pair_k(a, a, .01, 2, 1) == sdf_body.pair_k(a, a, .01, 2, 1, "hard"))
@@ -190,7 +198,7 @@ LIVE_PAIRS = {
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
-    "shape_only": live_shape_only,
+    "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),

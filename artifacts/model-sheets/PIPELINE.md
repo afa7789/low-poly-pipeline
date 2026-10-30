@@ -5119,3 +5119,63 @@ spill (massing / autor pré-fit / final sem guarda = `l12-cams` / final com guar
 - **Aberto.** (a) Regenerar os `box3d` nulos de `refs/*/parts.json` (7 de 8 ficheiros) para `--fit-parts/--depth` terem efeito; (b) o teste prova a ligação ao consumidor, não o ganho: a ablação de cada opt-in segue sendo medida; (c) o `sdf_batch.py` não gera `results.csv` (só `l10-batch.json` + tabela): a coluna de veredito mostra `FAIL(infra)`; (d) `infra_check` não vê exceção engolida dentro de um estágio que ainda escreve o ficheiro.
 - **Testes.** `test_flag_liveness.py` (10), `test_spec_pipeline.py` (+3: `verdict_of` com infra, `wants_colour`, `infra_check`), `test_sdf_batch.py` (+1). Runs: `runs/draft/<id>/l12-stage2`.
 
+### 30.L12-5 Vista incoerente com peso 0 (opt-in) e gate no corpo, prop em CHECK (2026-10-29)
+
+- **Por que.** (1) `VIEW_WEIGHTS` dava peso 2 a top/bottom/rts de spider/quadruped, também quando `sheet_report` marca a vista como `incoherent` (n00U top .53 / bottom .49; n017 rts .58; hfoo rts .57): o fit puxava com força dupla para um desenho que não é do boneco. (2) O gate misturava corpo e prop (hfoo left: o pique atravessa o painel).
+- **Mudança.**
+  1. `views.weight_of(rig, view, sheet_report=None, incoherent_weight=None)`: vista em `sheet_report["incoherent"]` pesa `views.INCOHERENT_WEIGHT` (ou o argumento) qualquer que seja o rig; senão `VIEW_WEIGHTS`. Quem fitta recebe o relatório: `fit_spec.Proxy(sheet_rep=)` / `fit(sheet_rep=)` (vista de peso 0 também sai de `failing`), `deform_to_sheet.deform/run(sheet_rep=)` (peso 0 = não puxa, não vigia a `GUARD`, não entra no `mean_iou`), `optimize_verts.optimize/run(sheet_rep=)` (peso 0 = vista fora do objetivo; peso > 0 = vista a 1, `ponytail: escalar o custo quando uma matriz pedir 0 < w < 1`). `silhouette.run_report(args)` calcula `sheet_report` uma vez por run. Flag `spec_pipeline --incoherent-weight <float>`, default **None** (= como qualquer vista, comportamento anterior).
+  2. Gate: a vista incoerente já era isenta (`verdict_of`); agora imprime `(incoherent, not gated)` e `sdf_batch.sil_fail` também a isenta (antes n00U/n017/hfoo falhavam por ela na tabela). `sdf_batch` marca com `†` IoU/spill/bare/contact das vistas incoerentes; os números brutos continuam todos impressos.
+  3. Corpo vs prop (`silhouette.body_prop_scores`, só onde há `prop_masks`): `body_{iou,spill,bare}` e `prop_{iou,spill,bare}` por vista, no `silhouette.json`, no `review.md` (linhas `body iou (gate)`/`prop iou (CHECK)`...) e em `sdf_batch.split_table`. O **gate** (`gated_values`: IoU mínimo, `SPILL_MAX`, `UNCOVERED_MAX`) aplica-se ao corpo; o prop é CHECK impresso (`[body ... | prop CHECK ...]` na linha da vista). Nomes com prefixo (`body_spill`) porque `spill_body`/`spill_prop` já existiam com outra semântica (partição do total, `coupling_split`).
+  4. **Limite da separação (importante).** O modelo é um mesh só (`spec`, skin) e o prop não é marcável depois do weld/deform; não renderizei o prop à parte. A separação é por pixel (a mesma atribuição de `coupling_split`): sheet-corpo = painel menos máscaras de prop; modelo-prop = pixels do modelo dentro de uma máscara de prop ou fora do sheet a ≤ `PROP_NEAR` (6 px) de uma. Um prop desenhado longe da sua máscara (o pique vertical do modelo contra o diagonal do sheet) cai como **spill do corpo**, e as colunas de prop dele (hfoo left: IoU .09, bare .90) dizem só "o pique do sheet não está coberto".
+- **Medida** (bateria das 6, sem LLM, `v13-r1/spec.json --no-repair --no-diagnose --body sdf --deterministic --tilts`; controlo `l12-stage2`; runs `l12-views` (default, `None`), `l12-views-w0` (`--incoherent-weight 0`), `l12-views-w1` (`1.0`, só n00U/n017/hfoo)). IoU / spill / bare, vistas coerentes e incoerentes (†).
+
+| un. | vista | controlo = default | `w=0` | `w=1` |
+|---|---|---|---|---|
+| hfoo | front | .867 / .061 / .081 | .858 / .064 / .089 | .870 / .073 / .066 |
+| hfoo | left | .418 / .387 / .432 | .409 / .403 / .436 | .411 / .380 / .451 |
+| hfoo | back | .874 / .061 / .074 | .867 / .063 / .080 | .874 / .072 / .062 |
+| hfoo | top | .818 / .105 / .095 | .812 / .104 / .103 | .829 / .105 / .082 |
+| hfoo | bottom | .843 / .139 / .024 | .857 / .098 / .055 | .849 / .112 / .049 |
+| hfoo | rts † | .730 / .200 / .107 | .675 / .245 / .135 | .701 / .237 / .105 |
+| n00U | front | .878 / .066 / .064 | .883 / .064 / .060 | .874 / .076 / .058 |
+| n00U | left | .818 / .134 / .065 | .812 / .135 / .070 | .809 / .121 / .090 |
+| n00U | back | .876 / .072 / .060 | .884 / .068 / .055 | .873 / .082 / .053 |
+| n00U | top † | .734 / .217 / .079 | .700 / .248 / .091 | .706 / .236 / .098 |
+| n00U | bottom † | .709 / .238 / .090 | .652 / .302 / .091 | .694 / .269 / .069 |
+| n00U | rts | .653 / .272 / .136 | .635 / .301 / .125 | .649 / .287 / .121 |
+| n017 | front | .908 / .070 / .026 | .899 / .074 / .032 | .917 / .064 / .022 |
+| n017 | left | .831 / .054 / .128 | .796 / .094 / .133 | .850 / .059 / .102 |
+| n017 | back | .849 / .119 / .041 | .864 / .110 / .033 | .864 / .109 / .033 |
+| n017 | top | .870 / .050 / .088 | .845 / .085 / .084 | .885 / .063 / .059 |
+| n017 | bottom | .861 / .060 / .089 | .851 / .059 / .102 | .865 / .058 / .087 |
+| n017 | rts † | .710 / .218 / .115 | .682 / .262 / .100 | .727 / .217 / .090 |
+
+  n005, n02X, n01X (sem vista incoerente): idênticas ao controlo nas 3 colunas de números (|Δ| = 0.000; o default não mexe em nada). Com o default (`None`) as 6 unidades reproduzem o controlo `l12-stage2` exatamente.
+
+  Corpo / prop onde há prop (default; `corpo IoU / spill / bare`, `prop IoU / spill / bare`):
+
+| un. | vista | corpo (gate) | prop (CHECK) |
+|---|---|---|---|
+| hfoo | front | .906 / .059 / .039 (inteiro .867 / .061 / .081) | .47 / .08 / .51 |
+| hfoo | left | .544 / .373 / .195 (inteiro .418 / .387 / .432) | .09 / .54 / .90 |
+| n005 | front, left | .923 / .053 / .027, .948 / .036 / .017 | .73 / .01 / .27, .94 / .05 / .02 |
+| n00U | front, left | .863 / .074 / .073, .817 / .135 / .064 | .93 / .04 / .03, .85 / .05 / .11 |
+| n02X | front, left | .908 / .065 / .031, .840 / .096 / .077 | .80 / .10 / .13, .69 / .00 / .31 |
+| n01X | front | .854 / .112 / .044 | .75 / .11 / .18 |
+
+- **Porquê falha** (default; letras = o que quebra no corpo/inteiro: I = IoU < gate, S = spill > .03, B = bare > .10).
+
+| un. | falha por corpo | falha só por prop | vista incoerente (não gated) |
+|---|---|---|---|
+| n005 | front S, left S, back S, top SB, bottom SB, rts S | nenhuma | nenhuma |
+| hfoo | front S, **left ISB**, back S, top S, bottom S | nenhuma | rts (SB) |
+| n00U | front S, left S, back S, rts ISB | nenhuma | top (S), bottom (S) |
+| n017 | front S, left SB, back S, top S, bottom S | nenhuma | rts (SB) |
+| n02X | front S, left S, back S, top S, bottom SB, rts SB | nenhuma | nenhuma |
+| n01X | as 6 vistas S | nenhuma | nenhuma |
+
+  Em nenhuma vista o prop sozinho explica a falha: o corpo já excede `SPILL_MAX` (.03) em todas, e em hfoo left o corpo falha em tudo (IoU .54, spill .37). O que a separação muda é o número: hfoo front IoU .867 → .906 (corpo), left .418 → .544, bare .43 → .20.
+- **Aceite.** `hfoo left (corpo) >= .70`: **não** (.544; o spec v13-r1 tem o pique/mochila fora do painel; a guarda L12-3 que o levava a .707 precisa do autor LLM). Vistas coerentes de n00U/n017/hfoo não caem (> ruído .016) e uma sobe: **default** (sem mudança) trivial; **`w=0` não** (n017 left −.035, top −.025, front −.009 com spill +.04 em left/top; é pior que o controlo, porque tirar o rts do otimizador solta o resto); **`w=1`** sim em IoU (n017 melhora 5/5 coerentes: left +.019, top +.015, back +.015; n00U ≥ −.009; hfoo ≥ −.007) mas o spill de front/back sobe +.010 em hfoo e n00U. FAIL por "sheet incoerente" vs "modelo errado" tabelado por unidade: **sim**. Aceite global: **não**.
+- **Decisão: opt-in** (`--incoherent-weight`, default `None` = comportamento anterior). O gate no corpo e as colunas corpo/prop são default (só mudam o veredito onde há prop e só a favor do corpo; n005/hfoo/n00U/n02X/n01X: o corpo é igual ou melhor que o inteiro nos números de gate, nenhum veredito virou PASS: o spill de corpo > .03 em todas). Não mexi em `COHERENCE_MIN`, `SPILL_MAX`/`UNCOVERED_MAX`, guarda, câmara, stage 2 nem preflight.
+- **Aberto.** (a) Separar o prop de verdade: marcar as faces de prop (material/atributo) em `build_unit` e renderizá-las à parte, para o pique mal posto não cair como spill do corpo; (b) n=3 unidades, 1 repetição de `w=1`; o ruído do fit entre rodadas é ~.016: repetir antes de ligar; (c) peso 0 < w < 1 no `optimize_verts` (hoje todo w > 0 vale 1); (d) hfoo left só passa com a guarda e o autor.
+- **Testes.** `test_views.WeightOf`, `test_fit_spec.ViewWeights` (+1: mudar o painel de uma vista incoerente não muda o custo), `test_silhouette.BodyProp` (3: corpo certo + prop errado passa o corpo e deixa o prop em CHECK; corpo vaza falha; sem prop = inteiro), `test_sdf_batch` (+1), `test_flag_liveness` (+1: `incoherent_weight` viva). Runs: `runs/draft/<id>/l12-views{,-w0,-w1}`.

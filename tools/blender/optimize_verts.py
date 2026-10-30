@@ -43,7 +43,7 @@ import align_features as AF  # noqa: E402
 import deform_to_sheet as D  # noqa: E402
 import mesh_lint as ML  # noqa: E402
 import silhouette as S  # noqa: E402
-from views import RTS, layout_of  # noqa: E402
+from views import RTS, layout_of, weight_of  # noqa: E402
 
 SS = 4                    # supersampling of the raster: the coverage of a pixel moves with a sub-pixel vertex
 STEP = 0.02               # largest move of a vertex per step, fractions of the model height
@@ -544,10 +544,11 @@ def make_views(pos, tri, sheet, names, layout, cams=None):
     return views + [rts] if rts else views
 
 
-def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None):
-    """(new welded Z-up positions, report) for the welded mesh: coarse stage on the anchors, fine on all."""
+def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None, sheet_rep=None):
+    """(new welded Z-up positions, report) for the welded mesh: coarse stage on the anchors, fine on all. A view `sheet_rep`
+    (silhouette.sheet_report) lists as incoherent is left out when views.INCOHERENT_WEIGHT is 0 (30.L12-5; else it counts as any view)."""
     start = time.time()
-    views = make_views(pos, tri, sheet, names, layout, cams)
+    views = [v for v in make_views(pos, tri, sheet, names, layout, cams) if weight_of(None, v.name, sheet_rep)]   # ponytail: a weight > 0 keeps the view at 1; scale its cost when a matrix wants 0 < w < 1
     first = D.measure(pos, tri, views)
     skipped = [v.name for v in views if first[v.name]["iou"] < VIEW_MIN]     # a panel of another pose (a flier's rts)
     views = [v for v in views if v.name not in skipped]
@@ -574,9 +575,9 @@ def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=
     return new, report
 
 
-def run(glb, sheet, out, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None):
+def run(glb, sheet, out, names=DEFAULT_VIEWS, iters=30, seconds=120.0, layout="unit", cams=None, sheet_rep=None):
     """Optimise `glb` against the sheet and write `out`; returns the report (also written as <out>.verts.json)."""
-    return D.rewrite(glb, out, lambda uniq, tri, nor, file: optimize(uniq, tri, nor, file, sheet, names, iters, seconds, layout, cams),
+    return D.rewrite(glb, out, lambda uniq, tri, nor, file: optimize(uniq, tri, nor, file, sheet, names, iters, seconds, layout, cams, sheet_rep),
                      suffix=".verts.json")
 
 
@@ -592,7 +593,7 @@ def apply(glb, args):
     # under different load, +-0.006 IoU per view on the same spec)
     fixed = getattr(args, "deterministic", False)
     return run(before, args.sheet, glb, seconds=DETERMINISTIC_SECONDS if fixed else PIPELINE_SECONDS,
-               iters=DETERMINISTIC_ITERS if fixed else 30, layout=layout_of(args.kind), cams=D.run_cams(args))
+               iters=DETERMINISTIC_ITERS if fixed else 30, layout=layout_of(args.kind), cams=D.run_cams(args), sheet_rep=S.run_report(args))
 
 
 def main():

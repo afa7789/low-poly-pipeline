@@ -78,15 +78,23 @@ def stat(lint, key):
 
 
 def over_caps(sil, view):
-    """True when the view's spill or uncovered share is over its cap (silhouette.SPILL_MAX / UNCOVERED_MAX, L12-2)."""
+    """True when the view's spill or uncovered share is over its cap (silhouette.SPILL_MAX / UNCOVERED_MAX, L12-2); the body's
+    when the sheet has props in the view (L12-5, the gate's own numbers)."""
     from silhouette import SPILL_MAX, UNCOVERED_MAX
-    return (sil.get("spill", {}).get(view) or 0) > SPILL_MAX[view] or (sil.get("uncovered", {}).get(view) or 0) > UNCOVERED_MAX[view]
+    spill, bare = (sil.get("body_spill", {}).get(view), sil.get("body_bare", {}).get(view)) if view in sil.get("body_iou", {}) \
+        else (sil.get("spill", {}).get(view), sil.get("uncovered", {}).get(view))
+    return (spill or 0) > SPILL_MAX[view] or (bare or 0) > UNCOVERED_MAX[view]
+
+
+def gated_iou(sil, view):
+    """The IoU the gate judges `view` by: the body's when the sheet has props there (L12-5), else the whole silhouette's."""
+    return sil.get("body_iou", {}).get(view, sil.get("approved", {}).get(view))
 
 
 def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, grid=0):
     """One measurements row (all inputs already parsed) -> flat dict. `plates` = [(spec row, owned triangles, buried)] per 'plate' part."""
     un, ap = attach.get("union", {}), sil.get("approved", {})
-    gates = sil.get("gates", {})
+    gates, incoherent = sil.get("gates", {}), set((sil.get("sheet") or {}).get("incoherent", ()))
     return {"unit": u["unit"], "rig": u["rig"], "group": rig_group(u["rig"]), "spec": f"{u['run']}", "body": body, "grid": grid or 96, "ok": True,
             "build_s": un.get("seconds"), "total_s": round(total_s, 1), "tris": lint["tris"], "sliver": lint["sliver_pct"],
             "sliver_raw": raw["sliver_pct"] if raw else None, "nd": lint["normal_diff"]["mean"], "dev_p95": stat(lint, "p95"),
@@ -94,7 +102,10 @@ def make_row(u, body, sil, attach, lint, raw, anim, plates, failing, total_s, gr
             "iou": [ap.get(v) for v in VIEWS], "unc": mean(sil.get("uncovered", {})), "spill": mean(sil.get("spill", {})),
             "spill_v": [sil.get("spill", {}).get(v) for v in VIEWS], "unc_v": [sil.get("uncovered", {}).get(v) for v in VIEWS],
             "contact_v": [sil.get("contact", {}).get(v) for v in VIEWS],
-            "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and (ap[v] < gates[v] or over_caps(sil, v))], "lint_fail": failing,
+            "sil_fail": [v for v in VIEWS if ap.get(v) is not None and v in gates and v not in incoherent and (gated_iou(sil, v) < gates[v] or over_caps(sil, v))],
+            "incoherent": [v for v in VIEWS if v in incoherent],
+            "body_v": {k: [sil.get(f"body_{k}", {}).get(v) for v in VIEWS] for k in ("iou", "spill", "bare")} if sil.get("body_iou") else None,
+            "prop_v": {k: [sil.get(f"prop_{k}", {}).get(v) for v in VIEWS] for k in ("iou", "spill", "bare")} if sil.get("body_iou") else None, "lint_fail": failing,
             "thin": len(un.get("inflated", [])) + len(un.get("kept", [])), "inflated": len(un.get("inflated", [])),
             "plates": len(plates), "plates_zero": sum(1 for _, n, b in plates if n == 0 and not b),
             "plates_zero_rows": [i for i, n, _ in plates if n == 0], "plates_buried": [i for i, n, b in plates if n == 0 and b],
@@ -112,8 +123,21 @@ def f(v, nd=1):
     return "–" if v is None else (f"{v:.{nd}f}" if isinstance(v, float) else str(v))
 
 
-def per_view(xs):
-    return " / ".join(f(x, 3).lstrip("0") for x in xs)
+def per_view(xs, bad=()):
+    """Per-view numbers 'f / l / b / top / bot / rts'; a view in `bad` (the sheet is incoherent there: measured, not gated) ends in '†'."""
+    return " / ".join(f(x, 3).lstrip("0") + ("†" if VIEWS[i] in bad else "") for i, x in enumerate(xs))
+
+
+def split_table(rows):
+    """Markdown: body and prop numbers of the units with props (L12-5): the gate judges the body, the prop is a CHECK."""
+    out = ["| unit | body | part | IoU f/l/b/top/bot/rts | spill | bare |", "|---" * 6 + "|"]
+    for r in rows:
+        for part in ("body_v", "prop_v"):
+            if r.get("ok") and r.get(part):
+                d = r[part]
+                out.append(f"| {r['unit']} | {r['body']} | {part[:4]}{' (gate)' if part == 'body_v' else ' (CHECK)'} | {per_view(d['iou'])} "
+                           f"| {per_view(d['spill'])} | {per_view(d['bare'])} |")
+    return "\n".join(out) if len(out) > 2 else ""
 
 
 def verdict(r):
@@ -132,9 +156,9 @@ def table(rows):
         if not r["ok"]:
             out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 13)
             continue
-        iou = " / ".join(f(x, 3).lstrip("0") for x in r["iou"])
+        iou = per_view(r["iou"], r.get("incoherent", ()))
         out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | {f(r['build_s'])} | {r['total_s']} | {r['tris']} | {f(r['sliver_raw'])} → {f(r['sliver'])} "
-                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'])} | {per_view(r['unc_v'])} | {per_view(r['contact_v'])} "
+                   f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'], r.get('incoherent', ()))} | {per_view(r['unc_v'], r.get('incoherent', ()))} | {per_view(r['contact_v'], r.get('incoherent', ()))} "
                    f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} |")
     return "\n".join(out)
 
@@ -303,7 +327,7 @@ def main(argv=None):
         args.compare.mkdir(parents=True, exist_ok=True)
         compare_png(u["unit"], args.compare)
     args.json.write_text(json.dumps({"rows": rows, "acceptance": acceptance(rows) if "sdf" in bodies else []}, indent=1))
-    print(table(rows) + "\n\n" + delta_table(rows) + ("\n\n" + acceptance_table(rows) if "sdf" in bodies else ""))
+    print(table(rows) + ("\n\n" + split_table(rows) if split_table(rows) else "") + "\n\n" + delta_table(rows) + ("\n\n" + acceptance_table(rows) if "sdf" in bodies else ""))
     return 0
 
 

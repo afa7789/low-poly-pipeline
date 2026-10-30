@@ -326,6 +326,43 @@ class Coupling(unittest.TestCase):
             self.assertTrue(S.coupling_ok("front", bad))             # report only when switched off
 
 
+class BodyProp(unittest.TestCase):
+    """30.L12-5: the gate judges the body; the prop (a spear that crosses the panel) is a CHECK."""
+    def setUp(self):
+        self.sheet = np.zeros((256, 384), bool)
+        self.sheet[:, 150:230] = True              # the body: a full-height column
+        self.sheet[0:200, 300:310] = True          # a spear beside it
+        self.props = np.zeros_like(self.sheet)
+        self.props[0:200, 300:310] = True
+
+    def gate(self, model):
+        r = S.body_prop_scores(self.sheet, model, self.props)
+        iou, cov = S.gated_values(r)
+        return r, iou, S.coupling_ok("left", cov)
+
+    def test_body_right_prop_wrong_passes_the_body(self):
+        model = self.sheet.copy()
+        model[0:200, 300:310] = False
+        model[0:200, 303:313] = True               # the spear drawn 3 px aside: spills, within PROP_NEAR of its mask
+        r, iou, ok = self.gate(model)
+        self.assertEqual((r["body_iou"], r["body_spill"], r["body_bare"]), (1.0, 0.0, 0.0))
+        self.assertTrue(ok)
+        self.assertEqual(iou, 1.0)
+        self.assertLess(r["prop_iou"], 0.6)        # printed, not gated
+
+    def test_body_spill_fails(self):
+        model = self.sheet.copy()
+        model[:, 230:260] = True                   # the body leaks 30 px, far from the spear
+        r, _, ok = self.gate(model)
+        self.assertGreater(r["body_spill"], S.SPILL_MAX["left"])
+        self.assertFalse(ok)
+
+    def test_no_props_is_the_whole_silhouette(self):
+        r = {"iou": 0.8, "uncovered": 0.1, "spill": 0.0}
+        self.assertEqual(S.gated_values(r), (0.8, r))
+        self.assertIn("prop CHECK", S.body_text({"body_iou": 1, "body_spill": 0, "body_bare": 0, "prop_iou": 0, "prop_spill": 1, "prop_bare": 1}))
+
+
 class Outline(unittest.TestCase):
     def test_douglas_peucker_keeps_corners_drops_noise(self):
         line = [(0, 0), (5, 0.2), (10, 0), (10, 5), (10, 10)]
