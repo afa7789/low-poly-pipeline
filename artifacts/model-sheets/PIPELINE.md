@@ -5623,3 +5623,86 @@ Perdas: n005 rts .884 -> .831 (spill .067 -> .135), n02X front −.014, hfoo rts
 
 `<id>-full.png`: colunas concept | clay | wire | overlay | textured para v13-r1 | v15-r1 | v15-r1-guard, 6 vistas. `<id>-spill.png`: overlay das 6 vistas por versão
 (amarelo = acerto, vermelho = modelo fora do sheet, verde = sheet descoberto), com spill% e bare% por célula (vermelho se spill > 3 %).
+
+
+## 31. Leva 13 (2026-10-30): polir o 3D criado
+
+Fonte: PIPELINE `### 30.L12-10b` ("Where the red is") e `### 30.L12-10a` (nenhum peso de custo resolve spill). Cada item da Leva 13 tem worktree próprio
+(`leva13/<item>`); abaixo a seção do item L13-5.
+
+### 31.L13-5 Inscrever por construção: o corpo cortado pelo casco visual das vistas (`--inscribe cut|on`, opt-in) (2026-10-30)
+
+**O que é.** `tools/blender/inscribe.py`. O volume de prismas/SDF é maior que o contorno desenhado por construção (30.L12-10a: toda alavanca troca spill por bare 1:1), então
+em vez de pesar o custo o corpo é **cortado**: `field.grid = max(sdf do corpo, sdf do casco)` em `build_unit.sdf_dense` (antes do marching cubes e da retopologia QEM, que
+guarda o desvio contra o campo já cortado). O casco é o máximo, sobre as vistas front/left/back/top/bottom **coerentes** (`sheet_report.incoherent` nunca corta; top/bottom só com a
+câmera pinada), da distância assinada 2D (px / escala) da máscara do sheet erodida `--inscribe-erode` px (default 1; negativo dilata), ao longo do raio da câmera. O gate enquadra o
+modelo pelo bbox, então o corte é iterado até o bbox parar de mexer (frame de cada passo = bbox da superfície do corte anterior, por cruzamento linear das arestas do grid, + os pontos das
+peças que não são corpo: props e fenda de chama). O ponto fixo é o **maior** corpo que cabe em todas as máscaras sob o próprio enquadramento (Tarski: o mapa é monotônico, a iteração desce
+do corpo inteiro): quando as vistas discordam do corpo ele é bem menor que o corpo (v15: 30–72 % do volume). Espelho / giro do top e bottom: os que o gate escolhe, lidos num build sem corte
+do mesmo spec (`spec_pipeline.inscribe_args`: +1 build Blender, 15–40 s; `inscribe-uncut.glb`) com o próprio `deform_to_sheet.make_views`. A parte de Blender é numpy puro (`carve`); a de
+python3.14 (scipy/PIL) escreve o npz (`inscribe.npz` na pasta do run, relatório em `inscribe.carve.json`). `--inscribe on` = corte + **clamp** depois do deform e do `fit-verts`
+(`inscribe.apply`): cada vértice vermelho (fora da máscara erodida) vai ao pixel mais próximo dela no plano da vista, o resto da malha segue pelo Laplaciano (`deform_to_sheet.solve`),
+uma vista por vez, passo amortecido, aceito só se o spill médio cai e nenhuma vista perde > .004 de IoU; o corpo contra a máscara toda, um componente de prop contra a máscara própria
+(`prop_masks`), sem máscara própria o prop não é tocado. Antes do clamp, `<run>/clay-preinscribe.glb`; relatório `clay.inscribe.json`.
+
+**Decisões e o que deu errado no caminho.** (1) O frame pelos centros dos voxels em vez dos cruzamentos de aresta fazia o corte espiralar (−1 camada de voxel por passo, quantização de
+.05 contra 1 px de erosão): trocado pelos cruzamentos. (2) Erosão com `border_value=0` comia o contorno do canvas (a figura toca o topo/base): `border_value=1` e o padding do sdf repete a
+borda. (3) Espelho escolhido por IoU de raster de pontos dos voxels discordou do gate em 4 de 28 vistas (n017 front, n01X top, n02X top, hfoo bottom): agora vem do build sem corte. (4) Clamp com
+todas as vistas de uma vez: o top custou −.05 de IoU no front (a mesma soma de passos em planos acoplados); uma vista por vez + guarda de aceite: +.01 de spill no máximo, quase nada
+aceito. (5) 4 passos de frame não convergem (n005 precisa de 9, n017/n00U de 14+): `PASSES` 14, parada em .05 voxel.
+
+**Medida** (6 unidades, specs v15, mesma câmera pinada de `v15-r1/silhouette.json`, `--shape-only --no-repair --no-diagnose --deterministic --body sdf`, controle pareado `l13-base` = mesmo
+código sem a flag; `l13-on` = `--inscribe on`; marca "> 2σ" = |ΔIoU| acima de max(2σ, .005) de `noise-l12.json`):
+
+| unidade | spill médio 5 vistas base → on | bare médio base → on | IoU médio base → on | vistas com spill ≤ .03 (6): base → on | vistas coerentes que caem > 2σ | volume do corpo depois do corte |
+|---|---|---|---|---|---|---|
+| n01X | .094 → **.040** | .063 → .100 | .854 → .867 | 0 → **4** (3 pelo número do corpo, o que o gate lê) | só rts −.009 | 72 % |
+| hfoo | .202 → .155 | .149 → .193 | .707 → .714 | 0 → 0 | top −.047, bottom −.043 | 58 % |
+| n02X | .094 → .084 | .099 → .120 | .824 → .815 | 0 → 0 | left −.076, top −.028 | 58 % |
+| n017 | .107 → .107 | .085 → .103 | .825 → .809 | 0 → 0 | front −.032, bottom −.059 | 54 % |
+| n005 | .064 → .121 | .063 → .135 | .881 → .773 | 0 → 0 | front −.154, back −.161, left, top, bottom | 47 % |
+| n00U | .130 → .202 | .084 → .095 | .808 → .730 | 0 → 0 | front −.072, back −.061 (top/bottom incoerentes: só front/left/back cortam) | 30 % |
+
+Por vista (IoU / spill / bare, front left back top bottom rts):
+
+| unidade | run | IoU | spill | bare | contact |
+|---|---|---|---|---|---|
+| n01X | base | .808 .876 .810 .908 .871 .850 | .111 .089 .111 .056 .075 .124 | .102 .041 .099 .041 .063 .034 | .40 .46 .38 .33 .30 .25 |
+| n01X | on | .831 .884 .834 .917 .895 .841 | .030 .037 .030 .025 .018 .101 | .147 .085 .145 .061 .090 .071 | .56 .57 .56 .36 .32 .27 |
+| hfoo | base | .829 .543 .818 .735 .773 .548 | .150 .308 .160 .136 .132 .324 | .029 .284 .031 .169 .124 .256 | .52 .21 .43 .14 .15 .10 |
+| hfoo | on | .898 .587 .896 .687 .730 .487 | .079 .246 .084 .132 .123 .266 | .027 .275 .024 .233 .187 .409 | .79 .35 .73 .11 .16 .07 |
+| n02X | base | .884 .864 .889 .779 .766 .764 | .062 .096 .056 .156 .109 .086 | .061 .049 .061 .090 .155 .177 | .46 .43 .48 .13 .14 .21 |
+| n02X | on | .885 .788 .889 .751 .850 .726 | .037 .068 .032 .162 .103 .102 | .084 .164 .084 .121 .058 .208 | .56 .42 .55 .10 .14 .21 |
+| n017 | base | .905 .785 .853 .842 .863 .700 | .060 .102 .106 .080 .050 .245 | .039 .138 .051 .091 .096 .094 | .43 .28 .34 .41 .44 .14 |
+| n017 | on | .873 .784 .870 .878 .804 .644 | .065 .080 .085 .062 .052 .301 | .070 .158 .054 .068 .159 .109 | .36 .24 .33 .43 .29 .14 |
+| n005 | base | .910 .943 .930 .806 .816 .880 | .058 .040 .051 .114 .053 .070 | .036 .019 .021 .101 .145 .057 | .49 .63 .64 .19 .24 .31 |
+| n005 | on | .756 .887 .769 .716 .758 .754 | .119 .080 .115 .150 .106 .159 | .158 .040 .146 .180 .167 .120 | .21 .31 .20 .10 .14 .08 |
+| n00U | base | .906 .772 .894 .757 .795 .722 | .051 .170 .063 .137 .150 .207 | .047 .083 .049 .140 .075 .110 | .30 .22 .27 .20 .23 .19 |
+| n00U | on | .834 .849 .833 .642 .594 .626 | .050 .083 .056 .324 .391 .311 | .128 .080 .124 .072 .040 .129 | .19 .19 .19 .08 .05 .05 |
+
+Variantes (mesma bateria, médias das 5 vistas spill / bare / IoU): `cut` (sem clamp) n01X .050/.079/.878, n02X .086/.109/.823, hfoo .155/.193/.714, n017 .110/.099/.810, n005 .129/.114/.784,
+n00U .188/.106/.739; `on` com `--inscribe-erode -2` (máscara dilatada 2 px) n01X .051/.083/.874 (1/6 vistas <= .03), n017 .097/.098/.821, n005 .108/.106/.807, n00U .194/.060/.764: nenhum
+fecha. O clamp aceitou 0–14 passos por unidade (n01X 14: spill front .037 → .026, bottom .028 → .017; hfoo 0 aceitos, n005 7 com 1 face virada) e deu no máximo −.011 de spill médio.
+Tempo: +15–40 s por run (o build sem corte); runs em `artifacts/model-sheets/runs/draft/<id>/l13-{base,cut,on,on-d2}` (untracked), overlays antes | depois em
+`artifacts/model-sheets/history/2026-10-30-l13-inscribe/<id>.png` (em cima `l13-base`, embaixo `l13-on`; vermelho = modelo fora do sheet, verde = sheet descoberto). Primeira versão
+(4 passos, espelho pelos voxels), mantida como `l13-v1-{on,cut}`: n01X .046/.080/.881 (cut), n005 .090/.076/.847, n00U .193/.068/.758 — a convergência piorou n005/n00U, não resolveu.
+
+**Aceite (roadmap): NÃO atendido.** Pedia spill ≤ .03 em ≥ 5 vistas por unidade em ≥ 4/6 unidades: **0/6** (n01X 4 de 6 vistas, as outras 0); bare médio não sobe > +.03: sobe
++.037 (n01X), +.044 (hfoo), +.072 (n005); IoU não cai > 2σ em vista coerente: cai em 6/6 unidades (n01X só no rts, −.009). Funciona em **n01X** (golem de máquina, sem prop, vistas consistentes: spill .111 → .030
+no front/back, .056 → .025 top, .075 → .018 bottom, IoU +.01..+.02, contact .40 → .56, bare +.04) e no front/back do **hfoo** (spill .150 → .079, IoU .829 → .898, bare igual).
+
+**Por que não fecha (medido, não suposto).** (a) O resíduo é de **prop**: o corte atua no campo do corpo; lança do hfoo, clava do n02X, tanque/lâmpada do n005 ficam como estão
+(overlays) e puxam o bbox: com props fora do sheet o enquadramento do gate desloca o corpo, o ponto fixo é então um corpo menor e deslocado (n005 perde o lado esquerdo, x mín −.73 → −.49: front
+IoU .910 → .756). (b) As 5 máscaras discordam entre si mais do que o corpo discorda delas: o maior corpo inscrito sob o bbox próprio tem 30–72 % do volume; spill 0 sai ao preço de
+bare (a conclusão de 30.L12-10a vale também por construção). (c) O clamp de vértices é fraco: um vértice movido num plano mexe nos outros; guardado, quase nada passa.
+(d) `--frame body` (corpo sem props no enquadramento, a saída natural para (a)) não ficou medido: `silhouette.FRAME` é lido na importação de `spec_pipeline` antes de `main` ajustar `CF_FRAME`,
+então o corte (em processo) usou o bbox enquanto o gate usou o corpo (volume do corpo igual ao do bbox; spill piorou, n005 front .060 → .118); pares `l13-{base,on}-fb` ficam como dado,
+não como resultado.
+
+**O que ficou de fora** (`-> skipped: X, add when Y`): corte dos props pelo casco (booleana no Blender ou poda de vértices por máscara própria) -> skipped: props saem do campo do corpo, add
+when o aceite precisar do resíduo de prop (hfoo/n02X/n005); `FRAME=body` no corte -> skipped, add when o `S.FRAME` em processo for lido depois de `main`; rts no casco -> skipped (o brief pede
+só front/left/back/top/bottom); guarda "volta ao sem corte se alguma vista coerente cai > 2σ" -> skipped, add when a flag for candidata a default (custaria um stage 1 inteiro a mais).
+
+**Testes / registro.** `tests/tools/blender/test_inscribe.py` (corte de cubo por máscara redonda, vista incoerente / top sem câmera não corta, espelho do gate usado, erosão negativa dilata, clamp mexe só
+em vértice vermelho, prop sem máscara própria intacto, prop com máscara própria vai só para ela, guarda de aceite), `test_flag_liveness.py` (`inscribe` viva pela montagem em `spec_pipeline.inscribe_args`;
+`inscribe_erode` plain), `ablation_matrix.VARIANTS` (`inscribe`, `inscribe-cut`). Suíte `tests/tools/blender`: 766 OK, 11 skip (eram 757).
