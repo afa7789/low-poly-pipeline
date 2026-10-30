@@ -4,11 +4,13 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve()
 ROOT = HERE.parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
+import depth_rule as SG_DR  # noqa: E402
 import segment_sheet as SG  # noqa: E402
 
 SHEET = ROOT / "artifacts/model-sheets/refs/n005/sheet.jpg"
@@ -64,6 +66,36 @@ class Triangulation(unittest.TestCase):
                                            joint("head_top", [0.5, 1.0], None)], Lin())
         out = SG.summary(joints, "biped")
         self.assertEqual((out["expected"], out["xyz"], out["one_view"], out["types_xyz"]), (14, 2, 1, "1/8"))
+
+
+class OnePanelParts(unittest.TestCase):
+    """L12-8: a part only one panel shows gets its other range from the top-carved hull, or says why it stays None."""
+    torso = part("torso", "torso", [0.3, 0.3, 0.7, 0.8], [0.4, 0.3, 0.6, 0.8])             # x -.2..+.2, y .6..1.6, z -.1..+.1
+    lamp = part("lamp", "prop", [0.6, 0.2, 0.7, 0.3], None, prop=True)                      # x .1..0.2, y .4..0.6: below the torso
+    badge = part("badge", "prop", [0.4, 0.4, 0.5, 0.45], None, prop=True)                   # inside the torso's box
+    ghost = part("ghost", "prop", None, None, prop=True)
+
+    def run(self, top):
+        import numpy as np
+        g = np.stack(np.meshgrid(np.linspace(-0.3, 0.3, 13), np.linspace(0.3, 1.7, 29), np.linspace(-0.2, 0.5, 15), indexing="ij"), -1).reshape(-1, 3)
+        frame = mock.Mock(iou=0.9)
+        with mock.patch.object(SG_DR, "hull3", return_value=g[(g[:, 2] > 0.25) | (np.abs(g[:, 0]) < 0.2)]):
+            parts, _ = SG.triangulate_parts([self.torso, self.lamp, self.badge, self.ghost], Lin(), (g, frame, None) if top else None)
+        return {p["name"]: p for p in parts}
+
+    def test_the_hull_gives_the_part_that_sticks_out_its_z_and_says_why_for_the_rest(self):
+        by = self.run(top=True)
+        lamp = by["lamp"]
+        self.assertEqual((lamp["z_from"], lamp["box3d_src"]), ("top", "front+top"))
+        self.assertGreater(lamp["box3d"][0][2], 0.2)
+        self.assertEqual(lamp["box3d"][0][:2], [0.1, 0.4])
+        self.assertEqual((by["badge"]["box3d"], by["badge"]["z_why"]), (None, "inside-other-parts"))
+        self.assertEqual((by["ghost"]["box3d"], by["ghost"]["z_why"]), (None, "no-box"))
+        self.assertNotIn("z_why", by["torso"])
+
+    def test_without_a_top_camera_it_stays_null_and_says_so(self):
+        by = self.run(top=False)
+        self.assertEqual((by["lamp"]["box3d"], by["lamp"]["z_why"]), (None, "no-top"))
 
 
 class Reply(unittest.TestCase):

@@ -10,6 +10,7 @@ a map in the fit's canvas layout (silhouette.normalize of the figure) with the f
 the integer depth_order parts.json would carry (relative to the torso).
 """
 import argparse
+import json
 import pathlib
 import sys
 
@@ -24,7 +25,7 @@ import silhouette  # noqa: E402
 MODEL = "depth-anything/Depth-Anything-V2-Small-hf"
 LEVELS = 254            # canvas disparity is stored as an 8-bit label (0 = outside the figure)
 MIN_CALIB = 4           # parts needed to fit disparity -> z
-MIN_R = 0.3             # |correlation| under which the fitted map is not trusted to move a part
+MIN_R = 0.7             # |correlation| with the triangulated landmarks' z under which the fitted map is not trusted to move a part (L12-8; was .3 against hand-boxed parts)
 INIT_MAX = 0.10         # largest z shift of an initialised part, in heights
 STEP = 0.12             # a part this much nearer (or farther) than the torso in disparity gets depth_order +-1
 _pipe = []
@@ -85,6 +86,27 @@ def calibrate(disp, z):
     return float(a), float(b), float(np.corrcoef(d, z)[0, 1])
 
 
+def landmark_calibration(sheet, parts_doc, disp=None):
+    """{a, b, r, n}: z = a x disparity + b over depth_rule's landmarks (joints and part centres the front and left panels both show, whose two
+    views agree on the height), the disparity the median of a 5 x 5 window of the front panel at the landmark; r is Pearson's. The target
+    is the triangulation, not the hand-boxed parts L5-4b fitted on (PIPELINE 30.L12-8)."""
+    import depth_rule
+    frames = depth_rule.frames_for(sheet, parts_doc)
+    fig = frames.panels["front"]
+    disp = panel_disparity(sheet, fig) if disp is None else disp
+    d, z = [], []
+    for m in depth_rule.landmarks(parts_doc, frames):
+        if m["gap"] > depth_rule.RESID_MAX or "face" in m:
+            continue
+        x, y = (int(v) for v in frames.px("front", *m["front_uv"]))
+        win, inside = disp[max(y - 2, 0):y + 3, max(x - 2, 0):x + 3], fig[max(y - 2, 0):y + 3, max(x - 2, 0):x + 3]
+        if inside.any():
+            d.append(float(np.median(win[inside])))
+            z.append(m["xyz"][2])
+    a, b, r = calibrate(d, z)
+    return {"a": a, "b": b, "r": round(r, 3), "n": len(d)}
+
+
 def shifted(part, dz):
     """A copy of a spec part moved dz along z (forward): its `at` and from/to."""
     out = [*part[:3], [part[3][0], part[3][1], part[3][2] + dz], *part[4:5], dict(part[5] or {})]
@@ -94,20 +116,21 @@ def shifted(part, dz):
     return out
 
 
-def depth_init(parts, pf, parts_doc, maps, height, centres):
+def depth_init(parts, pf, parts_doc, maps, height, centres, calib=None):
     """(parts, report): `--depth`. The front disparity of every spec part with a part mask gives
     (1) the depth order of the pairs, when parts.json carries no depth_order, and (2) a z for the parts the
     left panel does not show (no left box): z = a x disparity + b with (a, b) fitted on the parts that have both,
-    used only when |r| >= MIN_R, moved at most INIT_MAX x height. `centres` are the spec parts' centres (right, up, forward)."""
+    used only when |r| >= MIN_R, moved at most INIT_MAX x height. `centres` are the spec parts' centres (right, up, forward).
+    `calib` (landmark_calibration) replaces the fit on the parts that have a left mask: the line and its r come from the triangulated landmarks."""
     disp = part_disparity(maps, pf.masks)
     scale = height / float(parts_doc.get("H") or height)
     z_of = {i: (parts_doc["parts"][pf.assoc[i]]["box3d"][0][2] + parts_doc["parts"][pf.assoc[i]]["box3d"][1][2]) / 2 * scale
             for i in disp if (i, "left") in pf.masks}
-    a, b, r = calibrate([disp[i] for i in z_of], list(z_of.values()))
+    a, b, r = (calib["a"], calib["b"], calib["r"]) if calib else calibrate([disp[i] for i in z_of], list(z_of.values()))
     report = {"disparity": {i: round(d, 3) for i, d in disp.items()}, "r_front_vs_left_z": round(r, 3), "calibration": [a, b],
-              "moved": {}}
+              "moved": {}, **({"landmarks": calib["n"]} if calib else {})}
     out = list(parts)
-    if abs(r) >= MIN_R:
+    if (r if calib else abs(r)) >= MIN_R:        # the landmarks' z is the sheet's forward: disparity must rise with it (r < 0: the sheet's z points the other way, nothing moves)
         for i, d in disp.items():
             if i in z_of:
                 continue
@@ -125,7 +148,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("sheet", type=pathlib.Path)
     ap.add_argument("out", type=pathlib.Path)
+    ap.add_argument("--landmarks", type=pathlib.Path, default=None, help="a parts.json: print the Pearson r of the disparity with its triangulated landmarks' z")
     args = ap.parse_args()
+    if args.landmarks:
+        print(json.dumps(landmark_calibration(args.sheet, json.loads(args.landmarks.read_text()))))
     args.out.mkdir(parents=True, exist_ok=True)
     for view, canvas in disparity(args.sheet).items():
         Image.fromarray((np.clip(canvas, 0, 1) * 255).astype(np.uint8)).save(args.out / f"depth-{view}.png")

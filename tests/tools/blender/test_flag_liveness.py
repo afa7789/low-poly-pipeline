@@ -181,6 +181,22 @@ def live_dsl_repair():        # a spider with one straight leg piece: on splits 
     return tuple(out)
 
 
+def live_depth_source():      # tri moves a spec part whose z is outside the box3d triangulated for it (the proxy stubbed to lose nothing); none hands it back
+    import parts_fit
+    import preflight
+    spec = {"rig": "biped", "parts": [["spine", "box", [0.4, 0.4, 0.2], [0, 1, 0.18], "m", {}]]}      # 0.08 m past the front of its box3d: associated (< .1 H), off by more than .05 H
+    doc = {"H": 1.2, "parts": [{"name": "t", "bone": "spine", "box3d": [[-.2, .8, -.1], [.2, 1.2, .1]]}]}
+    out = []
+    for flags in (("--depth-source", "none"), ("--depth-source", "tri")):
+        args = parse(*flags)
+        args.sheet, args.kind = "s.jpg", "mass"
+        with mock.patch.object(parts_fit, "load", return_value=doc), mock.patch.object(preflight, "targets_from", return_value={}), \
+                mock.patch.object(SP, "load_props", return_value=[]), mock.patch.object(fit_spec, "broken_rules", return_value=set()), \
+                mock.patch.object(SP, "proxy_ious", return_value=types.SimpleNamespace(ious=lambda parts: {"front": 0.9})):
+            out.append(SP.depth_stage(spec, args, "shape")[0]["parts"][0][3][2])
+    return tuple(out)
+
+
 def live_sdf_k_mode():       # the flag reaches build_unit, and the mode changes the junction width
     a = {"r": .1, "bone": "arm.L"}
     return (clay() == clay(sdf_k_mode="hard"), sdf_body.pair_k(a, a, .01, 2, 1) == sdf_body.pair_k(a, a, .01, 2, 1, "hard"))
@@ -245,7 +261,7 @@ LIVE_PAIRS = {
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
     "deterministic": live_deterministic, "noise": live_noise, "sdf_grid": live_sdf_grid, "body": live_body, "colour_on_fail": live_colour_on_fail,
     "shape_only": live_shape_only, "incoherent_weight": live_incoherent_weight, "dsl_repair": live_dsl_repair,
-    "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink,
+    "look_snap": live_look_snap, "look_creases": live_look_creases, "look_ink": live_look_ink, "depth_source": live_depth_source,
 }
 LIVE_CUSTOM = {         # dest -> (check, expected)
     "loop": (live_loop, (False, True)),

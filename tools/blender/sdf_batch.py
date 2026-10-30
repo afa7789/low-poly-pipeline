@@ -157,19 +157,28 @@ def look_cell(look):
     return f"plan {look['planarity']:.2f}, ent {look['wire_entropy']:.2f}, P/R {pr}"
 
 
+def depth_cell(depth):
+    """z_err (H) with its used / total landmarks, and the relief_agreement precision / recall per view (depth_rule.py, L12-8); a dash without a depth.json."""
+    if not depth:
+        return "–"
+    z = depth.get("z_err") or {}
+    zs = "z_err –" if z.get("z_err") is None else f"z_err {z['z_err']:.3f} ({z['n_used']}/{z['n_total']})"
+    return f"{zs}, relief P/R " + " ".join(f"{p:.2f}/{r:.2f}" for p, r, *_ in depth.get("relief_agreement", {}).values())
+
+
 def table(rows):
     """Markdown: one line per (unit, body)."""
     head = ("| unit | rig | body | build s | total s | tris | sliver % (raw→final) | nd | sdf_dev p95 / max % H | euler | comp | "
-            "IoU f/l/b/top/bot/rts | spill | bare | contact | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates | look |\n" + "|---" * 20 + "|")
+            "IoU f/l/b/top/bot/rts | spill | bare | contact | thin (<2 vox) | plates (0 tris, buried) | walk p99.5 | gates | look | depth |\n" + "|---" * 21 + "|")
     out = [head]
     for r in sorted(rows, key=lambda r: (r["unit"], r["body"] != "sdf")):
         if not r["ok"]:
-            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 14)
+            out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | FAIL | {r['total_s']} | {r['cause']} |" + " |" * 15)
             continue
         iou = per_view(r["iou"], r.get("incoherent", ()))
         out.append(f"| {r['unit']} | {r['rig']} | {r['body']} | {f(r['build_s'])} | {r['total_s']} | {r['tris']} | {f(r['sliver_raw'])} → {f(r['sliver'])} "
                    f"| {f(r['nd'])} | {f(r['dev_p95'], 2)} / {f(r['dev_max'], 2)} | {r['euler']} | {r['comp']} | {iou} | {per_view(r['spill_v'], r.get('incoherent', ()))} | {per_view(r['unc_v'], r.get('incoherent', ()))} | {per_view(r['contact_v'], r.get('incoherent', ()))} "
-                   f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} | {look_cell(r.get('look'))} |")
+                   f"| {r['thin']} ({r['inflated']} inflated) | {r['plates']} ({r['plates_zero']}, {len(r['plates_buried'])}) | {f(r['stretch'].get('walk'), 2)} | {verdict(r)} | {look_cell(r.get('look'))} | {depth_cell(r.get('depth'))} |")
     return "\n".join(out)
 
 
@@ -292,7 +301,7 @@ def collect(u, body, grid, total_s, skip_anim, name=None):
     infra = run / "infra.json"
     return {**make_row(u, body, read_json(run / "silhouette.json"), read_json(run / "attach.json"), lint, raw, anim(run, skip_anim),
                        plate_tris(run, field), ML.failing(lint, False), total_s, grid),
-            "infra": json.loads(infra.read_text()) if infra.exists() else [], "look": read_json(run / "clay.look.json").get("look_after")}
+            "infra": json.loads(infra.read_text()) if infra.exists() else [], "look": read_json(run / "clay.look.json").get("look_after"), "depth": read_json(run / "clay.depth.json")}
 
 
 def build(u, body, grid, name=None):
