@@ -76,6 +76,7 @@ import optimize_verts
 import diagnose
 import lathe_limb
 import loop_stage
+import noise as NZ
 import author_guard
 import massing
 import mesh_lint
@@ -1299,6 +1300,11 @@ def guard_steps(spec, mass, args, report):
     return steps + [("reject", author_guard.reject(spec, mass)), ("reject-bare", author_guard.reject(spec, mass, props=False))]
 
 
+def noise_kw(args):
+    """{noise, unit} for the guards and the loop (L12-7): the sigma table of --noise, or None (they keep their fixed 0.01)."""
+    return {"noise": NZ.load(getattr(args, "noise", None)), "unit": getattr(args, "id", None)}
+
+
 def guard_stage(spec, args, layout):
     """--author-guard (PIPELINE 30.L12-3): the author's spec against the massing's, both measured as stage 1 (build, deform, vertex
     fit) on the run's pinned cameras, before the numeric fit. A view more than AUTHOR_DROP under the massing's: try the steps of
@@ -1315,7 +1321,7 @@ def guard_stage(spec, args, layout):
     if not all(rows.values()):
         return spec, report
     iou = {k: {v: r["iou"] for v, r in row.items()} for k, row in rows.items()}
-    report["drops"] = author_guard.drops(iou["massing"], iou["author"])
+    report["drops"] = author_guard.drops(iou["massing"], iou["author"], **noise_kw(args))
     report["gap"] = {v: iou["massing"][v] - iou["author"][v] for v in report["drops"]}
     report["action"] = "intact"
     if not report["drops"]:
@@ -1327,7 +1333,7 @@ def guard_stage(spec, args, layout):
         if action == "reject-bare":
             return guarded, report
         rows[action] = guard_measure(guarded, args, layout, work, action)
-        if rows[action] and not author_guard.drops(iou["massing"], {v: r["iou"] for v, r in rows[action].items()}):
+        if rows[action] and not author_guard.drops(iou["massing"], {v: r["iou"] for v, r in rows[action].items()}, **noise_kw(args)):
             return guarded, report
     return spec, report
 
@@ -1338,7 +1344,7 @@ def guard_fit(args, pre_fit, spec, shape, layout):
     r = getattr(args, "guard_report", None)
     if not r or r["action"] == "skipped" or spec is pre_fit:
         return spec, shape
-    r["fit_drops"] = author_guard.drops({v: x["iou"] for v, x in r["rows"]["massing"].items()}, args.summary.get("approved", {}))
+    r["fit_drops"] = author_guard.drops({v: x["iou"] for v, x in r["rows"]["massing"].items()}, args.summary.get("approved", {}), **noise_kw(args))
     if not r["fit_drops"]:
         return spec, shape
     r["rows"]["fitted"] = guard_rows(args.summary)
@@ -2222,6 +2228,9 @@ def build_parser():
     ap.add_argument("--deterministic", action="store_true",
                     help="no wall-clock budgets in the fit and fit-verts (iteration counts only): two builds of one spec give the "
                          "same IoU; implied by --loop")
+    ap.add_argument("--noise", type=pathlib.Path, default=None, metavar="noise.json",
+                    help="sigma per view from sdf_batch.py --repeat (L12-7): the loop and the author/fit guards use max(2 sigma, 0.005) "
+                         "per view instead of their fixed 0.01; without it nothing changes")
     ap.add_argument("--loop", type=int, default=0, metavar="N",
                     help="guarded VLM loop (L11-2): N rounds of diagnose -> one delta at a time -> rebuild with the round-0 "
                          "cameras -> keep it only if no view falls > 0.01 and the mean rises >= 0.005 (0 = off)")
@@ -2380,7 +2389,7 @@ def loop_hooks(args, layout):
             return {"deltas": [], "expected": {}, "cost": {"seconds": 0.0, "tokens": {}}}
 
     return types.SimpleNamespace(
-        loop_dir=base, rebuild=rebuild, promote=promote, prepare=prepare, diagnose=diagnose_run,
+        **noise_kw(args), loop_dir=base, rebuild=rebuild, promote=promote, prepare=prepare, diagnose=diagnose_run,
         apply=lambda spec, deltas: apply_deltas.apply(spec, deltas, diagnose.spec_height(spec)))
 
 

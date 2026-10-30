@@ -15,15 +15,17 @@ a view more than AUTHOR_DROP under the massing's is a drop.
 
 Pure functions over spec dicts and a proxy with `ious(parts) -> {view: IoU}`; the builds are the caller's.
 """
+import noise as NZ
 import preflight
 
 AUTHOR_DROP = 0.01
 MODES = ("revert", "reject", "off")
 
 
-def drops(mass, author, drop=AUTHOR_DROP):
-    """[views] where the author's IoU is more than `drop` under the massing's (only views both have)."""
-    return [v for v in author if v in mass and author[v] < mass[v] - drop]
+def drops(mass, author, drop=AUTHOR_DROP, noise=None, unit=None):
+    """[views] where the author's IoU is more than `drop` under the massing's (only views both have); with a noise table
+    (L12-7) `drop` is 2 sigma of the view instead."""
+    return [v for v in author if v in mass and author[v] < mass[v] - NZ.threshold(v, noise, drop, unit)]
 
 
 def bone_of(part):

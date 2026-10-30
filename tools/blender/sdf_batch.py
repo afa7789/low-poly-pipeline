@@ -15,6 +15,8 @@ import subprocess
 import sys
 import time
 
+import noise as NZ
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
@@ -29,13 +31,13 @@ def rig_group(rig):
     return RIGS.get(rig, "outros")
 
 
-def discover(root=DRAFT, units=None):
-    """[{unit, run, spec, rig}] of the latest spec of each unit (sorted by id); `units`: only those ids."""
+def discover(root=DRAFT, units=None, spec_run=None):
+    """[{unit, run, spec, rig}] of the latest spec of each unit (sorted by id); `units`: only those ids; `spec_run`: that run's spec."""
     out = []
     for d in sorted(p for p in pathlib.Path(root).iterdir() if p.is_dir()):
         if units and d.name not in units:
             continue
-        run = next((v for v in (*VERSIONS, EXTRA.get(d.name)) if v and (d / v / "spec.json").exists()), None)
+        run = next((v for v in ((spec_run,) if spec_run else (*VERSIONS, EXTRA.get(d.name))) if v and (d / v / "spec.json").exists()), None)
         if run:
             spec = d / run / "spec.json"
             out.append({"unit": d.name, "run": run, "spec": spec, "rig": json.loads(spec.read_text()).get("rig", "biped")})
@@ -51,10 +53,10 @@ def run_name(body, grid=0):
     return f"l10-batch-{body}" + (f"g{grid}" if grid else "")
 
 
-def command(u, body, grid=0, tilts=""):
+def command(u, body, grid=0, tilts="", name=None):
     cmd = [sys.executable, str(ROOT / "tools/blender/spec_pipeline.py"), "--id", u["unit"], "--race", "Human", "--name", u["unit"],
            "--kind", "mass", "--rig", u["rig"], "--spec", str(u["spec"]), "--shape-only", "--no-repair", "--no-diagnose",
-           "--run", run_name(body, grid), "--body", body]
+           "--run", name or run_name(body, grid), "--body", body]
     return cmd + (["--sdf-grid", str(grid)] if grid and body == "sdf" else []) + (["--tilts", tilts] if tilts else [])
 
 
@@ -269,43 +271,67 @@ def anim(run, skip):
     return read_json(out)
 
 
-def collect(u, body, grid, total_s, skip_anim):
+def collect(u, body, grid, total_s, skip_anim, name=None):
     """The row of one finished run (or a fail row: no clay.glb / no silhouette.json, cause from batch.log)."""
     import mesh_lint as ML
-    run = DRAFT / u["unit"] / run_name(body, grid)
+    run = DRAFT / u["unit"] / (name or run_name(body, grid))
     if not (run / "clay.glb").exists() or not (run / "silhouette.json").exists():
         log = run / "batch.log"
         return fail_row(u, body, cause_of(log.read_text() if log.exists() else ""), total_s, grid)
     lint = ML.lint(run / "clay.glb", sdf=True)
     raw = ML.lint(run / "clay-raw.glb", sdf=True) if (run / "clay-raw.glb").exists() else None
-    field = DRAFT / u["unit"] / run_name("sdf", grid if body == "sdf" else 0) / "clay.sdf.json"
+    field = DRAFT / u["unit"] / (name if name and body == "sdf" else run_name("sdf", grid if body == "sdf" else 0)) / "clay.sdf.json"
     infra = run / "infra.json"
     return {**make_row(u, body, read_json(run / "silhouette.json"), read_json(run / "attach.json"), lint, raw, anim(run, skip_anim),
                        plate_tris(run, field), ML.failing(lint, False), total_s, grid),
             "infra": json.loads(infra.read_text()) if infra.exists() else []}
 
 
-def build(u, body, grid):
+def build(u, body, grid, name=None):
     """Runs spec_pipeline for one (unit, body); the output goes to <run>/batch.log. Returns the wall seconds. The l10-batch-* dir
     of an earlier battery is removed first (it is this tool's own output): the pipeline reuses a run dir's fit/ and spec, so
     a rebuild over it is not a rebuild from the origin spec (n00H, n010, n01N moved 0.03-0.2 IoU between two runs)."""
-    run = DRAFT / u["unit"] / run_name(body, grid)
+    run = DRAFT / u["unit"] / (name or run_name(body, grid))
     shutil.rmtree(run, ignore_errors=True)
     run.mkdir(parents=True)
     t0 = time.perf_counter()
-    done = subprocess.run(command(u, body, grid, tilts_arg(read_json(u["spec"].parent / "silhouette.json"))), capture_output=True, text=True, cwd=ROOT)
+    done = subprocess.run(command(u, body, grid, tilts_arg(read_json(u["spec"].parent / "silhouette.json")), name), capture_output=True, text=True, cwd=ROOT)
     (run / "batch.log").write_text(done.stdout + done.stderr)
     total = time.perf_counter() - t0
     (run / "batch.json").write_text(json.dumps({"total_s": round(total, 1), "returncode": done.returncode}))
     return total
 
 
-def one(u, body, args):
+def repeat_name(args, rep):
+    """The run dir of rebuild `rep` (1-based) of a --repeat battery: <--prefix>-r<rep>; None for the plain battery."""
+    return f"{args.prefix}-r{rep}" if args.repeat > 1 else None
+
+
+def one(u, body, args, rep=1):
     grid = args.grid if body == "sdf" else 0
-    total = read_json(DRAFT / u["unit"] / run_name(body, grid) / "batch.json").get("total_s", 0.0) if args.collect_only else build(u, body, grid)
-    row = collect(u, body, grid, total, args.no_anim)
-    print(f"{u['unit']} {body}: {'ok' if row['ok'] else 'FAIL ' + row['cause']} ({row['total_s']} s)", file=sys.stderr, flush=True)
+    name = repeat_name(args, rep)
+    total = (read_json(DRAFT / u["unit"] / (name or run_name(body, grid)) / "batch.json").get("total_s", 0.0) if args.collect_only
+             else build(u, body, grid, name))
+    row = {**collect(u, body, grid, total, args.no_anim, name), "rep": rep}
+    print(f"{u['unit']} {body} r{rep}: {'ok' if row['ok'] else 'FAIL ' + row['cause']} ({row['total_s']} s)", file=sys.stderr, flush=True)
     return row
+
+
+def noise_of(rows):
+    """noise.json content (noise.table) of the sdf rows of a --repeat battery: {unit: [{view: IoU} per rebuild]}."""
+    per_unit = {}
+    for r in rows:
+        if r["ok"] and r["body"] == "sdf":
+            per_unit.setdefault(r["unit"], []).append(dict(zip(VIEWS, r["iou"])))
+    return NZ.table(per_unit)
+
+
+def sigma_table(noise):
+    """Markdown: sigma per view and sigma_max per unit (+ the global median row)."""
+    out = ["| unit | σ " + " / ".join(VIEWS) + " | σ_max |", "|---|---|---|"]
+    for u, s in sorted(noise.items(), key=lambda kv: kv[0] == "global"):
+        out.append(f"| {u} | {' / '.join(f(s.get(v), 3).lstrip('0') for v in VIEWS)} | {f(max(s.values(), default=None), 3)} |")
+    return "\n".join(out)
 
 
 def main(argv=None):
@@ -318,15 +344,26 @@ def main(argv=None):
     ap.add_argument("--collect-only", action="store_true", help="do not build, measure the runs already on disk")
     ap.add_argument("--compare", type=pathlib.Path, help="also write <dir>/<unit>.png: union (top) | sdf (bottom) clay views")
     ap.add_argument("--json", type=pathlib.Path, default=DRAFT / "l10-batch.json")
+    ap.add_argument("--repeat", type=int, default=1, help="rebuild each (unit, body) N times into <--prefix>-r1..rN and publish sigma per view (L12-7); "
+                                                          "N=1: the plain battery")
+    ap.add_argument("--prefix", default="l12-noise", help="run name prefix of a --repeat battery")
+    ap.add_argument("--spec-run", default=None, help="build the spec of this run of every unit (v13-r1) instead of the latest v1x")
+    ap.add_argument("--noise-out", type=pathlib.Path, default=None, help="where --repeat writes noise.json (default: next to --json)")
     args = ap.parse_args(argv)
-    units = discover(units=[x for x in args.units.split(",") if x])
+    units = discover(units=[x for x in args.units.split(",") if x], spec_run=args.spec_run)
     bodies = args.body.split(",")
     with cf.ThreadPoolExecutor(args.jobs) as pool:
-        rows = list(pool.map(lambda t: one(*t, args), [(u, b) for u in units for b in bodies]))
+        rows = list(pool.map(lambda t: one(t[0], t[1], args, t[2]), [(u, b, r) for r in range(1, args.repeat + 1) for u in units for b in bodies]))
     for u in units if args.compare else []:
         args.compare.mkdir(parents=True, exist_ok=True)
         compare_png(u["unit"], args.compare)
-    args.json.write_text(json.dumps({"rows": rows, "acceptance": acceptance(rows) if "sdf" in bodies else []}, indent=1))
+    plain = args.repeat == 1
+    args.json.write_text(json.dumps({"rows": rows, "acceptance": acceptance(rows) if "sdf" in bodies and plain else []}, indent=1))
+    if not plain:
+        noise = noise_of(rows)
+        (args.noise_out or args.json.with_name("noise.json")).write_text(json.dumps(noise, indent=1))
+        print(table(rows) + "\n\n" + sigma_table(noise))
+        return 0
     print(table(rows) + ("\n\n" + split_table(rows) if split_table(rows) else "") + "\n\n" + delta_table(rows) + ("\n\n" + acceptance_table(rows) if "sdf" in bodies else ""))
     return 0
 

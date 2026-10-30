@@ -655,6 +655,8 @@ Cada item: worktree `leva12-<item>`, teste unitário, medida nas 5 unidades v13 
 
 **Estado L12-5 (2026-10-29): gate no corpo + colunas corpo/prop feitos, default; peso 0 da vista incoerente FALHOU o aceite, fica opt-in (`--incoherent-weight`, default `None`)** — `w=0` piora as vistas coerentes (n017 left −.035, top −.025); `w=1` melhora n017 (5/5) mas sobe o spill de front/back +.010 em hfoo/n00U; hfoo left (corpo) .544, não .70 (o spec v13-r1 sem a guarda/autor). Tabela "porquê falha": nenhuma vista falha só por prop; todas por spill de corpo; incoerentes (rts hfoo/n017, top/bottom n00U) marcadas `(incoherent, not gated)`. A separação corpo/prop é por pixel, não por render do prop. PIPELINE 30.L12-5.
 
+**Estado L12-7 (2026-10-29): feito, opt-in** — `--deterministic` já era bit a bit (hfoo, n00U 2×: md5 igual, Δ 0.000; o ".016" do L12-2/L12-4 era diferença de versão de código; só `SOFT_SIL_THREADS` muda o resultado, até .004); σ publicado 6×3 em `runs/draft/noise-l12.json` (σ ≤ .007 em 5 unidades, n00U até .024 em left); `loop_accept`, `author_guard.drops` e as guardas do `spec_pipeline` leem `max(2σ, .005)` com `--noise`, sem arquivo = .01 como antes; `compare_runs --stability --noise` marca `> 2σ`/`ruído` (PIPELINE 30.L12-7).
+
 ## Plano antigo (polimento MCP) — passa a L12-11
 
 Decisão do usuário (2026-10-29): todo modelo recebe no fim alguns minutos de melhorias grossas feitas por um agente ligado ao Blender
