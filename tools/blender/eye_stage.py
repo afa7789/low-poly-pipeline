@@ -29,6 +29,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageOps
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import eye_lib as EL  # noqa: E402
+import eye_skin  # noqa: E402
 import make_compare as MC  # noqa: E402
 import outline  # noqa: E402
 import split_sheet  # noqa: E402
@@ -269,7 +270,7 @@ def disaster_only(ev):
     return bool(ev["disaster"]) and ev["disaster"] != ["no measurement"]
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict."""
     uid, sheet = unit["id"], REFS / unit["id"] / "sheet.jpg"
@@ -352,7 +353,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
             if r >= rounds and not (ev["disaster"] and r < MAX_ROUNDS and disaster_only(ev)):
                 break
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye)
+    return finish(summary, last_glb, prev, src, out, eye, skin)
 
 
 def replay_run(summary, src, eye, out, rotate):
@@ -367,7 +368,7 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye):
+def finish(summary, last_glb, dsl, src, out, eye, skin="off"):
     """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md."""
     if last_glb is None:
         summary["final_round"] = None
@@ -379,6 +380,7 @@ def finish(summary, last_glb, dsl, src, out, eye):
     clay = dict(dsl, colours={}, pieces=[dict(p, colour=CLAY) for p in dsl["pieces"]])
     build(src, clay, out / "clay.glb")
     shutil.copy(final, out / "model.glb")
+    summary["skin"] = eye_skin.apply_stage(src, dsl, out, skin)
     summary["outline"] = outline.apply(out / "model.glb", hull=True)
     summary["stretch"] = stretch_of(out / "model.glb", eye / "anim.json")
     (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -430,7 +432,7 @@ def run_in_pipeline(args, src_run, ask):
     spec = json.loads((src_run / "spec.json").read_text()) if (src_run / "spec.json").exists() else {}
     if args.out != src_run:
         seed(src_run, args.out)
-    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay")
+    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay", skin=args.eye_skin)
 
 
 def from_run(args, ask):

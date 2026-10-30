@@ -394,8 +394,12 @@ def live_eye_rounds():    # L15-5: the rounds of look and redo, capped at 4
     return eye_run_kwargs()["rounds"], eye_run_kwargs("--eye-rounds", "2")["rounds"]
 
 
+def live_eye_skin():      # L16-4: the skin technique reaches eye_stage.run
+    return eye_run_kwargs()["skin"], eye_run_kwargs("--eye-skin", "bridge")["skin"]
+
+
 LIVE_PAIRS = {
-    "eye": live_eye, "eye_rounds": live_eye_rounds,
+    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_skin": live_eye_skin,
     "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,

@@ -2392,6 +2392,8 @@ def build_parser():
                     help="on: the stage with an eye (eye_stage.py, PIPELINE 33.L15-5): the model sees concept x render and redoes the parts by primitive "
                          "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
     ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-4)")
+    ap.add_argument("--eye-skin", choices=("off", "bridge", "blend", "wrap", "weld"), default="off",
+                    help="--eye on: skin at the joints of the pieces after the last round (eye_skin.py, PIPELINE 34.L16-4)")
     ap.add_argument("--eye-from", default=None, metavar="RUN", help="--eye: only the eye stage, on runs/<id>/RUN, into --run")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
