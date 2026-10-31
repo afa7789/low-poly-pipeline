@@ -135,6 +135,7 @@ NOT_A_VARIANT = {
     "eye": "needs the LLM agent (L15-5: ~10 min and 3-4 model calls per unit, measured in its own battery v16, not in a deterministic matrix)",
     "eye_rounds": "a parameter of --eye (L15-5)",
     "eye_skin": "a post-step of --eye (L16-4): measured in its own battery v16-skin-*, not in a deterministic matrix",
+    "eye_union": "a post-step of --eye (L17-2): measured in its own battery v17-union-*, not in a deterministic matrix",
     "eye_critic": "needs two LLM agents on top of --eye (L16-2: critic + fixer, measured in its own battery v16-critic)",
     "eye_fixer": "a parameter of --eye-critic (L16-2)",
     "eye_stop": "a parameter of --eye: who ends the loop early (L16-1; measured in its own battery, needs the LLM)",

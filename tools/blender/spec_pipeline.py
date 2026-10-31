@@ -2395,6 +2395,9 @@ def build_parser():
                          "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
     ap.add_argument("--eye-skin", choices=("off", "bridge", "blend", "wrap", "weld"), default="off",
                     help="--eye on: skin at the joints of the pieces after the last round (eye_skin.py, PIPELINE 34.L16-4)")
+    ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="off",
+                    help="--eye on: the pieces of a group (one material / one bone / touching pieces of one material) united in one welded mesh after the last "
+                         "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2)")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")

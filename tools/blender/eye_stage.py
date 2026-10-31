@@ -330,9 +330,9 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
     return stalls
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
-    critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4).
+    critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
     and goes on (a measurement run); "judge" also ends after STALLS stalled rounds, judged by judge(run_a, run_b) -> review_pair result."""
     uid, sheet = unit["id"], REFS / unit["id"] / "sheet.jpg"
@@ -421,7 +421,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin)
+    return finish(summary, last_glb, prev, src, out, eye, skin, union)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -467,7 +467,7 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off"):
+def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off"):
     """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md."""
     if last_glb is None:
         summary["final_round"] = None
@@ -479,7 +479,7 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off"):
     clay = dict(dsl, colours={}, pieces=[dict(p, colour=CLAY) for p in dsl["pieces"]])
     build(src, clay, out / "clay.glb")
     shutil.copy(final, out / "model.glb")
-    summary["skin"] = eye_skin.apply_stage(src, dsl, out, skin)
+    summary["skin"] = eye_skin.apply_stage(src, dsl, out, f"union-{union}" if union != "off" else skin)
     summary["outline"] = outline.apply(out / "model.glb", hull=True)
     summary["stretch"] = stretch_of(out / "model.glb", eye / "anim.json")
     (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -534,7 +534,7 @@ def run_in_pipeline(args, src_run, ask):
     critic = None if getattr(args, "eye_critic", "off") == "off" else session_ask("session:" + args.eye_critic)
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
-               skin=args.eye_skin, critic=critic, stop=args.eye_stop, judge=judge)
+               skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge)
 
 
 def from_run(args, ask):

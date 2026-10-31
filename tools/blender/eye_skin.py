@@ -30,6 +30,7 @@ sys.path.insert(0, str(HERE))
 import eye_lib as EL  # noqa: E402
 
 TECHNIQUES = ("off", "bridge", "blend", "wrap", "weld")
+UNIONS = ("union-material", "union-bone", "union-group")      # L17-2: eye_union.py, through the same build
 GAP = 0.03          # joint: pieces this close (share of the height) or overlapping
 RADIUS = 0.06       # blend: the sphere of the skin round a joint (share of the height); the patch reaches 1.25 x this
 SPREAD = 1.25
@@ -445,6 +446,22 @@ def components(bm):
     return len({find(v) for v in bm.verts})
 
 
+def components_of(bm, verts):
+    """Connected pieces of the mesh among `verts` (the vertices of one set of faces; their edges stay inside it)."""
+    seen, n = set(), 0
+    for v in verts:
+        if v in seen:
+            continue
+        n += 1
+        stack = [v]
+        while stack:
+            u = stack.pop()
+            if u not in seen:
+                seen.add(u)
+                stack += [e.other_vert(u) for e in u.link_edges]
+    return n
+
+
 def tris_of_bm(bm):
     return sum(len(f.verts) - 2 for f in bm.faces)
 
@@ -472,6 +489,9 @@ def cull(body, pieces, height):
 
 
 def apply_technique(technique, body, pieces, joints, height, budget=EL.BUDGET + EXTRA):
+    if technique in UNIONS:
+        import eye_union
+        return eye_union.hook(technique)(technique, body, pieces, joints, height)
     if technique == "bridge":
         return do_bridge(body, pieces, joints, budget)
     if technique == "blend":
@@ -506,7 +526,7 @@ def build(src, dsl, out, technique):
     before, culled = tris_of_bm(body.bm), cull(body, pieces, height) if skinned else 0
     done = apply_technique(technique, body, pieces, joints, height)
     info = {"technique": technique, "tris_pieces": before, "culled": culled, "tris": tris_of_bm(body.bm), "pieces": len(pieces), "joints": joints, "skins": done,
-            "components": components(body.bm), "height": round(height, 3)}
+            "components": components(body.bm), "body_components": getattr(body, "union_components", None), "unions": getattr(body, "union_log", None), "height": round(height, 3)}
     body.bm.to_mesh(old.data)
     body.bm.free()
     export(arm, old, out)
