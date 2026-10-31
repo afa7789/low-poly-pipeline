@@ -118,7 +118,7 @@ class Pair(unittest.TestCase):
             tmp = pathlib.Path(tmp)
             a, b = tmp / "old", tmp / "new"
             for run in (a, b):
-                run.mkdir()
+                run.mkdir(parents=True)
                 (run / "clay.glb").write_bytes(b"")
             seen = []
 
@@ -141,6 +141,60 @@ class Pair(unittest.TestCase):
                 self.assertEqual(im.size, (RP.CELL * 4, RP.CELL * 2))
             RP.append_review(b, r)
             self.assertIn("pairwise vs old: sheet A 4-0, artist A 4-0, wc3 A 4-0", (b / "review.md").read_text())
+
+    def _runs(self, tmp, same=True, near_sil=False):
+        import struct as st
+        def glb(path, z):
+            blob = st.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, z)
+            doc = {"asset": {"version": "2.0"}, "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0}]}],
+                   "accessors": [{"bufferView": 0, "count": 3}], "bufferViews": [{"byteLength": 36}], "materials": [{"name": "m"}]}
+            j = json.dumps(doc).encode().ljust(-(-len(json.dumps(doc)) // 4) * 4, b" ")
+            path.write_bytes(b"glTF" + st.pack("<III", 2, 28 + len(j) + len(blob), len(j)) + b"JSON" + j + st.pack("<I", len(blob)) + b"BIN\0" + blob)
+        a, b = tmp / "old", tmp / "new"
+        for run, z in ((a, 1.0), (b, 1.0 if same else 1.5)):
+            run.mkdir(parents=True)
+            glb(run / "clay.glb", z)
+            if near_sil:
+                (run / "silhouette.json").write_text(json.dumps({"approved": {"front": 0.9 + (z - 1) / 100}, "chamfer": {"front": 0.01}}))
+        return a, b
+
+    def test_identical_is_tie_without_asking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a, b = self._runs(pathlib.Path(tmp))
+            ask = mock.Mock()
+            r = RP.compare(a, b, "u", ask=ask, work=pathlib.Path(tmp) / "w")
+            ask.assert_not_called()
+            self.assertTrue(r["identical"])
+            self.assertEqual({r[x]["winner"] for x in RP.AXES}, {"tie"})
+            self.assertIn("identical", RP.line(r))
+
+    def test_near_identical_needs_three_quarters(self):
+        L, R = "left", "right"
+        def vote(a_side, picks_a):
+            """picks_a: 1 axis pick for A on `a_side` or not"""
+            return {**{a: "A" if picks_a else "B" for a in RP.AXES}, **{f"{a}_side": a_side if picks_a else (R if a_side == L else L) for a in RP.AXES}}
+        for n_a, n, want in ((2, 4, "tie"), (3, 4, "A"), (5, 8, "tie"), (6, 8, "A")):
+            with self.subTest(n_a=n_a, n=n):
+                votes = [vote(L if i % 2 else R, i < n_a) for i in range(n)]
+                self.assertEqual(RP.tally(votes, near=True)["sheet"]["winner"], want)
+        with tempfile.TemporaryDirectory() as tmp:
+            a, b = self._runs(pathlib.Path(tmp), same=False, near_sil=True)
+            self.assertEqual(RP.closeness(a, b, False), "near")
+            self.assertIsNone(RP.closeness(*self._runs(pathlib.Path(tmp) / "x", same=False), False))
+
+    def test_swap_is_undone_and_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            a, b = self._runs(tmp, same=False)
+            def ask(model, brief, images):       # always the physical left cell
+                return json.dumps({x: "left" for x in RP.AXES})
+            panels = {"front": png(tmp / "p/f.png"), "rts": png(tmp / "p/r.png")}
+            with mock.patch.object(RP, "shoot", fake_shoot), mock.patch.object(RP, "sheet_panels", return_value=panels):
+                r = RP.compare(a, b, "u", ask=ask, work=tmp / "w", votes=8)
+            self.assertEqual((r["sheet"]["A"], r["sheet"]["B"], r["sheet"]["winner"]), (4, 4, "tie"))
+            self.assertEqual(r["left_rate"], 1.0)
+            self.assertEqual(sum(p["swapped"] for p in r["picks"]), 16)
+            self.assertEqual(r["valid_votes"], 8)
 
 
 if __name__ == "__main__":

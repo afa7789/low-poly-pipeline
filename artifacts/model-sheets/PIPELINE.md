@@ -6362,3 +6362,12 @@ Juiz (4 votos, `session:opus`, par `v16-r1` × `v16-skin-<t>`): sheet/artista fi
 - **Testes** (`test_eye.py`: limite 49 peças rejeitado, 9 rondas com `ask` mockado, `never` registra e honra o segundo stop, `model` honra o primeiro, parada por juiz com mock, `stalled`, prefixo de run, aceite; `test_flag_liveness` `eye_stop`, `ablation_matrix.NOT_A_VARIANT`). Suite blender 864 OK, 15 skip; ruff C901/F/E9 limpo nos ficheiros tocados.
 - **Aberto.** (1) O que falta não é rondas: é **escolher a melhor ronda** (hfoo e n00U pioram sozinhos; um crítico forte ou o gate parts k/n + IoU para devolver o máximo, L16-2) e consertar peça a peça em vez de reenviar o objeto inteiro. (2) A forma contínua continua com o controle em 4/6 (5/6 em r3): o `keep` de tronco nunca foi usado mesmo com exemplo no prompt. (3) O juiz de 4 votos varre 4-0 em pares quase iguais: um par precisa de limiar de parts/IoU antes de chamar o juiz. (4) r3/r6 são prefixos de uma só trajetória por unidade (uma amostra, sem repetição): a curva tem ruído de amostragem do LLM que não foi medido (n = 1 por unidade). (5) a regra do juiz considera `parts k` e não "ronda pior": não devolve a melhor.
 - Imagens: `history/2026-10-30-l16-rounds/<id>.png` (concept | controle | r3 | r6 | r9, 6 vistas), `table.md`; runs `runs/draft/<id>/v16-r9|v16-r6|v16-r3` (DSL, eval, summary, `pairwise-*.json`, `stop-curve.json`).
+
+## 35. Leva 17 (2026-10-30): da primitiva à malha pintada — união por material, textura pintada, juiz calibrado
+
+### 35.L17-1 Juiz calibrado (commit 1: `--votes N`, troca de posição, par idêntico)
+
+- `review_pair.py --votes N` (par, default 4): metade dos votos com A/B trocados na imagem e no prompt, o voto é desinvertido ao contar. `pairwise.json` ganha `picks` (`{axis, winner, swapped}` por voto e eixo) e `left_rate` (fração de escolhas "esquerda": viés de posição = distância a .5).
+- **Par idêntico = empate sem chamar:** hash dos vértices (POSITION) + materiais do GLB igual → `identical: true`, todos os eixos `tie`, 0 chamadas.
+- **Quase idêntico** (mesmo nº de meshes, |ΔIoU| ≤ .01 e |ΔChamfer| ≤ .005 em toda vista do `silhouette.json`): `near_identical: true`; vencedor só com ≥ 3/4 dos votos válidos (3-1 de 4, 6-2 de 8), senão `tie`.
+- Medições (trio n005, repetibilidade, custo) e aceite: nos commits seguintes.
