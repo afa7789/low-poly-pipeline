@@ -29,6 +29,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageOps
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import eye_critic  # noqa: E402
+import eye_fuse  # noqa: E402
 import eye_lib as EL  # noqa: E402
 import eye_paint  # noqa: E402
 import eye_skin  # noqa: E402
@@ -366,7 +367,8 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
     return stalls
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull"):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull", fuse=0,
+        union_reduce="qem"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
@@ -462,7 +464,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour)
+    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour, fuse, union_reduce)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -509,8 +511,9 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull"):
-    """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md."""
+def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem"):
+    """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md.
+    fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs)."""
     if last_glb is None:
         summary["final_round"] = None
         (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -518,13 +521,21 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint
     summary["final_round"] = max(r["round"] for r in summary["rounds"] if "tris" in r)
     final = eye / f"round-{summary['final_round']}" / "model.glb"
     summary["vertex_hash"] = vertex_hash(final)
+    if fuse:
+        dsl, summary["fuse"] = eye_fuse.fuse(dsl, fuse)
+        (eye / "fused.dsl.json").write_text(json.dumps(dsl, indent=1))
+        if union == "off" and skin == "off":
+            skin, summary["fuse"]["rebuilt"] = "off", True         # the pieces must be rebuilt with the fused palette: the skin build with no technique
+            union = "fused"
     clay = dict(dsl, colours={}, pieces=[dict(p, colour=CLAY) for p in dsl["pieces"]])
     t_fin = t0 = time.perf_counter()
     build(src, clay, out / "clay.glb")
     tick(summary, "clay", time.perf_counter() - t0)
     shutil.copy(final, out / "model.glb")
     t0 = time.perf_counter()
-    summary["skin"] = eye_skin.apply_stage(src, dsl, out, f"union-{union}" if union != "off" else skin)
+    import eye_union
+    technique = "off" if union == "fused" else (eye_union.technique_of(union, union_reduce) if union != "off" else skin)
+    summary["skin"] = eye_skin.apply_stage(src, dsl, out, technique, always=union == "fused")
     tick(summary, "union", time.perf_counter() - t0, int(union != "off" or skin != "off"))
     t0 = time.perf_counter()
     summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
@@ -590,7 +601,7 @@ def run_in_pipeline(args, src_run, ask):
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
-               paint=args.eye_paint, contour=args.outline)
+               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 0), union_reduce=getattr(args, "eye_union_reduce", "qem"))
 
 
 def from_run(args, ask):

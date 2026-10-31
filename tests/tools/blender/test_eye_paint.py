@@ -78,6 +78,43 @@ class Parts(unittest.TestCase):
         uv = P.unwrap(pos, tri, np.zeros(len(tri), int))[0]
         self.assertEqual(texel_overlap(uv), 0)
 
+    def test_box_charts_make_one_island_per_component_and_axis(self):          # L18-3
+        a = np.linspace(0, 2 * np.pi, 13)[:-1]
+        ring = np.stack([np.cos(a), np.sin(a)], axis=1)
+        pos = np.vstack([np.c_[ring, np.zeros(12)], np.c_[ring, np.ones(12)]])
+        tri = np.array([t for i in range(12) for t in ([i, (i + 1) % 12, 12 + i], [(i + 1) % 12, 12 + (i + 1) % 12, 12 + i])])
+        for charts, islands in (("grow", None), ("box", 4)):
+            with self.subTest(charts=charts):
+                uv, _, _, _, isl, _ = P.unwrap(pos, tri, np.zeros(len(tri), int), charts)
+                self.assertEqual(texel_overlap(uv), 0)
+                if islands:
+                    self.assertEqual(int(isl.max()) + 1, islands)          # one welded tube: +x, -x, +y, -y charts, no caps
+        pos2, tri2, mat, colours = two_boxes()
+        info = P.bake(pos2, tri2, mat, colours, charts="box")[3]
+        self.assertEqual((info["islands"], info["charts"]), (12, "box"))      # two boxes apart: 2 components x 6 axes
+        self.assertGreaterEqual(info["texels_per_island_median"], info["texels_per_island_min"])
+        self.assertGreater(info["texels_per_island_median"], 100)
+
+    def test_piece_fields_colour_texels_by_the_nearest_piece_and_ink_the_seam(self):     # L18-3
+        pos, tri, mat, colours = two_boxes()
+        fields = [{"slot": 1, "n": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], "d": [1, 0, 1, 0, 1, 0]},    # the unit cube = slot 1
+                  {"slot": 0, "n": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], "d": [1, 0, 1, 0, 2, -1]}]   # above it = slot 0
+        slots = P.texel_slots(np.array([[0.5, 0.5, 0.5], [0.5, 0.5, 1.5], [0.5, 0.5, 0.99]]), fields)
+        self.assertEqual(slots.tolist(), [1, 0, 1])
+        mask = np.ones((4, 4), bool)
+        mid = np.array([[0, 0, 1, 1]] * 4)
+        line = P.border_ink(mask, mid, np.zeros((4, 4), int))
+        self.assertEqual(line.sum(), 4)                                     # one column, on the higher slot's side of the seam
+        self.assertEqual(P.border_ink(mask, mid, np.array([[0, 0, 1, 1]] * 4)).sum(), 0)   # another island across the seam: no line
+        info = P.bake(pos, tri, mat, colours, charts="box", fields=fields)[3]   # all triangles are one material per box: same picture, no crash
+        self.assertEqual(info["islands"], 12)
+        with tempfile.TemporaryDirectory() as tmp:
+            f = pathlib.Path(tmp) / "fields.json"
+            f.write_text('{"materials": ["coat", "skin"], "pieces": [{"slot": 1, "n": [[0, 0, 1]], "d": [1]}]}')
+            self.assertEqual(P.read_fields(f, ["skin.001", "coat"])[0]["slot"], 0)
+            self.assertIsNone(P.read_fields(f, ["skin"]))
+            self.assertIsNone(P.read_fields(pathlib.Path(tmp) / "none.json", []))
+
     def test_png_round_trip(self):
         from PIL import Image
         arr = np.arange(4 * 4 * 4, dtype=np.uint8).reshape(4, 4, 4)
@@ -89,7 +126,8 @@ class Parts(unittest.TestCase):
         with mock.patch.object(P, "apply", return_value={"islands": 1}) as apply:
             self.assertEqual(P.apply_stage("x.glb", "off"), {})
             self.assertEqual(P.apply_stage("x.glb", "on"), {"islands": 1})
-        apply.assert_called_once()
+            self.assertEqual(P.apply_stage("x.glb", "box"), {"islands": 1})
+        self.assertEqual([c.args[1] for c in apply.call_args_list], ["grow", "box"])
 
 
 class Contour(unittest.TestCase):

@@ -36,6 +36,9 @@ INK_MIN = 12                # an edge shorter than this many texels is not drawn
 EDGE_LIGHT = 1.25           # the texel row inside the line: the material colour x 1.6, the hand-painted edge highlight
 INK_DARK = 0.35             # ink = material colour x .35
 COLOURS = 12                # the hand-painted palette of a model
+CHARTS = ("grow", "box")    # L18-3: grow = islands grown over smooth edges (L17-3, ~300 on a model of pieces); box = one chart per welded component and
+                            # axis direction of the normal (6 at most per component: the united mesh of L18-2 gets a few large islands)
+AXES = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], float)
 GRADIENT, BRUSH, LIGHT_GAIN, AO_GAIN = 0.16, 0.08, 0.18, 0.55   # +-.08 over the height, +-.06 noise, +-.09 light, up to -55 % in a crevice
 LIFT = 20.0                 # 0..255 per unit of the multiplier's departure from 1: light and shadow do not vanish on a dark colour
 LUMA = np.array([0.299, 0.587, 0.114])
@@ -92,12 +95,39 @@ def islands(tri2, sharp, nrm):
     return isl
 
 
-def flatten(pos, tri, nrm, isl):
-    """(flat (T, 3, 2) corner coordinates in world units, each island's min corner at its own origin; size (K, 2) of the islands)."""
+def components(tri2, n):
+    """Component id (T,) of every triangle over the shared edges (a welded mesh: the pieces of a united body are one)."""
+    parent = np.arange(n)
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for a, b in tri2:
+        parent[find(a)] = find(b)
+    roots = np.array([find(i) for i in range(n)])
+    return np.unique(roots, return_inverse=True)[1].reshape(-1)
+
+
+def islands_box(tri2, nrm):
+    """(island id (T,), chart normal (K, 3)): box charts. Every triangle takes the axis its normal leans to; the triangles of one axis that touch
+    across an edge are one chart (a projection on that axis plane: a planar cap is one island, a bent sleeve a few). Two charts of one axis
+    never share a texel: triangles that do not touch are apart, so a fist in front of a forearm does not print on it."""
+    axis = np.argmax(nrm @ AXES.T, axis=1)
+    same = tri2[axis[tri2[:, 0]] == axis[tri2[:, 1]]]
+    comp = components(same, len(nrm))
+    uniq, isl = np.unique(comp * 6 + axis, return_inverse=True)
+    return isl.reshape(-1), AXES[uniq % 6]
+
+
+def flatten(pos, tri, nrm, isl, chart_n=None):
+    """(flat (T, 3, 2) corner coordinates in world units, each island's min corner at its own origin; size (K, 2) of the islands).
+    `chart_n` (K, 3): the projection plane of each island (box charts); default the seed triangle's normal."""
     flat, size = np.zeros((len(tri), 3, 2)), np.zeros((isl.max() + 1, 2))
     for k in range(isl.max() + 1):
         ts = np.flatnonzero(isl == k)
-        n = nrm[ts[0]] if np.linalg.norm(nrm[ts[0]]) > 0.5 else np.array([0.0, 0.0, 1.0])
+        n = chart_n[k] if chart_n is not None else (nrm[ts[0]] if np.linalg.norm(nrm[ts[0]]) > 0.5 else np.array([0.0, 0.0, 1.0]))
         u = np.cross([0.0, 0.0, 1.0] if abs(n[2]) < 0.9 else [1.0, 0.0, 0.0], n)
         u /= np.linalg.norm(u)
         q = pos[tri[ts]] @ np.stack([u, np.cross(n, u)], axis=1)
@@ -133,16 +163,19 @@ def fit(size):
     return best
 
 
-def unwrap(pos, tri, mat):
-    """(uv (T, 3, 2) in 0..1 with v up, tri2, sharp, nrm, n islands, scale): the islands of the mesh packed in one atlas."""
+def unwrap(pos, tri, mat, charts="grow"):
+    """(uv (T, 3, 2) in 0..1 with v up, tri2, sharp, nrm, island id (T,), scale): the islands of the mesh packed in one atlas."""
     nrm = normals(pos, tri)[0]
     tri2, slot = shared_edges(weld(pos)[tri])
     sharp = sharp_edges(tri2, nrm, mat)
-    isl = islands(tri2, sharp, nrm)
-    flat, size = flatten(pos, tri, nrm, isl)
+    if charts == "box":
+        isl, chart_n = islands_box(tri2, nrm)
+    else:
+        isl, chart_n = islands(tri2, sharp, nrm), None
+    flat, size = flatten(pos, tri, nrm, isl, chart_n)
     scale, org = fit(size)
     px = (org[isl][:, None, :] + PAD + flat * scale) / SIZE
-    return px, (tri2, slot), sharp, nrm, isl.max() + 1, scale
+    return px, (tri2, slot), sharp, nrm, isl, scale
 
 
 # ---------------------------------------------------------------- texels
@@ -295,24 +328,69 @@ def quantize(px, mid):
     return out
 
 
-def bake(pos, tri, mat, colours, occlusion=None):
+def texel_slots(P, fields):
+    """(n,) material slot of every surface point: the slot of the piece whose convex field is nearest (L18-3: on a united mesh the triangles straddle
+    two pieces and a per-triangle colour zigzags along the seam; the piece fields draw the seam where the pieces meet)."""
+    best, slot = np.full(len(P), np.inf), np.zeros(len(P), int)
+    for f in fields:
+        d = (P @ np.asarray(f["n"], float).T - np.asarray(f["d"], float)).max(1)
+        take = d < best
+        best[take], slot[take] = d[take], f["slot"]
+    return slot
+
+
+def border_ink(mask, mid, isl_map):
+    """(S, S) texels of `mask` next to a texel of a LOWER material slot inside the same island: the material border, one texel wide, drawn per texel."""
+    out = np.zeros_like(mask)
+    pm, pk, pi = (np.pad(a, 1, constant_values=c) for a, c in ((mid, -1), (mask, False), (isl_map, -2)))     # no wrap round the atlas
+    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        sl = (slice(1 + dy, 1 + dy + mask.shape[0]), slice(1 + dx, 1 + dx + mask.shape[1]))
+        out |= mask & pk[sl] & (pi[sl] == isl_map) & (pm[sl] < mid)
+    return out
+
+
+def bake(pos, tri, mat, colours, occlusion=None, charts="grow", fields=None):
     """The painted model. pos (V, 3) world positions, tri (T, 3), mat (T,) material index, colours (M, 3) sRGB 0..255 per material, occlusion(P, N) -> (n,)
-    0..1 or None. (uv (T, 3, 2) 0..1 v up, img (S, S, 3) uint8, used (S, S) bool, info)."""
-    uv, (tri2, slot), sharp, nrm, n_isl, scale = unwrap(pos, tri, mat)
+    0..1 or None, charts: CHARTS, fields: eye_skin's piece fields (texel material by the nearest piece) or None (by triangle).
+    (uv (T, 3, 2) 0..1 v up, img (S, S, 3) uint8, used (S, S) bool, info with islands and texels per island, median)."""
+    uv, (tri2, slot), sharp, nrm, isl, scale = unwrap(pos, tri, mat, charts)
+    n_isl = int(isl.max()) + 1
     mask, P, N, T = rasterize(uv, pos, tri, nrm)
     base = np.asarray(colours, float)[mat]
     height = max(pos[:, 2].max() - pos[:, 2].min(), 1e-6)
     occ = occlusion(P[mask], N[mask]) if occlusion else np.zeros(mask.sum())
+    mid = np.full((SIZE, SIZE), -1)
+    mid[mask] = texel_slots(P[mask], fields) if fields else mat[T[mask]]
+    tex_base = np.asarray(colours, float)[np.clip(mid, 0, None)]
     img = np.zeros((SIZE, SIZE, 3))
-    img[mask] = shade(P[mask], N[mask], base[T[mask]], occ, pos[:, 2].min(), height)
-    img[mask] = quantize(keep_colour(img[mask], base[T[mask]], mat[T[mask]]), mat[T[mask]])
-    ink, painted = ink_texels(uv, tri2, slot, drawn_edges(pos, tri, tri2, slot, sharp, nrm, mat), base, mask)
+    img[mask] = shade(P[mask], N[mask], tex_base[mask], occ, pos[:, 2].min(), height)
+    img[mask] = quantize(keep_colour(img[mask], tex_base[mask], mid[mask]), mid[mask])
+    edges = drawn_edges(pos, tri, tri2, slot, sharp, nrm, mat)
+    if fields:
+        edges &= mat[tri2[:, 0]] == mat[tri2[:, 1]]          # the material border is drawn per texel below, not along the triangles
+    ink, painted = ink_texels(uv, tri2, slot, edges, base, mask)
     touched = painted.any(axis=-1)
     img[touched] = painted[touched]
+    if fields:
+        isl_map = np.full((SIZE, SIZE), -1)
+        isl_map[mask] = isl[T[mask]]
+        line = border_ink(mask, mid, isl_map)
+        img[line] = tex_base[line] * INK_DARK
+        ink |= line
     img, used = dilate(img, mask, 1)
     img[~used] = img[used].mean(0)
-    info = {"islands": int(n_isl), "scale": round(float(scale), 2), "ink": round(float(ink.sum() / mask.sum()), 3),
-            "tris": int(len(tri)), "texels": int(mask.sum())}
+    per_island = np.bincount(isl[T[mask]], minlength=n_isl)
+    claimed = np.zeros((SIZE, SIZE), int)
+    for q in uv * SIZE:                                     # texels two triangles both cover: the leak of an overlapping chart (0 by construction)
+        lo, hi = np.floor(q.min(0)).astype(int).clip(0, SIZE - 1), np.ceil(q.max(0)).astype(int).clip(0, SIZE - 1)
+        ys, xs = np.mgrid[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1]
+        w = bary(q, xs + 0.5, ys + 0.5)
+        if w is not None:
+            inside = (w > 1e-6).all(0)
+            claimed[ys[inside], xs[inside]] += 1
+    info = {"islands": int(n_isl), "scale": round(float(scale), 2), "ink": round(float(ink.sum() / mask.sum()), 3), "charts": charts,
+            "tris": int(len(tri)), "texels": int(mask.sum()), "texels_per_island_median": float(np.median(per_island)), "texels_per_island_min": int(per_island.min()),
+            "overlap_texels": int((claimed > 1).sum())}
     return uv, np.clip(img, 0, 255).astype(np.uint8), mask, info
 
 
@@ -406,7 +484,8 @@ def paint_mesh(bpy, body, uv, loops, png):
 
 def main():
     import bpy
-    src, out = sys.argv[sys.argv.index("--") + 1:][:2]
+    src, out, *rest = sys.argv[sys.argv.index("--") + 1:]
+    charts = rest[0] if rest else "grow"
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src)
     body = body_of(bpy)
@@ -415,8 +494,10 @@ def main():
         return
     pos, tri, loops, mat, colours = read_mesh(body)
     height = max(pos[:, 2].max() - pos[:, 2].min(), 1e-6)
-    uv, img, used, info = bake(pos, tri, mat, colours, ambient(pos, tri, height))
     where = pathlib.Path(out).parent
+    fields = read_fields(where / "fields.json", [slot.material.name if slot.material else "" for slot in body.material_slots])
+    uv, img, used, info = bake(pos, tri, mat, colours, ambient(pos, tri, height), charts, fields)
+    info["fields"] = fields is not None
     write_png(where / "atlas-rgb.png", img)
     write_png(where / "atlas.png", np.dstack([img, np.where(used, 255, 0).astype(np.uint8)]))
     paint_mesh(bpy, body, uv, loops, where / "atlas-rgb.png")
@@ -425,13 +506,26 @@ def main():
     print("eye_paint:", json.dumps(info))
 
 
+def read_fields(path, slot_names):
+    """The piece fields eye_skin left beside a united model (L18-3), their slots mapped to this GLB's material order; None without the file
+    or when a material of the build is not in the GLB (the pieces cannot be matched)."""
+    if not pathlib.Path(path).exists():
+        return None
+    doc = json.loads(pathlib.Path(path).read_text())
+    names = [n.split(".")[0] for n in slot_names]
+    if any(m not in names for m in doc["materials"]):
+        return None
+    remap = [names.index(m) for m in doc["materials"]]
+    return [dict(f, slot=remap[f["slot"]]) for f in doc["pieces"]]
+
+
 # ---------------------------------------------------------------- python side
-def apply(glb):
+def apply(glb, charts="grow"):
     """Paint `glb` in place (a Blender round trip); atlas.png lands beside it. The bake's info, {} when the file did not come out."""
     glb = pathlib.Path(glb)
     tmp = glb.with_name(f"{glb.stem}-paint.glb")
     tmp.unlink(missing_ok=True)
-    done = subprocess.run(["nice", "-n", "10", "blender", "-b", "-P", str(HERE / "eye_paint.py"), "--", str(glb), str(tmp)], capture_output=True, text=True)
+    done = subprocess.run(["nice", "-n", "10", "blender", "-b", "-P", str(HERE / "eye_paint.py"), "--", str(glb), str(tmp), charts], capture_output=True, text=True)
     (glb.parent / "atlas-rgb.png").unlink(missing_ok=True)
     line = next((ln for ln in done.stdout.splitlines() if ln.startswith("eye_paint: {")), None)
     if tmp.exists() and line:
@@ -441,8 +535,8 @@ def apply(glb):
 
 
 def apply_stage(glb, paint):
-    """The one call of eye_stage.finish: {} when paint is off."""
-    return apply(glb) if paint == "on" else {}
+    """The one call of eye_stage.finish: {} when paint is off; "on" = grown islands (L17-3), "box" = box charts per component (L18-3)."""
+    return apply(glb, "box" if paint == "box" else "grow") if paint in ("on", "box") else {}
 
 
 def run_battery(args):

@@ -2424,8 +2424,13 @@ def build_parser():
     ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="off",
                     help="--eye on: the pieces of a group (one material / one bone / touching pieces of one material) united in one welded mesh after the last "
                          "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2)")
-    ap.add_argument("--eye-paint", choices=("off", "on"), default="off",
-                    help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3)")
+    ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="off",
+                    help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3); "
+                         "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3)")
+    ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="qem",
+                    help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b)")
+    ap.add_argument("--eye-fuse", type=int, default=0, metavar="N",
+                    help="--eye on: fuse the near colours of the final DSL (OKLab, same class) down to at most N materials before the union and the paint (eye_fuse.py, 36.L18-1); 0 = off")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
