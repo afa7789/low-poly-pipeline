@@ -394,8 +394,21 @@ def live_eye_rounds():    # L15-5: the rounds of look and redo, capped at 4
     return eye_run_kwargs()["rounds"], eye_run_kwargs("--eye-rounds", "2")["rounds"]
 
 
+def live_eye_critic():    # L16-2: a critic ask is handed to the stage only when asked for
+    return eye_run_kwargs()["critic"] is None, eye_run_kwargs("--eye-critic", "claude-fable-5-1@max")["critic"] is None
+
+
+def live_eye_fixer():     # L16-2: the model the stage's own asks go to
+    import eye_stage
+    def model(*flags):
+        with mock.patch.object(eye_stage, "session_ask") as ask:
+            SP.eye_ask(parse("--model", "session:opus", "--eye", "on", *flags))
+        return ask.call_args.args[0]
+    return model(), model("--eye-fixer", "claude-opus-5-5")
+
+
 LIVE_PAIRS = {
-    "eye": live_eye, "eye_rounds": live_eye_rounds,
+    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_critic": live_eye_critic, "eye_fixer": live_eye_fixer,
     "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,

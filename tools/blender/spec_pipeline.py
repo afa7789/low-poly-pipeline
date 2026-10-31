@@ -724,7 +724,8 @@ def session_command(model, brief, images, schema=None):
     prompt = (f"{brief}\n\nThe images, in order (\"image 1\" is the first): read every one with "
               f"the Read tool before answering.\n{listing}\n\nAnswer with the reply text only.")
     dirs = sorted({str(pathlib.Path(p).parent) for p in paths})
-    return (["claude", "-p", "--model", model or "opus", "--tools", "Read", "--allowedTools", "Read",
+    model, _, effort = (model or "opus").partition("@")      # "claude-fable-5-1@max": --effort max (L16-2)
+    return (["claude", "-p", "--model", model, *(["--effort", effort] if effort else []), "--tools", "Read", "--allowedTools", "Read",
              "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config",
              "--output-format", "json"] + (["--json-schema", json.dumps(schema)] if schema else [])
             + [a for d in dirs for a in ("--add-dir", d)], prompt)
@@ -744,6 +745,7 @@ def ask_session(model, brief, images, schema=None):
         raise RuntimeError(f"claude -p error: {str(r.get('result'))[-300:]}")
     for k, v in (r.get("usage") or {}).items():       # tokens spent, read by diagnose.py
         USAGE[k] += v if isinstance(v, int) else 0
+    USAGE["cost_micro_usd"] += round(1e6 * (r.get("total_cost_usd") or 0))
     if r.get("structured_output") is not None:
         return json.dumps(r["structured_output"])
     return r.get("result") or ""
@@ -2392,6 +2394,10 @@ def build_parser():
                     help="on: the stage with an eye (eye_stage.py, PIPELINE 33.L15-5): the model sees concept x render and redoes the parts by primitive "
                          "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
     ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-4)")
+    ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
+                    help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
+                         "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
+    ap.add_argument("--eye-fixer", default=None, metavar="MODEL", help="--eye-critic: the Claude model that applies the defects (default: --model)")
     ap.add_argument("--eye-from", default=None, metavar="RUN", help="--eye: only the eye stage, on runs/<id>/RUN, into --run")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
@@ -2638,7 +2644,7 @@ def eye_ask(args):
     if not args.model.startswith(SESSION):
         raise SystemExit("--eye needs --model session:<claude model>")
     import eye_stage
-    return eye_stage.session_ask(args.model)
+    return eye_stage.session_ask(f"session:{args.eye_fixer}" if args.eye_fixer else args.model)
 
 
 def run_eye(args):

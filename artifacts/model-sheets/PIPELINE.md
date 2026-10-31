@@ -6240,3 +6240,69 @@ vence artist+wc3 6/6 e 3/3 consertos).
   modelo em nenhum dos 6 prompts, que dizem "default: tudo novo") e medir de novo o juiz de forma; (2) tempo do n017: 65 peças e 2 reenvios (as razões só estão registradas de n00U em diante: `r1 < .005` numa ponta de presa; o prompt não diz que a ponta é `r1 = .01`);
   (3) o prompt mostra `parts.json` convertido pelo `left_facing`, o que fecha o referencial no n005/n017, mas a conversão não foi checada contra os 8 sheets (só as 6 deste lote); (4) o juiz de forma lê o contorno preto (o casco) do v16 e não o do v15: um controle v15 + `--outline hull` isolaria o efeito do casco;
   (5) o cabeçalho de `compare_fix.py` (L14-3) tem a legenda do overlay invertida; (6) rodar o estágio sobre runs que o autor LLM fez *sem* massing (`--no-massing`) para ver se ele precisa do v15 como entrada.
+
+
+## 34. Leva 16 (2026-10-30): o olho escala — mais rondas, crítico forte + consertador, referência WC3 real
+
+### 34.L16-2 Crítico forte + consertador: um modelo acha os erros, outro conserta (`--eye-critic`) (2026-10-30)
+- **Mudança.** `tools/blender/eye_critic.py` + `artifacts/model-sheets/prompts/eye-critic.md`: na ronda r > 0 do `eye_stage`, antes do pedido da DSL nova, o crítico vê o sheet, os dois boards do modelo
+  da ronda r-1, os números, e a DSL anterior, e devolve `{defects: [{part, view, what, fix, severity 1-3}], verdict: continue|stop, why, resolved: [ids]}` (esquema validado, ≤ 12 defeitos, pior primeiro,
+  defeito sem `fix` rejeitado com reenvio). `resolved` marca quais defeitos da lista ANTERIOR sumiram do render: a taxa de conserto da ronda. O consertador (o modelo do estágio) recebe a DSL anterior, a
+  lista (ids `d<r>.<n>`) e SÓ o sheet (sem boards) e devolve a DSL completa + `"fixed": [ids]`. Um `stop` do crítico encerra o laço (o gate de desastre ainda manda). Depois da última ronda uma chamada
+  de auditoria (sem consertador, `eye/audit/critic.json`) marca o que sobrou: dá taxa de conserto à última ronda. Falha do crítico (CLI, tempo, esquema depois do reenvio) = ronda sem crítico, registrada
+  em `summary["critic"]`. Gravado por ronda: `eye/round-<r>/critic.json` (+ `critic-prompt.md`), tokens e custo (USD do CLI, `USAGE["cost_micro_usd"]`) por chamada.
+  `spec_pipeline.py` só ganha flags: `--eye-critic off|MODEL[@EFFORT]` (`claude-fable-5-1@high` = `claude -p --model claude-fable-5-1 --effort high`), `--eye-fixer MODEL` (default `--model`).
+  `eye_stage.run(..., critic=None)` ganha UM ponto de chamada (`critique`) e `audit`; o laço de rondas não mudou. Flags vivas em `test_flag_liveness` (`eye_critic`, `eye_fixer`), `NOT_A_VARIANT` (custo de LLM).
+  Relatório da bateria: `tools/blender/critic_compare.py` (`--table --images --judge --accept`; reusa `eye_compare` com `RUN` parametrizado). Testes magros sem LLM: `test_eye_critic.py` (esquema, prompt do
+  consertador contém os defeitos, `stop` pára o laço, falha do crítico, aceite, `model@effort`).
+- **Que modelos há (`claude -p` 2.1.314, 1 chamada com 3 imagens, "um defeito por imagem", tarefa curta).** `--effort` existe (`low|medium|high|xhigh|max`). `opus` resolve para `claude-opus-5-5`.
+
+  | modelo | esforço | latência | custo (cache quente/frio) |
+  |---|---|---|---|
+  | `opus` = `claude-opus-5-5` | default | 7 s | US$ .07 (frio) / .013 (quente) |
+  | `opus` | max | 28 s | .09 |
+  | `claude-fable-5-1` | default | 16 s | .21 |
+  | `claude-fable-5-1` | high | 11 s | .03 (quente) |
+  | `claude-fable-5-1` | max | 31 s (tarefa curta) | .21 |
+
+  Com o prompt real do crítico (3 imagens + DSL de ~13 kB + lista): Fable `max` passou de **24 min** numa só chamada (n005 ronda 1; abortado por mim, run renomeado `-invalid1951`; o timeout do CLI é 30 min);
+  Fable `high` = **267 s, US$ 1.22**. A bateria usou **Fable `high`**: o `max` não cabe em ronda de 3-8 min.
+- **Medida** (6 unidades a partir de `v15-r1`, 3 rondas, `v16-critic-r1`, uma unidade de cada vez; baseline `v16-r1` = mesma entrada/rondas com um modelo só; controle justo `l15-col-part-outline` = v15 + contorno).
+  Tabela completa em `history/2026-10-30-l16-critic/table.md`, imagens `history/2026-10-30-l16-critic/<id>.png` (concept | controle | v16 | crítico, 6 vistas). Modelo final de cada run medido pelo MESMO gate
+  (`eye_stage.measure`, câmaras varridas).
+
+  | unidade | parts k/n controle / v16 / crítico | IoU front/left/back/top/bottom/rts do crítico | defeitos achados (r1/r2/auditoria) | resolvidos (r2/aud) | tempo v16 → crítico | chamadas | custo do crítico |
+  |---|---|---|---|---|---|---|---|
+  | n005 | 24/28 · 28/28 · 27/28 | .79/.87/.82/.74/.71/.84 | 9/8/6 | 8/9, 7/8 | 805 → 1516 s | 3 → 6 | US$ 3.26 |
+  | n00U | 5/21 · 17/21 · 11/21 | .77/.65/.77/.60/.68/.65 | 7/9/4 | 5/7, 7/9 | 505 → 809 s | 3 → 6 | 2.77 |
+  | hfoo | 3/25 · 16/25 · 14/25 | .83/.37/.84/.74/.77/.67 | 9/9/7/9 (4 rondas) | 9/9, 8/9, 7/7 | 760 → 1562 s | 4 → 8 | 5.55 |
+  | n017 | 3/19 · 19/19 · 13/19 | .80/.69/.77/.76/.81/.67 | 9/12/11 | 7/9, 9/12 | 1302 → 1395 s | 3 → 6 | 3.65 |
+  | n02X | 6/39 · 29/39 · 28/39 | .88/.78/.87/.80/.68/.73 | 9/8/8 | 8/9, 6/8 | 750 → 2111 s | 3 → 6 | 6.32 |
+  | n01X | 10/30 · 28/30 · 20/30 | .76/.84/.76/.80/.71/.82 | 12/5/8 | 11/12, 4/5 | 464 → 973 s | 3 → 6 | 3.12 |
+
+  Taxa de conserto agregada (defeitos que o crítico diz que sumiram / defeitos da lista anterior): **85 %** (96/113; por ronda .71–1.00). O consertador diz ter tratado 100 % dos ids em todas as rondas. Custo
+  do crítico: US$ 24.68 nas 6 unidades (consertador não medido por chamada).
+- **Juiz pareado** (`review_pair`, `session:opus`, 4 votos, crítico = B; "A" nas linhas do log = o run contra o qual se compara). Críticos ganham = votos do crítico.
+
+  | unidade | crítico × v16: sheet / artista / wc3 / forma | crítico × controle: sheet / artista / wc3 / forma |
+  |---|---|---|
+  | n005 | v16 4-0 / v16 3-1 / v16 3-1 / empate 2-2 | controle 4-0 / empate / empate / empate |
+  | n00U | empate 2-2 / v16 3-1 / v16 3-1 / v16 4-0 | empate 2-2 / controle 4-0 / controle 4-0 / controle 4-0 |
+  | hfoo | v16 4-0 / v16 4-0 / v16 3-1 / v16 4-0 | controle 4-0 em todos os eixos |
+  | n017 | v16 4-0 / **crítico 4-0** / **crítico 4-0** / **crítico 4-0** | controle 4-0 / **crítico 4-0** / empate / **crítico 4-0** |
+  | n02X | **crítico 4-0 em todos** | **crítico 4-0 em todos** |
+  | n01X | v16 4-0 / v16 3-1 / v16 3-1 / v16 3-1 | controle 4-0 / empate / empate / **crítico 3-1** |
+- **Aceite (`--eye-critic` vira default): NÃO atendido.** sheet+artista ≥ 3-1 para o crítico sobre v16: **1/6** (n02X; precisa ≥ 4); forma ≥ 2-2: 3/6 (n005, n017, n02X; precisa ≥ 4); taxa de conserto
+  85 % (≥ 60 % ok); tempo 1.82× o v16 em soma (1.9×, 1.6×, 2.1×, 1.07×, 2.8×, 2.1× por unidade; precisa ≤ 1.5×). **Default não mudou**: opt-in, `--eye-critic off`.
+- **Leitura.** (1) O crítico acha defeitos reais e específicos (ex. n005: a aba do capuz com dois "chifres" no front, ombreiras em aleta no top/rts, antebraços em cone invertido, com números de `fix`), e
+  seus ids "somem" 85 % das vezes. Mas "some" é o que o crítico VÊ, e parts k/n **cai** em relação ao v16 em 6/6 (27 vs 28, 11 vs 17, 14 vs 16, 13 vs 19, 28 vs 29, 20 vs 28), e o IoU cai em vários
+  (hfoo left .37 vs .80, n005 front .79 vs .89, n00U left .65 vs .87). Corrigir uma lista de 8-12 defeitos às cegas (sem boards, só sheet + DSL + texto) tira o consertador do olhar que tinha no v16: arruma o que
+  foi apontado e desfaz o que estava certo e não foi listado. (2) O crítico ganha do controle v15 + contorno em parts (6/6: 27 vs 24, 11 vs 5, 14 vs 3, 13 vs 3, 28 vs 6, 20 vs 10) mas o juiz dá o sheet
+  ao controle em 4/6: o contorno preto + a massa contínua da v15 ainda lêem melhor como o concept do que primitivas soltas, em unidades onde o v16 de um modelo só também não decidia (aberto L15-5 (4) fica
+  parcialmente respondido: o controle justo é forte no sheet). (3) Custo e tempo: o crítico sozinho é 8-26 min e US$ 3-6 por unidade; o consertador é rápido (35-60 s) porque não olha imagens. (4) O modelo
+  nunca pediu `stop` (crítico: `continue` em 19/19 chamadas): com Fable `high` sempre sobra defeito de severidade ≥ 1.
+- **Não feito.** `--eye-fixer` com boards (variante "defeitos + boards"): o tempo já passa de 1.5× só com o crítico; Fable `max` na bateria; o juiz v16 × controle (isolar o quanto do que o crítico perde
+  para o controle já se perdia no v16).
+- **Aberto.** (a) variante do consertador COM boards (ou com o sheet + o render lado a lado de só as vistas citadas nos defeitos) e com defeitos de severidade ≥ 2 apenas (menos edições cegas); (b) o crítico
+  só na ronda 1 (a mais barata em tempo e onde a lista rende), sem auditoria; (c) rodar v16 × controle no juiz para fechar a leitura de (2); (d) taxa de conserto mede o que o crítico vê, não parts/IoU:
+  um segundo árbitro (o gate) deveria validar `resolved` — e se o consertador piorar parts na ronda, descartar a ronda (hoje a ronda final é sempre a última construída).
