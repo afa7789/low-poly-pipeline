@@ -28,6 +28,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageOps
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import eye_critic  # noqa: E402
 import eye_lib as EL  # noqa: E402
 import eye_skin  # noqa: E402
 import make_compare as MC  # noqa: E402
@@ -270,8 +271,9 @@ def disaster_only(ev):
     return bool(ev["disaster"]) and ev["disaster"] != ["no measurement"]
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off"):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
+    critic: ask-like callable of the L16-2 critic (eye_critic.py) or None.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict."""
     uid, sheet = unit["id"], REFS / unit["id"] / "sheet.jpg"
     eye = out / "eye"
@@ -291,7 +293,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     ctx = context_of(doc, sheet_doc, rig)
     rig_names = set(rig["bones"])
     t_all = time.monotonic()
-    summary = {"unit": uid, "from": str(src_run.name), "rounds": [], "llm_calls": 0, "resends": 0, "tilts": tilts, "ctx_box": ctx["box"]}
+    summary = {"unit": uid, "from": str(src_run.name), "rounds": [], "llm_calls": 0, "resends": 0, "tilts": tilts, "ctx_box": ctx["box"], "critic": []}
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
@@ -303,12 +305,15 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
         stem, label, prev, last_glb = src.stem, "old model", None, None          # the renders are named after the GLB they come from
         imgs_extra = [("sheet", sheet)] + [(k, REFS / uid / f) for k, f in (("hard", "sheet-hard.jpg"), ("props", "sheet-props.jpg")) if (REFS / uid / f).exists()]
         cur = {"work": base_dir, "ev": ev, "dsl": None}
-        r, builds, note = 0, 0, ""
+        r, builds, note, listed = 0, 0, "", []
         while r < MAX_ROUNDS:
             rd = eye / f"round-{r}"
             rd.mkdir(parents=True, exist_ok=True)
             bs = boards(concept, cur["work"], stem, label, rd, mirrored)
             images = (imgs_extra if r == 0 else imgs_extra[:1]) + [("b1", bs[0]), ("b2", bs[1])]
+            listed, note, images = critique(critic, unit, r, images, cur, listed, label, rd, summary, note, imgs_extra[:1])
+            if listed is None:       # L16-2: the critic said stop
+                break
             prompt = make_prompt(unit, ctx, rig, r, images, cur["dsl"], cur["ev"], label, note)
             (rd / "prompt.md").write_text(prompt)
             (rd / "images.txt").write_text("\n".join(str(p) for _, p in images))
@@ -327,6 +332,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             summary["llm_calls"] += 1
             summary["resends"] += seen["failed"]
             (rd / "why.md").write_text(str(doc_r.get("why", "")) + "\n")
+            summary.setdefault("fixed", {})[r] = doc_r.get("fixed", []) if critic else []
             if doc_r.get("stop") is True:
                 if disaster_only(cur["ev"]) and not note:
                     log(f"eye round {r}: stop refused, the gate sees a disaster in {cur['ev']['disaster']}")
@@ -352,8 +358,40 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             r += 1
             if r >= rounds and not (ev["disaster"] and r < MAX_ROUNDS and disaster_only(ev)):
                 break
+        audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
     return finish(summary, last_glb, prev, src, out, eye, skin)
+
+
+def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
+    """L16-2: one critic call on the model of round r-1 (boards already in `images`); logged in summary['critic']. Returns (defects, note for the
+    fixer, the fixer's images), or (None, note, images) when the critic says stop (and the gate sees no disaster): the loop ends.
+    Round 0 or no critic: the arguments back, unchanged."""
+    if not critic or not r:
+        return listed, note, images
+    import spec_pipeline as SP
+    try:
+        doc = eye_critic.review(critic, unit, r, [p for _, p in images], cur["dsl"], eval_text(cur["ev"]), listed, label, rd, SP.USAGE)
+    except (RuntimeError, ValueError, subprocess.TimeoutExpired) as err:       # no critic this round: the artist looks for itself, the error is recorded
+        summary["critic"].append({"round": r, "error": str(err)[:300]})
+        return [], note, images
+    summary["critic"].append({"round": r, "defects": len(doc["defects"]), "verdict": doc["verdict"], "resolved": len(doc["resolved"]),
+                              "of_previous": doc["of_previous"], "fix_rate": doc["fix_rate"], "seconds": doc["seconds"], "usage": doc["usage"]})
+    summary["llm_calls"] += 1
+    if doc["verdict"] == "stop" and not disaster_only(cur["ev"]):
+        summary["rounds"].append({"round": r, "stop": "critic", "llm_s": 0})
+        return None, note, images
+    return doc["defects"], note + eye_critic.fixer_note(doc), sheet_only
+
+
+def audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet):
+    """L16-2: after the last round, one critic call (no fixer) that marks which defects of the last list are gone: the fix rate of the last round.
+    Not when there is no critic, no built model, or the critic itself stopped the loop (its call already marked the last list)."""
+    if not critic or cur["dsl"] is None or summary["rounds"][-1].get("stop") == "critic":
+        return
+    bs = boards(concept, cur["work"], stem, label, eye / "audit", mirrored)
+    critique(critic, unit, len(summary["rounds"]), [("sheet", sheet), ("b1", bs[0]), ("b2", bs[1])], cur, listed, label, eye / "audit", summary, "", [])
+    summary["critic"][-1]["audit"] = True
 
 
 def replay_run(summary, src, eye, out, rotate):
@@ -432,7 +470,8 @@ def run_in_pipeline(args, src_run, ask):
     spec = json.loads((src_run / "spec.json").read_text()) if (src_run / "spec.json").exists() else {}
     if args.out != src_run:
         seed(src_run, args.out)
-    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay", skin=args.eye_skin)
+    critic = None if getattr(args, "eye_critic", "off") == "off" else session_ask("session:" + args.eye_critic)
+    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay", skin=args.eye_skin, critic=critic)
 
 
 def from_run(args, ask):

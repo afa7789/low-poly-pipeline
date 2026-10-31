@@ -28,6 +28,7 @@ import noise as NZ  # noqa: E402
 ROOT = AM.ROOT
 DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
 OUT = ROOT / "artifacts/model-sheets/history/2026-10-30-l15-eye"
+RUN = "v16-r1"            # the run reported; critic_compare.py (L16-2) points it at v16-critic-r1
 FIX = ROOT / "artifacts/model-sheets/history/2026-10-30-l14-fix"
 SEEN = ("n02X", "n005", "n00U")           # the guidelines of the prompt were distilled from the diagnoses of these
 UNSEEN = ("hfoo", "n017", "n01X")
@@ -60,7 +61,7 @@ def per_view(views, key):
 
 def rows_of(unit, noise):
     """The table rows of one unit: the v15 model under the eye stage's gate, then every built round."""
-    s = read(DRAFT / unit / "v16-r1/eye/summary.json")
+    s = read(DRAFT / unit / RUN / "eye/summary.json")
     if not s:
         return []
     base = s["base"]["views"]
@@ -81,11 +82,11 @@ def table(units, noise):
                          f"| {per_view(r['views'], 'bare')} | {','.join(r['falls']) or '–'} |")
     lines += ["", "| unit | total s | model calls | resends | final round | pieces tris | file tris (+hull) | components | stretch p99.5 | v15 stretch |", "|---" * 10 + "|"]
     for u in units:
-        s = read(DRAFT / u / "v16-r1/eye/summary.json")
+        s = read(DRAFT / u / RUN / "eye/summary.json")
         if not s or s.get("final_round") is None:
             lines.append(f"| {u} | no model |" + " |" * 8)
             continue
-        lint = mesh_lint.lint(DRAFT / u / "v16-r1/model.glb")
+        lint = mesh_lint.lint(DRAFT / u / RUN / "model.glb")
         final = next(r for r in s["rounds"] if r.get("round") == s["final_round"] and "tris" in r)
         old = read(DRAFT / u / "v15-r1/anim.json")
         lines.append(f"| {u} | {s['seconds']} | {s['llm_calls']} | {s['resends']} | {s['final_round']} | {final['tris']} | {lint['tris']} | {lint['components']} "
@@ -95,11 +96,11 @@ def table(units, noise):
 
 # ---------------------------------------------------------------- images
 def concept_cells(unit, tmp):
-    return MC.concept_cells(MC.load_run(DRAFT / unit / "v16-r1"), pathlib.Path(tmp))
+    return MC.concept_cells(MC.load_run(DRAFT / unit / RUN), pathlib.Path(tmp))
 
 
 def round_dirs(unit):
-    base = DRAFT / unit / "v16-r1/eye"
+    base = DRAFT / unit / RUN / "eye"
     return [("v15-r1", base / "base")] + [(f"round {r}", base / f"round-{r}") for r in range(4) if (base / f"round-{r}/model.glb").exists()]
 
 
@@ -132,7 +133,7 @@ def sheet(unit):
 def judge(unit, against, name):
     """review_pair.compare(`against`, v16-r1) with one vote at a time; kept as pairwise-<name>.json beside the run."""
     import review_pair
-    new = DRAFT / unit / "v16-r1"
+    new = DRAFT / unit / RUN
     saved = review_pair.concurrent.futures.ThreadPoolExecutor
     review_pair.concurrent.futures.ThreadPoolExecutor = lambda n: saved(1)
     try:
