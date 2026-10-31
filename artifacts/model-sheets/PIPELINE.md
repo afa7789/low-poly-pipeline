@@ -6562,3 +6562,47 @@ Porque perde (imagens: `history/2026-10-30-l17-paint/<id>.png`, concept | v16-r3
 - **Boards.** `history/2026-10-31-l19/<unit>.png`: concept | v16-r3 | v19-default | wire v19-default, seis vistas + atlas (`leva18.py sheet U --runs v16-r3,v19-default --no-hive --history history/2026-10-31-l19`; `--wires`, `--no-hive`, `--history` novos no `leva18.py`, o código da L18 reaproveitado).
 - **Testes** (`test_flag_liveness` eye_union/eye_paint/eye_fuse/eye_union_reduce invertidos para o default novo: off/off/0/qem são agora o lado "ligado"; `test_eye_union` queda em 3 passos; `test_eye` replay para outro run). Suite blender OK; ruff C901/F/E9 9 achados antigos, 0 novos (`eye_stage.run` ficou ≤ 10 com `seed_replay` / `replayed`).
 - Runs: `runs/draft/<id>/v19-default` (`model.glb` pintado + casco, `model-body.glb`, `clay.glb`, `atlas.png`, `fields.json`, `joints.json`, `eye/` copiado do `v18-r0` + `replay.glb` + `fused.dsl.json`, `timing.json`, `review.md`).
+
+## 39. Leva 20 (2026-10-31): o concept sheet projectado no atlas
+
+### 39.L20-0 Delight discreto + projecção das vistas no atlas (`eye_project.py`, `--eye-project off|on`, default off; teste em 2 unidades) (2026-10-31)
+
+- **Pedido.** Itens 1 e 2 de `analysis/2026-10-31-tecnicas-geradores.md`. Unidades hfoo e n005, a partir das rondas pagas (`--eye replay --eye-from v18-r0 --run v20-proj --eye-project on`), sem VLM excepto o juiz. Default fica off: quem decide é o utilizador a olhar.
+- **Implementação (`tools/blender/eye_project.py`, Python puro, sem Blender).** Depois da pintura `box` e antes do casco, troca a imagem embutida no GLB (`swap_atlas`); malha e UV não mudam (conferido: posições, triângulos e UV iguais ao `v19-default` nas 2). `project_concept.py` não foi reutilizado: troca as UV para o sheet e sampling de uma vista por face, em Blender sem scipy; daqui veio só a convenção das câmaras, que está em `views.py`.
+  - **Delight.** Paleta partilhada pelos 5 painéis: k-means com 10 famílias em OKLab (L pesa .35), em cada família 3 tons de L, albedo = tom mais claro com ≥ 15 % da família, sombra = albedo + .2 × distância. Contorno = L < .40 perto de gradiente de L > .035, fica como está. `atlas-noline.png` = delit sem contornos.
+  - **Câmaras.** `views.camera`. Tilts de top e bottom varridos como no `silhouette.py`; hfoo saiu top 20 / bottom −20, igual ao `eval.json` da última ronda. Registo modelo → painel: escala por eixo ±12 % em torno da razão de alturas + melhor translação por correlação FFT. `right` = câmara real + painel left espelhado (nenhum sheet tem right).
+  - **Peso.** `w_vista · cos(n·v)^4`, zero abaixo de cos 75°. `w_vista` = IoU² do registo, medido por vista, em vez da tabela do Hunyuan. Média em sRGB. Depth test a .012 H. Máscara: painel e modelo erodidos 1,2 % da altura do painel, depth edges dilatados 2 px.
+  - **Desvio do pedido.** Canny substituído por limiar do salto de profundidade (.02 H): `cv2` não existe no Python 3.14 nem no do Blender, e o z-buffer não tem ruído. Inpaint 1/d² não implementado: a pintura procedural existe sempre que há atlas, por isso o caso nunca ocorre.
+  - **Bug achado no juiz.** `review_pair.glb_fingerprint` não via a textura: `v20-proj` × `v19-default` saía "identical geometry", empate sem chamada. O fingerprint inclui agora as imagens embutidas (`test_the_judge_tells_two_atlases_apart`). Pares antigos com malha igual e atlas diferente saíram como empate falso; não foram revistos nem repetidos.
+- **Cobertura (`runs/draft/<u>/v20-proj/project.json`).** % de texels do atlas.
+
+| un. | oculto ou rasante | visível sem pintura (% do visível) | sem cobertura (% do atlas) | vistos front / left / back / top / bottom / right | IoU f / l / b / t / bt / r | vistas por texel |
+|---|---|---|---|---|---|---|
+| hfoo | 41.8 | 17.3 | 51.9 | 12.5 / 8.7 / 12.2 / 10.6 / 11.6 / 8.8 | .871 / .794 / .867 / .669 / .677 / .793 | 1.34 |
+| n005 | 44.9 | 12.3 | 51.7 | 11.4 / 10.9 / 11.3 / 11.6 / 10.7 / 10.9 | .872 / .874 / .875 / .819 / .746 / .873 | 1.38 |
+
+  Leitura: 42–45 % do atlas é superfície que nenhuma das 6 câmaras vê a ângulo útil, sobretudo peças sobrepostas por dentro (hipótese para a maior parte, não separado de superfície só rasante). Esse espaço de 256² é desperdício e reforça o item 5 da análise (limpeza interior). Os 12–17 % visíveis sem pintura ficam nos bordos e depth edges: mantêm a pintura procedural.
+- **Costuras (`seams` e `disagreement`; ΔE = OKLab × 100).** Medidas nas arestas da malha, nos dois lados, porque a mudança de vista cai quase sempre numa fronteira de carta. p50 / p90 entre lados com a mesma vista dominante e com vistas diferentes:
+
+| run | hfoo mesma vista | hfoo duas vistas | n005 mesma vista | n005 duas vistas |
+|---|---|---|---|---|
+| `v20-proj` (k 4) | 1.3 / 52.3 | **21.3** / 55.6 | 0.3 / 21.0 | **4.6** / 27.3 |
+| `v20-proj-soft` (k 2, normais interpoladas) | 2.0 / 50.2 | 14.4 / 58.1 | 0.3 / 19.1 | 5.7 / 25.8 |
+| `v20-proj-flat` (sem contornos) | 0.9 / 42.4 | 14.3 / 49.6 | 0.2 / 13.4 | 1.6 / 20.2 |
+| `v20-proj-raw` (sem delight) | 1.7 / 52.0 | 21.1 / 54.3 | 0.5 / 21.1 | 4.6 / 28.9 |
+
+  **Há costuras, mais no hfoo.** Onde: (1) **capacete do hfoo**, o defeito mais visível: cor de pele na aba e na copa, banda escura na vista de topo; o juiz nomeia "skin colour leaking onto the helmet" e "split, broken-looking helmet". Hipótese: o rosto do painel cai na aba porque a cabeça do modelo não coincide com a do desenho. O blending não resolve: o `v20-proj-soft` mantém-no (`history/2026-10-31-l20/hfoo-soft.png`). (2) hfoo, ombro e tronco alto (altura ≈ .65): front+right ΔE de texel 34, top+right 19, left+top 31. (3) n005, front+bottom ΔE 15.5 em 2052 texels (altura ≈ .6, o painel bottom é o mais fraco, IoU .746). Painéis que concordam: left+back 1.1 hfoo, 0.4 n005; back+right 1.6 e 0.4. (4) Fora das costuras: contornos a 256² ficam em escada e fazem ghost, a lança do hfoo fica com hachura; o juiz chama-lhe "smeared". 
+  **Blending mais suave tentado** (k 4, 2, 1, com e sem normais interpoladas): baixa o p50 do hfoo (21.3 → 14.4), piora o n005 (4.6 → 5.7) e perde 3–5 pontos de visível pintado. Default fica k 4. O delight quase não mexe nas costuras (raw ≈ on): as discordâncias vêm do desenho e dos contornos, não das sombras. A hipótese do delight fica por provar a olho: o sheet é cel quase plano.
+- **Juiz 4 votos, só como dado (`runs/draft/<u>/v20-proj/pairwise4-*.json`; A = run antigo, B = `v20-proj`).**
+
+| un. | × `v19-default`: sheet / artista / wc3 / forma | × `v16-r3`: sheet / artista / wc3 / forma | s |
+|---|---|---|---|
+| hfoo | **B 4-0** / A 4-0 / A 4-0 / A 4-0 | empate 2-2 (viés de posição) / A 4-0 / A 4-0 / A 4-0 | 104 / 51 |
+| n005 | **B 4-0** / A 3-1 / A 3-1 / **B 4-0** | **B 4-0** / A 4-0 / A 4-0 / A 3-1 | 62 / 44 |
+
+  Leitura: ganha o eixo sheet contra o `v19-default` nas 2; contra o `v16-r3` ganha sheet na n005 e empata no hfoo, onde `v18-cvt` e `v19` perdiam 4-0. Perde artista e wc3 nas 2; as razões dos votos dizem "smeared". N = 2 unidades, sem conclusão.
+- **Tempo.** Projecção 13.3 s no hfoo, 16.8 s na n005 (2 passagens de atlas: on + noline). `finish` total 23.5 s e 30.6 s. Os 4 pares do juiz: 44–104 s.
+- **Boards.** `history/2026-10-31-l20/<u>.png`: concept | v16-r3 | v19-default | `v20-proj` | `v20-proj-flat` | `v20-proj-raw`, 6 vistas + atlas. A coluna "sem sombra" do pedido é ambígua porque o delight já tira a sombra: ficou `flat` (delit, sem contorno), e acrescentei `raw` (sheet tal como desenhado) para se ver o efeito do delight. `<u>-soft.png`: k 4 em cima, k 2 + normais interpoladas em baixo. `lead.png` em cada run: vista dominante por texel.
+- **Testes** (`test_eye_project.py`: OKLab, erosão, albedo, remap, contorno, câmaras, z-buffer, registo, peso, blend, cobertura, normais interpoladas, `swap_atlas`, fingerprint; `test_flag_liveness` `eye_project`; `NOT_A_VARIANT`). `python3.14 -m unittest discover -s tests/tools/blender`: 944 OK, 15 skip, saída 0. `ruff check --select C901,F,E9 tools/blender tests/tools/blender` (via `uvx`): 9 antigos, 0 novos.
+- **Aberto.** (1) Capacete do hfoo: registo por peça ou por osso em vez de global. (2) Atlas: 42–45 % gasto em superfície não vista. (3) 256² é pouco para contornos do sheet; testar 512 ou desenhar a linha pelo atlas em vez de a projectar. (4) `visible_uncovered`: a orla procedural junto da projecção. (5) Bateria nas outras 4 só depois de o autor ver os boards.
+- Runs: `runs/draft/<u>/v20-proj`, `v20-proj-flat`, `v20-proj-raw`, `v20-proj-soft`.

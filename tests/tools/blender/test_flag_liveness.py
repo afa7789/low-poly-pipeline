@@ -410,6 +410,10 @@ def live_eye_fuse():      # L18-1: the material ceiling reaches eye_stage.run (d
     return eye_run_kwargs()["fuse"], eye_run_kwargs("--eye-fuse", "0")["fuse"]
 
 
+def live_eye_project():   # L20-0: the projection switch reaches eye_stage.run (default off)
+    return eye_run_kwargs()["project"], eye_run_kwargs("--eye-project", "on")["project"]
+
+
 def live_eye_union_reduce():      # L18-2b: the union's reducer reaches eye_stage.run (default cvt since L19-0)
     return eye_run_kwargs()["union_reduce"], eye_run_kwargs("--eye-union-reduce", "qem")["union_reduce"]
 
@@ -432,7 +436,7 @@ def live_eye_stop():      # L16-1: who ends the eye loop early (the model's stop
 
 
 LIVE_PAIRS = {
-    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_skin": live_eye_skin, "eye_union": live_eye_union, "eye_paint": live_eye_paint, "eye_fuse": live_eye_fuse, "eye_union_reduce": live_eye_union_reduce, "eye_critic": live_eye_critic, "eye_fixer": live_eye_fixer, "eye_stop": live_eye_stop,
+    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_skin": live_eye_skin, "eye_union": live_eye_union, "eye_paint": live_eye_paint, "eye_fuse": live_eye_fuse, "eye_project": live_eye_project, "eye_union_reduce": live_eye_union_reduce, "eye_critic": live_eye_critic, "eye_fixer": live_eye_fixer, "eye_stop": live_eye_stop,
     "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,
