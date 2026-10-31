@@ -2228,8 +2228,9 @@ def build_parser():
                          "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
                          "256 px cells, PIPELINE 27.T1); shared = the race's 128 px atlas, "
                          "tone columns + decal cells, ink as a row only (shared_atlas.py, PIPELINE 27.T3)")
-    ap.add_argument("--outline", choices=("hull", "off"), default="hull",
-                    help="stage 2 (default hull; off = no contour): hull = the contour of every silhouette, an inverted black copy of the body as a second mesh (outline.py, PIPELINE 33.L15-3)")
+    ap.add_argument("--outline", choices=("hull", "ink", "off", "both"), default="hull",
+                    help="stage 2 (default hull; off = no contour): hull = the contour of every silhouette, an inverted black copy of the body as a second mesh (outline.py, PIPELINE 33.L15-3); "
+                         "--eye on --eye-paint on: ink = only the line painted in the texture (no hull mesh), both = line + hull (PIPELINE 35.L17-3); ink alone is no contour without the paint")
     ap.add_argument("--face", choices=("decal", "off"), default="off",
                     help="stage 2: decal = the head cut from the concept at 128 px on one quad in front of the head instead of the 64 px lathe decal (PIPELINE 33.L15-3)")
     ap.add_argument("--zone-contrast", choices=("on", "off"), default="off",
@@ -2398,6 +2399,8 @@ def build_parser():
     ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="off",
                     help="--eye on: the pieces of a group (one material / one bone / touching pieces of one material) united in one welded mesh after the last "
                          "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2)")
+    ap.add_argument("--eye-paint", choices=("off", "on"), default="off",
+                    help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3)")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
