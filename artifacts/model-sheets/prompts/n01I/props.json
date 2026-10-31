@@ -1,0 +1,13 @@
+[
+  {
+    "name": "broken_snag",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.255,
+      0.383
+    ]
+  }
+]

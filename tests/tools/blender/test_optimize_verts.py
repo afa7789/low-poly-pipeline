@@ -171,6 +171,14 @@ class TestOptimizeVerts(unittest.TestCase):
         self.assertEqual(rts.call_args_list[1].args[3], (35, -45))
         self.assertIsNone(rts.call_args_list[0].args[3])
 
+    def test_optimize_with_every_view_under_view_min_leaves_the_mesh(self):
+        with mock.patch.object(O, "make_views", return_value=[FRONT]), mock.patch.object(O, "VIEW_MIN", 1.01):
+            new, rep = O.optimize(POS, TRI, np.zeros_like(POS), FILE, "unused.jpg", ("front",), 1, 5.0)
+        self.assertTrue(np.array_equal(new, POS))
+        self.assertEqual((rep["views"], rep["skipped"], rep["steps"]), ([], ["front"], 0))
+        for key in ("steps", "seconds", "objective", "slivers_before", "slivers_after", "before", "after"):       # what stage_shape and main read
+            self.assertIn(key, rep)
+
     def test_optimize_reports_the_cams_it_used(self):
         cams = {"top": 40, "rts": (35, -45)}
         with mock.patch.object(O, "make_views", return_value=[FRONT]) as mv:
