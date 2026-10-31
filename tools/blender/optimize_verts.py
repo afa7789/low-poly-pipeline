@@ -552,6 +552,10 @@ def optimize(pos, tri, nor, file, sheet, names=DEFAULT_VIEWS, iters=30, seconds=
     first = D.measure(pos, tri, views)
     skipped = [v.name for v in views if first[v.name]["iou"] < VIEW_MIN]     # a panel of another pose (a flier's rts)
     views = [v for v in views if v.name not in skipped]
+    if not views:        # every panel is another drawing than the model (n01N roster-pilot): nothing to descend on, the mesh stays
+        share = round(D.sliver_share(pos, tri), 4)
+        return pos.copy(), {"before": first, "after": first, "objective": [0.0, 0.0], "views": [], "skipped": skipped, "steps": 0, "unsafe": 0, "worse": 0,
+                            "slivers_before": share, "slivers_after": share, "seconds": round(time.time() - start, 1), "note": "no view at or over VIEW_MIN: positions unchanged"}
     prob = Problem(pos, tri, views, nor, file)
     x0 = prob.pos0
     free = prob.body.copy()
