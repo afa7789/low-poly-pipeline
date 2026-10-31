@@ -398,6 +398,10 @@ def live_eye_skin():      # L16-4: the skin technique reaches eye_stage.run
     return eye_run_kwargs()["skin"], eye_run_kwargs("--eye-skin", "bridge")["skin"]
 
 
+def live_eye_paint():     # L17-3: the paint switch reaches eye_stage.run
+    return eye_run_kwargs()["paint"], eye_run_kwargs("--eye-paint", "on")["paint"]
+
+
 def live_eye_critic():    # L16-2: a critic ask is handed to the stage only when asked for
     return eye_run_kwargs()["critic"] is None, eye_run_kwargs("--eye-critic", "claude-fable-5-1@max")["critic"] is None
 
@@ -416,7 +420,7 @@ def live_eye_stop():      # L16-1: who ends the eye loop early (the model's stop
 
 
 LIVE_PAIRS = {
-    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_skin": live_eye_skin, "eye_critic": live_eye_critic, "eye_fixer": live_eye_fixer, "eye_stop": live_eye_stop,
+    "eye": live_eye, "eye_rounds": live_eye_rounds, "eye_skin": live_eye_skin, "eye_paint": live_eye_paint, "eye_critic": live_eye_critic, "eye_fixer": live_eye_fixer, "eye_stop": live_eye_stop,
     "gate": live_gate, "orient": live_orient, "judge_gate": live_judge_gate,
     "fit_edges": live_fit_edges, "fit_stages": live_fit_stages, "fit_grad": live_fit_grad, "fit_fast": live_fit_fast,
     "fit_parts": live_fit_parts, "depth": live_depth, "parts": live_parts, "constraints": live_constraints,

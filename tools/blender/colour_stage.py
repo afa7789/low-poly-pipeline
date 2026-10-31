@@ -344,7 +344,7 @@ def attempt(spec, glb_clay, args, tilts, work, name):
     if not build_textured(spec, glb_clay, args, glb, work):
         return glb, None, work
     zones = zones_of(measure(glb, args, tilts, work))
-    if getattr(args, "outline", "off") == "hull":     # after the measure: the zone shots (workbench) draw both sides of the hull, black over the body
+    if getattr(args, "outline", "off") in ("hull", "both"):     # after the measure: the zone shots (workbench) draw both sides of the hull, black over the body
         outline.apply(glb)
     render_views(glb, args, tilts, work / "views")
     return glb, zones, work

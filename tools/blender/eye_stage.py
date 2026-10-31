@@ -30,6 +30,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import eye_critic  # noqa: E402
 import eye_lib as EL  # noqa: E402
+import eye_paint  # noqa: E402
 import eye_skin  # noqa: E402
 import make_compare as MC  # noqa: E402
 import outline  # noqa: E402
@@ -330,7 +331,7 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
     return stalls
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, paint="off", contour="hull"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4).
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
@@ -421,7 +422,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin)
+    return finish(summary, last_glb, prev, src, out, eye, skin, paint, contour)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -467,7 +468,7 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off"):
+def finish(summary, last_glb, dsl, src, out, eye, skin="off", paint="off", contour="hull"):
     """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md."""
     if last_glb is None:
         summary["final_round"] = None
@@ -480,7 +481,8 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off"):
     build(src, clay, out / "clay.glb")
     shutil.copy(final, out / "model.glb")
     summary["skin"] = eye_skin.apply_stage(src, dsl, out, skin)
-    summary["outline"] = outline.apply(out / "model.glb", hull=True)
+    summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
+    summary["outline"] = contour in ("hull", "both") and outline.apply(out / "model.glb", hull=True)
     summary["stretch"] = stretch_of(out / "model.glb", eye / "anim.json")
     (eye / "summary.json").write_text(json.dumps(summary, indent=1))
     (eye / "review.md").write_text(review_text(summary))
@@ -534,7 +536,8 @@ def run_in_pipeline(args, src_run, ask):
     critic = None if getattr(args, "eye_critic", "off") == "off" else session_ask("session:" + args.eye_critic)
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
-               skin=args.eye_skin, critic=critic, stop=args.eye_stop, judge=judge)
+               skin=args.eye_skin, critic=critic, stop=args.eye_stop, judge=judge,
+               paint=args.eye_paint, contour=args.outline)
 
 
 def from_run(args, ask):
