@@ -23,6 +23,7 @@ import retopo  # noqa: E402
 from retopo_mc import surface_nets  # noqa: E402
 
 MODES = ("off", "material", "bone", "group")
+REDUCERS = ("qem", "cvt")   # L18-2b: the step from the surface-nets grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt)
 SMOOTH_K = 0.02         # smooth-min width, share of the height
 VOXEL = 0.006           # grid step, share of the height
 JOINT_BLEND = 0.03      # the weights of two bones cross-fade over this (share of the height) of difference of distance
@@ -33,12 +34,23 @@ MIN_TRIS = 12
 FEATURES = 30           # retopo.reduce keeps the edges of the primitives sharper than this (degrees)
 DEV = 0.015             # retopo.reduce refuses a collapse that moves a triangle farther than this (share of the height) from the surface
 KEEP = 0.9              # share of its pieces' triangles a union keeps (L17-2: budget by area at 100 tris per mesh erased limbs)
+DETAIL = 0.10           # L18-2: a piece whose longest side is under this share of the height (a buckle, a slit, an eye, a lens) stays rigid, like a prop:
+                        # the smooth-min and the QEM of its group erased it (n01X's furnace slit) and the paint has nothing left to colour
 FAR = 10.0
 SHARP = K.SHARP
 
 
 def is_prop(piece):
     return piece["p"]["role"] == "prop"
+
+
+def is_detail(piece, height):
+    """A small piece the union would swallow: kept rigid (L18-2)."""
+    return float(np.max(piece["hi"] - piece["lo"])) < DETAIL * height
+
+
+def rigid(piece, height):
+    return is_prop(piece) or is_detail(piece, height)
 
 
 def union_find(n, pairs):
@@ -71,7 +83,7 @@ def clusters_of(pieces, idx, height):
 
 def groups_of(pieces, mode, height):
     """[[cluster, ...], ...]: one entry per mesh budget; a cluster is a list of piece indices united in one field. Props are left out."""
-    body = [i for i, p in enumerate(pieces) if not is_prop(p)]
+    body = [i for i, p in enumerate(pieces) if not rigid(p, height)]
     key = (lambda i: pieces[i]["p"]["mat"]) if mode != "bone" else (lambda i: pieces[i]["bone"])
     by = {}
     for i in body:
@@ -106,8 +118,8 @@ def field_of(members, height):
     return sdf
 
 
-def union_mesh(members, height, target, vox=None):
-    """(verts, tris) of the union of `members`, reduced to about `target` triangles; ([], []) when nothing came out."""
+def union_mesh(members, height, target, vox=None, reducer="qem"):
+    """(verts, tris) of the union of `members`, reduced to about `target` triangles by `reducer` (REDUCERS); ([], []) when nothing came out."""
     if len(members) == 1:               # nothing to unite: the piece as it is (a primitive is the cheapest shape that holds)
         return members[0]["verts"], np.array([[f[0], f[i], f[i + 1]] for f in members[0]["faces"] for i in range(1, len(f) - 1)])
     vox = vox or VOXEL * height
@@ -120,7 +132,13 @@ def union_mesh(members, height, target, vox=None):
     verts, tris = surface_nets(sdf(pts).reshape(*n), lo, vox)
     if len(tris) <= target:
         return verts, tris
-    verts, tris, _ = retopo.reduce(verts, tris, target, sdf=sdf, max_dev=DEV * height)
+    if reducer == "cvt":
+        try:
+            verts, tris, _ = retopo.cvt(verts, tris, target, sdf=sdf, max_dev=DEV * height)
+        except ValueError:          # an empty dual (a cluster too thin for its seeds: n00U's legs): the guarded QEM takes that cluster
+            verts, tris, _ = retopo.reduce(verts, tris, target, sdf=sdf, max_dev=DEV * height)
+    else:
+        verts, tris, _ = retopo.reduce(verts, tris, target, sdf=sdf, max_dev=DEV * height)
     return verts, np.asarray(tris)
 
 
@@ -144,13 +162,13 @@ def vertex_weights(members, verts, height):
     return [{bones[a]: float(w), bones[b]: float(1 - w)} for a, b, w in zip(order[:, 0], order[:, 1], w1)]
 
 
-def build_group(clusters, pieces, height, target):
+def build_group(clusters, pieces, height, target, reducer="qem"):
     """The unions of one group's clusters: [(members, verts, tris, slots, weights)]; `target` is shared by area."""
     cost = [sum(EL.tris_of(pieces[i]["p"]) for i in c) for c in clusters]
     out = []
     for c, a in zip(clusters, cost):
         members = [pieces[i] for i in c]
-        verts, tris = union_mesh(members, height, max(MIN_TRIS, int(target * a / sum(cost))))
+        verts, tris = union_mesh(members, height, max(MIN_TRIS, int(target * a / sum(cost))), reducer=reducer)
         if len(tris):
             out.append((c, verts, tris, face_slots(members, verts, tris), vertex_weights(members, verts, height)))
     return out
@@ -164,8 +182,9 @@ def plan(pieces, mode, height, prop_tris):
 
 
 # ---------------------------------------------------------------- Blender side (eye_skin.build calls apply)
-def prop_tris_of(pieces):
-    return sum(len(f) - 2 for p in pieces if is_prop(p) for f in p["faces"])
+def prop_tris_of(pieces, height=None):
+    """Triangles of the pieces that stay rigid (props, and the small details when `height` is given)."""
+    return sum(len(f) - 2 for p in pieces if (is_prop(p) if height is None else rigid(p, height)) for f in p["faces"])
 
 
 def smooth(body, faces):
@@ -175,11 +194,11 @@ def smooth(body, faces):
         e.smooth = len(e.link_faces) != 2 or e.calc_face_angle(0.0) <= math.radians(SHARP)
 
 
-def apply(mode, body, pieces, joints, height):
+def apply(mode, body, pieces, joints, height, reducer="qem"):
     """eye_skin.build hook: replace the pieces of each group by their union (the props stay). Count of meshes."""
     done, mine, log = 0, [], []
-    for group, target in plan(pieces, mode, height, prop_tris_of(pieces)):
-        for c, verts, tris, slots, weights in build_group(group, pieces, height, target):
+    for group, target in plan(pieces, mode, height, prop_tris_of(pieces, height)):
+        for c, verts, tris, slots, weights in build_group(group, pieces, height, target, reducer):
             vs, _ = body.add(verts, [], 0, weights)
             faces = []
             for t, s in zip(tris.tolist(), slots):
@@ -198,10 +217,20 @@ def apply(mode, body, pieces, joints, height):
     return done
 
 
+def parse_technique(technique):
+    """('bone', 'cvt') of 'union-bone@cvt'; the reducer defaults to qem."""
+    mode, _, reducer = technique.split("-", 1)[1].partition("@")
+    return mode, reducer or "qem"
+
+
+def technique_of(mode, reducer="qem"):
+    return f"union-{mode}" + (f"@{reducer}" if reducer != "qem" else "")
+
+
 def hook(technique):
-    """The eye_skin.build `apply` of the technique 'union-<mode>'."""
-    mode = technique.split("-", 1)[1]
-    return lambda _t, body, pieces, joints, height: apply(mode, body, pieces, joints, height)
+    """The eye_skin.build `apply` of the technique 'union-<mode>[@<reducer>]'."""
+    mode, reducer = parse_technique(technique)
+    return lambda _t, body, pieces, joints, height: apply(mode, body, pieces, joints, height, reducer)
 
 
 def cli():
@@ -211,8 +240,9 @@ def cli():
     ap.add_argument("--from", dest="src", default="v16-r3")
     ap.add_argument("--tag", required=True)
     ap.add_argument("--mode", choices=MODES[1:], required=True)
+    ap.add_argument("--reduce", choices=REDUCERS, default="qem")
     a = ap.parse_args()
-    K.run_unit(a.id, a.src, a.tag, "union-" + a.mode)
+    K.run_unit(a.id, a.src, a.tag, technique_of(a.mode, a.reduce))
 
 
 if __name__ == "__main__":

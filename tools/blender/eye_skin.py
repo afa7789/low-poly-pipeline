@@ -489,7 +489,7 @@ def cull(body, pieces, height):
 
 
 def apply_technique(technique, body, pieces, joints, height, budget=EL.BUDGET + EXTRA):
-    if technique in UNIONS:
+    if technique.startswith("union-"):
         import eye_union
         return eye_union.hook(technique)(technique, body, pieces, joints, height)
     if technique == "bridge":
@@ -526,7 +526,8 @@ def build(src, dsl, out, technique):
     before, culled = tris_of_bm(body.bm), cull(body, pieces, height) if skinned else 0
     done = apply_technique(technique, body, pieces, joints, height)
     info = {"technique": technique, "tris_pieces": before, "culled": culled, "tris": tris_of_bm(body.bm), "pieces": len(pieces), "joints": joints, "skins": done,
-            "components": components(body.bm), "body_components": getattr(body, "union_components", None), "unions": getattr(body, "union_log", None), "height": round(height, 3)}
+            "components": components(body.bm), "body_components": getattr(body, "union_components", None), "unions": getattr(body, "union_log", None), "height": round(height, 3),
+            "fields": [{"slot": pc["slot"], "n": pc["planes"][0].tolist(), "d": pc["planes"][1].tolist()} for pc in pieces]}   # L18-3: eye_paint colours texels by the nearest piece
     body.bm.to_mesh(old.data)
     body.bm.free()
     export(arm, old, out)
@@ -569,7 +570,15 @@ def skin_build(src, dsl, out, technique):
         raise RuntimeError("eye_skin build failed: " + (p.stderr or p.stdout)[-400:])
     info = json.loads(out.with_suffix(".json").read_text())
     out.with_suffix(".json").unlink()
+    fields = info.pop("fields", None)
+    if fields is not None and out.name == "model.glb":
+        (out.parent / "fields.json").write_text(json.dumps({"materials": material_names(dsl), "pieces": fields}))
     return info
+
+
+def material_names(dsl):
+    """The material slots of a build, in order (make_materials' order: first use in the pieces)."""
+    return list(dict.fromkeys(p["mat"] for p in dsl["pieces"]))
 
 
 def apply_stage(src, dsl, out, technique, clay="B4B4B4", always=False):

@@ -181,22 +181,50 @@ def props_missing(parts, boxes, height, props):
 
 IDENTITY_BLOCKING = False   # reports only: the FAIL rate over the draft specs is in PIPELINE 23.L5-6
 REFS_DIR = PROPS_DIR.parents[0] / "refs"
-EYE_WORDS = ("eye", "lens", "visor")
+EYE_WORDS = ("eye", "eyes", "brow", "brows")   # L18-0: a face with eyes (a heavy brow frames eyes: n017's concept draws two dark slits under it)
+LENS_WORDS = ("lens", "goggle", "visor")       # a face of glass: lenses, goggles, a visor ("glass" alone is a lantern)
+NO_FACE = ("no face", "no eyes", "faceless", "eyeless", "blank face")
+FACE_KINDS = ("eyes", "lenses", "none")
 GENERIC = {"with", "hand", "held", "right", "left", "belt", "back", "from", "that"}
+
+
+def identity_texts(unit, parts_path=None):
+    """The "identity" strings of refs/<unit>/parts.json (segment_sheet.py wrote them), or None when the sheet has none."""
+    path = pathlib.Path(parts_path) if parts_path else REFS_DIR / unit / "parts.json"
+    return json.loads(path.read_text()).get("identity") if path.exists() else None
+
+
+def face_word(text):
+    """"eyes" | "lenses" | None: the face this identity string names (eye*, brow as a whole word: "brown" is a colour; lens*, goggle*, visor*)."""
+    words = set(text.lower().replace(",", " ").replace("-", " ").split())
+    if any(w.startswith("eye") or w in EYE_WORDS for w in words):
+        return "eyes"
+    return "lenses" if any(w.startswith(LENS_WORDS) for w in words) else None
+
+
+def face_kind(texts):
+    """L18-0: what the concept's face shows, from the identity list: "eyes" (an eye word), "lenses" (lens, goggles, visor and no eye
+    word), "none" (a phrase like "no face", or no face word at all, or no identity list: a plain face stays plain, no decal, no eye parts)."""
+    if not texts or any(p in " ".join(texts).lower() for p in NO_FACE):
+        return "none"
+    kinds = {face_word(t) for t in texts} - {None}
+    return "eyes" if "eyes" in kinds else ("lenses" if kinds else "none")
 
 
 def identity_items(unit, sheet=None, biped=True, layout="unit", parts_path=None):
     """The unit's identity checklist, [{"name", "kind", ...}] with kind prop | eyes | zone | text.
-    From refs/<unit>/parts.json "identity" (strings: an eye word -> eyes, a word of a props.json name -> that
-    prop, else text, listed in the brief but not scored) when it exists, else props.json plus the eyes of a
-    biped; plus the sheet's small saturated colours (silhouette.identity_details) as zone items."""
+    From refs/<unit>/parts.json "identity" (strings: an eye or lens word -> eyes, a word of a props.json name -> that
+    prop, else text, listed in the brief but not scored) when it exists, else props.json; the "eyes" items exist only
+    when face_kind is not "none" (L18-0: no list, or a list without a face, means a plain face); plus the sheet's small
+    saturated colours (silhouette.identity_details) as zone items."""
     props = load_props(unit)
-    path = pathlib.Path(parts_path) if parts_path else REFS_DIR / unit / "parts.json"
-    texts = json.loads(path.read_text()).get("identity") if path.exists() else None
+    texts = identity_texts(unit, parts_path)
     if texts is None:
-        items = [{"name": p["name"], "kind": "prop"} for p in props] + ([{"name": "eyes", "kind": "eyes"}] if biped else [])
+        items = [{"name": p["name"], "kind": "prop"} for p in props]
     else:
         items = [identity_text_item(t, props) for t in texts]
+    if face_kind(texts) == "none":
+        items = [it for it in items if it["kind"] != "eyes"]
     if sheet:
         from silhouette import identity_details
         items += [{"name": f"{d['name']} detail {d['hex']}", "kind": "zone", "hex": d["hex"], "views": sorted(d["shares"])}
@@ -205,9 +233,9 @@ def identity_items(unit, sheet=None, biped=True, layout="unit", parts_path=None)
 
 
 def identity_text_item(text, props):
-    words = {w for w in text.lower().replace(",", " ").split() if len(w) >= 4} - GENERIC
-    if any(w.startswith(EYE_WORDS) or w in EYE_WORDS for w in words):
+    if face_word(text):
         return {"name": text, "kind": "eyes"}
+    words = {w for w in text.lower().replace(",", " ").split() if len(w) >= 4} - GENERIC
     prop = next((p for p in props if words & set(p["name"].lower().split())), None)
     return {"name": prop["name"], "kind": "prop"} if prop else {"name": text, "kind": "text"}
 

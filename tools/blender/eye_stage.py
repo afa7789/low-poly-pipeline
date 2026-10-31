@@ -29,11 +29,13 @@ from PIL import Image, ImageChops, ImageDraw, ImageOps
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import eye_critic  # noqa: E402
+import eye_fuse  # noqa: E402
 import eye_lib as EL  # noqa: E402
 import eye_paint  # noqa: E402
 import eye_skin  # noqa: E402
 import make_compare as MC  # noqa: E402
 import outline  # noqa: E402
+import preflight as PF  # noqa: E402
 import split_sheet  # noqa: E402
 
 ROOT = HERE.parents[1]
@@ -49,6 +51,23 @@ BOARDS = (("front", "left", "back"), ("top", "bottom", "rts"))
 FILE = {"rts": "wc3"}
 CLAY = "B4B4B4"
 SLOW = 1800             # seconds of one model call
+STAGES = ("artist", "critic", "judge", "blender_build", "measure", "boards", "union", "paint", "outline", "stretch", "clay")   # L18 timing.json
+
+
+def tick(summary, stage, seconds, calls=1):
+    """L18: add `seconds` (and `calls`) of a stage to summary['timing']; the wall clock per stage lands in <run>/timing.json."""
+    t = summary.setdefault("timing", {}).setdefault(stage, {"s": 0.0, "n": 0})
+    t["s"], t["n"] = round(t["s"] + seconds, 2), t["n"] + calls
+
+
+def timing_file(summary, out):
+    """<run>/timing.json: seconds and calls per stage, the share of the total, the total of the run."""
+    total = summary.get("seconds") or 0.0
+    rows = {k: dict(v, pct=round(100 * v["s"] / total, 1) if total else None) for k, v in summary.get("timing", {}).items()}
+    other = round(total - sum(v["s"] for v in rows.values()), 2)
+    doc = {"unit": summary.get("unit"), "total_s": total, "stages": rows, "other_s": other}
+    (pathlib.Path(out) / "timing.json").write_text(json.dumps(doc, indent=1))
+    return doc
 
 
 class Invalid(ValueError):
@@ -90,7 +109,22 @@ def context_of(doc, sheet_doc, rig):
         rows.append(f"- {p['name']} | role {p['role']} | bone {p['bone']} | {where} | colour {p.get('zone', '?')}")
     lo, hi = union(boxes)
     return {"parts_text": "\n".join(rows) or "(no parts.json)", "box": (lo, hi), "roles": sorted({p["role"] for p in (doc or {}).get("parts", [])}),
-            "ground": round(bbox[0][2], 3), "size": [round(bbox[1][i] - bbox[0][i], 2) for i in range(3)]}
+            "ground": round(bbox[0][2], 3), "size": [round(bbox[1][i] - bbox[0][i], 2) for i in range(3)], "face": PF.face_kind((doc or {}).get("identity"))}
+
+
+FACE_RULES = {
+    "eyes": ("Face: a face must be legible with GEOMETRIC pieces, not a picture: eyes as small dark/bright 6-side tubes or balls on the front of the head, fangs/tusks/snout/mask\n"
+             "   as small tubes or boxes, goggles as a band plus two lenses. The old model only had a tiny picture of the face that turned into stripes."),
+    "lenses": ("Face: the concept's face is glass, not eyes: build the lenses / goggles / visor as GEOMETRIC pieces (a band plus two lenses, a mask as a box or tube,\n"
+               "   tusks as small tubes), never a picture; do NOT add eyes behind or beside them. The old model only had a tiny picture of the face that turned into stripes."),
+    "none": ("Face: this unit's concept has a BLANK face: do NOT add eyes, nose, mouth or any other face piece beyond the plain face surface (the head and its helmet,\n"
+             "   hood or wheel as the sheet draws them). A piece named eye / nose / mouth / teeth is rejected before the build."),
+}
+FACE_CRITIC = {
+    "eyes": "The concept's face has eyes: eyes, mouth, fangs and mask are compared as drawn.",
+    "lenses": "The concept's face is glass (lenses, goggles or a visor), no eyes: an eye piece added behind or beside the glass is a defect (severity 2).",
+    "none": "The concept's face is BLANK (no eyes, no mouth): any eye, nose, mouth or teeth piece on this unit is a defect of severity 2, fix = remove it.",
+}
 
 
 def bones_text(rig):
@@ -226,7 +260,8 @@ def make_prompt(unit, ctx, rig, r, images, prev, ev, label, final_note=""):
         "name": unit["name"], "race": unit["race"], "role": unit["role"], "rig": unit["rig"], "unit_note": "", "ground": ctx["ground"], "height": ctx["size"][2],
         "width": ctx["size"][0], "depth": ctx["size"][1], "budget": EL.BUDGET, "max_pieces": EL.MAX_PIECES, "need_roles": ", ".join(r_ for r_ in EL.NEED_ROLES if r_ in ctx["roles"]) or "(none)",
         "box_lo_x": lo[0], "box_hi_x": hi[0], "box_lo_y": lo[1], "box_hi_y": hi[1], "box_lo_z": lo[2], "box_hi_z": hi[2], "bones": bones_text(rig),
-        "parts": ctx["parts_text"], "round_block": round_block(r, images, prev, ev, label) + final_note, "stop_clause": stop})
+        "parts": ctx["parts_text"], "round_block": round_block(r, images, prev, ev, label) + final_note, "stop_clause": stop,
+        "face_rule": FACE_RULES[ctx.get("face", "eyes")]})
 
 
 # ---------------------------------------------------------------- the loop
@@ -243,7 +278,7 @@ def reply_checker(rig_names, ctx, r, seen):
             raise Invalid(f"not a JSON object: {err}") from None
         if doc.get("stop") is True and r > 0:
             return
-        errors = EL.validate(doc, rig_names, ctx["box"], ctx["roles"])
+        errors = EL.validate(doc, rig_names, ctx["box"], ctx["roles"], face=ctx.get("face", "eyes"))
         if errors:
             seen["failed"] += 1
             seen["why"].append("; ".join(errors[:4])[:300])
@@ -328,10 +363,12 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
     verdict = judge_round(judge, eye, r, src_run)
     stalls = stalls + 1 if stalled(prev_ev["parts"], ev["parts"], verdict) else 0
     summary["rounds"][-1].update(judge_s=round(time.monotonic() - t0, 1), stalled=stalls > 0, judge={a: verdict[a]["winner"] for a in ("sheet", "artist", "wc3", "form")})
+    tick(summary, "judge", time.monotonic() - t0)
     return stalls
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull"):
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull", fuse=0,
+        union_reduce="qem"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
@@ -354,7 +391,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     ctx = context_of(doc, sheet_doc, rig)
     rig_names = set(rig["bones"])
     t_all = time.monotonic()
-    summary = {"unit": uid, "from": str(src_run.name), "rounds": [], "llm_calls": 0, "resends": 0, "tilts": tilts, "ctx_box": ctx["box"], "critic": []}
+    summary = {"unit": uid, "from": str(src_run.name), "rounds": [], "llm_calls": 0, "resends": 0, "tilts": tilts, "ctx_box": ctx["box"], "face": ctx["face"], "critic": []}
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
@@ -365,13 +402,15 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
         summary["base"] = {"seconds": round(time.monotonic() - t0, 1), "parts": ev["parts"], "views": ev["views"], "tris": None}
         stem, label, prev, last_glb = src.stem, "old model", None, None          # the renders are named after the GLB they come from
         imgs_extra = [("sheet", sheet)] + [(k, REFS / uid / f) for k, f in (("hard", "sheet-hard.jpg"), ("props", "sheet-props.jpg")) if (REFS / uid / f).exists()]
-        cur = {"work": base_dir, "ev": ev, "dsl": None}
+        cur = {"work": base_dir, "ev": ev, "dsl": None, "face": ctx["face"]}
         r, builds, note, listed, stalls = 0, 0, "", [], 0
         cap = min(max(rounds, DISASTER_CAP), MAX_ROUNDS)
         while r < cap:
             rd = eye / f"round-{r}"
             rd.mkdir(parents=True, exist_ok=True)
+            t0 = time.perf_counter()
             bs = boards(concept, cur["work"], stem, label, rd, mirrored)
+            tick(summary, "boards", time.perf_counter() - t0)
             images = (imgs_extra if r == 0 else imgs_extra[:1]) + [("b1", bs[0]), ("b2", bs[1])]
             listed, note, images = critique(critic, unit, r, images, cur, listed, label, rd, summary, note, imgs_extra[:1])
             if listed is None:       # L16-2: the critic said stop
@@ -384,7 +423,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             try:
                 reply = ask(prompt, [p for _, p in images], reply_checker(rig_names, ctx, r, seen))
                 doc_r = parse_reply(reply)
-                if doc_r.get("stop") is not True and EL.validate(doc_r, rig_names, ctx["box"], ctx["roles"]):
+                if doc_r.get("stop") is not True and EL.validate(doc_r, rig_names, ctx["box"], ctx["roles"], face=ctx.get("face", "eyes")):
                     raise Invalid("the resend is still invalid")
             except (Invalid, RuntimeError, ValueError) as err:
                 log(f"eye round {r}: no usable reply ({err}); the stage stops with the last model")
@@ -393,6 +432,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             llm_s = time.monotonic() - t0
             summary["llm_calls"] += 1
             summary["resends"] += seen["failed"]
+            tick(summary, "artist", llm_s, 1 + seen["failed"])
             (rd / "why.md").write_text(str(doc_r.get("why", "")) + "\n")
             summary.setdefault("fixed", {})[r] = doc_r.get("fixed", []) if critic else []
             if doc_r.get("stop") is True:
@@ -411,18 +451,20 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             t0 = time.monotonic()
             ev = measure(glb, rd, sheet, unit["rig"])
             (rd / "eval.json").write_text(json.dumps(ev, indent=1))
+            tick(summary, "blender_build", build_s)
+            tick(summary, "measure", time.monotonic() - t0)
             builds += 1
             summary["rounds"].append({"round": r, "llm_s": round(llm_s, 1), "build_s": round(build_s, 1), "measure_s": round(time.monotonic() - t0, 1), "tris": info["tris"],
                                       "pieces": info["pieces"], "parts": ev["parts"], "views": ev["views"], "disaster": ev["disaster"], "resent": seen["failed"], "resend_why": seen["why"]})
             log(f"eye round {r}: {info['tris']} tris, {info['pieces']} pieces, parts {ev['parts'][0]}/{ev['parts'][1]}, llm {llm_s:.0f}s")
             stalls = judge_step(stop, judge, eye, r, src_run, cur["ev"], ev, stalls, summary)
-            cur, last_glb, label, prev, note, stem = {"work": rd, "ev": ev, "dsl": doc_r}, glb, f"round {r} model", doc_r, "", glb.stem
+            cur, last_glb, label, prev, note, stem = {"work": rd, "ev": ev, "dsl": doc_r, "face": ctx["face"]}, glb, f"round {r} model", doc_r, "", glb.stem
             r += 1
             if stalls >= STALLS or (r >= rounds and not (disaster_only(ev) and r < cap)):
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour)
+    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour, fuse, union_reduce)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -433,13 +475,14 @@ def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, she
         return listed, note, images
     import spec_pipeline as SP
     try:
-        doc = eye_critic.review(critic, unit, r, [p for _, p in images], cur["dsl"], eval_text(cur["ev"]), listed, label, rd, SP.USAGE)
+        doc = eye_critic.review(critic, dict(unit, face_note=FACE_CRITIC[cur.get("face", "eyes")]), r, [p for _, p in images], cur["dsl"], eval_text(cur["ev"]), listed, label, rd, SP.USAGE)
     except (RuntimeError, ValueError, subprocess.TimeoutExpired) as err:       # no critic this round: the artist looks for itself, the error is recorded
         summary["critic"].append({"round": r, "error": str(err)[:300]})
         return [], note, images
     summary["critic"].append({"round": r, "defects": len(doc["defects"]), "verdict": doc["verdict"], "resolved": len(doc["resolved"]),
                               "of_previous": doc["of_previous"], "fix_rate": doc["fix_rate"], "seconds": doc["seconds"], "usage": doc["usage"]})
     summary["llm_calls"] += 1
+    tick(summary, "critic", doc["seconds"])
     if doc["verdict"] == "stop" and not disaster_only(cur["ev"]):
         summary["rounds"].append({"round": r, "stop": "critic", "llm_s": 0})
         return None, note, images
@@ -468,8 +511,9 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull"):
-    """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md."""
+def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem"):
+    """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md.
+    fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs)."""
     if last_glb is None:
         summary["final_round"] = None
         (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -477,13 +521,33 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint
     summary["final_round"] = max(r["round"] for r in summary["rounds"] if "tris" in r)
     final = eye / f"round-{summary['final_round']}" / "model.glb"
     summary["vertex_hash"] = vertex_hash(final)
+    if fuse:
+        dsl, summary["fuse"] = eye_fuse.fuse(dsl, fuse)
+        (eye / "fused.dsl.json").write_text(json.dumps(dsl, indent=1))
+        if union == "off" and skin == "off":
+            skin, summary["fuse"]["rebuilt"] = "off", True         # the pieces must be rebuilt with the fused palette: the skin build with no technique
+            union = "fused"
     clay = dict(dsl, colours={}, pieces=[dict(p, colour=CLAY) for p in dsl["pieces"]])
+    t_fin = t0 = time.perf_counter()
     build(src, clay, out / "clay.glb")
+    tick(summary, "clay", time.perf_counter() - t0)
     shutil.copy(final, out / "model.glb")
-    summary["skin"] = eye_skin.apply_stage(src, dsl, out, f"union-{union}" if union != "off" else skin)
+    t0 = time.perf_counter()
+    import eye_union
+    technique = "off" if union == "fused" else (eye_union.technique_of(union, union_reduce) if union != "off" else skin)
+    summary["skin"] = eye_skin.apply_stage(src, dsl, out, technique, always=union == "fused")
+    tick(summary, "union", time.perf_counter() - t0, int(union != "off" or skin != "off"))
+    t0 = time.perf_counter()
     summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
+    tick(summary, "paint", time.perf_counter() - t0, int(paint == "on"))
+    t0 = time.perf_counter()
     summary["outline"] = contour in ("hull", "both") and outline.apply(out / "model.glb", hull=True)
+    tick(summary, "outline", time.perf_counter() - t0)
+    t0 = time.perf_counter()
     summary["stretch"] = stretch_of(out / "model.glb", eye / "anim.json")
+    tick(summary, "stretch", time.perf_counter() - t0)
+    summary["seconds"] = round((summary.get("seconds") or 0.0) + time.perf_counter() - t_fin, 1)
+    timing_file(summary, out)
     (eye / "summary.json").write_text(json.dumps(summary, indent=1))
     (eye / "review.md").write_text(review_text(summary))
     if not (out / "review.md").exists():
@@ -537,7 +601,7 @@ def run_in_pipeline(args, src_run, ask):
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
-               paint=args.eye_paint, contour=args.outline)
+               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 0), union_reduce=getattr(args, "eye_union_reduce", "qem"))
 
 
 def from_run(args, ask):

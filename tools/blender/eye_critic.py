@@ -73,7 +73,7 @@ def defect_lines(defects):
 def prompt_of(unit, r, prev_dsl, ev_text, prev_defects, label):
     prev = ("Defects you listed last round (mark in \"resolved\" the ids that are GONE from the render now; leave out the ones still there, and list those "
             "again as new defects):\n" + defect_lines(prev_defects)) if prev_defects else "There was no earlier defect list: \"resolved\" is []."
-    return (PROMPT.read_text().replace("{{name}}", unit["name"]).replace("{{race}}", unit["race"]).replace("{{role}}", unit["role"])
+    return (PROMPT.read_text().replace("{{name}}", unit["name"]).replace("{{race}}", unit["race"]).replace("{{role}}", unit["role"]).replace("{{face_note}}", unit.get("face_note", ""))
             .replace("{{round}}", str(r)).replace("{{label}}", label).replace("{{ev}}", ev_text).replace("{{prev}}", prev)
             .replace("{{dsl}}", json.dumps(prev_dsl, separators=(",", ":"))).replace("{{max}}", str(MAX_DEFECTS)))
 

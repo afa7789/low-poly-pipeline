@@ -72,6 +72,16 @@ class Validate(unittest.TestCase):
         many["pieces"].pop()
         self.assertEqual(check(many, roles=[]), [])
 
+    def test_a_blank_face_refuses_eye_pieces_and_keeps_the_face_surface(self):      # L18-0
+        d = copy.deepcopy(DSL)
+        d["pieces"] += [dict(DSL["pieces"][1], name="eye_L", role="face", r=0.02, seg=6, rings=3), dict(DSL["pieces"][1], name="face", role="face", r=0.15),
+                        dict(DSL["pieces"][1], name="Nose tip", role="face", r=0.02, seg=6, rings=3)]
+        self.assertEqual(check(d), [])
+        errors = EL.validate(d, BONES, BOX, ROLES, face="none")
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(all("blank face" in e for e in errors) and any("eye_L" in e for e in errors) and any("Nose tip" in e for e in errors))
+        self.assertEqual(EL.validate(d, BONES, BOX, ROLES, face="lenses"), [])
+
     def test_shape_errors_are_listed_not_raised(self):
         bad = {"pieces": [{"op": "cone"}, {"op": "ball", "name": "x", "mat": "m", "bone": "head", "role": "head", "r": 0.001, "at": [0, 0]}]}
         errors = check(bad)
@@ -88,6 +98,17 @@ class Frame(unittest.TestCase):
         box = [[-0.1, 1.0, -0.8], [0.2, 2.0, -0.2]]
         self.assertEqual(ES.box_blender(box, ES.forward_sign({"left_facing": 1})), ([-0.1, 0.2, 1.0], [0.2, 0.8, 2.0]))
         self.assertEqual(ES.box_blender(box, ES.forward_sign({"left_facing": -1})), ([-0.1, -0.8, 1.0], [0.2, -0.2, 2.0]))
+
+    def test_the_face_kind_reaches_the_context_and_the_prompt(self):          # L18-0
+        rig = {"bbox": [[-1, -1, 0], [1, 1, 2]], "bones": {"head": {"head": [0, 0, 1.8], "tail": [0, 0, 2], "parent": None}}}
+        for identity, kind, words in ((None, "none", "BLANK face"), (["two small black dot eyes"], "eyes", "eyes as small dark/bright"),
+                                      (["round iron goggles over bald head"], "lenses", "do NOT add eyes")):
+            with self.subTest(kind=kind):
+                ctx = ES.context_of({"parts": [], "identity": identity} if identity is not None else {"parts": []}, {}, rig)
+                self.assertEqual(ctx["face"], kind)
+                prompt = ES.make_prompt({"name": "u", "race": "r", "role": "x", "rig": "biped"}, ctx, rig, 0, [], None, {"parts": [0, 0], "views": {}, "rows": [], "disaster": []}, "old")
+                self.assertIn(words, prompt)
+                self.assertNotIn("{{face_rule}}", prompt)
 
     def test_tilts_text_round_trips_the_pinned_cameras(self):
         self.assertEqual(ES.tilt_text({"tilt": {"top": -20, "bottom": 30, "rts": [35, -45]}}), "top:-20,bottom:30,rts:35/-45")
@@ -205,7 +226,7 @@ class Loop(unittest.TestCase):
         summary, asked, out = self.run_stage([json.dumps(DSL), '{"stop": true, "why": "reads like the concept"}'])
         self.assertEqual([("tris" in r, r.get("stop")) for r in summary["rounds"]], [(True, None), (False, True)])
         self.assertEqual((summary["llm_calls"], summary["final_round"]), (2, 0))
-        for f in ("model.glb", "clay.glb", "review.md", "eye/summary.json", "eye/round-0/dsl.json", "eye/round-0/prompt.md", "eye/round-0/images.txt", "eye/round-0/why.md"):
+        for f in ("model.glb", "clay.glb", "review.md", "timing.json", "eye/summary.json", "eye/round-0/dsl.json", "eye/round-0/prompt.md", "eye/round-0/images.txt", "eye/round-0/why.md"):
             self.assertTrue((out / f).exists(), f)
         self.assertIn("sheet.jpg", asked[0][1][0].name)
         self.assertEqual(len(asked[1][1]), 3)               # round 1: the sheet and the two boards of the last round (not the old model's)

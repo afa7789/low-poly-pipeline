@@ -51,6 +51,21 @@ class Union(unittest.TestCase):
                 edges[e] = edges.get(e, 0) + 1
         self.assertEqual({n for n in edges.values()}, {2})          # closed and manifold
 
+    def test_the_cvt_reducer_lands_near_the_budget_and_the_technique_names_it(self):     # L18-2b
+        verts, tris = U.union_mesh(parts()[:3], 1.0, 80, reducer="cvt")
+        self.assertEqual(comps(tris), 1)
+        self.assertLessEqual(len(tris), 96)                          # the dual lands within a few % of the budget (no per-collapse guard)
+        self.assertEqual(U.parse_technique("union-bone@cvt"), ("bone", "cvt"))
+        self.assertEqual(U.parse_technique("union-material"), ("material", "qem"))
+        self.assertEqual((U.technique_of("bone"), U.technique_of("bone", "cvt")), ("union-bone", "union-bone@cvt"))
+
+    def test_a_small_detail_stays_rigid_like_a_prop(self):          # L18-2
+        ps = parts() + [piece((0, 0.2, 0.3), (0, 0.2, 0.33), 0.02, "a", "m")]      # a buckle: 4 cm on a 0.65 m body
+        groups = U.groups_of(ps, "material", 0.65)
+        self.assertNotIn(5, [i for g in groups for c in g for i in c])
+        self.assertNotIn(4, [i for g in groups for c in g for i in c])             # the prop as before
+        self.assertEqual(U.prop_tris_of(ps, 0.65), U.prop_tris_of(ps) + 2 * 8 + 2 * (8 - 2))
+
     def test_groups_leave_props_out_and_split_materials(self):
         ps = parts()
         self.assertEqual(U.groups_of(ps, "material", 1.0), [[[0, 1, 2]], [[3]]])

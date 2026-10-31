@@ -100,7 +100,7 @@ RIG = "biped"                    # the family every bone name is checked against
 BONES = set(RF.bones(RIG))
 KINDS = {"box", "cyl", "wheel", "prism", "dome", "frustum", "ring", "lathe", "limb", "chain", "plate"}
 MATS = {"iron", "darkiron", "brass", "flame", "lamp"}   # n01X slots, always valid (metal)
-from preflight import BUDGETS, CLIPS, SOFT_RULES, bbox, part_tris, ground_fix, identity_items, identity_summary, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
+from preflight import BUDGETS, CLIPS, SOFT_RULES, bbox, part_tris, ground_fix, identity_items, identity_summary, identity_texts, face_kind, load as load_spec, load_props, misplaced_decals, normalise as snap_parts, split_bands, GROUPS  # noqa: E402  (one table for pipeline and gate)
 
 DSL = """Write a Blender part spec as a JSON object: {{"palette": {{"<slot>": {{"surface": "<surface>", "color": "#RRGGBB"}}, ...}}, "parts": [[bone, kind, dims, at, material, opts], ...]}}
 
@@ -122,12 +122,29 @@ Kinds and dims, exactly:
 - LIMBS/ANGLED PARTS: instead of `at`, use opts {{"from": [x,y,z], "to": [x,y,z]}}. The builder places the midpoint and aims the part's local height axis from `from` to `to`, so the limb angle is solved in code, never guessed. {limb_note}
 - material: the name of one palette slot. Declare 3 to 8 slots in "palette", one per colour zone of the sheet - the sheet's colour zones are the contract. Each slot has a "color" taken from the sheet colours measured below and a "surface" saying what the material is, which sets its painted pattern and gloss: {surfaces}. SURFACE BY WHAT THE PART IS (a rule, not a suggestion): an animal, insect or arachnid is "chitin" (hard shell), "fur" or "skin" - never "metal", "polished" or "plastic"; "scales" only for a reptile or a fish; a living tree is "bark", worked timber (planks, beams, crates) is "wood"; an ooze or any gooey creature is "slime"; raw meat, tongues and organs are "flesh"; "stone" for rock; "metal"/"polished" only for armour and machines. Use "glow" for lamps, eyes and crystals that emit light. Only where the unit card asks for alpha (gauge glass, a flame tongue), give that one slot "surface": "glass" and "alpha": 0.3 to 0.7; every other slot stays opaque. The old slot names "iron", "darkiron", "brass" and "lamp" still work as metal.
 Sheet colours (code-measured, share of the figure; near-black ink outlines removed): {colours}.
-- PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {{"decal": "sheet"}}: the DEFAULT, the head cut out of the approved sheet itself and projected on that front face, so the eyes are the sheet's own two dots, never a slit (size the head part's front face like the sheet's head: the cut is stretched to it). The generic decals are for a sheet with no face to show (a valve wheel, a flat visor, a spider): {{"decal": "eyes2"}} (two eyes), {{"decal": "eyes8"}} (spider eyes), {{"decal": "face"}} (two eyes and a mouth) or {{"decal": "mask"}} (a dark mask with two glowing eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face. A decal goes ONLY on a part bound to the head (head, jaw, rider.head): eyes on the chest or any other bone are rejected.
-- HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back. Paint the face or mask as a decal on the FRONT face of the head part inside the hood, and push that head part slightly forward of the hood's back wall so the hood does not hide it. Never model the eyes as geometry.
-- BOXES: at most a third of the parts may be kind "box"; prefer prism, frustum, dome or cyl for everything else (the preflight rule box_ceiling fails the spec otherwise).
+{face}- BOXES: at most a third of the parts may be kind "box"; prefer prism, frustum, dome or cyl for everything else (the preflight rule box_ceiling fails the spec otherwise).
 - SYMMETRY: every part on a `.L` bone has a twin on the `.R` bone with the same kind and dims and the mirrored rot ([rx, -ry, -rz]); the preflight rule symmetry fails the spec otherwise. A weapon, shield or lantern carried on one side is the exception: give it opts {{"asym": true}}.
 - PROPS: a weapon, tank, pack or lantern is its own part (several parts of one prop share the name), never merged into the body: opts {{"prop": "<name>", "anchor": "hand.R" | "hand.L" | "back" | "belt" | "head"}}. The anchor is where the body holds it; put the part on that anchor's bone (forearm.R/forearm.L, spine, pelvis, head) with its box touching the body there and standing off it: the preflight rule prop_clearance wants at most 20 % of the prop's box inside the torso, pelvis or head. A prop needs no .L/.R twin and keeps its size when the fit runs.
 """
+
+FACE_KIND = "eyes"              # L18-0: preflight.face_kind of the unit being authored (set_face); "none" rejects every decal in validate()
+FACE_EYES = """- PAINTED FEATURES: eyes are painted, never modelled. Give the part whose front face carries them opts {"decal": "sheet"}: the DEFAULT, the head cut out of the approved sheet itself and projected on that front face, so the eyes are the sheet's own two dots, never a slit (size the head part's front face like the sheet's head: the cut is stretched to it). The generic decals are for a sheet with no face to show (a valve wheel, a flat visor, a spider): {"decal": "eyes2"} (two eyes), {"decal": "eyes8"} (spider eyes), {"decal": "face"} (two eyes and a mouth) or {"decal": "mask"} (a dark mask with two glowing eyes), plus "decal_color": "#RRGGBB" when they glow. The decal is projected onto that part's front face. A decal goes ONLY on a part bound to the head (head, jaw, rider.head): eyes on the chest or any other bone are rejected.
+- HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back. Paint the face or mask as a decal on the FRONT face of the head part inside the hood, and push that head part slightly forward of the hood's back wall so the hood does not hide it. Never model the eyes as geometry."""
+FACE_NONE = """- PAINTED FEATURES: this unit's concept shows NO eyes or face (preflight.face_kind = none): no "decal" on any part, no eye parts, no mouth; the head's front face stays the plain material of the sheet (skin, metal, cloth). A part with "decal" is rejected.
+- HOODS: a hood or cowl is a deep dark frustum or box on the head bone, opening to the front and set back, with the plain head part slightly forward of its back wall. Never model eyes as geometry and never paint them: the sheet has none."""
+
+
+def set_face(unit, parts_path=None):
+    """Remember the unit's face kind for the brief and validate(); returns it."""
+    global FACE_KIND
+    FACE_KIND = face_kind(identity_texts(unit, parts_path))
+    return FACE_KIND
+
+
+def face_text(kind):
+    """The brief's PAINTED FEATURES / HOODS lines for a face kind: the decal rules for eyes and lenses, the plain-face rule for none."""
+    return FACE_NONE if kind == "none" else FACE_EYES
+
 
 BUILDING_BRIEF = """You are a technical artist building a low-poly game building in the style of classic Warcraft III. The attached image is a five-view elevation sheet of ONE building: the top row is the front, left and back elevations, the bottom row the right elevation and the roof plan. It is a {race} {name} (id {uid}), {role}, from a dieselpunk dark-fantasy RTS. Study the sheet: footprint, wall heights, roof line, where each prop sits and where the colour zones are.
 
@@ -410,7 +427,7 @@ def identity_text(items):
     identity_present and the ID-render check identity_reads fail the run's status on any item missing."""
     lines = []
     for it in items:
-        how = {"eyes": "a face decal on the head (decal + decal_color, two points, not a slit)",
+        how = {"eyes": "a face decal on the head (decal + decal_color, two points, not a slit)" if FACE_KIND != "none" else "as drawn",
                "zone": f"a material of exactly this colour on a part (or a decal_color), visible in {'/'.join(it.get('views', ()))}",
                "prop": "its own part on the bone named above", "text": "as drawn"}[it["kind"]]
         lines.append(f"{len(lines) + 1}. {it['name']} - {how}")
@@ -924,10 +941,18 @@ def validate(parts, palette=None, extra=()):
             raise ValueError(f"part {i} rot outside +-{MAX_ROT:.0f} degrees: {p[5]['rot']}")
         if bbox(p)[0][1] < GROUND_REJECT:  # the box, not `at`: a span part's `at` is an offset
             raise ValueError(f"part {i} below the ground plane")
+    check_decals(parts)
+    return {"parts": parts}
+
+
+def check_decals(parts):
+    """ValueError for a decal off the head, or any decal at all when the unit's face is "none" (L18-0)."""
     bad = misplaced_decals(parts)
     if bad:
         raise ValueError(f"decal on a non-head bone {bad}: eyes and faces go on a head/jaw part")
-    return {"parts": parts}
+    bad = [i for i, p in enumerate(parts) if isinstance(p[5], dict) and p[5].get("decal")] if FACE_KIND == "none" else []
+    if bad:
+        raise ValueError(f"decal on parts {bad}: this unit's concept shows no eyes or face (L18-0), the head stays plain")
 
 
 def glb_stats(path):
@@ -1815,7 +1840,7 @@ def make_brief(args, lo, hi):
         sheet_m.update({f"edge_{g}": sheet_m["edges"][b]["salience"] for g, b in zip(GROUPS, ("head", "torso", "legs"))})
     if RIG_MEASURE:
         sheet_m["spider" if args.rig in RF.SPIDERS else "rig"] = RIG_MEASURE
-    dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note,
+    dsl = DSL.format(height=args.height or round(RF.top(args.rig), 2), limb_note=limb_note, face=face_text(set_face(args.id)),
                      surfaces=", ".join(SURFACES),
                      colours=", ".join(f"{h} {round(100 * f)}%" for h, f in sheet_colours(args.build)))
     template = BUILDING_BRIEF if args.rig in RF.STATIC else BRIEF
@@ -2399,8 +2424,13 @@ def build_parser():
     ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="off",
                     help="--eye on: the pieces of a group (one material / one bone / touching pieces of one material) united in one welded mesh after the last "
                          "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2)")
-    ap.add_argument("--eye-paint", choices=("off", "on"), default="off",
-                    help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3)")
+    ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="off",
+                    help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3); "
+                         "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3)")
+    ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="qem",
+                    help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b)")
+    ap.add_argument("--eye-fuse", type=int, default=0, metavar="N",
+                    help="--eye on: fuse the near colours of the final DSL (OKLab, same class) down to at most N materials before the union and the paint (eye_fuse.py, 36.L18-1); 0 = off")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
