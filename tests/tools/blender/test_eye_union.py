@@ -59,6 +59,18 @@ class Union(unittest.TestCase):
         self.assertEqual(U.parse_technique("union-material"), ("material", "qem"))
         self.assertEqual((U.technique_of("bone"), U.technique_of("bone", "cvt")), ("union-bone", "union-bone@cvt"))
 
+    def test_a_cluster_the_cvt_cannot_dual_keeps_its_pieces_when_the_qem_overshoots(self):     # L19-0: the 700 budget holds with the CVT
+        from unittest import mock
+        ps = parts()[:2]
+        own = sum(len(f) - 2 for m in ps for f in m["faces"])
+        big = (np.zeros((own + 10, 3)), np.array([[0, 1, 2]] * (own + 9)), {})
+        with mock.patch.object(U.retopo, "cvt", side_effect=ValueError("empty dual")), mock.patch.object(U.retopo, "reduce", return_value=big) as qem:
+            verts, tris = U.union_mesh(ps, 1.0, 20, reducer="cvt")
+            self.assertEqual((len(tris), qem.call_count, len(verts)), (own, 1, sum(len(m["verts"]) for m in ps)))     # the pieces side by side
+            self.assertEqual(len(U.union_mesh(ps, 1.0, 20, reducer="qem")[1]), own + 9)                              # the QEM option keeps its guard
+        with mock.patch.object(U.retopo, "cvt", return_value=big[:2] + ({},)):
+            self.assertEqual(len(U.union_mesh(ps, 1.0, 20, reducer="cvt")[1]), own)                                  # a dual over the pieces' own cost too
+
     def test_a_small_detail_stays_rigid_like_a_prop(self):          # L18-2
         ps = parts() + [piece((0, 0.2, 0.3), (0, 0.2, 0.33), 0.02, "a", "m")]      # a buckle: 4 cm on a 0.65 m body
         groups = U.groups_of(ps, "material", 0.65)

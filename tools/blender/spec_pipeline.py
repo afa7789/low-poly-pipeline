@@ -2421,16 +2421,19 @@ def build_parser():
                          "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
     ap.add_argument("--eye-skin", choices=("off", "bridge", "blend", "wrap", "weld"), default="off",
                     help="--eye on: skin at the joints of the pieces after the last round (eye_skin.py, PIPELINE 34.L16-4)")
-    ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="off",
+    ap.add_argument("--eye-union", choices=("off", "material", "bone", "group"), default="bone",
                     help="--eye on: the pieces of a group (one material / one bone / touching pieces of one material) united in one welded mesh after the last "
-                         "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2)")
-    ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="off",
+                         "round, instead of --eye-skin (eye_union.py, PIPELINE 35.L17-2); default bone since 37.L19-0 (the v18-cvt recipe, the author's decision "
+                         "against the 4-vote judge); off = the pieces as the eye left them")
+    ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="box",
                     help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3); "
-                         "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3)")
-    ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="qem",
-                    help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b)")
-    ap.add_argument("--eye-fuse", type=int, default=0, metavar="N",
-                    help="--eye on: fuse the near colours of the final DSL (OKLab, same class) down to at most N materials before the union and the paint (eye_fuse.py, 36.L18-1); 0 = off")
+                         "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3; default since 37.L19-0); on = grown islands; off = flat colours")
+    ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="cvt",
+                    help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b; default since 37.L19-0: "
+                         "always under the 700 budget, 2x faster; a cluster too thin for the CVT falls to the QEM, and to its own pieces when the QEM overshoots)")
+    ap.add_argument("--eye-fuse", type=int, default=12, metavar="N",
+                    help="--eye on: fuse the near colours of the final DSL (OKLab, same class) down to at most N materials before the union and the paint (eye_fuse.py, 36.L18-1); "
+                         "0 = off; default 12 since 37.L19-0")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")

@@ -398,18 +398,20 @@ def live_eye_skin():      # L16-4: the skin technique reaches eye_stage.run
     return eye_run_kwargs()["skin"], eye_run_kwargs("--eye-skin", "bridge")["skin"]
 
 
-def live_eye_union():     # L17-2: the union mode reaches eye_stage.run
-    return eye_run_kwargs()["union"], eye_run_kwargs("--eye-union", "group")["union"]
-def live_eye_paint():     # L17-3: the paint switch reaches eye_stage.run
-    return eye_run_kwargs()["paint"], eye_run_kwargs("--eye-paint", "on")["paint"]
+def live_eye_union():     # L17-2: the union mode reaches eye_stage.run (default bone since L19-0)
+    return eye_run_kwargs()["union"], eye_run_kwargs("--eye-union", "off")["union"]
 
 
-def live_eye_fuse():      # L18-1: the material ceiling reaches eye_stage.run
-    return eye_run_kwargs()["fuse"], eye_run_kwargs("--eye-fuse", "12")["fuse"]
+def live_eye_paint():     # L17-3: the paint switch reaches eye_stage.run (default box since L19-0)
+    return eye_run_kwargs()["paint"], eye_run_kwargs("--eye-paint", "off")["paint"]
 
 
-def live_eye_union_reduce():      # L18-2b: the union's reducer reaches eye_stage.run
-    return eye_run_kwargs()["union_reduce"], eye_run_kwargs("--eye-union-reduce", "cvt")["union_reduce"]
+def live_eye_fuse():      # L18-1: the material ceiling reaches eye_stage.run (default 12 since L19-0)
+    return eye_run_kwargs()["fuse"], eye_run_kwargs("--eye-fuse", "0")["fuse"]
+
+
+def live_eye_union_reduce():      # L18-2b: the union's reducer reaches eye_stage.run (default cvt since L19-0)
+    return eye_run_kwargs()["union_reduce"], eye_run_kwargs("--eye-union-reduce", "qem")["union_reduce"]
 
 
 def live_eye_critic():    # L16-2: a critic ask is handed to the stage only when asked for
