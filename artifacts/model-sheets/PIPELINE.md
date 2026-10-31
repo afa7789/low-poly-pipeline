@@ -6362,3 +6362,26 @@ Juiz (4 votos, `session:opus`, par `v16-r1` × `v16-skin-<t>`): sheet/artista fi
 - **Testes** (`test_eye.py`: limite 49 peças rejeitado, 9 rondas com `ask` mockado, `never` registra e honra o segundo stop, `model` honra o primeiro, parada por juiz com mock, `stalled`, prefixo de run, aceite; `test_flag_liveness` `eye_stop`, `ablation_matrix.NOT_A_VARIANT`). Suite blender 864 OK, 15 skip; ruff C901/F/E9 limpo nos ficheiros tocados.
 - **Aberto.** (1) O que falta não é rondas: é **escolher a melhor ronda** (hfoo e n00U pioram sozinhos; um crítico forte ou o gate parts k/n + IoU para devolver o máximo, L16-2) e consertar peça a peça em vez de reenviar o objeto inteiro. (2) A forma contínua continua com o controle em 4/6 (5/6 em r3): o `keep` de tronco nunca foi usado mesmo com exemplo no prompt. (3) O juiz de 4 votos varre 4-0 em pares quase iguais: um par precisa de limiar de parts/IoU antes de chamar o juiz. (4) r3/r6 são prefixos de uma só trajetória por unidade (uma amostra, sem repetição): a curva tem ruído de amostragem do LLM que não foi medido (n = 1 por unidade). (5) a regra do juiz considera `parts k` e não "ronda pior": não devolve a melhor.
 - Imagens: `history/2026-10-30-l16-rounds/<id>.png` (concept | controle | r3 | r6 | r9, 6 vistas), `table.md`; runs `runs/draft/<id>/v16-r9|v16-r6|v16-r3` (DSL, eval, summary, `pairwise-*.json`, `stop-curve.json`).
+
+## 35. Leva 17 (2026-10-30): da primitiva à malha pintada — união por material, textura pintada, juiz calibrado
+
+### 35.L17-1 Juiz calibrado (commit 1: `--votes N`, troca de posição, par idêntico)
+
+- `review_pair.py --votes N` (par, default 4): metade dos votos com A/B trocados na imagem e no prompt, o voto é desinvertido ao contar. `pairwise.json` ganha `picks` (`{axis, winner, swapped}` por voto e eixo) e `left_rate` (fração de escolhas "esquerda": viés de posição = distância a .5).
+- **Par idêntico = empate sem chamar:** hash dos vértices (POSITION) + materiais do GLB igual → `identical: true`, todos os eixos `tie`, 0 chamadas.
+- **Quase idêntico** (mesmo nº de meshes, |ΔIoU| ≤ .01 e |ΔChamfer| ≤ .005 em toda vista do `silhouette.json`): `near_identical: true`; vencedor só com ≥ 3/4 dos votos válidos (3-1 de 4, 6-2 de 8), senão `tie`.
+- **Impressão digital arredondada.** Os vértices são arredondados a 1e-4 antes do hash: `v16-skin-off` × `v16-r1` diferem por ruído de float (≤ 5e-7) em n01X e dão `identical` só ali; nas outras 5 unidades uma malha difere de verdade (n005: 538 × 544 vértices) e o par é `near`. O brief supunha geometria idêntica nas 6; são **1/6 idênticas por hash, 5/6 quase**.
+- **Medição** (`tools/blender/judge_calib.py`, sem Blender: renders reaproveitados das pastas `pairwise-*` das levas anteriores; juiz opus, 8 votos com troca, 1 chamada de cada vez; 80 chamadas). Trio n005 r3/r6/r9 e hfoo r3×r6, 2 repetições; controle: `v16-r1` × `v16-r1` (mesmos renders; `v16-skin-off` não tem render guardado) em n01X e hfoo, juiz forçado a votar. Subconjunto de 4 votos = votos 0, 1, 4, 5 dos 8 (mesmas respostas). Tabelas em `history/2026-10-30-l17-judge/table.md`, respostas em `res/`.
+
+| medida | regra antiga (4 votos) | 8 votos | 8 votos + 6-2 se quase idêntico |
+|---|---|---|---|
+| ciclos no trio (2 reps × 4 eixos) | 0 | 0 | 0 |
+| concordância entre reps, trio | 92 % (11/12) | 83 % (10/12) | 75 % (9/12) |
+| concordância entre reps, hfoo | 75 % (3/4) | 50 % (2/4) | 25 % (1/4) |
+| vencedor espúrio no par idêntico (juiz forçado) | 0/8 eixos | 0/8 | 0/8 |
+
+- Viés de posição (fração de escolhas "esquerda", .5 = nenhum), 8 votos com troca: trio **.474**, hfoo **.672**; só os 4 votos com A à esquerda (sem troca): trio .427, hfoo .812. No par de renders idênticos o juiz escolheu a esquerda **100 %** das vezes (32/32 escolhas): o viés puro é total quando não há nada para distinguir, e é a troca que o anula (4-4, marcado "position bias"), não o número de votos.
+- Custo: 8 votos em série = 67–72 s e US$ 0,42–0,43 por par (4 votos = metade): 2,0× o de hoje, no limite.
+- Achado: o par que oscila é hfoo r3×r6 (rep 1 tie 5-3, rep 2 A 7-1 em sheet/artista). Mais votos e a regra 3/4 **não** aumentam a repetibilidade (caem), porque o ruído é entre repetições do juiz, não entre votos de uma chamada; a regra 6-2 só transforma 5-3 em tie e um 5-3 vira 7-1 na outra rep. A regra que sozinha mais reduz ruído é a que já existe: **a troca de posição** (anula o viés de 100 % no par idêntico) e o **hash** (corta a chamada onde não há o que julgar).
+- **Aceite: NÃO** (viés hfoo 17 pp > 10; concordância hfoo 25 % < 75 %; ciclos 0 e custo 2,0× ok; idêntico = tie ok). **Default fica**: `--votes 4`, troca já era a regra, regra quase-idêntico atrás de `--near-rule` (opt-in); o atalho do hash (idêntico = tie sem chamar) fica ligado, é exato. Amostra pequena (2 reps; 12 e 4 comparações de eixo): serve para recusar o default, não para provar a regra.
+- Aberto: 5/6 pares skin-off × r1 são "quase" por uma malha que difere (SDF não determinístico?); o controle útil para L17-2/3 é medir o juiz contra par idêntico por hash, não por "mesmo nome de run".
