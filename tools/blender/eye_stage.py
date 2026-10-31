@@ -32,6 +32,7 @@ import eye_critic  # noqa: E402
 import eye_fuse  # noqa: E402
 import eye_lib as EL  # noqa: E402
 import eye_paint  # noqa: E402
+import eye_project  # noqa: E402
 import eye_skin  # noqa: E402
 import make_compare as MC  # noqa: E402
 import outline  # noqa: E402
@@ -368,7 +369,7 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
 
 
 def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull", fuse=0,
-        union_reduce="qem"):
+        union_reduce="qem", project="off"):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
@@ -396,7 +397,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
-            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce))
+            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce, project))
         t0 = time.monotonic()
         base_dir = eye / "base"
         ev = measure(src, base_dir, sheet, unit["rig"])
@@ -465,7 +466,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour, fuse, union_reduce)
+    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -508,7 +509,7 @@ def seed_replay(replay, src_run, out, eye):
 
 def replayed(summary, src, src_run, eye, out, rotate, recipe):
     """--eye replay: the recorded DSL rebuilt and hash-checked; into another run dir it is finished with `recipe` (skin, union, paint, contour, fuse,
-    union_reduce), the clock reset to this run's (L19-0: the v18-cvt recipe over the rounds of v18-r0 without a model call)."""
+    union_reduce, project), the clock reset to this run's (L19-0: the v18-cvt recipe over the rounds of v18-r0 without a model call)."""
     summary = replay_run(summary, src, eye, out, rotate)
     if src_run == out:
         return summary
@@ -535,7 +536,7 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem"):
+def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off"):
     """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md.
     fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs)."""
     if last_glb is None:
@@ -564,6 +565,9 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint
     t0 = time.perf_counter()
     summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
     tick(summary, "paint", time.perf_counter() - t0, int(paint != "off"))
+    t0 = time.perf_counter()
+    summary["project"] = eye_project.apply_stage(out / "model.glb", summary["unit"], project) if paint != "off" else {}       # L20-0: swaps the atlas the paint left
+    tick(summary, "project", time.perf_counter() - t0, int(project != "off"))
     t0 = time.perf_counter()
     shutil.copy(out / "model.glb", out / "model-body.glb")          # the body without the hull: render_wire.py draws its triangulation (leva18.wire)
     summary["outline"] = contour in ("hull", "both") and outline.apply(out / "model.glb", hull=True)
@@ -626,7 +630,7 @@ def run_in_pipeline(args, src_run, ask):
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
-               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"))
+               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"), project=getattr(args, "eye_project", "off"))
 
 
 def from_run(args, ask):

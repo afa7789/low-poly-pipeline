@@ -138,6 +138,7 @@ NOT_A_VARIANT = {
     "eye_union": "a post-step of --eye (L17-2): measured in its own battery v17-union-*, not in a deterministic matrix",
     "eye_paint": "a post-step of --eye (L17-3): measured in its own battery v17-paint-*, not in a deterministic matrix",
     "eye_fuse": "a post-step of --eye (L18-1): measured in its own battery v18-qem / v18-cvt, not in a deterministic matrix",
+    "eye_project": "a post-step of --eye (L20-0): measured in its own battery v20-proj, not in a deterministic matrix",
     "eye_union_reduce": "a parameter of --eye-union (L18-2b): measured in its own battery v18-cvt, not in a deterministic matrix",
     "eye_critic": "needs two LLM agents on top of --eye (L16-2: critic + fixer, measured in its own battery v16-critic)",
     "eye_fixer": "a parameter of --eye-critic (L16-2)",

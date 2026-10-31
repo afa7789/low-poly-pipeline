@@ -150,8 +150,8 @@ def parse_vote(txt):
 
 
 def glb_fingerprint(path):
-    """(sha1 of the vertex positions (rounded to 1e-4: the float noise of a rebuild) + materials, number of
-    primitives, the part count) of a .glb: two models with the same fingerprint are the same geometry however the file was written."""
+    """(sha1 of the vertex positions (rounded to 1e-4: the float noise of a rebuild) + materials + embedded images, number of primitives) of a .glb:
+    two models with the same fingerprint look the same however the file was written (L20-0: one mesh with another atlas is another model)."""
     data = pathlib.Path(path).read_bytes()
     jlen = struct.unpack_from("<I", data, 12)[0]
     doc = json.loads(data[20:20 + jlen])
@@ -164,6 +164,9 @@ def glb_fingerprint(path):
             start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
             h.update(repr([round(x, 4) + 0.0 for x in struct.unpack_from(f"<{acc['count'] * 3}f", bin_, start)]).encode())
             h.update(str(prim.get("material")).encode())
+    for image in doc.get("images", []):
+        view = doc["bufferViews"][image["bufferView"]]
+        h.update(bin_[view.get("byteOffset", 0):view.get("byteOffset", 0) + view["byteLength"]])
     return h.hexdigest(), sum(len(m["primitives"]) for m in doc.get("meshes", []))
 
 

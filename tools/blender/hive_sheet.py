@@ -206,7 +206,7 @@ def read_glb(path):
 
 def accessor(j, blob, idx):
     a, v = j["accessors"][idx], j["bufferViews"][j["accessors"][idx]["bufferView"]]
-    width = {"VEC3": 3, "SCALAR": 1}[a["type"]]
+    width = {"VEC3": 3, "VEC2": 2, "SCALAR": 1}[a["type"]]
     dt = {5126: "<f4", 5123: "<u2", 5125: "<u4"}[a["componentType"]]
     off = v.get("byteOffset", 0) + a.get("byteOffset", 0)
     stride = v.get("byteStride")
