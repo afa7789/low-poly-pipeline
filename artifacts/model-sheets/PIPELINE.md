@@ -6385,3 +6385,44 @@ Juiz (4 votos, `session:opus`, par `v16-r1` × `v16-skin-<t>`): sheet/artista fi
 - Achado: o par que oscila é hfoo r3×r6 (rep 1 tie 5-3, rep 2 A 7-1 em sheet/artista). Mais votos e a regra 3/4 **não** aumentam a repetibilidade (caem), porque o ruído é entre repetições do juiz, não entre votos de uma chamada; a regra 6-2 só transforma 5-3 em tie e um 5-3 vira 7-1 na outra rep. A regra que sozinha mais reduz ruído é a que já existe: **a troca de posição** (anula o viés de 100 % no par idêntico) e o **hash** (corta a chamada onde não há o que julgar).
 - **Aceite: NÃO** (viés hfoo 17 pp > 10; concordância hfoo 25 % < 75 %; ciclos 0 e custo 2,0× ok; idêntico = tie ok). **Default fica**: `--votes 4`, troca já era a regra, regra quase-idêntico atrás de `--near-rule` (opt-in); o atalho do hash (idêntico = tie sem chamar) fica ligado, é exato. Amostra pequena (2 reps; 12 e 4 comparações de eixo): serve para recusar o default, não para provar a regra.
 - Aberto: 5/6 pares skin-off × r1 são "quase" por uma malha que difere (SDF não determinístico?); o controle útil para L17-2/3 é medir o juiz contra par idêntico por hash, não por "mesmo nome de run".
+
+
+### 35.L17-3 textura pintada procedural por material + linha de tinta (`--eye-paint on`, `--outline ink|both`)
+
+`tools/blender/eye_paint.py` pinta o GLB final do `--eye on` (uma malha, uma primitiva por material; o GLB unido da L17-2 tem a mesma forma). UV: triângulos viram ilhas por vizinhança em aresta suave com normal a ≤ 60° da semente (a projecção plana não dobra), cada ilha é achatada no plano da semente, rodada com o lado longo na horizontal e empacotada por prateleira num **único atlas 256²** (escala uniforme, bisecção). Cada texel é um ponto da superfície, por isso a pintura é função da posição e não tem costura: cor do material × gradiente vertical (±.08) × ruído de pincel de 3 oitavas (±.04) × luz cozida (±.09) × oclusão (8 raios BVH de 0.15 H) + um "lift" aditivo; cada material é reescalado para manter a luma média do conceito e quantizado em **1–4 tons próprios** (k-means em sqrt, ~12 no total), para um acento pequeno não se fundir nos grandes. Linha de tinta: arestas convexas com diedro > 40° ou fronteira de material, ≥ 12 texels, 1 texel do lado de um só triângulo, cor = base × .35; a fila ao lado × 1.25 (realce). Sem IA, sem pixels do Hive. `atlas.png` (RGBA, alfa = texels usados) fica ao lado do `model.glb`. `--outline`: `hull` (default, igual), `ink` (nenhum casco: 0 tris de casco), `both`; `ink` sem `--eye-paint on` não desenha contorno. O hunk de `eye_stage.finish` é: pele → **pintura** → contorno. O jogo não foi tocado (`src/` igual; o GLB leva 1 imagem PNG embutida + UV, o mesmo caminho do atlas cel).
+
+Bateria `v17-paint-hull` (pintura + casco) e `v17-paint-ink` (pintura, sem casco) sobre `v16-r3`, ~2 s de Blender por modelo. Stats como o Hive (`hive_sheet.texture_stats` sobre os texels usados; Hive mediana / p10: cores 14 / 12, contraste .28 / .19, grad .047 / .036, tinta .078 / .022):
+
+| unidade | cores (plano → pintado) | contraste (plano → pintado) | grad | tinta | tris corpo | casco hull / ink | ilhas |
+|---|---|---|---|---|---|---|---|
+| n005 | 8 → 13 | .129 → .154 | .021 | .033 | 696 | 696 / 0 | 306 |
+| n00U | 4 → 11 | .185 → .213 | .029 | .014 | 696 | 696 / 0 | 228 |
+| hfoo | 8 → 12 | .142 → .228 | .040 | .091 | 692 | 692 / 0 | 292 |
+| n017 | 5 → 12 | .372 → .344 | .052 | .031 | 672 | 672 / 0 | 310 |
+| n02X | 7 → 11 | .207 → .279 | .037 | .020 | 696 | 696 / 0 | 284 |
+| n01X | 6 → 11 | .163 → .270 | .037 | .030 | 696 | 696 / 0 | 302 |
+
+Stats: cores ≥ 8 em 6/6 (era 3/6), contraste ≥ .19 em 5/6 (n005 .154), tinta 3–12 % em 4/6 (n00U .014 e n02X .020 abaixo), grad .021–.052 (Hive p10 .036: 4/6 acima, n005 e n00U abaixo). Uma primeira versão (realce × 1.6, ruído .12, quantização global) dava tinta .03–.13 e grad .03–.09, mas o juiz já a recusava; o realce foi baixado para × 1.25, o que custou tinta e grad (tabela acima = versão final).
+
+**Juiz (8 votos, metade trocados, `--votes 8`; um par hash-idêntico dá empate sem chamada; antes disso, o par A=B de 4 votos deu 2-2 nos 4 eixos em hfoo, n005, n02X).** A = anterior, B = novo.
+
+| par | n005 | n00U | hfoo | n017 | n02X | n01X |
+|---|---|---|---|---|---|---|
+| paint-hull (B) × `v16-r3` (A): sheet | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 |
+| artista | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 |
+| wc3 | tie 4-4 | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 7-1 |
+| forma | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 |
+| paint-ink (B) × paint-hull (A): sheet | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 | A 8-0 |
+| artista | A 8-0 | A 6-2 | A 8-0 | A 8-0 | A 8-0 | A 8-0 |
+| wc3 / forma | A 7-1 / tie | A 6-2 / B 8-0 | A 6-2 / B 6-2 | A 8-0 / tie | A 8-0 / B 7-1 | A 6-2 / B 5-3 |
+| paint × `v16-r3` com render Hive: sheet / artista / wc3 / forma | A 8-0 / A 7-1 / **B 8-0** / A 8-0 | | A 8-0 / A 8-0 / **B 8-0** / A 8-0 | | A 8-0 / A 8-0 / B 5-3 / A 8-0 | |
+
+(Os 8-0 são consistentes com troca de posição, não moeda ao ar: |ΔIoU| = 0 não vale aqui, a imagem é a que muda.)
+
+**Aceite: NÃO.** `--eye-paint` fica `off`, `--outline` fica `hull`. Paint perde sheet e artista 8-0 em 6/6 para o plano + casco (exigia ≥ 3-1 de wc3+artista em ≥ 4/6 e sheet ≥ 2-2 em ≥ 5/6), e `ink` perde sheet para `hull` 8-0 em 6/6 (exigia ≥ 2-2 em ≥ 5/6): **o casco preto é o que o juiz lê como contorno; a linha pintada de 1 texel não o substitui**, então os 700 tris do casco não se poupam. O único sinal a favor: contra a referência do Hive, o wc3 é do paint 8-0 em hfoo e n005 (5-3 em n02X), isto é, a textura pintada aproxima-se do WC3 real que o plano não alcança; e a forma ganha em ink × hull em 4/6 (sem casco o juiz vê a malha sem o contorno que a engorda).
+
+Porque perde (imagens: `history/2026-10-30-l17-paint/<id>.png`, concept | v16-r3 | paint+casco | paint+tinta | Hive, 6 vistas + o atlas): a 256² um modelo de ~300 ilhas (~12 texels por ilha: as ~40 peças viram ~300 faces) fica pixelado, as faces perdem a limpeza do cel plano e o conceito é cel plano; o realce de aresta × 1.6 lia como listras claras. A lacuna do Hive não é só textura: ele tem 6 peças grandes para 256², nós ~300 ilhas. Isto fecha-se com a união por material (L17-2: poucas ilhas grandes) antes de a pintura ter chão para pintar.
+
+- **Testes** (`test_eye_paint.py`: atlas de 2 peças ≥ 8 cores ≥ 3 % e tinta 2–12 %; UVs em [0,1] sem sobreposição (rasterização), também num tubo de 12 lados; ilhas = faces da caixa; PNG round trip; `finish` põe casco só em `hull`/`both`; **round trip Blender**: GLB com 1 imagem, 1 material e carrega de volta; `test_flag_liveness` `eye_paint`; `ablation_matrix.NOT_A_VARIANT`). Suite blender 911 OK, 15 skip; ruff C901/F/E9 limpo nos ficheiros tocados.
+- **Aberto.** (1) Repetir sobre a união da L17-2 (poucas ilhas grandes, ~10× mais texels por ilha) — o `eye_paint.apply` já aceita o GLB unido. (2) A tinta só "conta" na métrica do Hive quando a paleta tem luma: n005 é 44 % escuro. (3) O carregamento no jogo (`ModelCook`) não foi exercido: `src/` não foi tocado e não se correu o jogo. (4) k-means por material mantém acentos, mas as 4 tons por material dão manchas que o juiz pode ler como sujeira.
+- Runs: `runs/draft/<id>/v17-paint-hull|v17-paint-ink` (`model.glb`, `atlas.png`, `paint.json`, `pairwise8-*.json`), `v17-identical` (cópia hash-idêntica de `v16-r3`), versões anteriores renomeadas `-invalid2026103*`.

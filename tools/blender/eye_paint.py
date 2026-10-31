@@ -33,10 +33,10 @@ SHARP = np.cos(np.radians(40))      # dihedral over 40 degrees = a drawn edge
 GROW = np.cos(np.radians(60))       # an island's normals stay within 60 degrees of its seed
 INK_D = 0.75                # a texel centre within this of an edge is ink (a 1-2 texel line)
 INK_MIN = 12                # an edge shorter than this many texels is not drawn: it would be all ink
-EDGE_LIGHT = 1.6            # the texel row inside the line: the material colour x 1.6, the hand-painted edge highlight
+EDGE_LIGHT = 1.25           # the texel row inside the line: the material colour x 1.6, the hand-painted edge highlight
 INK_DARK = 0.35             # ink = material colour x .35
 COLOURS = 12                # the hand-painted palette of a model
-GRADIENT, BRUSH, LIGHT_GAIN, AO_GAIN = 0.16, 0.12, 0.18, 0.55   # +-.08 over the height, +-.06 noise, +-.09 light, up to -55 % in a crevice
+GRADIENT, BRUSH, LIGHT_GAIN, AO_GAIN = 0.16, 0.08, 0.18, 0.55   # +-.08 over the height, +-.06 noise, +-.09 light, up to -55 % in a crevice
 LIFT = 20.0                 # 0..255 per unit of the multiplier's departure from 1: light and shadow do not vanish on a dark colour
 LUMA = np.array([0.299, 0.587, 0.114])
 LIGHT = np.array([-0.4, -0.5, 0.77]) / np.linalg.norm([-0.4, -0.5, 0.77])    # up, front (-Y) and left of the model
