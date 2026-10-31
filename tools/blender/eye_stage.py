@@ -37,7 +37,9 @@ ROOT = HERE.parents[1]
 REFS = ROOT / "artifacts/model-sheets/refs"
 RUNS = ROOT / "artifacts/model-sheets/runs/draft"
 PROMPT = ROOT / "artifacts/model-sheets/prompts/eye.md"
-ROUNDS, MAX_ROUNDS = 3, 4
+ROUNDS, MAX_ROUNDS, DISASTER_CAP = 3, 9, 4   # a disaster adds rounds up to the larger of the rounds asked and DISASTER_CAP
+STOPS = ("judge", "model", "never")      # --eye-stop (PIPELINE 34.L16-1): who ends the loop early
+STALLS = 2                               # judge rule: this many rounds in a row that neither add parts nor win the judge end the loop
 DISASTER = 0.6          # a coherent view under this IoU forces another round
 VIEWS = ("front", "left", "back", "top", "bottom", "rts")
 BOARDS = (("front", "left", "back"), ("top", "bottom", "rts"))
@@ -219,7 +221,7 @@ def make_prompt(unit, ctx, rig, r, images, prev, ev, label, final_note=""):
             "Otherwise reply with the COMPLETE new object (all pieces), not a patch.") if r else ""
     return fill(PROMPT.read_text(), {
         "name": unit["name"], "race": unit["race"], "role": unit["role"], "rig": unit["rig"], "unit_note": "", "ground": ctx["ground"], "height": ctx["size"][2],
-        "width": ctx["size"][0], "depth": ctx["size"][1], "budget": EL.BUDGET, "need_roles": ", ".join(r_ for r_ in EL.NEED_ROLES if r_ in ctx["roles"]) or "(none)",
+        "width": ctx["size"][0], "depth": ctx["size"][1], "budget": EL.BUDGET, "max_pieces": EL.MAX_PIECES, "need_roles": ", ".join(r_ for r_ in EL.NEED_ROLES if r_ in ctx["roles"]) or "(none)",
         "box_lo_x": lo[0], "box_hi_x": hi[0], "box_lo_y": lo[1], "box_hi_y": hi[1], "box_lo_z": lo[2], "box_hi_z": hi[2], "bones": bones_text(rig),
         "parts": ctx["parts_text"], "round_block": round_block(r, images, prev, ev, label) + final_note, "stop_clause": stop})
 
@@ -269,9 +271,56 @@ def disaster_only(ev):
     return bool(ev["disaster"]) and ev["disaster"] != ["no measurement"]
 
 
-def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
+def stalled(prev_parts, parts, result):
+    """L16-1 judge rule: a round stalls when it passes no more parts than the one before and the judge gives it neither the sheet nor the artist axis."""
+    return parts[0] <= prev_parts[0] and not any(result[a]["winner"] == "B" for a in ("sheet", "artist"))
+
+
+def stop_verdict(stop, ev, note):
+    """What the stage does with a {"stop": true} reply: "honour", or the refusal that is recorded and sent back to the model (never twice in a row)."""
+    if note:
+        return "honour"
+    if stop == "never":
+        return "ignored (stop=never)"
+    return "refused (disaster)" if disaster_only(ev) else "honour"
+
+
+def stop_note(verdict, ev):
+    if verdict.startswith("ignored"):
+        return "\n\nYOUR STOP WAS NOT HONOURED: this run measures every round. Edit the model once more; reply with a new complete object."
+    return (f"\n\nYOUR STOP WAS REFUSED: the gate measures IoU under {DISASTER} in {', '.join(ev['disaster'])}, "
+            "a disaster in the mass of a view the sheet is coherent about. Edit the model; reply with a new complete object.")
+
+
+def judge_pair(run_a, run_b, unit_id, model="session:opus"):
+    """review_pair.compare of two run dirs with ONE vote at a time (the machine is shared); the result is also kept in run_b/pairwise.json."""
+    import review_pair
+    saved = review_pair.concurrent.futures.ThreadPoolExecutor
+    review_pair.concurrent.futures.ThreadPoolExecutor = lambda n: saved(1)
+    try:
+        return review_pair.compare(run_a, run_b, unit_id, "mass", model)
+    finally:
+        review_pair.concurrent.futures.ThreadPoolExecutor = saved
+
+
+def round_run(rd, spec_from):
+    """Make a round dir readable by review_pair (silhouette.json for the camera, spec.json for the rig class) and return it."""
+    if (rd / "sil/silhouette.json").exists():
+        shutil.copy(rd / "sil/silhouette.json", rd / "silhouette.json")
+    if (spec_from / "spec.json").exists():
+        shutil.copy(spec_from / "spec.json", rd / "spec.json")
+    return rd
+
+
+def judge_round(judge, eye, r, spec_from):
+    """The judge's verdict of round r against round r-1 (judge(run_a, run_b) -> pairwise dict)."""
+    return judge(round_run(eye / f"round-{r - 1}", spec_from), round_run(eye / f"round-{r}", spec_from))
+
+
+def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, stop="model", judge=None):
     """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
-    Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict."""
+    Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
+    and goes on (a measurement run); "judge" also ends after STALLS stalled rounds, judged by judge(run_a, run_b) -> review_pair result."""
     uid, sheet = unit["id"], REFS / unit["id"] / "sheet.jpg"
     eye = out / "eye"
     eye.mkdir(parents=True, exist_ok=True)
@@ -302,8 +351,9 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
         stem, label, prev, last_glb = src.stem, "old model", None, None          # the renders are named after the GLB they come from
         imgs_extra = [("sheet", sheet)] + [(k, REFS / uid / f) for k, f in (("hard", "sheet-hard.jpg"), ("props", "sheet-props.jpg")) if (REFS / uid / f).exists()]
         cur = {"work": base_dir, "ev": ev, "dsl": None}
-        r, builds, note = 0, 0, ""
-        while r < MAX_ROUNDS:
+        r, builds, note, stalls = 0, 0, "", 0
+        cap = min(max(rounds, DISASTER_CAP), MAX_ROUNDS)
+        while r < cap:
             rd = eye / f"round-{r}"
             rd.mkdir(parents=True, exist_ok=True)
             bs = boards(concept, cur["work"], stem, label, rd, mirrored)
@@ -327,14 +377,13 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
             summary["resends"] += seen["failed"]
             (rd / "why.md").write_text(str(doc_r.get("why", "")) + "\n")
             if doc_r.get("stop") is True:
-                if disaster_only(cur["ev"]) and not note:
-                    log(f"eye round {r}: stop refused, the gate sees a disaster in {cur['ev']['disaster']}")
-                    summary["rounds"].append({"round": r, "stop": "refused (disaster)", "llm_s": round(llm_s, 1)})
-                    note = (f"\n\nYOUR STOP WAS REFUSED: the gate measures IoU under {DISASTER} in {', '.join(cur['ev']['disaster'])}, "
-                            "a disaster in the mass of a view the sheet is coherent about. Edit the model; reply with a new complete object.")
-                    continue
-                summary["rounds"].append({"round": r, "stop": True, "llm_s": round(llm_s, 1)})
-                break
+                verdict = stop_verdict(stop, cur["ev"], note)
+                log(f"eye round {r}: the model asked to stop ({verdict})")
+                summary["rounds"].append({"round": r, "stop": True if verdict == "honour" else verdict, "llm_s": round(llm_s, 1)})
+                if verdict == "honour":
+                    break
+                note = stop_note(verdict, cur["ev"])
+                continue
             (rd / "dsl.json").write_text(json.dumps(doc_r, indent=1))
             t0 = time.monotonic()
             glb = rd / "model.glb"
@@ -347,9 +396,14 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print):
             summary["rounds"].append({"round": r, "llm_s": round(llm_s, 1), "build_s": round(build_s, 1), "measure_s": round(time.monotonic() - t0, 1), "tris": info["tris"],
                                       "pieces": info["pieces"], "parts": ev["parts"], "views": ev["views"], "disaster": ev["disaster"], "resent": seen["failed"], "resend_why": seen["why"]})
             log(f"eye round {r}: {info['tris']} tris, {info['pieces']} pieces, parts {ev['parts'][0]}/{ev['parts'][1]}, llm {llm_s:.0f}s")
+            if stop == "judge" and judge and r > 0:
+                t0 = time.monotonic()
+                verdict = judge_round(judge, eye, r, src_run)
+                stalls = stalls + 1 if stalled(cur["ev"]["parts"], ev["parts"], verdict) else 0
+                summary["rounds"][-1].update(judge_s=round(time.monotonic() - t0, 1), stalled=stalls > 0, judge={a: verdict[a]["winner"] for a in ("sheet", "artist", "wc3", "form")})
             cur, last_glb, label, prev, note, stem = {"work": rd, "ev": ev, "dsl": doc_r}, glb, f"round {r} model", doc_r, "", glb.stem
             r += 1
-            if r >= rounds and not (ev["disaster"] and r < MAX_ROUNDS and disaster_only(ev)):
+            if stalls >= STALLS or (r >= rounds and not (disaster_only(ev) and r < cap)):
                 break
     summary["seconds"] = round(time.monotonic() - t_all, 1)
     return finish(summary, last_glb, prev, src, out, eye)
@@ -430,7 +484,8 @@ def run_in_pipeline(args, src_run, ask):
     spec = json.loads((src_run / "spec.json").read_text()) if (src_run / "spec.json").exists() else {}
     if args.out != src_run:
         seed(src_run, args.out)
-    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay")
+    judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
+    return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay", stop=args.eye_stop, judge=judge)
 
 
 def from_run(args, ask):

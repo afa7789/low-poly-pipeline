@@ -1,4 +1,5 @@
 """L15-5: the eye stage (eye_lib.py DSL + validation, eye_stage.py loop). No model call: ask is a stub. The Blender cases need the n005 v15 run."""
+import contextlib
 import copy
 import json
 import os
@@ -63,6 +64,13 @@ class Validate(unittest.TestCase):
         bad["pieces"] = [p for p in bad["pieces"] if p["role"] != "foot"]
         self.assertTrue(any("role 'foot'" in e for e in check(bad)))
         self.assertEqual(check(bad, roles=["head", "hand"]), [])        # a sheet with no foot does not ask for one
+
+    def test_more_than_the_piece_limit_is_rejected(self):          # L16-1: n017 asked for 65
+        many = copy.deepcopy(DSL)
+        many["pieces"] = [dict(DSL["pieces"][2], name=f"b{i}") for i in range(EL.MAX_PIECES + 1)]
+        self.assertTrue(any(f"{EL.MAX_PIECES + 1} pieces, over the limit" in e for e in check(many)))
+        many["pieces"].pop()
+        self.assertEqual(check(many, roles=[]), [])
 
     def test_shape_errors_are_listed_not_raised(self):
         bad = {"pieces": [{"op": "cone"}, {"op": "ball", "name": "x", "mat": "m", "bone": "head", "role": "head", "r": 0.001, "at": [0, 0]}]}
@@ -160,7 +168,8 @@ def fake_measure(disasters):
 class Loop(unittest.TestCase):
     UNIT = {"id": "n005", "name": "Warlock", "race": "Human", "role": "caster", "rig": "biped"}
 
-    def run_stage(self, replies, disasters=(), rounds=3):
+    def run_stage(self, replies, disasters=(), rounds=3, fast=False, **kw):
+        """fast: Blender builds and the finish are stubbed (the loop alone, ~3 s for 9 rounds)."""
         asked = []
 
         def ask(prompt, images, check_):
@@ -170,10 +179,19 @@ class Loop(unittest.TestCase):
             return reply
         out = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, out, True)
+        stubs = [mock.patch.object(ES, "build", side_effect=self.fake_build), mock.patch.object(ES, "finish", side_effect=lambda summary, *_: summary)] if fast else []
         with mock.patch.object(ES, "measure", fake_measure(disasters)), mock.patch.object(ES, "stretch_of", return_value={"walk": {"p99.5_stretch": 1.0}}), \
                 mock.patch.object(ES.outline, "apply", return_value=True), mock.patch.object(ES, "boards", side_effect=self.boards):
-            summary = ES.run(self.UNIT, RUN, out, ask, rounds=rounds, log=lambda *_: None)
+            with contextlib.ExitStack() as stack:
+                for m in stubs:
+                    stack.enter_context(m)
+                summary = ES.run(self.UNIT, RUN, out, ask, rounds=rounds, log=lambda *_: None, **kw)
         return summary, asked, out
+
+    @staticmethod
+    def fake_build(src, dsl, out):
+        out.write_bytes(b"glb")
+        return {"tris": 100, "pieces": len(dsl["pieces"])}
 
     @staticmethod
     def boards(concept, work, stem, label, out_dir, mirror=()):
@@ -223,6 +241,48 @@ class LoopSlow(Loop):
         self.assertFalse((out / "model.glb").exists())
 
 
+class Rounds(Loop):
+    """L16-1: nine rounds, the stop modes and the judge's stop rule (the loop alone: builds, finish and the judge are stubs)."""
+    test_stops_when_the_model_says_stop = None
+
+    @staticmethod
+    def verdict(sheet="tie", artist="tie"):
+        return {a: {"winner": w} for a, w in (("sheet", sheet), ("artist", artist), ("wc3", "tie"), ("form", "tie"))}
+
+    def test_nine_rounds_are_asked_and_built(self):
+        summary, asked, _ = self.run_stage([json.dumps(DSL)] * 9, rounds=9, fast=True)
+        self.assertEqual((len(asked), len([r for r in summary["rounds"] if "tris" in r]), summary["llm_calls"]), (9, 9, 9))
+        self.assertEqual(ES.MAX_ROUNDS, 9)
+
+    def test_stop_never_records_the_request_and_goes_on_then_honours_a_second_one(self):
+        replies = [json.dumps(DSL), '{"stop": true}', json.dumps(DSL), '{"stop": true}', '{"stop": true}']
+        summary, asked, _ = self.run_stage(replies, rounds=9, fast=True, stop="never")
+        self.assertEqual([r.get("stop") for r in summary["rounds"]], [None, "ignored (stop=never)", None, "ignored (stop=never)", True])
+        self.assertIn("NOT HONOURED", asked[2][0])
+
+    def test_stop_model_honours_the_first_request(self):
+        summary, _, _ = self.run_stage([json.dumps(DSL), '{"stop": true}'], rounds=9, fast=True, stop="model")
+        self.assertEqual([r.get("stop") for r in summary["rounds"]], [None, True])
+
+    def test_the_judge_stops_after_two_stalled_rounds_in_a_row(self):
+        seen = []
+
+        def judge(a, b):
+            seen.append((a.name, b.name))
+            return self.verdict(sheet="B") if len(seen) == 1 else self.verdict()       # round 1 wins the judge, rounds 2 and 3 stall (parts 1/2 each)
+        with mock.patch.object(ES, "round_run", side_effect=lambda rd, _: rd):
+            summary, asked, _ = self.run_stage([json.dumps(DSL)] * 9, rounds=9, fast=True, stop="judge", judge=judge)
+        self.assertEqual(len(asked), 4)                                         # rounds 0-3, then the second stall ends it
+        self.assertEqual(seen, [("round-0", "round-1"), ("round-1", "round-2"), ("round-2", "round-3")])
+        self.assertEqual([r.get("stalled") for r in summary["rounds"]], [None, False, True, True])
+
+    def test_stalled_wants_no_new_part_and_no_judge_win(self):
+        self.assertTrue(ES.stalled([10, 12], [10, 12], self.verdict()))
+        self.assertTrue(ES.stalled([10, 12], [9, 12], self.verdict(artist="A")))
+        self.assertFalse(ES.stalled([10, 12], [11, 12], self.verdict()))
+        self.assertFalse(ES.stalled([10, 12], [10, 12], self.verdict(artist="B")))
+
+
 def pair(form, artist):
     """A pairwise result: (winner, B votes) per axis."""
     return {a: {"winner": w, "A": 4 - b, "B": b} for a, (w, b) in (("form", form), ("artist", artist))}
@@ -268,6 +328,37 @@ class Report(unittest.TestCase):
         views = {"front": {"iou": 0.80}, "left": {"iou": 0.90}}
         base = {"front": {"iou": 0.90}, "left": {"iou": 0.89}}
         self.assertEqual(EC.falls("u", views, base, noise), ["front"])
+
+
+class Curve(unittest.TestCase):
+    """L16-1 rounds curve: prefixes of a run and the acceptance of N rounds over 3, from numbers."""
+
+    @staticmethod
+    def full():
+        rounds = [{"round": r, "llm_s": 100, "build_s": 2, "measure_s": 8, "tris": 600, "pieces": 40, "parts": [20 + r, 28], "views": {}, "resent": int(r == 1)} for r in range(9)]
+        rounds.insert(2, {"round": 1, "stop": "ignored (stop=never)", "llm_s": 50})
+        return {"base": {"seconds": 10.0}, "rounds": rounds, "llm_calls": 11, "resends": 1, "seconds": 1000, "final_round": 8, "vertex_hash": "x"}
+
+    def test_a_prefix_keeps_the_rounds_calls_and_seconds_up_to_n(self):
+        got = EC.prefix_summary(self.full(), 3)
+        self.assertEqual([r["round"] for r in got["rounds"] if "tris" in r], [0, 1, 2])
+        self.assertEqual((got["final_round"], got["llm_calls"], got["resends"]), (2, 5, 1))     # 3 built + 1 resend + the ignored stop
+        self.assertEqual(got["seconds"], 10 + 3 * 110 + 50)
+        self.assertNotIn("vertex_hash", got)
+
+    def test_the_acceptance_needs_sheet_and_artist_3_1_form_2_2_in_4_of_6_and_twice_the_cost_at_most(self):
+        win = {"sheet": {"winner": "B", "A": 1, "B": 3}, "artist": {"winner": "B", "A": 0, "B": 4}, "form": {"winner": "tie", "A": 2, "B": 2}}
+        lose = {"sheet": {"winner": "tie", "A": 2, "B": 2}, "artist": {"winner": "B", "A": 0, "B": 4}, "form": {"winner": "A", "A": 3, "B": 1}}
+        units = ["a", "b", "c", "d", "e", "f"]
+        res = {("v16-r6", "v16-r3"): {u: win if u in "abcd" else lose for u in units}, (EC.FULL, "v16-r3"): {u: lose for u in units}}
+        secs = {"v16-r3": {u: 600 for u in units}, "v16-r6": {u: 1100 for u in units}, EC.FULL: {u: 1500 for u in units}}
+        got = EC.curve_acceptance(res, secs)
+        self.assertTrue(got["r6"]["accepted"])
+        self.assertEqual(got["r6"]["cost x r3"], 1.83)
+        self.assertFalse(got["r9"]["accepted"])
+        self.assertFalse(got["r9"]["cost <= 2x r3"])
+        secs["v16-r6"] = {u: 1300 for u in units}
+        self.assertFalse(EC.curve_acceptance(res, secs)["r6"]["accepted"])
 
 
 if __name__ == "__main__":

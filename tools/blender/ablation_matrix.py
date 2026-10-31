@@ -134,6 +134,7 @@ VARIANTS = {
 NOT_A_VARIANT = {
     "eye": "needs the LLM agent (L15-5: ~10 min and 3-4 model calls per unit, measured in its own battery v16, not in a deterministic matrix)",
     "eye_rounds": "a parameter of --eye (L15-5)",
+    "eye_stop": "a parameter of --eye: who ends the loop early (L16-1; measured in its own battery, needs the LLM)",
     "gate": "the acceptance, not a shape: stage 1 runs the same build, the verdict differs (L15-1: its own table over the v15 battery)",
     "orient": "how the gate reads the sheet (refs/<id>/sheet.json), not a shape variant (L15-1)",
     "judge_gate": "needs the paired judge (a Claude session) on top of --pair; not a deterministic variant (L15-1)",

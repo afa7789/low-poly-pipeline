@@ -26,6 +26,7 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
+MAX_PIECES = 48         # L16-1: n017 asked for 65 pieces and two resends; a unit reads with fewer
 BUDGET = 700            # triangles of the pieces (the outline hull doubles them in the file, as everywhere)
 MARGIN = 0.20           # share of the sheet box's size a point may lie outside it
 ROLES = ("head", "face", "torso", "pelvis", "arm", "hand", "leg", "foot", "wing", "tail", "prop", "other")
@@ -92,6 +93,8 @@ def validate(dsl, bones, box, need_roles=(), budget=BUDGET):
         out += piece_errors(i, p)
     if out:
         return out
+    if len(dsl["pieces"]) > MAX_PIECES:
+        return [f"{len(dsl['pieces'])} pieces, over the limit of {MAX_PIECES}: merge small pieces (one box for a group of fingers, one tube for a row of teeth)"]
     colours = dsl.get("colours") or {}
     bad_keep = [b for b in dsl.get("keep", []) if b not in bones]
     out += [f"keep: bone '{b}' is not in the rig" for b in bad_keep]
