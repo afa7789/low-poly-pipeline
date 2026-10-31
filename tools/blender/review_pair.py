@@ -150,8 +150,8 @@ def parse_vote(txt):
 
 
 def glb_fingerprint(path):
-    """(sha1 of the vertex positions + materials, number of meshes) of a .glb: two models with the
-    same fingerprint are the same geometry however the file was written."""
+    """(sha1 of the vertex positions (rounded to 1e-4: the float noise of a rebuild) + materials, number of
+    primitives, the part count) of a .glb: two models with the same fingerprint are the same geometry however the file was written."""
     data = pathlib.Path(path).read_bytes()
     jlen = struct.unpack_from("<I", data, 12)[0]
     doc = json.loads(data[20:20 + jlen])
@@ -162,16 +162,16 @@ def glb_fingerprint(path):
             acc = doc["accessors"][prim["attributes"]["POSITION"]]
             view = doc["bufferViews"][acc["bufferView"]]
             start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
-            h.update(bin_[start:start + acc["count"] * 12])
+            h.update(repr([round(x, 4) + 0.0 for x in struct.unpack_from(f"<{acc['count'] * 3}f", bin_, start)]).encode())
             h.update(str(prim.get("material")).encode())
-    return h.hexdigest(), len(doc.get("meshes", []))
+    return h.hexdigest(), sum(len(m["primitives"]) for m in doc.get("meshes", []))
 
 
 NEAR_IOU, NEAR_CHAMFER = 0.01, 0.005      # near-identical: every view's IoU within .01 and Chamfer within .005 H
 
 
 def closeness(run_a, run_b, textured):
-    """'identical' (same fingerprint), 'near' (same part count, |dIoU| <= .01 and |dChamfer| <= .005
+    """'identical' (same fingerprint), 'near' (same primitive count, |dIoU| <= .01 and |dChamfer| <= .005
     in every view of the runs' silhouette.json) or None."""
     try:
         fa, fb = (glb_fingerprint(model_of(r, textured)) for r in (run_a, run_b))
@@ -239,12 +239,13 @@ def rig_of(run):
     return json.loads(f.read_text()).get("rig", "") if f.exists() else ""
 
 
-def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, ask=None, reference=None, out=None, votes=VOTES):
+def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, ask=None, reference=None, out=None, votes=VOTES, near_rule=False):
     """Run the pairwise review; returns the result dict (also written to run_b/pairwise.json).
     `ask(model, brief, images) -> str` defaults to spec_pipeline.ask. `reference`: a png of one real
     WC3 model (L16-3) that replaces the rig-class WC3 cell, and the wc3 axis then asks which candidate
     reads more like THAT model; the result then goes to `out` (default run_b/pairwise.json).
-    `votes` (even): half with A on the left, half swapped. Identical geometry: all ties, no call (L17-1)."""
+    `votes` (even): half with A on the left, half swapped. Identical geometry: all ties, no call (L17-1).
+    `near_rule`: a near-identical pair needs 3/4 of the votes to have a winner (opt-in: it did not pass its acceptance, 35.L17-1)."""
     if ask is None:
         import spec_pipeline
         ask = spec_pipeline.ask
@@ -275,7 +276,7 @@ def compare(run_a, run_b, unit, kind="mass", model="session:opus", work=None, as
                   {"order": "A|B" if flags[i] else "B|A", **v} for v, i in votes],
               "picks": [{"axis": a, "winner": v[a], "swapped": not flags[i]} for v, i in votes for a in AXES],
               "left_rate": left_rate([v for v, _ in votes]),
-              **tally([v for v, _ in votes], close == "near")}
+              **tally([v for v, _ in votes], near_rule and close == "near")}
     (out or run_b / "pairwise.json").write_text(json.dumps(result, indent=2))
     return result
 
@@ -342,13 +343,16 @@ def main():
                     help="png of one real WC3 model (a hive_sheet contact sheet): the wc3 cell and axis use it")
     ap.add_argument("--votes", type=int, default=VOTES,
                     help="even number of votes, half of them with A and B swapped (default 4)")
+    ap.add_argument("--near-rule", action="store_true",
+                    help="a near-identical pair (same parts, IoU within .01, Chamfer within .005) needs 3/4 of the votes to have a winner")
     ap.add_argument("--gate", action="store_true",
                     help="non-regression gate: exit 0 when the new run (B) does not lose form or artist to A 3-1 / 4-0, 1 when it does")
     args = ap.parse_args()
     if args.votes < 2 or args.votes % 2:
         ap.error("--votes must be an even number >= 2 (half the votes swap A and B)")
     ref_out = args.run_b / f"pairwise-ref-{args.reference.stem}.json" if args.reference else None
-    result = compare(args.run_a, args.run_b, args.id, args.kind, args.model, args.work, reference=args.reference, out=ref_out, votes=args.votes)
+    result = compare(args.run_a, args.run_b, args.id, args.kind, args.model, args.work, reference=args.reference, out=ref_out, votes=args.votes,
+                     near_rule=args.near_rule)
     if not ref_out:                 # a judgement against a reference model is not the run's review line
         append_review(args.run_b, result)
     print(line(result))

@@ -196,6 +196,15 @@ class Pair(unittest.TestCase):
             self.assertEqual(sum(p["swapped"] for p in r["picks"]), 16)
             self.assertEqual(r["valid_votes"], 8)
 
+    def test_judge_calib_cycle(self):
+        import judge_calib as JC
+        nodes = {"r3", "r6", "r9"}
+        cyc = JC.beats({("r3", "r6"): "B", ("r6", "r9"): "B", ("r3", "r9"): "A"}, None)     # r6>r3, r9>r6, r3>r9
+        self.assertTrue(JC.has_cycle(cyc, nodes))
+        ok = JC.beats({("r3", "r6"): "B", ("r6", "r9"): "B", ("r3", "r9"): "B"}, None)
+        self.assertFalse(JC.has_cycle(ok, nodes))
+        self.assertFalse(JC.has_cycle(JC.beats({("r3", "r6"): "tie", ("r6", "r9"): "B", ("r3", "r9"): "A"}, None), nodes))
+
 
 if __name__ == "__main__":
     unittest.main()
