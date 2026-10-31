@@ -118,10 +118,33 @@ def field_of(members, height):
     return sdf
 
 
+def pieces_mesh(members):
+    """(verts, tris) of the members as they are, side by side, not united (a primitive is the cheapest shape that holds)."""
+    verts, tris, base = [], [], 0
+    for m in members:
+        verts.append(np.asarray(m["verts"], float))
+        tris += [[base + f[0], base + f[i], base + f[i + 1]] for f in m["faces"] for i in range(1, len(f) - 1)]
+        base += len(m["verts"])
+    return np.concatenate(verts), np.array(tris)
+
+
+def reduced(verts, tris, target, sdf, dev, reducer):
+    """(verts, tris) of `reducer` (REDUCERS) to about `target`; the CVT falls to the guarded QEM on an empty dual (a cluster too thin for its
+    seeds: n00U's legs)."""
+    if reducer == "cvt":
+        try:
+            return retopo.cvt(verts, tris, target, sdf=sdf, max_dev=dev)[:2]
+        except ValueError:
+            pass
+    return retopo.reduce(verts, tris, target, sdf=sdf, max_dev=dev)[:2]
+
+
 def union_mesh(members, height, target, vox=None, reducer="qem"):
-    """(verts, tris) of the union of `members`, reduced to about `target` triangles by `reducer` (REDUCERS); ([], []) when nothing came out."""
+    """(verts, tris) of the union of `members`, reduced to about `target` triangles by `reducer` (REDUCERS); ([], []) when nothing came out.
+    L19-0: with the CVT, a cluster whose QEM fallback refused the collapses (n00U's legs: 106 triangles for a target of 25, 704 in all) keeps
+    its pieces as they are instead: a union never costs more triangles than the primitives it replaces, so the 700 budget holds."""
     if len(members) == 1:               # nothing to unite: the piece as it is (a primitive is the cheapest shape that holds)
-        return members[0]["verts"], np.array([[f[0], f[i], f[i + 1]] for f in members[0]["faces"] for i in range(1, len(f) - 1)])
+        return pieces_mesh(members)
     vox = vox or VOXEL * height
     pad = 3 * vox + 2 * SMOOTH_K * height
     lo, hi = np.min([p["lo"] for p in members], 0) - pad, np.max([p["hi"] for p in members], 0) + pad
@@ -132,13 +155,10 @@ def union_mesh(members, height, target, vox=None, reducer="qem"):
     verts, tris = surface_nets(sdf(pts).reshape(*n), lo, vox)
     if len(tris) <= target:
         return verts, tris
-    if reducer == "cvt":
-        try:
-            verts, tris, _ = retopo.cvt(verts, tris, target, sdf=sdf, max_dev=DEV * height)
-        except ValueError:          # an empty dual (a cluster too thin for its seeds: n00U's legs): the guarded QEM takes that cluster
-            verts, tris, _ = retopo.reduce(verts, tris, target, sdf=sdf, max_dev=DEV * height)
-    else:
-        verts, tris, _ = retopo.reduce(verts, tris, target, sdf=sdf, max_dev=DEV * height)
+    verts, tris = reduced(verts, tris, target, sdf, DEV * height, reducer)
+    own = sum(len(f) - 2 for m in members for f in m["faces"])
+    if reducer == "cvt" and len(tris) > own:
+        return pieces_mesh(members)
     return verts, np.asarray(tris)
 
 

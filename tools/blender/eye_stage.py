@@ -377,6 +377,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     eye = out / "eye"
     eye.mkdir(parents=True, exist_ok=True)
     src = eye / "input.glb"      # the input model, kept: --eye on in place overwrites model.glb, replay rebuilds from this
+    seed_replay(replay, src_run, out, eye)
     if not src.exists():
         shutil.copy(src_run / "model.glb", src)
     sil = json.loads((src_run / "silhouette.json").read_text())
@@ -395,7 +396,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
-            return replay_run(summary, src, eye, out, rotate)
+            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce))
         t0 = time.monotonic()
         base_dir = eye / "base"
         ev = measure(src, base_dir, sheet, unit["rig"])
@@ -499,10 +500,33 @@ def audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summar
     summary["critic"][-1]["audit"] = True
 
 
-def replay_run(summary, src, eye, out, rotate):
-    """--eye replay: rebuild the last recorded DSL (no model call) and check the vertex hash against the summary."""
+def seed_replay(replay, src_run, out, eye):
+    """L19-0: --eye replay --eye-from RUN --run NEW: RUN's eye dir (input.glb, rounds, summary) copied into NEW before the rebuild."""
+    if replay and src_run != out and not (eye / "summary.json").exists():
+        shutil.copytree(src_run / "eye", eye, dirs_exist_ok=True)
+
+
+def replayed(summary, src, src_run, eye, out, rotate, recipe):
+    """--eye replay: the recorded DSL rebuilt and hash-checked; into another run dir it is finished with `recipe` (skin, union, paint, contour, fuse,
+    union_reduce), the clock reset to this run's (L19-0: the v18-cvt recipe over the rounds of v18-r0 without a model call)."""
+    summary = replay_run(summary, src, eye, out, rotate)
+    if src_run == out:
+        return summary
+    summary["timing"], summary["seconds"] = {}, 0.0
+    return finish(summary, eye / "replay.glb", replay_dsl(eye), src, out, eye, *recipe)
+
+
+def replay_dsl(eye):
+    """The last recorded DSL of a run's eye dir."""
     recorded = json.loads((eye / "summary.json").read_text())
-    dsl = json.loads((eye / f"round-{recorded['final_round']}" / "dsl.json").read_text())
+    return json.loads((eye / f"round-{recorded['final_round']}" / "dsl.json").read_text())
+
+
+def replay_run(summary, src, eye, out, rotate):
+    """--eye replay: rebuild the last recorded DSL (no model call) and check the vertex hash against the summary.
+    Into another run dir (--eye-from RUN --run NEW) the caller finishes it with the current recipe (L19-0): no model call, 20-40 s."""
+    recorded = json.loads((eye / "summary.json").read_text())
+    dsl = replay_dsl(eye)
     glb = eye / "replay.glb"
     info = build(src, dsl, glb)
     same = vertex_hash(glb) == recorded["vertex_hash"]
@@ -539,8 +563,9 @@ def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint
     tick(summary, "union", time.perf_counter() - t0, int(union != "off" or skin != "off"))
     t0 = time.perf_counter()
     summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
-    tick(summary, "paint", time.perf_counter() - t0, int(paint == "on"))
+    tick(summary, "paint", time.perf_counter() - t0, int(paint != "off"))
     t0 = time.perf_counter()
+    shutil.copy(out / "model.glb", out / "model-body.glb")          # the body without the hull: render_wire.py draws its triangulation (leva18.wire)
     summary["outline"] = contour in ("hull", "both") and outline.apply(out / "model.glb", hull=True)
     tick(summary, "outline", time.perf_counter() - t0)
     t0 = time.perf_counter()
@@ -601,7 +626,7 @@ def run_in_pipeline(args, src_run, ask):
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
-               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 0), union_reduce=getattr(args, "eye_union_reduce", "qem"))
+               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"))
 
 
 def from_run(args, ask):

@@ -86,8 +86,9 @@ def wire(unit, run):
     return {v: out / f"wire-{'rts' if v == 'wc3' else v}.png" for v in ("front", "left", "back", "top", "bottom", "wc3")}
 
 
-def sheet(unit, runs=("v16-r3", "v18-qem", "v18-cvt"), wires=("v18-qem", "v18-cvt")):
-    """history/2026-10-31-l18/<unit>.png: concept | runs... | Hive | wire of each v18 run, a row per view and one row of atlases."""
+def sheet(unit, runs=("v16-r3", "v18-qem", "v18-cvt"), wires=("v18-qem", "v18-cvt"), hive=True, history=None):
+    """history/2026-10-31-l18/<unit>.png: concept | runs... | Hive | wire of each v18 run, a row per view and one row of atlases.
+    L19-0: hive=False leaves the Hive column out; history = another dir (history/2026-10-31-l19)."""
     import eye_stage
     import hive_sheet as H
     import make_compare as MC
@@ -96,7 +97,8 @@ def sheet(unit, runs=("v16-r3", "v18-qem", "v18-cvt"), wires=("v18-qem", "v18-cv
     name = H.PAIRS.get(unit)
     cols = [("concept", None)] + [(r, H.shoot(DRAFT / unit / r / "model.glb", H.HIVE / "renders/ours" / f"{unit}-{r}", review_pair.run_tilt(DRAFT / unit / r)))
                                   for r in runs if (DRAFT / unit / r / "model.glb").exists()]
-    cols.append((f"Hive {name}", {v: H.HIVE / "renders/views" / name / f"{name}-{v}.png" for v in H.VIEWS}) if name else ("no Hive pair", {}))
+    if hive:
+        cols.append((f"Hive {name}", {v: H.HIVE / "renders/views" / name / f"{name}-{v}.png" for v in H.VIEWS}) if name else ("no Hive pair", {}))
     cols += [(f"wire {r}", wire(unit, r)) for r in wires if (DRAFT / unit / r / "model.glb").exists()]
     with tempfile.TemporaryDirectory() as tmp:
         panels = review_pair.sheet_panels(unit, "mass", pathlib.Path(tmp))
@@ -111,7 +113,7 @@ def sheet(unit, runs=("v16-r3", "v18-qem", "v18-cvt"), wires=("v18-qem", "v18-cv
             atlas = DRAFT / unit / label / "atlas.png"
             if atlas.exists():
                 img.paste(Image.open(atlas).convert("RGB").resize((ch, ch), Image.NEAREST), (x * cw, 20 + len(H.VIEWS) * (ch + 20)))
-    out = HISTORY / f"{unit}.png"
+    out = (history or HISTORY) / f"{unit}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         raise SystemExit(f"{out} exists: history sheets are never overwritten")
@@ -211,12 +213,16 @@ def main(argv=None):
     ap.add_argument("--reduce", choices=("qem", "cvt"), default="qem")
     ap.add_argument("--units", default=",".join(AM.UNITS))
     ap.add_argument("--runs", default="v16-r3,v18-qem,v18-cvt")
+    ap.add_argument("--wires", default=None, help="sheet: the runs whose wire is drawn (default: the runs after the first)")
+    ap.add_argument("--no-hive", action="store_true", help="sheet: no Hive column (L19-0)")
+    ap.add_argument("--history", type=pathlib.Path, default=None, help="sheet: another history dir (L19-0: history/2026-10-31-l19)")
     args = ap.parse_args(argv)
     units = args.units.split(",")
     if args.cmd == "run":
         run_unit(args.id, args.src, args.tag, args.fuse, args.union, args.charts, args.outline, args.reduce)
     elif args.cmd == "sheet":
-        print(sheet(args.unit, args.runs.split(",")))
+        runs = args.runs.split(",")
+        print(sheet(args.unit, runs, args.wires.split(",") if args.wires else runs[1:], hive=not args.no_hive, history=args.history))
     elif args.cmd == "table":
         text = "\n\n".join(f"**{t}**\n\n" + table(units, t) for t in args.runs.split(",") if t != "v16-r3")
         HISTORY.mkdir(parents=True, exist_ok=True)

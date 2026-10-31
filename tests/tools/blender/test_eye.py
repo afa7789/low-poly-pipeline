@@ -237,6 +237,15 @@ class Loop(unittest.TestCase):
             again = ES.run(self.UNIT, RUN, out, None, replay=True, log=lambda *_: None)
         self.assertTrue(again["replay"]["same"])
         self.assertEqual(again["vertex_hash"], summary["vertex_hash"])
+        out2 = pathlib.Path(tempfile.mkdtemp())             # L19-0: --eye replay --eye-from RUN --run NEW: RUN's rounds copied, finished with the recipe given
+        self.addCleanup(shutil.rmtree, out2, True)
+        shutil.copy(RUN / "silhouette.json", out)             # the pipeline seeds a run with the source's small files
+        with mock.patch.object(ES, "boards", side_effect=self.boards), mock.patch.object(ES, "finish", side_effect=lambda summary, *_: summary) as fin:
+            ES.run(self.UNIT, out, out2, None, replay=True, log=lambda *_: None, union="bone", paint="box", fuse=12, union_reduce="cvt")
+        self.assertTrue((out2 / "eye/round-0/dsl.json").exists() and (out2 / "eye/replay.glb").exists())
+        self.assertEqual(fin.call_args.args[1:3], (out2 / "eye/replay.glb", DSL))
+        self.assertEqual(fin.call_args.args[6:], ("off", "bone", "box", "hull", 12, "cvt"))
+        self.assertEqual(fin.call_args.args[0]["timing"], {})
 
 
 @unittest.skipUnless(os.environ.get("SLOW"), "SLOW=1: 4 more runs of the loop, ~8 s each")
