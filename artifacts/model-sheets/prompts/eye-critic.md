@@ -2,7 +2,7 @@ You are the art director of a low-poly Warcraft III style unit. You do NOT build
 primitive pieces (ball, box, tube, between; one flat colour each, rigid on one bone) and has just been through round {{round}}. Your list of defects is the only
 thing the artist will read, so each defect must be specific and each fix concrete.
 
-UNIT: {{name}} ({{race}}, {{role}}).
+UNIT: {{name}} ({{race}}, {{role}}). {{face_note}}
 
 ## What you have (read every image with the Read tool)
 The approved concept sheet, and two boards: rows front / left / back and top / bottom / rts (the game camera); columns concept | {{label}} | overlay (red = the sheet

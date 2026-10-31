@@ -41,6 +41,11 @@ class Schema(unittest.TestCase):
 
 
 class Review(unittest.TestCase):
+    def test_the_face_note_reaches_the_critic_prompt(self):          # L18-0
+        text = EC.prompt_of(dict(UNIT, face_note=ES.FACE_CRITIC["none"]), 1, {"pieces": []}, "", [], "old")
+        self.assertIn("BLANK", text)
+        self.assertNotIn("{{face_note}}", EC.prompt_of(UNIT, 1, {"pieces": []}, "", [], "old"))
+
     def test_the_fix_rate_and_the_fixer_note(self):
         out = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, out, True)

@@ -4,6 +4,7 @@ import pathlib
 import sys
 import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
 
@@ -104,6 +105,24 @@ class Palette(unittest.TestCase):
         head[5] = {"decal": "mouth"}
         with self.assertRaises(ValueError):
             SP.parse_spec(json.dumps({"parts": [head]}))
+
+    def test_a_blank_face_takes_no_decal(self):
+        """L18-0: face_kind none = no decal anywhere in the spec, and the brief says so."""
+        head = ["head", "box", [0.2, 0.2, 0.2], [0, 2.4, 0], "iron", {"decal": "sheet"}]
+        with mock.patch.object(SP, "FACE_KIND", "none"):
+            with self.assertRaisesRegex(ValueError, "no eyes or face"):
+                SP.validate([head])
+            SP.validate([["head", "box", [0.2, 0.2, 0.2], [0, 2.4, 0], "iron", {}]])
+            self.assertIn("as drawn", SP.identity_text([{"name": "eyes", "kind": "eyes"}]))
+        SP.validate([head])
+        self.assertIn("NO eyes or face", SP.face_text("none"))
+        self.assertNotIn('"decal": "sheet"', SP.face_text("none"))
+        for kind in ("eyes", "lenses"):
+            self.assertIn('"decal": "sheet"', SP.face_text(kind))
+        self.assertIn("{face}", SP.DSL)
+        with mock.patch.object(SP, "identity_texts", return_value=["brass valve wheel as head, no face or glass"]):
+            self.assertEqual(SP.set_face("n01X"), "none")
+        SP.FACE_KIND = "eyes"
 
     def test_decal_only_on_a_head_bone(self):
         for bone, ok in (("head", True), ("jaw", True), ("rider.head", True),

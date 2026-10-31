@@ -31,6 +31,7 @@ BUDGET = 700            # triangles of the pieces (the outline hull doubles them
 MARGIN = 0.20           # share of the sheet box's size a point may lie outside it
 ROLES = ("head", "face", "torso", "pelvis", "arm", "hand", "leg", "foot", "wing", "tail", "prop", "other")
 NEED_ROLES = ("head", "hand", "foot", "prop")        # a sheet that has such a part needs a piece with this role
+FACE_PIECE = ("eye", "pupil", "iris", "nose", "nostril", "mouth", "lip", "teeth", "tooth", "fang", "tusk", "brow", "eyebrow")   # L18-0: refused when the face is "none"
 REQUIRED = {"ball": ("r", "at"), "box": ("size", "at"), "tube": ("r0", "r1", "length", "at"), "between": ("a", "b", "r0", "r1")}
 OPTIONAL = {"ball": ("scale", "seg", "rings"), "box": ("rot", "top", "shift"), "tube": ("rot", "sides", "scale"), "between": ("sides", "scale")}
 VEC = {"at": 3, "a": 3, "b": 3, "size": 3, "rot": 3, "scale": 3, "top": 2, "shift": 2}
@@ -83,9 +84,16 @@ def outside(q, box):
     return any(c < lo - MARGIN * (hi - lo) or c > hi + MARGIN * (hi - lo) for c, lo, hi in zip(q, *box))
 
 
-def validate(dsl, bones, box, need_roles=(), budget=BUDGET):
+def face_piece(p):
+    """True when a piece's name says eye, nose, mouth, teeth... (a feature a blank face has not)."""
+    words = p.get("name", "").lower().replace("_", " ").replace("-", " ").split()
+    return any(w.startswith(FACE_PIECE) for w in words)
+
+
+def validate(dsl, bones, box, need_roles=(), budget=BUDGET, face="eyes"):
     """Reasons (one string each) the DSL cannot be built, [] when it can. `bones`: names of the rig; `box`: ((lo xyz), (hi xyz))
-    in the Blender frame, or None; `need_roles`: roles of the sheet's parts (NEED_ROLES are enforced)."""
+    in the Blender frame, or None; `need_roles`: roles of the sheet's parts (NEED_ROLES are enforced); `face`: preflight.face_kind,
+    "none" refuses eye / nose / mouth pieces (L18-0: the concept's face is plain; a plain face surface with role face may stay)."""
     if not isinstance(dsl, dict) or not isinstance(dsl.get("pieces"), list) or not dsl["pieces"]:
         return ["the reply must be an object with a non-empty list 'pieces'"]
     out = []
@@ -111,7 +119,15 @@ def validate(dsl, bones, box, need_roles=(), budget=BUDGET):
         out.append(f"{tris} triangles, over the budget of {budget}: fewer pieces or fewer sides")
     have = {p["role"] for p in dsl["pieces"]}
     out += [f"no piece with role '{r}', and the sheet has one" for r in NEED_ROLES if r in need_roles and r not in have]
-    return out
+    return out + face_errors(dsl["pieces"], face)
+
+
+def face_errors(pieces, face):
+    """The eye / nose / mouth pieces a blank face refuses (L18-0); [] for eyes and lenses."""
+    if face != "none":
+        return []
+    return [f"piece {i} ({p['name']}): the concept shows a blank face, no eyes, nose or mouth: remove it (the plain face surface may stay)"
+            for i, p in enumerate(pieces) if face_piece(p)]
 
 
 # ---------------------------------------------------------------- Blender side

@@ -33,8 +33,7 @@ UNIT: {{name}} ({{race}}, {{role}}). Rig: {{rig}}. {{unit_note}}
 ## What a careful artist does (general rules)
 1. Colour: every part of the concept has its own colour; sample it from the sheet (do not reuse one skin colour for coat, trousers, boots, gloves). One material
    per distinct colour; a part that is dark on the concept stays dark. Flat colours, no gradients.
-2. Face: a face must be legible with GEOMETRIC pieces, not a picture: eyes as small dark/bright 6-side tubes or balls on the front of the head, fangs/tusks/snout/mask
-   as small tubes or boxes, goggles as a band plus two lenses. The old model only had a tiny picture of the face that turned into stripes.
+2. {{face_rule}}
 3. Belly is not a box: a round belly is a flattened/stretched ball, a barrel torso is a tapered tube with scale, a flaring coat hem is a tube whose r0 > r1.
    Do not invent plates, helmets or armour that the sheet does not show; do build the ones it shows (shoulder pads, belts, straps) as thin boxes/tubes on the right bone.
 4. Props go where the sheet puts them, on the correct side of the body AND in front of or behind it as the LEFT panel shows (a club raised in front of the body is at

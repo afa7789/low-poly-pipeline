@@ -497,9 +497,24 @@ class Identity(unittest.TestCase):
         kinds = [i["kind"] for i in PF.identity_items("n005", parts_path=fixture)]
         self.assertEqual(kinds, ["eyes", "text", "prop", "prop", "prop"])   # tank, lantern, vaporiser -> their props.json entries
         self.assertEqual([i["kind"] for i in PF.identity_items("n005", parts_path="/nowhere")],
-                         ["prop", "prop", "prop", "eyes"])                   # props.json + eyes
+                         ["prop", "prop", "prop"])                           # props.json, no eyes without a list (L18-0)
         self.assertEqual([i["kind"] for i in PF.identity_items("n005", biped=False, parts_path="/nowhere")],
                          ["prop"] * 3)
+
+    def test_face_kind_of_the_eight_sheets(self):
+        """L18-0: the identity list says what the face has; the eight real lists, no list, an empty one, and the items that follow."""
+        want = {"hfoo": "none", "n005": "lenses", "n00U": "eyes", "n00H": "eyes", "n02X": "lenses", "n017": "eyes", "n010": "none", "n01X": "none"}
+        for unit, kind in want.items():
+            with self.subTest(unit=unit):
+                texts = PF.identity_texts(unit)
+                self.assertIsNotNone(texts)
+                self.assertEqual(PF.face_kind(texts), kind)
+                eyes = [i for i in PF.identity_items(unit) if i["kind"] == "eyes"]
+                self.assertEqual(bool(eyes), kind != "none")
+        for texts, kind in ((None, "none"), ([], "none"), (["dark brown globular body"], "none"), (["a brow"], "eyes"),
+                            (["two eyes", "no face or glass"], "none"), (["blue-glass belt lantern"], "none"), (["single glowing cyan lens"], "lenses")):
+            with self.subTest(texts=texts):
+                self.assertEqual(PF.face_kind(texts), kind)
 
     def test_rows_and_status(self):
         blue = {"name": "blue detail #586B87", "kind": "zone", "hex": "#586B87"}

@@ -404,6 +404,7 @@ def live_eye_paint():     # L17-3: the paint switch reaches eye_stage.run
     return eye_run_kwargs()["paint"], eye_run_kwargs("--eye-paint", "on")["paint"]
 
 
+
 def live_eye_critic():    # L16-2: a critic ask is handed to the stage only when asked for
     return eye_run_kwargs()["critic"] is None, eye_run_kwargs("--eye-critic", "claude-fable-5-1@max")["critic"] is None
 
