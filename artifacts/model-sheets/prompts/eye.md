@@ -19,11 +19,16 @@ UNIT: {{name}} ({{race}}, {{role}}). Rig: {{rig}}. {{unit_note}}
   - between: {"op":"between","a":[x,y,z],"b":[x,y,z],"r0":R_at_a,"r1":R_at_b,"sides":8} (the same tube from point a to point b: limbs, props, tails, legs)
   Every piece also has "name", "mat" (a material name), "bone" (one of the rig bones listed below) and "role" (one of: head, face, torso, pelvis, arm, hand, leg,
   foot, wing, tail, prop, other). Optional "colour":"RRGGBB" on a piece, and the top-level "colours":{"<mat>":"RRGGBB"} gives each material its colour.
-- Budget: at most {{budget}} triangles in total. A ball costs 2*seg*(rings-1) (8x6 = 80, 8x4 = 48, 6x3 = 24), a box 12, a tube or between 4*sides-4 (8 sides = 28, 6 sides = 20).
+- Budget: at most {{budget}} triangles AND at most {{max_pieces}} pieces in total (merge small things: one box for a group of fingers, one tube for a row of teeth).
+  Every radius, including the tip of a tusk, fang or claw (`r1` of a tube, `r1` of a between), is at least 0.01: a point is a 6-side tube with r1 = 0.01, never 0.
+  Triangles: a ball costs 2*seg*(rings-1) (8x6 = 80, 8x4 = 48, 6x3 = 24), a box 12, a tube or between 4*sides-4 (8 sides = 28, 6 sides = 20).
   Small things (eyes, buckles, fangs) get 6-side tubes or 6x3 balls. Spend triangles where the eye looks: face, hands, feet, props.
 - Every point must lie inside the sheet's box (+-20 %): x in [{{box_lo_x}}, {{box_hi_x}}], y in [{{box_lo_y}}, {{box_hi_y}}], z in [{{box_lo_z}}, {{box_hi_z}}].
 - Include at least one piece for each of these roles that the sheet has: {{need_roles}}.
-- Optional "keep": ["bone", ...] keeps the OLD mesh's faces on those bones (use it only for a part you cannot rebuild; default: build everything new).
+- Optional "keep": ["bone", ...] keeps the OLD mesh's faces on those bones, smoothed skin and all. Use it when the concept shows ONE continuous organic surface that a pile of
+  primitives would break into steps and visible seams: a soft torso, a belly, a fur coat, a long neck. Example: a furry beast with a smooth barrel body: `"keep": ["spine"]` (bone names from the rig below)
+  and build only the head, face, legs, tail and props as pieces; the kept body stays one continuous surface under them. Do NOT keep a bone whose parts the concept shows with
+  edges and colours of their own (armour plates, a belt, goggles, hands, boots): those you build. Default: build everything new.
 
 ## What a careful artist does (general rules)
 1. Colour: every part of the concept has its own colour; sample it from the sheet (do not reuse one skin colour for coat, trousers, boots, gloves). One material

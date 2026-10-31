@@ -2393,13 +2393,16 @@ def build_parser():
     ap.add_argument("--eye", choices=("off", "on", "replay"), default="off",
                     help="on: the stage with an eye (eye_stage.py, PIPELINE 33.L15-5): the model sees concept x render and redoes the parts by primitive "
                          "(session:<model> only); replay: rebuild from the recorded DSL, no model call")
-    ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-4)")
     ap.add_argument("--eye-skin", choices=("off", "bridge", "blend", "wrap", "weld"), default="off",
                     help="--eye on: skin at the joints of the pieces after the last round (eye_skin.py, PIPELINE 34.L16-4)")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
     ap.add_argument("--eye-fixer", default=None, metavar="MODEL", help="--eye-critic: the Claude model that applies the defects (default: --model)")
+    ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-9; a disaster adds rounds up to 4 or N)")
+    ap.add_argument("--eye-stop", choices=("judge", "model", "never"), default="model",
+                    help="--eye on: who ends the loop early (PIPELINE 34.L16-1). model: the model's {stop}; never: its stop is recorded, not honoured (a measurement run); "
+                         "judge: the model's stop, and two rounds in a row that add no part and win neither sheet nor artist against the round before (review_pair, 4 votes a round)")
     ap.add_argument("--eye-from", default=None, metavar="RUN", help="--eye: only the eye stage, on runs/<id>/RUN, into --run")
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="run dir; default runs/<id>/<run>")
