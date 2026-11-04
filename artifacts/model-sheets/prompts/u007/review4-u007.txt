@@ -1,0 +1,24 @@
+Edit this model sheet: keep the same character and only strip away small detail so it works as a low-poly model. The design is good. Do not redesign it.
+
+KEEP EXACTLY AS THEY ARE: the five-panel layout, the panel positions, the grey background, the absence of text, every figure's size, pose and silhouette, and the heavy black outer line. Also keep the bald head with its burlap mask, the huge round belly with the square iron hatch, the coverall with its big belly opening, the fat green hose arc, the shoulder vent with its solid green puff, the hook with its block counterweight in the right hand, the two arms, the two legs and the boots. Keep the same colours: pale pink skin, dark red, olive-brown coverall, dark brown boots, grey iron, green hose.
+
+CHANGE THE SAME WAY IN ALL FIVE VIEWS:
+- Remove all texture, grunge, blotches, smears, splatter, drips, dry-brush marks and soft shading. Every surface becomes one flat colour with hard edges.
+- Skin: one flat pale pink. Replace the many blood stains and bruises with at most three large, simple, flat dark-red shapes on the whole figure: one on the upper arm, one on the forearm and hand, one around the hatch.
+- Coverall: one flat olive-brown with no black or tan blotches. Replace the jagged, shredded edges with a few large, simple zigzag cuts, at most four or five big teeth per edge. Remove the small tears and holes.
+- Stitches: remove all stitches and seams from the head, neck, arms, legs, back and coverall. Keep only one single seam across the belly, drawn as one thick line with four or five large stitches.
+- Mask: flat brown burlap with no weave, no scratch marks and no frayed hairs. Its lower edge is plain, with at most three big teeth, and its cord is one flat band.
+- Hatch: one flat grey square with no rust and no drips. Remove the small hinges.
+- Hook and counterweight: flat grey with no blood marks, as one simple thick curve and one plain block. Remove the small chain link detail.
+- Boots: one flat dark brown with no creases, scuffs, laces or stitching lines, as two or three plain blocks.
+- Hose: one flat green band with no highlights or rust. Its end is a plain ring.
+- Remove interior muscle lines, wrinkles, and fine lines on the face, hands and body. Fingers are simple thick shapes. Eyes are two small plain dark shapes under one brow line.
+
+BY VIEW:
+- Panel 1, front: apply all of the above to the head, mask, hose, belly, hatch, arms, hook, legs and boots.
+- Panel 2, left profile: the same on the near arm, belly, hatch edge, hose, vent and legs. The vent is one plain dark ring, and the belly has only the single seam.
+- Panel 3, back: the coverall back becomes one clean flat olive-brown area. Remove the torn holes showing skin, the black stains and the neck and scalp stitches. The mask cord is one flat band.
+- Panel 4, top-down: the same on the scalp, face, shoulders, hose and belly. Remove the face lines and scalp stitches, and remove the blood around the vent except for one plain dark ring.
+- Panel 5, bottom-up: the boot soles become two flat dark-brown shapes with no cracks or tread marks, plus one simple heel line. The belly underside is flat pink with the single seam and one flat dark-red shape. Hook, block and hands are flat and simple, as above.
+
+Everything else stays unchanged. The result must read as a few large flat colour blocks, clear at 32x32 pixels.

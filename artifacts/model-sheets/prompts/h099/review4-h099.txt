@@ -1,0 +1,13 @@
+Edit this model sheet. The design is approved, but the tank is far too long. Make it short, fat, chunky and more cartoonish, like a Warcraft 3 tank: a squat, stubby toy-like vehicle. Change only the proportions below, and apply the same change to every view: the front view, both left-side profile drawings (the sheet shows this view twice; keep both and make them identical), the back view, the top-down view and the bottom-up view.
+
+Changes, the same in all views:
+1. Length: compress the whole vehicle from nose to tail by about 40 percent. In the profile views, the full length including the plough should be only about 1.5 times its height, not 2.5 times. In the top-down and bottom-up views, the full length should be only a little more than the width. Close up the empty stretch of hull between the plough and the wheels, so that the plough sits directly against the red side plates.
+2. Hull: make it deeper and fatter, with a tall, stubby box shape and large rounded corners instead of a long, thin wedge.
+3. Plough: make it shorter and thicker, a fat, stubby curved scoop that stays as wide as the hull. It must no longer stick out as a long ramp.
+4. Wheels: make the two wheels on each side about 25 percent bigger and thicker, nearly touching each other, with fat tyres.
+5. Turret: make it bigger, rounder and taller compared with the hull, so it reads as a large, chunky block sitting on top.
+6. Cannon: cut the barrel to about half its length and make it much thicker, keeping the wide muzzle. It should be a stubby cartoon cannon that barely passes the plough.
+7. Exhaust stacks: make the two stacks shorter and fatter, keeping their angle and black tips.
+8. Side pipes: make the copper pipes shorter and fatter to fit the shorter hull.
+
+Everything else stays exactly the same: the design and character, the same props in the same places and no new ones, the black hull, the brass trim, the grey-brown plates, the red panels, the red fender strips, the copper pipes, the hexagonal muzzle and the brass wheel hubs. The vehicle has no face. The pose stays level and static. The layout also stays the same: every drawing keeps its place, its view direction and its orientation on the page. Each compressed figure stays centred where it was, at the same height as before, fully visible, not cropped and not touching its neighbour. Keep the solid light-grey background, the flat coarse blockout style with heavy black outlines and flat colours, the low detail, and no text, labels, frames or shadows.

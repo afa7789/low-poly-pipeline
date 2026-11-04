@@ -1,0 +1,34 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough flat-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — a Mech Assault Tank (id h099) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Exactly five drawings: never a second profile view.
+
+The subject: a short, fat, stubby cartoon tank, a squat toy-like brick on four huge wheels, chunky and cartoonish like a Warcraft 3 vehicle. This is the Light Tank from the reference sheet, the same character upgraded: bigger, wider, heavier and better armed, but NOT longer in proportion. It must look compressed, as if the old long tank were squashed front to back.
+
+Hard proportions, the most important rule of this sheet:
+- In profile the whole tank, plough tip to rear plate, is only about 1.2 times as long as it is tall, wheels to turret top. It must fit nearly in a square.
+- Seen from above, the hull is almost as wide as it is long.
+- Only four wheels, two per side, never six. They are oversized: each wheel is more than half the height of the hull, and the two wheels on a side almost touch, with no gap of hull between them.
+- The plough is short and tucked tight against the nose, sticking out only a little.
+- The turret is big and fat, nearly as long as the hull roof.
+- The cannon is a short stub: its muzzle ends above the plough tip, never past it.
+All corners are rounded and swollen, all shapes thick and simple, like a toy. Few large shapes, no thin parts.
+
+What stays from the Light Tank: the curved grey plough with a thick brass rim on the nose, the four wide grey wheels with brass rims and dark spoked brass hubs, the boxy brass-framed hull with a dark charcoal deck, the large red flank panel, the flat brass-framed grey rear plate, the ribbed copper block on each shoulder, and the two fat exhaust stacks with black tips splayed in a V at the rear.
+
+What grows: everything is thicker and heavier. The plough becomes a wider, massive wedge with a blunt central ridge. The small mortar is replaced by a fat round grey drum turret between two thick brass rings, carrying one short thick brass cannon that points straight forward and ends in a flared hexagonal muzzle with a dark bore. The copper shoulder blocks become fatter and shorter. The exhaust stacks become much thicker and shorter.
+
+Panel 1, top left: front view facing the camera: the wide brass-rimmed grey plough filling the lower body, the hexagonal cannon muzzle centred on the fat drum turret above it, the two copper blocks on the shoulders, the two fat exhaust stacks splayed in a V behind the turret, and a big wheel on either side.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side, nose to the left: the whole tank fits almost in a square; the short plough tight against the nose, two huge wheels almost touching under the hull, the red flank panel behind them, the short fat copper block above it, the fat drum turret on top with the stub cannon pointing left, and one thick exhaust stack angled up at the rear.
+
+Panel 3, top right: back view of the same figure, as if driving away from the camera: the flat brass-framed grey rear plate, the drum turret above it with a red patch at its centre, the copper blocks on the shoulders, the two fat exhaust stacks splayed in a V, a big wheel on either side, and no cannon muzzle visible.
+
+Panel 4, bottom left: top-down view from directly above, nose pointing up the page: an almost square charcoal deck framed in brass, the big round drum turret filling most of it, the stub cannon pointing up the page and ending above the plough, the short plough wedge at the top, a fat copper block along each side of the turret, the wheels showing as thick blocks along both sides, and the two exhaust stacks splayed at the bottom.
+
+Panel 5, bottom right: bottom-up view from directly below, nose pointing up the page: the almost square charcoal underside framed in brass, two thick grey axle bars across it joined by one short bar with a red square at its centre, the wheels showing as thick blocks along both sides, the short plough at the top, and the two exhaust stacks splayed at the bottom.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same props in the same places, same scale, same ground line. Neutral static pose, a wheeled vehicle with no head, torso, arms or legs: hull level, all four wheels straight and on the ground, cannon level and pointing forward, no recoil, no smoke, no muzzle flash. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks, with hard clean edges and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Colours, several clearly different ones as on the original: warm brass-gold (#B8923A) for the frames, rims, rings and cannon; warm grey (#857A6E) for the plough face, turret and wheels; near-black charcoal (#2C2528) for the hull and deck; strong red (#C41E24) for the flank panel and the turret patch; copper orange (#D0824F) for the shoulder blocks; pale grey exhaust stacks with black tips. Face: none at all, no eyes, no mouth, no cab window.
+
+Weapon match: this unit attacks at long range with its one short cannon, carried on the turret. There is no melee weapon, rocket rack or second gun. Props are limited to those listed: no chain, crest, headlamp, extra turret, extra wheels or fuel tanks.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

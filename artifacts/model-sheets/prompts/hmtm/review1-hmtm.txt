@@ -1,0 +1,13 @@
+Edit this five-panel model sheet with one change only: give the figure a head, because it is currently headless. Add the same single head in all five views, as on the original bearded mortar crewman: a stout, bald, ruddy-skinned head with a heavy brow, a big blunt nose, two small stern eyes and a huge orange-red beard falling onto the chest. No helmet, no hat, no goggles. It is one plain, coarse block in the same flat style, with the same heavy line and flat tones. It sits low on the shoulders, directly on the collar, and is big enough to read at 32x32 pixels.
+
+Panel 1 (front): the head sits in the dark collar opening, in front of the base of the mortar tube and below the yoke crossbar, facing the camera with the whole face visible. The beard falls to just above the brass clasp, and the clasp stays visible.
+
+Panel 2 (left profile): the head sits on the shoulders under the leaning tube, just forward of the yoke bracket, on the side where the brass clasp and boot toes point. It is seen in clean side profile with the nose, brow and one eye, and the beard falls down the front of the cape.
+
+Panel 3 (back): the back of the same bald head shows above the shoulders at the collar. It is partly hidden by the tube and elevation screw, with the skin showing on both sides of them, and the edges of the orange-red beard just show at the sides.
+
+Panel 4 (top-down): the bald crown of the same head shows at the collar opening, under and on both sides of the tube, with the orange-red beard just showing past it on the crate side, towards the figure's front.
+
+Panel 5 (bottom-up): the underside of the same orange-red beard and chin shows between the top of the cape and the tube base, just past the brass shell nose, at the figure's front end.
+
+Everything else stays exactly as it is: the five-panel layout, the grey background, every view, the pose, the proportions and the flat coarse blockout style. The tube, yoke, elevation screw, capes, arms, mitts, crate, shell nose, slate, lantern, legs, boots, ground lines and all colours also stay unchanged. Add no text and no other props.

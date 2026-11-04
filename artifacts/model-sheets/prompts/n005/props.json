@@ -1,5 +1,0 @@
-[
-  {"name": "pressure tank with brass valve", "where": "on the back, shoulders to waist", "bones": ["spine"], "extent": [0.25, 0.55]},
-  {"name": "vaporiser", "where": "held in the hand", "bones": ["forearm.R", "forearm.L", "arm.R", "arm.L"], "extent": [0.08, 0.3]},
-  {"name": "belt lantern", "where": "hanging at the belt, on the hip", "bones": ["pelvis"], "extent": [0.04, 0.15]}
-]

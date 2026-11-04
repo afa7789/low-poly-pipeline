@@ -541,6 +541,7 @@ def export(arm, old, out):
         old.modifiers.new("Armature", "ARMATURE").object = arm
     old.parent = arm
     bpy.ops.object.select_all(action="DESELECT")
+    arm.data.pose_position = "POSE"     # load_rig leaves REST for the modelling: exported so, every clip samples the rest pose and freezes
     bpy.ops.export_scene.gltf(filepath=str(out), export_format="GLB", export_yup=True, export_animations=True,
                               export_animation_mode="ACTIONS", export_apply=True, export_skins=True, export_morph=False)
 

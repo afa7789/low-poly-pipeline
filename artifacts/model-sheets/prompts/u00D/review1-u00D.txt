@@ -1,0 +1,20 @@
+Edit this model sheet: make the Lich King a mystical floating figure, hovering in the air instead of standing. Change only the points below. Everything else stays exactly as drawn: the five-panel layout, the panel positions, the grey background, the flat coarse blockout style with heavy lines, the design, proportions and colours, the skull behind the cracked glass visor, the brass bars, the rib chest, the brown hooded coat, both arms and hands, both legs and boots, the green cane and the ledger. No text.
+
+The same four changes apply to all five views:
+
+1. Hovering: the whole figure, including the cane, rises off the ground and floats in mid-air, with a clear empty gap of about one fifth of the figure's height between the boots and the ground line. Scale the figure down slightly if needed so it stays uncropped. Nothing touches the ground and nothing supports the figure: no base, no stand, no shadow. The boots hang limp with the toes pointing slightly down. The figure stays upright and level, at the same height in every view.
+
+2. Coat hem: the straight lower edge of the coat becomes long, torn, pointed tatters that flare outward and lift as if weightless. The coat keeps its colour and its centre split.
+
+3. Ecto magic: a few large flat ecto-green (#0B8055 and a paler green) wisps, drawn as simple hard-edged tapered flame shapes, stream from the torn hem and from under the boots and fade out to points before reaching the ground. They are flat colour with no gradient, glow or particles. They are the only thing added under the figure.
+
+4. Cane: the cane no longer rests on the ground. It stays upright in the same right hand and the same place beside the body, with its square foot hanging in the air level with the boots and a small flat green wisp trailing from that foot.
+
+View by view:
+- Front view: the figure floats above the ground line, with torn hem tatters all round, green wisps below the coat and boots, and the cane foot in the air.
+- Left profile view: the same hover height and the same boots with toes down. The tatters and wisps trail slightly behind and below the figure, and the cane foot is in the air.
+- Back view: the same hover height, the back of the coat ending in the same torn tatters, green wisps below, and the cane foot in the air.
+- Top-down view: the same pose, with the coat's outline now ending in the jagged flared tatters and the green wisp tips showing past the edge of the hem.
+- Bottom-up view: the same pose, with the open hem now a jagged ring of tatters around the two boot soles, green wisps streaming from inside the hem and under the soles, and the green wisp on the foot of the cane.
+
+Every view shows the same character in the same floating pose.

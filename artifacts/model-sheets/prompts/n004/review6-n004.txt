@@ -1,0 +1,16 @@
+Edit this model sheet: keep the same lizard and tone down its extra parts so it can be built as a low-poly model. Make only the changes below, and make the same changes on the same creature in all five views.
+
+Changes:
+1. Back spines: replace the many long thin needle spines with only three short, broad, blocky triangular wedges in a single row down the centre of the spine, largest at the shoulders and smaller toward the hips. They must be much shorter than now, no taller than the head. Keep the dark teal with a plain cream tip, as one flat tone each.
+2. Neck frill: make it about half its current size, and draw it as a plain low orange collar of five broad flat angular plates. Remove the thin dark-red ribs and the fine scalloped edge.
+3. Throat sac: reduce it to about half its current size, as one plain flat lime-green rounded shape with no shine or highlight, tucked under the jaw.
+4. Claws and teeth: give each foot three thick blunt toes with one short cream wedge claw each, instead of the many small curved claws. Reduce the teeth to a few large simple triangles.
+
+Same change in each view:
+- Front view: three stubby wedges are barely visible behind the head instead of tall spines; smaller five-plate collar around the head; smaller plain sac under the jaw; three blunt toes on each foot.
+- Left profile view: three short wedges in a row along the back, none past the hips; smaller collar behind the head; smaller plain sac; three blunt toes on each foot; a few large teeth.
+- Back view: the three wedges in one centre line down the back; only a low edge of the collar shows behind the shoulders; three blunt toes on each foot.
+- Top-down view: the three wedges in one straight line down the centre of the back, with no spines fanning out sideways; smaller collar; only a thin edge of the sac shows beside the neck; three blunt toes on each foot.
+- Bottom-up view: smaller plain sac on the throat; smaller collar edge showing beside the neck; three blunt toes on each foot; no spines visible.
+
+Everything else stays exactly as it is: the body, head, glowing cyan eyes, tail, four legs, pose, proportions, the colours (teal skin, tan belly, orange collar, lime sac, cream tips), the panel layout and placement of all five views, the grey background, the flat coarse blockout style with heavy lines, and no text. Do not add any new parts, gear or detail.

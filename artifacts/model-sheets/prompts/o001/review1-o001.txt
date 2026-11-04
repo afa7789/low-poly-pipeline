@@ -1,0 +1,17 @@
+Edit this model sheet so a 3D modeller can build the Orc Catapult straight from it. The design is approved: keep the same machine, all of its parts, its colours (soot black, rust, dark iron, ember orange), its flat coarse blockout style, the five-panel layout, the grey background, the ground lines, each figure's position and size in its panel, and the no-text rule. Add nothing new. Change only the following, so that every part has one shape, size and position that matches across all five views.
+
+Shape of the covering: it is a four-sided pyramid roof with its peak at the rust pivot block, its corners over the four chassis corners. Each slope is one flat soot-black plane in one single tone, the same black in every view, with no patches of deeper black. The four hip edges run from the pivot block to the four corners as the same black strip with the same thin rust strip under it.
+
+Front view (panel 1): cut the two tall splintered rust timbers down so they no longer rise past the roof or stand clear of it; only their lower ends show, from the chassis corners up to just under the eaves, the same height as in the left profile. Keep the arm in front of the cauldron.
+
+Left profile (panel 2): remove the small pair of rust plates at the middle of the chassis. Give both wheels the same round rust hub, with the same spokes.
+
+Back view (panel 3): cut the two rear timbers down exactly as in the front view, so they are the same height and thickness. Replace the drips with one thick fire drip from the bottom centre of the cauldron, the same length as in the profile, ending clear of the pivot block. Lower the cauldron and flame to the exact height they have in panels 1 and 2. Make the orange stripe one clean tapered shape without the cross line.
+
+Top-down view (panel 4): remove the wide rust band across the middle and the orange stripe on the left, front half, of the roof, so the orange stripe appears only on the rear slope from the pivot block to the rear edge, under the arm. The hip edges stay as an X meeting at the pivot block. Only the feet of the timbers show at the corners. Shorten the torches to short diagonal stubs at the four corners, matching their small outward lean in the front and profile views, each ending in a round flame seen from above instead of a long sideways streak. Put the one fire drip on the centreline at the rear edge of the cauldron.
+
+Bottom-up view (panel 5): remove the small rust stubs at the mid-length of the chassis edges. Show the torches as the same short diagonal stubs with only their butts and a small rim of flame, not sideways streaks. Show the underside of the cauldron as a plain round black disc on the centreline with one single drip at its rear edge, no keyhole shape.
+
+All five views, same change: align all parts across views, so that the wheel size, wheel width, axle positions, chassis length and width, roof peak, cauldron diameter, flame height and torch height are identical wherever they appear, and the top row shares the same horizontal heights for each part. Make every part read as a simple solid with clean, straight, hard edges and a clear join to the next part, so that nothing floats. Clean up the art in all five views: remove the wobbly line, wood-grain scratches, smudged soot texture, rivets on the bands and collars, and the stitch lines, leaving one flat tone per surface.
+
+Everything else, the layout and every view stay exactly as they are.

@@ -1,0 +1,12 @@
+Edit this model sheet: add shoulder props to the water elemental, and change nothing else.
+
+The change: on each shoulder, seat one chunky shoulder piece half sunk into the water, like wreckage and sea life the tide has picked up. Each piece is one big ribbed scallop shell in tan and coral red, overlapping one curved dented plate of rusty riveted-looking ship hull metal in dark rust brown. Draw them as two or three large crude flat shapes with a heavy outline, no small detail and no fine rivets. The left and right shoulders match as a mirrored pair, about the size of the fist. The water spikes on the shoulders stay and rise from around and behind the shell and plate, so the props sit at their base. The props are loose debris held in the water, not armour straps: no belts, buckles, chains or machinery.
+
+Show the same change in all five views, with the same props in the same places at the same size:
+- Panel 1, front view: both shoulder pieces seen from the front, shell facing outward and forward, rust plate beneath it.
+- Panel 2, left profile: the near shoulder piece seen from the side, shell and rust plate at the shoulder in front of the water spikes.
+- Panel 3, back view: both shoulder pieces seen from behind, rust plate and the back of the shell.
+- Panel 4, top-down view: both shoulder pieces seen from above, left and right of the head, with the shell tops clearly visible.
+- Panel 5, bottom-up view: the undersides of both shoulder pieces, just visible beyond the arms, left and right, in the same tan, coral and rust colours.
+
+Everything else stays exactly as it is: the blue water body, the single tapering column rising from the ripple pool, the foam wave crest, the wedge head and glowing eyes, the arms, teal fists, water spikes and droplets, and all the colours. The pose, proportions, five-panel layout, panel positions, grey background and flat coarse blockout style also stay. Do not add legs, text, labels, frames or any other new props.

@@ -1,0 +1,46 @@
+[
+  {
+    "name": "long_obelisk_spar",
+    "where": "anchor body, on bone wing1.upper",
+    "bones": [
+      "wing1.upper"
+    ],
+    "extent": [
+      0.771,
+      1.157
+    ]
+  },
+  {
+    "name": "short_obelisk_spar",
+    "where": "anchor body, on bone wing2.upper",
+    "bones": [
+      "wing2.upper"
+    ],
+    "extent": [
+      0.627,
+      0.94
+    ]
+  },
+  {
+    "name": "central_cloud_pocket",
+    "where": "anchor crook, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.299,
+      0.448
+    ]
+  },
+  {
+    "name": "basalt_shard",
+    "where": "anchor body, on bone tail.1",
+    "bones": [
+      "tail.1"
+    ],
+    "extent": [
+      0.149,
+      0.223
+    ]
+  }
+]

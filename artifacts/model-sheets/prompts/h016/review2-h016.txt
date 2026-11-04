@@ -1,0 +1,16 @@
+Edit this five-panel model sheet. Change only the rider's weapon and three parts of the rider's clothing, so that the rider reads as a 1930s dieselpunk scrap pilot and no longer as medieval. Make the same changes in every view. Everything else stays exactly as it is: the gryphon's body, head, colours, wings, legs and tail, the rider's pose, leather flying cap, goggles on the forehead, white beard, shearling collar and black bomber jacket, the five-panel layout, the grey background, the flat coarse blockout style and the absence of text.
+
+The changes, as large crude flat shapes:
+1. Weapon: replace the medieval war hammer with an arc-welding mace of the same length, held in the same hand at the same angle. It has a chunky steel-grey head that splits into two thick forked electrodes with copper tips pointing up, and a thick mustard-yellow battery block forming the handle, with a black grip below it. Draw no lightning, sparks or cables.
+2. Chest: add two wide crossed ammunition bandoliers in dark umber with brass-yellow bands, forming one big X over the black jacket on the chest and repeated as one big X on the back. Draw them as flat bands with no individual bullets.
+3. Hands: replace the bare hands with heavy black rubber gloves with thick orange-brown cuffs, on both hands.
+4. Legs: replace the olive trousers with slate-blue mechanic overalls, with the empty overall sleeves knotted in a thick band around the waist just below the jacket hem. Keep the black boots.
+
+The same changes in each view:
+Panel 1, front view: the mace is raised on the left of the panel where the hammer was. The bandolier X is on the chest above the gryphon's head as far as it shows, and the raised hand wears the rubber glove. Any overalls showing are slate-blue.
+Panel 2, left profile: the mace is held upright above the rider's head where the hammer was. The bandoliers cross the jacket side, both hands wear rubber gloves, the leg is slate-blue overall above the black boot, and the knotted sleeves show at the waist.
+Panel 3, back view: the mace is raised on the right of the panel where the hammer was. The bandolier X is on the back of the jacket, the raised hand wears the rubber glove, and the slate-blue overalls and knotted sleeves show at the waist.
+Panel 4, top-down view: the bandolier X shows on the rider's shoulders and back, both hands wear rubber gloves, and the slate-blue overalls and knotted sleeves show at the waist. The mace head is seen end-on from above as a small steel fork with copper tips, in the rider's hand on the right of the rider.
+Panel 5, bottom-up view: the gryphon hides the rider, so this view stays exactly as it is, with no rider parts added.
+
+Do not add a back tank, fuel tank, backpack, seat, lantern, pipes, armour or any gear on the gryphon. The rider's only additions are the items listed above.

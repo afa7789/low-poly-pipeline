@@ -1,0 +1,23 @@
+Recolour this model sheet and change nothing else. Keep every shape, line, outline, proportion, pose, prop, the five-panel layout, the grey background, the flat coarse blockout style and the absence of text exactly as they are. This is a colour change only: no new parts, no removed parts, no redrawing. The figure is now far too dark and violet. Replace the single dusk-violet scheme with several clearly different flat colours, taken from the original Malfurion-style icon (purple skin, teal-green hair and beard) and from the predecessor druid (ochre-brown hood, green tunic, gold trim, brown wood).
+
+Apply this same colour map to all five views:
+- Hood and shoulder cape: warm ochre brown (#94693F).
+- Trim on the hood opening and cape edge: gold (#C8962E), replacing the grey there.
+- Long robe, including its sleeves: moss green (#5E7D42). In the bottom-up view, the inside of the robe becomes dark green (#2E3D22) instead of near-black violet.
+- Robe bottom hem and sleeve cuffs: gold (#C8962E), replacing the grey.
+- Hanging veil: bright teal green (#1F8A78), replacing the purple.
+- Mask: warm bone ivory (#E6DEC8), keeping its dark eye holes.
+- Hands: purple night elf skin (#A77FBC).
+- Boots and boot soles: dark brown (#4A2E1E).
+- Belt: dark leather brown (#5A3A24).
+- Staff shaft: brown wood (#5C3A21).
+- Coiled root loops: reddish root brown (#7A4A2C).
+- Crescent blade, nail crown, tally rod, belt loops and root-coil barbs: keep their silver grey.
+
+Front view: all of the above is visible, with the teal veil over the green robe, the ochre hood and cape, gold edges, purple hands, brown boots and brown root loops behind the shoulders.
+Left profile view: same colours on the hood, mask, veil, cape, robe, cuff, hand, belt, tally rod, boots, coil and staff.
+Back view: ochre hood and cape, green robe, gold hem and cuffs, brown root coil with silver barbs, purple hands, brown boots and brown staff with silver crescent.
+Top-down view: ochre hood and cape, gold edges, silver nails, teal veil, green sleeves and robe, purple hands, brown boots, brown coil and brown staff with silver crescent.
+Bottom-up view: dark brown soles, dark green robe interior, gold hem and cuffs, green robe and sleeves, teal veil, ivory mask, purple hands, brown belt, brown coil with silver barbs and brown staff.
+
+Keep each surface one flat tone, with no gradients, texture or shading added. The dark outline stays as it is. All else stays unchanged, and every view shows the same character in the same pose.

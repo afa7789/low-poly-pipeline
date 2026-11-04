@@ -193,14 +193,14 @@ def cut_polys(parts, sheet, layout="unit"):
     centre = {a: (min(b[0][a] for b in boxes) + max(b[1][a] for b in boxes)) / 2 for a in (0, 2)}
     ext = (tuple(min(b[0][a] for b in boxes) for a in range(3)), tuple(max(b[1][a] for b in boxes) for a in range(3)))
     panels = SIL.concept_panels(sheet, layout=layout)
-    flat = top_view(panels, boxes, ext)
+    flat = top_view(panels, boxes, ext) if "top" in panels else None      # building layout: the roof plan, no top panel to read
     for i in wanted:
         lo, hi = boxes[i]
         front = strip_outline(panels["front"], (top, centre[0]), lo, hi, 0, LIMIT, True)
         left = strip_outline(panels["left"], (top, centre[2]), lo, hi, 2, LIMIT, True)
         if front and left:
             out[i] = {"box": [list(lo), list(hi)], "front": front, "left": left,
-                      **({"top": t} if TOP_PRISM and (t := top_poly(flat, ext, lo, hi)) else {})}
+                      **({"top": t} if TOP_PRISM and flat is not None and (t := top_poly(flat, ext, lo, hi)) else {})}
     return out
 
 

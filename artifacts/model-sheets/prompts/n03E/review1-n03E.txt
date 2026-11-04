@@ -1,0 +1,23 @@
+Edit this model sheet. Keep the body, proportions, silhouette of the long split robe, pose, wide hat shape, ears, panda face shape and eye patches, line style, five-panel layout, camera angle of every view, figure size, positions, ground line and solid light-grey background exactly as they are. No text. Change only the colours and the items listed below, and apply every change to the same character in all five views: front, left profile, back, top-down and bottom-up.
+
+1. New colours, replacing all pink and all green everywhere:
+- Robe and sleeves: flat charcoal grey (#5A5C60). The darker fold and hem inside become darker grey (#3A3B3E).
+- Add a wide bronze-gold band (#A8802E) around the robe hem and around both sleeve cuffs.
+- The crossed collar and a short shoulder mantle over the shoulders: bright crimson red (#D0201C).
+- Belt: black with a small bronze-gold buckle.
+- Wide hat: dull bronze-gold (#A8802E), with black ears unchanged.
+- Hands: grey fur paws (#7A7C80) instead of terracotta mitts. Both hands stay in the same place.
+- Legs and paw feet stay black. Add one narrow white band around each leg just above the foot, wherever the legs are visible.
+- Face stays cream with black eye patches.
+
+2. Make the character read as an old, wise sage:
+- Remove the terracotta kettle-spout mask from every view. In its place show a short cream panda muzzle with a small black nose and a closed calm mouth. In profile, the muzzle replaces the spout. Seen from above and below, only the small muzzle tip shows past the hat or chin.
+- Add two long thin white whisker strands hanging from the muzzle down to mid-chest, like an old master's moustache, plus two short white eyebrows sweeping outwards over the eye patches.
+- Remove the tea boiler from the back. The back of the robe is now plain, with the crimson mantle across the shoulders.
+- Remove the bent pipe and the thick cylinder on the right arm. That arm is now an empty, wide grey sleeve with a bronze-gold cuff and a grey paw, angled down and out, mirroring the other arm at the same angle.
+- Remove the cup basket and its strap from the hip.
+- Replace the long ladle with a tall, thin, straight crimson-red staff in the same hand, at the same angle and position, as tall as the figure and reaching from near the ground to above the hat brim. Its head is one flat round dark-iron disc with a small crimson centre, like a small valve wheel. This is the only piece of gear on the figure.
+
+In the top-down view, show the bronze hat, black ears, crimson mantle at the shoulders, grey robe and sleeves, gold cuffs, and the staff disc beside the hand, with no boiler, pipe or basket. In the bottom-up view, show the grey hem with its gold band, black legs and soles, grey sleeves, gold cuffs, paws, and the staff in the same hand, with no spout, boiler, pipe or basket.
+
+Everything else stays exactly as it is. Keep the same flat coarse blockout style with heavy lines and one flat tone per surface.

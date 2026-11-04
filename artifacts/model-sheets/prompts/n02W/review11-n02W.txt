@@ -1,0 +1,13 @@
+Edit this model sheet. Change only the bottom-right panel (panel 5, the bottom-up view). In the current sheet that figure is upside down, with the talons at the top of the panel and the head and beak at the bottom. Redraw it the right way up, in the same orientation as the bottom-left panel (panel 4, the top-down view).
+
+New bottom-right panel: the same harpy, seen from directly below, head at the TOP of the panel and talons at the BOTTOM.
+- Top of the panel: the head, with the pale grey-tan beak and chin seen from underneath and the spiky black hair showing above and behind them.
+- Upper middle: the fluffy dark brown neck ruff and shoulders.
+- Centre: the dark brown chest and belly, seen from the front of the body.
+- Sides: the two wings spread left and right, with the wrist bends and small curved grey claws at the upper outer corners, as in the bottom-left panel. Show the wing undersides in the same colours as now, brown inner wing with long pale tan feathers, and the feather tips pointing DOWN and outward.
+- Lower middle: the dark brown pointed tail feathers hang straight down between the legs, tip pointing down.
+- Bottom of the panel: the two yellow-ochre scaled bird legs come down from the hips and end in the spread three-toed talons with black claws, toes pointing DOWN.
+
+Match the bottom-left panel in figure size, wing span, wing angle, vertical position and centring, so the two bottom panels read as a matching pair, one seen from above and one from below. It is the same character in the same pose, with the same proportions and colours. Draw a clean upright redrawing, not a stretched or warped version of the old figure.
+
+Everything else stays exactly as it is. The other four panels (front, left profile, back and top-down) are untouched, pixel for pixel. Keep the five-panel layout, the solid light-grey background, the wide empty margins, the flat coarse blockout style with heavy dark outlines and flat colour, and keep the sheet free of text, labels and frame lines. Add no new props or details. Exactly one full-body figure in the panel, never cropped and not touching any neighbouring figure.

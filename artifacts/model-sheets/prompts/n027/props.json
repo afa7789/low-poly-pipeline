@@ -1,0 +1,46 @@
+[
+  {
+    "name": "crown_canopy",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.553,
+      0.829
+    ]
+  },
+  {
+    "name": "crown_branches",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.475,
+      0.712
+    ]
+  },
+  {
+    "name": "hanging_vines",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.449,
+      0.673
+    ]
+  },
+  {
+    "name": "root_collar",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.169,
+      0.253
+    ]
+  }
+]

@@ -1,0 +1,15 @@
+Recolour this model sheet only. Do not change any shape, line, proportion, pose, prop or position. The five-panel layout, the light-grey background, the heavy black outlines, the flat coarse blockout style, the empty margins and the absence of text all stay exactly as they are. Each surface keeps one flat tone, with no gradients, no texture and no new detail.
+
+Replace the current soot-black and rust-brown scheme with these clearly different colours, and apply the same mapping to the same parts in all five views (front, left profile, back, top-down, bottom-up):
+
+- All bare orc skin (torso, shoulders, arms, hands, ears, jaw, and the lower legs where they show between kilt and boots): bright saturated orc green (#6FB52C), no longer black. This is the biggest change and must read at once in every view.
+- Beak mask and the head harness straps on it: pale bone-cream fur colour (#D8CDB4). The eye holes stay black.
+- Tusks: ivory white (#EFE6CC).
+- Kilt and its waist band: warm tan-brown (#94683A). The kilt's lower edge gets one flat cream band (#D8CDB4). Where the bottom-up view shows the inside of the kilt, use dark brown (#4A3320) instead of black.
+- Six valve-bells: dull steel grey (#8C8F92).
+- Bellows on the back: dark brown (#4A3320), with its shoulder and back straps black (#1A1716).
+- Boots and boot soles: dark brown (#4A3320).
+- Staff shaft: dark brown (#4A3320). The skull on top: bone-cream (#D8CDB4), with black eye holes.
+- The flame stays ember orange (#FF5E12), the only orange on the figure.
+
+No rust red and no black skin remain anywhere. Everything else in the image stays exactly as it is, in every view.

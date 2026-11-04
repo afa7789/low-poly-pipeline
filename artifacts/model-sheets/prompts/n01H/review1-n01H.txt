@@ -1,0 +1,12 @@
+Edit this model sheet. Change only one thing: the single big grey leaf on the creature's back becomes a cape of many smaller leaves. Everything else stays exactly as it is: the body, the pose, the high branch gate above the head, the green face cavity, the rust collar, the black sap nerve, the arms, the root claws, the legs, the root feet, their colours and proportions, the five-panel layout, the position and size of every figure, the grey background, the flat coarse blockout style with heavy black outline, and no text.
+
+The new cape: 9 to 12 separate pointed leaves, each about a quarter the size of the old leaf, hanging from just under the rust collar and overlapping in loose rows like shingles, with a ragged, uneven lower edge of leaf tips. The cape covers the same area of the back as the old leaf, reaching only slightly wider and lower. It lies close to the back, so the body does not get bulkier or hunched. Each leaf is one flat block with a heavy outline and at most one centre vein. Colour the leaves in flat dull violet-magenta (about #7A3A78), with a few in darker purple (about #4A2A58), replacing the old ash grey. No other leaves anywhere on the body, and no new props.
+
+Make the same change in all five views:
+Panel 1, front: the torso still covers the cape, and only a few leaf tips show at either side of the trunk below the armpits.
+Panel 2, left profile: the thin grey slab becomes a layered stack of overlapping leaves against the back, with tips lifting slightly outward and downward.
+Panel 3, back: the big leaf is fully replaced by the overlapping cape of many leaves below the collar, with the ragged tips ending over the lower trunk.
+Panel 4, top-down: the grey shape behind the gate becomes a cluster of overlapping leaf tips at the rear of the trunk.
+Panel 5, bottom-up: the grey shape at the rear becomes the ragged underside of the same leaves, showing several separate tips.
+
+The same cape appears in every view, in the same place, with no single big leaf left anywhere.

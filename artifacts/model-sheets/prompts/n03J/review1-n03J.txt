@@ -1,0 +1,23 @@
+Recolour this model sheet and change nothing else. This is a colour swap only: every shape, outline, proportion, pose, prop, face, position and line stays exactly as drawn. The five-panel layout, the grey #CCCCCC background, the flat coarse blockout style and the absence of text also stay. Remove all pink and all jade green from the sheet. The new colours match the predecessor unit, a slate-furred panda in a brown vest with cream trim and a terracotta belly, so this reads as the same character, upgraded.
+
+Apply this exact colour map to every view, flat with one tone per surface:
+- Pink bib apron: dark chestnut brown (#6B3428).
+- Three coin patches on the apron: aged brass yellow (#B8923E).
+- Jade waist band of the apron: warm cream (#EBD9B0).
+- Keg-lid shoulder spaulders: weathered oak tan-brown (#8A6A48), with their outer rims in dark iron grey (#55555C).
+- Jade tea canteen: pale clay tan (#A89A86).
+- Counter kit on the back: jade plank top becomes warm cream (#EBD9B0), red-orange body and trestles become terracotta (#A8603F).
+- Black panda fur on arms, legs, ears and eye patches: slate blue-grey (#4A5060).
+- Bone-white fur on head, chest and rump: cool pale white (#DDE0E6).
+- Mitts: stay dark brown-grey.
+- Boots: stay black.
+- Tool-staff and valve disc: stay steel grey.
+
+Make the same changes in all five views:
+- Panel 1, front: chestnut apron, brass coins, clay canteen, oak spaulders, slate and pale fur.
+- Panel 2, left profile: chestnut apron, one brass coin, clay canteen, oak spaulder facing the camera, cream and terracotta counter-kit edge, cream waist band, slate and pale fur.
+- Panel 3, back: cream plank top on terracotta counter kit, cream waist band, chestnut apron showing at the straps and between the legs, oak spaulders, slate and pale fur.
+- Panel 4, top-down: oak spaulders with iron rims, cream and terracotta counter kit, chestnut apron, clay canteen, slate ears and pale head.
+- Panel 5, bottom-up: chestnut apron with brass coins, clay canteen, oak spaulders, slate legs and pale belly fur, black soles.
+
+Do not add or remove anything, and do not add gradients, texture or shading.

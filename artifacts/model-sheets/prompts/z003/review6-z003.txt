@@ -1,0 +1,16 @@
+Edit this model sheet. Make exactly two changes, and make both big and obvious at 32x32 pixels: the previous version changed too little. The same two changes appear in all five views, on the same character in the same pose.
+
+CHANGE 1, A MUCH BIGGER GUN. The flame gun in the right hand becomes a huge, heavy, oversized weapon, the largest prop on the unit. Keep its design: the tan block with black holes, the two square grey barrels side by side, the wooden grip and the small yellow flame at the muzzle. Make the tan block about two and a half times as tall and wide, so it is nearly as wide as the torso and reaches from the belt down to the knee. Make each grey barrel about two and a half times as thick, and the whole gun about a quarter longer. Thicken the wooden grip to match. The right hand still grips it at the hip at the same arm angle, level and pointing straight forward. The gun grows mainly in thickness, and it must stop clear of the neighbouring panel and of the page edge. Move the flame to the new muzzle, at the same small size.
+- Front view: the huge block and two big square muzzles cover the hip and thigh on the left of the panel, in front of the belt.
+- Left profile: the huge block and two thick barrels project forward from the hip, far heavier than the torso's depth, stopping short of the back-view figure.
+- Back view: a large part of the huge block shows beyond the right hip on the right of the panel, with the hand and grip on it.
+- Top-down: the wide block and two thick barrels run forward from the right hand, clearly wider than the forearm.
+- Bottom-up: the wide block and two thick barrels rise from the right hand, clearly wider than the forearm.
+
+CHANGE 2, ONE MORE LARGE ARMOUR PLATE ON EACH SHOULDER. Add one new third tier to each stacked shoulder pauldron: a single thick dark-red plate with a wide tan-brass rim, set under the two existing tiers. It is much larger than they are, sticks out well past them, and hangs down to the elbow. The shoulders and the overall silhouette become about a quarter wider, so the armour clearly reads as heavier than before. It is one plain flat shape, with no spikes and no small hardware.
+- Front view and back view: the new plate is on both shoulders, widening the silhouette on both sides.
+- Left profile: the new plate shows as a big rimmed shape hanging over the upper arm.
+- Top-down: the new plate shows as an extra wide red band with a brass rim on the outer side of each shoulder.
+- Bottom-up: the underside of the new plate shows on both shoulders, sticking out past the existing tiers.
+
+Everything else stays exactly as it is: the green goblin face and tusks, the black spiked helmet with brass crest and horns, the black neck scarf, the grey breastplate, the grey tunic, the belt and leather apron, the crossed back straps, the grey greaves, the boots, the green hands, all colours and the proportions. The left arm stays lowered in the same place. Do not add tanks, backpacks, hoses or any other prop. Keep the five-panel layout, the position of every view, the light-grey background, the flat coarse blockout style with heavy lines, the same pose and ground line in every view, one complete uncropped figure per panel, and no text.

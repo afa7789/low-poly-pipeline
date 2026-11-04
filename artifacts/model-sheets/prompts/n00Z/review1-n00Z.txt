@@ -1,0 +1,31 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough flat-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — a Chaos Champion (id n00Z) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them.
+
+Subject: this is the same character as the predecessor sheet, promoted: the same orange-red demon in black armour with gold trim, now about a quarter taller and far bulkier, with better armour and one huge cool weapon.
+
+What stays from the predecessor: the bare orange-red muscular chest, arms and thighs; the tall pointed black helm that merges into the shoulders; the big black shoulder plates with gold rims and spikes; the black belt with waist plates and loincloth; the black back plate with gold outline; the black gauntlets; the same stance, proportions and flat drawing style. All four limbs stay.
+
+What grows: much wider chest and shoulders, thicker arms and legs; shoulder plates half again as large, stacked in two layers, with larger gold-tipped spikes and a broad gold rim; the two small horns become two very long thin black horns rising from the sides of the helm and curving up far above its point; the helm gains a broad tarnished-gold brow and cheek guards; the visor opens to show a dark red demon face with two glowing green eyes and a row of small bared teeth; black forearm guards with jagged gold edges; the muddy brown boots become heavy black armoured greaves and sabatons with gold bands and pointed gold knee guards.
+
+What is removed: the small sickle and the chest badge, replaced as below. No gas mask, no backpack, no exhaust box, no stacks, no standard, no mast, no valve wheel, no saw-blade.
+
+The weapon: one great war-glaive carried upright in the figure's right fist (viewer's left). A long straight thick black haft, with a pointed gold butt that stops just above the ground line so it is carried and not planted. At the top, above the helm's point, a huge crescent blade sweeps outward away from the body, as long as the whole torso and helm together, heavy and wide, with three big jagged hooked notches along its spine, a steel-grey body and a wide tarnished-gold inlay blocked in down its middle. One plain square iron collar joins blade to haft; this is the only dieselpunk gear on the unit. The weapon is held upright in one fixed position, the crescent's flat side facing front and back.
+
+Panel 1, top left: front view facing the camera: the huge demon with long horns, green eyes and teeth in the visor, stacked spiked shoulder plates, bare orange-red chest, gold-trimmed black armour on forearms and shins. The right arm hangs lowered and slightly out, its fist at hip height gripping the upright glaive on the viewer's left, the crescent blade flat to the camera and sweeping out to the viewer's left. The left arm hangs lowered and slightly out with an empty fist on the viewer's right.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side, facing viewer's left: the deep chest, the helm and long horn in profile, the near shoulder plate with its spikes, the near arm hanging with its empty fist, the black back plate, the armoured legs. The haft stands behind the near arm and shows above and below it, with the crescent seen edge-on as a tall thick bar above the helm.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the black back plate with gold outline, the stacked shoulder plates, the long horns rising above the helm. The glaive stands on the viewer's right, with the crescent flat to the camera and sweeping out to the viewer's right; the empty left fist hangs on the viewer's left.
+
+Panel 4, bottom left: top-down view from directly above: the helm's point with the two long horns spreading from it, the two broad spiked shoulder plates, the fists below them, and the glaive seen from above as a long narrow thick strip, the crescent's edge-on length reaching outward from the figure's right fist, with the square collar at its inner end.
+
+Panel 5, bottom right: bottom-up view from directly below: the two armoured sole blocks side by side, the underside of the belt and torso, the shoulder plates, and the pointed gold butt of the haft seen end-on by the figure's right fist, with the same long narrow crescent strip reaching outward behind it.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same props in the same places, same pixel height, same ground line. Neutral static pose, standing level on two straight legs at shoulder width, both arms lowered and slightly out, the right fist at hip height gripping the upright glaive, no expression change, every limb at the same angle in every view. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks — head, torso, two arms, two legs — with hard edges and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Colours, clearly separate: bright orange-red skin, soot-black armour, tarnished gold trim, steel-grey blade, dark red face, and vivid green eyes as the one small accent.
+
+Weapon match: this unit attacks at melee range with its great glaive; there is no firearm, bow or launcher, and no second weapon.
+
+Rank in its chain: this is the upgraded body of the n009 Felguard: visibly the same character, bigger and stronger, with better armour, longer horns and a much greater weapon; no extra limbs or heads.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

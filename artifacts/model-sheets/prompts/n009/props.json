@@ -1,0 +1,25 @@
+[
+  {
+    "name": "horn.L",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.099,
+      0.148
+    ]
+  },
+  {
+    "name": "scythe",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.374,
+      0.56
+    ]
+  }
+]

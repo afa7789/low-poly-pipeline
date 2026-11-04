@@ -1,0 +1,13 @@
+Recolour this model sheet only. Keep every shape, line, pose, proportion, prop position, the five-panel layout, every view, the flat coarse blockout style, the heavy dark outline, the solid light-grey #CCCCCC background and the absence of text exactly as they are. Do not redraw, add or remove anything: this is a flat colour swap inside the existing outlines.
+
+Apply the same colour changes to the same body parts in all five views (front, left profile, back, top-down, bottom-up):
+
+1. Fur: all the dark slate-blue body (hump, head top, shoulders, torso, arms, legs) becomes flat silver-white fur (#F1EFF4), clearly lighter than the grey background, with the existing dark outline keeping the figure separate from the background.
+2. Bare skin: the face area inside the existing face outline, including the muzzle, nose and brow, becomes flat muted purple (#7A5A98). The ears, the bare hands behind the claws and the patches on the feet, which are now dark slate or brown, become the same purple. Front view: full face. Left profile: face and ear. Top-down: muzzle tip and hands. Bottom-up: underside of the muzzle, palms and feet. Back view: hands and feet only.
+3. Claws and fangs: all pale-blue claws and fangs become warm ivory (#EFE3C0), with no blue left on them, in every view where they show.
+4. Mouth: the black open mouth interior becomes very dark maroon (#3A1420), with the lips and gum edge in flat red-pink (#B5364A). The oil-black stain on the muzzle, chin and throat in the bottom-up view becomes the same very dark maroon, in the same shape. Apply this in every view where the mouth or the stain shows.
+5. Eyes: keep the amber eyes (#FFB224).
+
+Everything else stays the same colour: the brown frozen-mud crusts on the forearms, the grey wrench and hook, the brown bundle and its band, and the amber lamp with its dark housing, each in the same place in every view.
+
+The result has one flat tone per surface, with no texture, no gradients, no shading and no fur strands.

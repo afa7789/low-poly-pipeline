@@ -1,0 +1,12 @@
+Edit this model sheet with one change only: remove the brass sealing stamp completely from all five views. This unit is going to battle and carries no stamp. No stamp, seal block, handle or knob may remain anywhere, and nothing replaces it. The hand that held it stays in place at the same angle, now as an empty closed fist in the same dark glove, at the end of the same arm with the same pale lime forearm sleeve.
+
+The same change in each view:
+- Panel 1, front (top left): remove the brass stamp from the gloved hand on the viewer's right, leaving an empty closed dark fist.
+- Panel 2, left profile (top middle): remove the brass stamp from the gloved hand at the near hip, leaving an empty closed dark fist. Fill the area it covered with the teal coat behind it.
+- Panel 3, back (top right): remove the brass stamp from the gloved hand on the viewer's left, leaving an empty closed dark fist.
+- Panel 4, top-down (bottom left): remove the rectangular brass stamp and its round knob at the hand on the viewer's right, leaving only the dark fist seen from above.
+- Panel 5, bottom-up (bottom right): remove the brass stamp block beside the hand on the viewer's right, leaving the dark fist and pale lime sleeve. Keep the brass sword crossguard on the viewer's left; it is part of the sword and is not the stamp.
+
+Fill every removed area with the plain light-grey background (#CCCCCC) or the surface that was behind it, with no ghost outline, smudge or shadow.
+
+Everything else stays exactly as it is: the five-panel layout and the position, size and pose of every figure, the same character and proportions, the brass bell cap with three spikes, the dark face plate with its one blue lens, the tall teal collar with blue lining, the brass shoulder plate, the teal coat and double apron, the belt, the brass knee plates, the dark boots, the long sword in the other hand, the dark ledger block at the back, all colours, the flat coarse blockout style with heavy lines, the solid light-grey background, and no text or labels.

@@ -1,0 +1,12 @@
+Edit this model sheet. Change only one thing: remove the gas-tank backpack and put armor in its place. Remove completely from all five views the grey back cylinder, the exhaust stack, the valve-cross, the curved pipe and the round pipe fitting on the jaw of the mask. No tank, pipe, hose, stack or valve may remain anywhere, and the mask stays a smooth closed surface where the pipe met it.
+
+The new armor is one heavy back plate of soot-black steel covering the upper back from shoulder to shoulder and down to the waist, joined to two large angular black steel pauldrons, one on each shoulder, the same size and shape left and right, each with a few short pointed spikes along its top edge. The back plate and pauldrons have one thick plain dull-gold edge trim. They are worn tight against the body, adding no pack and no bulk behind the back. Draw them as a few large flat shapes with a heavy line, with no rivets, no straps and no small detail. The chest stays bare.
+
+Make the same change in all five views:
+- Front view (top left): the stack, the valve-cross and the pipe are gone; both shoulders are now capped by the matching black pauldrons with gold edge, and the bare red chest and grey badge stay as they are.
+- Left profile view (top middle): the tank, stack and pipe are gone; the near pauldron caps the shoulder and the black back plate lies flat along the hunched back, so the back outline now follows the body.
+- Back view (top right): the tank, stack, valve-cross and pipe are gone; the black back plate with gold edge covers the upper back between the two matching pauldrons, and the red lower back above the belt stays visible.
+- Top-down view (bottom left): the tank, stack top, valve-cross and pipe are gone; the two pauldrons cover the shoulders and the back plate shows as a narrow black band behind the hood.
+- Bottom-up view (bottom right): the grey tank and stack shapes behind the hips are gone; only the underside edges of the two pauldrons and the lower edge of the back plate show.
+
+Everything else stays exactly as it is in every view: the five-panel layout, the grey background, the positions and scale of the figures, the pose, the coarse flat blockout style with heavy line, the black hood-helm with two horns and red visor, the orange-red skin, the chest badge, the black gauntlets, the hip plate and belt, the mud-caked boots and the scythe. No text, no labels.

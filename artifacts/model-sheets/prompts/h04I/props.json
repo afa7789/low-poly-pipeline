@@ -1,0 +1,81 @@
+[
+  {
+    "name": "split_bark_mask",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.134,
+      0.201
+    ]
+  },
+  {
+    "name": "root_collar",
+    "where": "anchor neck, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.172,
+      0.259
+    ]
+  },
+  {
+    "name": "chest_reliquary",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.031,
+      0.047
+    ]
+  },
+  {
+    "name": "chest_nerve",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.179,
+      0.269
+    ]
+  },
+  {
+    "name": "bark_cloak",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.399,
+      0.598
+    ]
+  },
+  {
+    "name": "branch_blade.L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.266,
+      0.399
+    ]
+  },
+  {
+    "name": "branch_blade.R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.264,
+      0.396
+    ]
+  }
+]

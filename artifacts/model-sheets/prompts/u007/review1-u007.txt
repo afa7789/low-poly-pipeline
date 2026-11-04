@@ -1,0 +1,20 @@
+Edit this model sheet. Keep the same character and change only its clothes, surface material and dirt, so that it looks raw, ruined and filthy. Everything else stays exactly as it is: the five-panel layout, the grey background, the position, scale and pose of every figure, the silhouette of the body, the small sunken head, the limbs, the iron hatch, the green hose arc, the shoulder vent and green dust puff, the burlap face filter with its cord band, the hook and its block counterweight. Add no new props and no new gear. Keep the same heavy black line and coarse flat blockout style, with stains and tears drawn as a few large hard-edged flat shapes, not as fine texture, gradients or noise. No text.
+
+Make these same four changes in all five views:
+
+1. Destroyed clothes: the smooth brown coverall becomes a rotten, shredded rag. The trouser legs end in long jagged torn hems at different heights, like the ragged cloth of its predecessor. Large ripped holes with jagged edges show raw flesh underneath, and the shoulder straps and the fabric edges around the belly are frayed and torn, with a few big strips hanging loose.
+
+2. Raw flesh: the clean bone-coloured skin becomes raw, sore, diseased corpse flesh in blotchy pale pink and sickly bone, with large flat patches of dark blood red on the arms, shoulders, belly and shins. Add a few thick black stitched seams across the arms, belly and shoulders, as on a sewn-together corpse. Add open wet red sores around the edge of the hatch.
+
+3. Dirt: large flat splashes of black tar, dark mud and dried brown-red blood on the clothes and skin, heaviest on the belly, the hands and the lower legs. The cloth changes from one clean brown to mottled dirty brown, near-black and grimy ochre.
+
+4. Worn materials: the boots become mud-caked, cracked dark brown boots instead of clean bone-coloured ones, with mud up the shins. The burlap filter becomes stained and frayed at its edges. The hatch, hook and counterweight become rust-streaked, with dark blood red stains on the hook. The green hose becomes dirty and scuffed but stays the same shape and green colour.
+
+Per view:
+- Front view: the torn coverall, frayed straps, stitched raw belly with sores around the hatch, jagged trouser hems and muddy boots are all visible.
+- Left profile view: the same damage from the side, with the rip showing flesh along the flank, stitches on the near arm and belly, and the same jagged hems and muddy boots.
+- Back view: the wide clean brown back becomes the same shredded rag, with large ripped holes showing raw stitched flesh, tar and mud splashes, a jagged lower edge and the same muddy boots.
+- Top-down view: the same torn, stained cloth on the shoulders and back, raw stitched flesh on the shoulders, arms and belly, and sores around the hatch.
+- Bottom-up view: the same jagged torn cloth around the legs, stained raw flesh on the underside of the belly and arms, and mud-caked dark boot soles.
+
+The damage, stains and colours sit in the same places on the body in every view, so all five drawings remain the same character in the same pose.

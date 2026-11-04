@@ -1,0 +1,23 @@
+Recolour this model sheet only. Keep every shape, silhouette, pose, proportion, prop, line, position and figure size exactly as drawn. Keep the five-panel layout, every view, the grey background, the flat coarse blockout style and the absence of text exactly as they are. Do not add, remove, move or redraw anything. This is a colour swap of flat tones: one flat tone per surface, no gradients, no texture, no gloss.
+
+Replace the dull slate colouring with this palette, taken from the original creature, a vivid blue drake with purple wings:
+- Head, neck top, body, legs and tail top: saturated royal blue (#2B50C8) instead of grey slate.
+- Wing membranes: rich purple. Use deep violet (#4F1F96) where the wing is currently darkest and bright purple (#7E35CC) where it is currently lighter.
+- Wing arms, wrists and finger bones: pale periwinkle ice blue (#AFC8F7), so they stand out clearly against the purple.
+- Spine plates: vivid magenta-violet (#B03CD8) instead of pale ice blue.
+- Chest plate, throat, neck underside, belly and tail underside: warm bone ivory (#E6DDC4) instead of pale blue and grey-blue.
+- Crude weep on the chest: stays near-black.
+- Collar: pale periwinkle ice blue (#AFC8F7).
+- Throat block under the jaw and the collar lamp: glowing cyan (#3FE3EA) instead of amber. No orange remains anywhere on the figure.
+- Eyes: the same glowing cyan (#3FE3EA).
+- Canvas patch on the wing: dark indigo-plum (#2E1A5C) instead of brown.
+- Exhaust stack: dark indigo-plum (#2E1A5C) instead of brown.
+
+Apply the same change identically in all five views.
+Front view: royal blue head, body and legs; purple wing membranes with pale ice-blue wing bones; ivory throat and chest plate with the near-black weep; cyan throat block, lamp and eyes; pale ice-blue collar; indigo-plum patch.
+Left profile: royal blue upper body and tail; ivory chest, belly and tail underside; magenta-violet spine plates; purple wing with pale ice-blue bones; indigo-plum patch and stack; cyan throat block, lamp and eye.
+Back view: royal blue body and tail; magenta-violet spine plates; purple wings with pale ice-blue bones; indigo-plum patch; pale ice-blue collar.
+Top-down view: royal blue head, body and tail; magenta-violet spine plates; pale ice-blue collar; purple wings with pale ice-blue bones; indigo-plum patch and stack.
+Bottom-up view: ivory jaw underside, neck underside, chest plate, belly and tail underside; near-black weep; cyan throat block and lamp; royal blue legs; pale ice-blue collar; purple wings with pale ice-blue bones; indigo-plum patch.
+
+Change colours only. All else stays exactly as it is.

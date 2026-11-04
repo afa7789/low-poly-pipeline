@@ -1,0 +1,18 @@
+Edit this model sheet. Reshape the wide storm cloud in all five views into one humanoid upper body made of the same cloud: a chunky cloud head on a short thick neck, broad cloud shoulders, a deep barrel chest, and two thick cloud arms with blocky cloud hands, in chunky Warcraft 3 proportions with a normal-sized head, not chibi. The figure is cloud from the head down to the waist, where the torso tapers to one point. There are no legs: the existing jagged lightning bolt starts at the tapered waist and reaches the ground line in one point, exactly as it does now.
+
+Keep the same lumpy faceted cloud outline language and the same colours: dark navy cloud with the purple underside on the lower surfaces. The head is plain cloud with no facial features.
+
+Keep the glowing white-and-blue starburst core, now set in the centre of the chest.
+
+Add pieces of dark armour, near-black charcoal plates with a thin dull gold edge: one large curved plate on each shoulder, and two or three separate large broken plates on the chest, around the core and never covering it. The plates sit on the cloud as loose fragments with cloud visible between them. These are large, crude shapes with no rivets or small detail.
+
+Replace the two side bolts that hang from the cloud: the arms hang slightly out from the body with elbows a little bent, and each hand grips one short jagged cyan-and-white lightning bolt, held point-down, keeping the gold forked tip at its lower end. The bolts are held in the hands and do not grow out of the cloud.
+
+Same change in every view, same character in the same pose:
+- Panel 1, front: head, both shoulder plates, chest plates around the core, both arms with bolts in the hands, ground bolt under the waist.
+- Panel 2, left profile: head in profile, the left shoulder plate seen side-on, the edge of the chest plates and the core at the front of the chest, the left arm with its bolt in the hand, ground bolt under the waist.
+- Panel 3, back: back of the head, broad cloud back with no core and no chest plates, both shoulder plates from behind, both arms with bolts in the hands, ground bolt under the waist.
+- Panel 4, top-down: top of the head at the centre, the shoulder plates on both sides, the arms and the held bolts reaching out past the shoulders, with the core and chest plates just visible at the front of the chest.
+- Panel 5, bottom-up: purple underside of the tapered torso, the bolt seen end-on from below with its star tip at the centre, the undersides of the arms and shoulder plates, and the held bolts on both sides.
+
+All else stays: the five-panel layout, the panel positions, the same scale and ground line, the solid light-grey background, the flat coarse blockout style with heavy dark outlines, and no text or labels. Add no other props, gear, or sparks in the air. Every figure stays whole, uncropped, and readable at 32x32 pixels.

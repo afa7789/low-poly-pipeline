@@ -1,0 +1,25 @@
+Edit this five-panel model sheet. Change only the props and the colours listed here. The body stays exactly as drawn: same hunched bipedal boar-man, proportions, muscle shapes, pose, ears, pale tusks, head position and hoofed legs. The five-panel layout, the position and size of every figure, the grey background, the flat coarse blockout style and the heavy line also stay, and there is no text.
+
+REMOVE IN ALL FIVE VIEWS: the barbed wire coil ring behind the head and shoulders, the wire spool and its stem, the long black pole, the oil can, the feed hose, the iron collar with its hook, and the orange warning plate with its cross, including the orange on the snout. Fill the areas these props hid with the same body, and leave the space around the figure empty grey.
+
+NEW PROPS, THE SAME IN ALL FIVE VIEWS (only these two):
+1. One low iron brow cap: a single flat steel-grey plate (#8A8A8A) sitting on the forehead between the ears, above the eyes, with no strap.
+2. One heavy trench club held in the figure's left hand, in the same hand that held the oil can. It is a thick straight dark wood shaft (#5A3E2B) widening to a big blunt head, with one wide band of barbed wire wound around the head, drawn as a flat dark iron band (#3A3A3C) with four or five large crude barbs. The club hangs straight down from the fist, with the head low beside the leg and clear of the ground. The other hand is an empty closed fist.
+
+NEW COLOURS, MATCHING THE SMALLER QUILLBOAR OF THE SAME FAMILY, THE SAME IN ALL FIVE VIEWS:
+- Hide: warm pale tan (#D2A878), slightly lighter on the belly.
+- Mane: replace the brown crest with a big jagged patch of deep blood red (#8B1A1E) over the crown, the back of the neck, the shoulders and the upper back, plus a second smaller red patch at the lower back above the tail.
+- Spines: a row of four or five large swept-back grey bone spines (#7D7D80) rising along the top of the red mane, from behind the brow cap to the shoulders.
+- Scars: one red X slash across each eye, and three diagonal red claw slashes on each outer upper arm or flank.
+- Face: the exposed snout is a plain boar snout in dusty pink-brown (#B5736A) with two dark nostrils and small dark eyes.
+- Tail: add one short thin tail at the base of the spine, ending in a jagged flame-orange tuft (#F07A1E).
+- Legs: the mud changes to reddish brown (#7A5340) from the knees down, and the hooves are near-black (#2E2522).
+
+VIEW BY VIEW:
+Front view: bare snout and tusks with the brow cap above the eyes, red mane visible behind the head and on the shoulders, spines rising above the crown, the empty fist at the image left, and the club hanging from the fist at the image right, in place of the oil can.
+Left profile view: the brow cap on the forehead, the bare snout, a tusk, the red mane and spines along the neck and back, claw slashes on the flank and arm, and the orange-tufted tail at the rear. The club hangs straight down from the near hand, replacing the horizontal pole and spool.
+Back view: the red mane over the upper back with the spines down its middle, the lower red patch, the orange-tufted tail, the empty fist at the image right, and the club at the image left, in place of the oil can.
+Top-down view: the muzzle stays pointing to the bottom of the panel as drawn. Show the brow cap, the red mane across the shoulders and back, the spines along the spine, and the orange tail tip at the top end. The club head is seen from above beside the hand at the image right, and the fist at the image left is empty.
+Bottom-up view: the muzzle stays pointing to the top of the panel as drawn. Show the underside of the bare snout and tusks with no plate, the near-black hoof soles, the underside of the arms, the orange tail tip between the legs, and the club's blunt end below the hand at the image right. The fist at the image left is empty.
+
+Keep each surface one flat tone with hard edges and no small hardware. Everything else stays as it is.

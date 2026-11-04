@@ -1,0 +1,10 @@
+Edit this model sheet with one change only: remove the two horns from the turtle's head in all five views. The top and back of the skull become a smooth, rounded, hornless dome in the same red skin, closed with the same heavy outline.
+
+Apply the same change in every view:
+- Panel 1, front view (top left): delete the two horns rising from the top corners of the head, leaving a smooth rounded skull top. The cream shell rim behind the head stays and fills in where the horns were.
+- Panel 2, left profile (top middle): delete the horn pointing up and back from the rear of the head, so the skull line runs smoothly from the brow down into the neck.
+- Panel 3, back view (top right): delete the two small red horn tips that stick up behind the shell on either side of the centre spike, so only the shell and its spikes show there.
+- Panel 4, top-down view (bottom left): delete the pointed horn shapes at the back of the head on both sides, so the head outline runs smoothly into the neck.
+- Panel 5, bottom-up view (bottom right): delete the same pointed horn shapes on both sides of the head, so the head outline runs smoothly into the neck.
+
+Everything else stays exactly as it is: the open toothed mouth, orange eyes, snout, jaw, neck, red skin, near-black spiked shell with its spikes, cream shell rim, olive-green belly plates, legs, cream claws, tail, colours, proportions and pose. Keep the five-panel layout, every view's position and size, the solid light-grey background, the flat coarse blockout style with heavy outlines, and no text. Add nothing new.

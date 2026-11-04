@@ -1,0 +1,49 @@
+[
+  {
+    "name": "horns",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.211,
+      0.316
+    ]
+  },
+  {
+    "name": "curved_blade",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.36,
+      0.54
+    ]
+  },
+  {
+    "name": "blade_spine",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.242,
+      0.363
+    ]
+  },
+  {
+    "name": "polearm_shaft",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.488,
+      0.731
+    ]
+  }
+]

@@ -1,0 +1,18 @@
+Edit this model sheet of the Human Holy Warrior. Make only the changes below, and make them the same way on the same character in all five views. Everything else stays exactly as drawn: the five-panel layout, the grey background, the pose, proportions and position of every view, the bare head and face, the steel pauldrons and chest plate, the olive and umber surcoat, the sleeves and forearm armour, the belt, the ecru arm ribbon, the hands, the sword's length and position, and the flat coarse blockout style with heavy lines. No text.
+
+1. REMOVE THE HANGING PROPS: delete both thick book-like blocks hanging at the hips, and any lantern, censer, bar or box. Nothing hangs from the belt or shoulders. Fill the cleared space with the plain surcoat and belt already next to it. There is no lantern anywhere on the unit.
+
+2. ADD CROSSED AMMUNITION BANDOLIERS: two wide dark-brown leather straps forming a large X over the torso, each with a few big, simple brass-coloured cartridge blocks on the chest side only. They match the bandoliers of this character's earlier mounted form.
+
+3. ADD PUTTEES: replace the tall boot shafts with thick khaki cloth wraps from the ankle to just below the knee, shown as a few broad diagonal bands. Keep the dark leather boot feet and soles unchanged.
+
+4. TURN THE SWORD INTO A MOTOR-SWORD: keep the same long straight blade and grip, but replace the thin cross-guard with one small, chunky, dark steel two-stroke engine block with two or three thick cooling fins, and replace the pommel with one short stubby exhaust pipe. There are no fuel tanks, hoses or small hardware.
+
+The same changes in each view:
+- Panel 1, front: both hip books are gone. The bandolier X and its brass cartridge blocks cross the chest plate and surcoat front. Puttees wrap both shins. The engine guard and exhaust pommel are on the sword at the viewer's right.
+- Panel 2, left profile: the book at the hip is gone, leaving plain surcoat behind the arm. A bandolier strap runs diagonally over the side of the torso, with cartridge blocks at the front. The puttee wraps the visible shin. The engine guard and exhaust pommel are on the sword ahead of the body.
+- Panel 3, back: both hip books are gone. The two straps cross in a plain leather X on the back, with no cartridge blocks and nothing else on the back. Puttees wrap both shins. The engine guard and exhaust pommel are on the sword at the viewer's left.
+- Panel 4, top-down: the book at the hip is gone. The bandolier straps and cartridge blocks show on the chest below the head and on the back above it. The top of the engine guard and the exhaust pommel show on the sword at the viewer's right.
+- Panel 5, bottom-up: both hip books are gone. The khaki puttee wraps show above the boot soles inside the surcoat hem. The underside of the engine guard shows on the sword at the viewer's right.
+
+Keep the additions as large, crude, flat shapes that stay readable at 32x32 pixels. Do not add any other props, no backpack and no tank on the back.

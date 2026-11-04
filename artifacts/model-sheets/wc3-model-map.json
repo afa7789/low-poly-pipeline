@@ -1,0 +1,3173 @@
+{
+ "h01C": {
+  "name": "Altar of Greed",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\AltarOfDarkness\\AltarOfDarkness.mdl",
+  "source": "ok"
+ },
+ "h01D": {
+  "name": "Chaos Citadel",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\TombOfRelics\\TombOfRelics.mdl",
+  "source": "ok"
+ },
+ "h007": {
+  "name": "Demon Gate",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\DemonGate\\DemonGate.mdl",
+  "source": "ok"
+ },
+ "h009": {
+  "name": "Dragon Nest",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DragonBuilding\\DragonBuilding.mdl",
+  "source": "ok"
+ },
+ "h01M": {
+  "name": "Eraser (Level 1)",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h01W": {
+  "name": "Eraser (Level 2)",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h01X": {
+  "name": "Eraser (Level 3)",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h025": {
+  "name": "Fountain of Blood",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\FountainOfLifeBlood\\FountainOfLifeBlood.mdl",
+  "source": "ok"
+ },
+ "h03G": {
+  "name": "Greater Chaos Citadel",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\TombOfRelics\\TombOfRelics.mdl",
+  "source": "ok"
+ },
+ "h026": {
+  "name": "Greater Demon Cage",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\WyvernCage\\WyvernCage.mdl",
+  "source": "ok"
+ },
+ "h01I": {
+  "name": "Lesser Demon Cage",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\WyvernCage2\\WyvernCage2.mdl",
+  "source": "ok"
+ },
+ "h05I": {
+  "name": "Magic Ruin",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "Doodads\\Ruins\\Props\\DalaranRuinTwoBases\\DalaranRuinTwoBases1.mdl",
+  "source": "ok"
+ },
+ "h06O": {
+  "name": "Serenity",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\CityBuildingLarge_0\\CityBuildingLarge_0.mdl",
+  "source": "ok"
+ },
+ "h01E": {
+  "name": "Shrine of Destruction",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "buildings\\other\\SacrificialAltar\\SacrificialAltar.mdl",
+  "source": "ok"
+ },
+ "h01F": {
+  "name": "Volcano",
+  "kind": "building",
+  "race": "Chaos",
+  "base": "hbla",
+  "mdl": "Abilities\\Spells\\Other\\Volcano\\Volcano.mdl",
+  "source": "ok"
+ },
+ "n00L": {
+  "name": "Blood Fiend",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "nubr",
+  "mdl": "Units\\Creeps\\Unbroken\\Unbroken",
+  "source": "ok"
+ },
+ "n00Z": {
+  "name": "Chaos Champion",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "nfgu",
+  "mdl": "units\\demon\\Felgaurd\\Felgaurd",
+  "source": "ok"
+ },
+ "n009": {
+  "name": "Chaos Warrior",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "nfgu",
+  "mdl": "units\\demon\\Felgaurd\\Felgaurd",
+  "source": "ok"
+ },
+ "n000": {
+  "name": "Infernal",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "ninf",
+  "mdl": "units\\demon\\Infernal\\Infernal",
+  "source": "ok"
+ },
+ "z000": {
+  "name": "Quill Demon",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "zzrg",
+  "mdl": "Units\\Critters\\zergling\\zergling",
+  "source": "ok"
+ },
+ "n001": {
+  "name": "Red Dragon",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "nbwm",
+  "mdl": "units\\creeps\\RedDragon\\RedDragon.mdl",
+  "source": "ok"
+ },
+ "n00A": {
+  "name": "Satyr",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "nsty",
+  "mdl": "units\\creeps\\Satyr\\Satyr",
+  "source": "ok"
+ },
+ "n008": {
+  "name": "Succubus",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "ndqn",
+  "mdl": "units\\demon\\Demoness\\Demoness",
+  "source": "ok"
+ },
+ "e00E": {
+  "name": "Twins",
+  "kind": "unit",
+  "race": "Chaos",
+  "base": "ewsp",
+  "mdl": "no_model.mdl",
+  "source": "author",
+  "note": "two villager kids: see e00E-a, e00E-b"
+ },
+ "h04V": {
+  "name": "Ancient of Battle",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedAncientofWar\\CorruptedAncientofWar.mdl",
+  "source": "ok"
+ },
+ "h09Y": {
+  "name": "Corrupted Ancient of Annihilation",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedAncientofWar\\CorruptedAncientofWar.mdl",
+  "source": "ok"
+ },
+ "h04W": {
+  "name": "Corrupted Ancient of War",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedAncientofWar\\CorruptedAncientofWar.mdl",
+  "source": "ok"
+ },
+ "n01J": {
+  "name": "Corrupted Protector",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "ncap",
+  "mdl": "buildings\\demon\\CorruptedAncientProtector\\CorruptedAncientProtector",
+  "source": "ok"
+ },
+ "h04U": {
+  "name": "Demonic Statue",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "Doodads\\BlackCitadel\\Props\\BlackCitadelStatue\\BlackCitadelStatue.mdl",
+  "source": "ok"
+ },
+ "h04T": {
+  "name": "Eye of Corruption",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "Doodads\\Cinematic\\EyeOfSargeras\\EyeOfSargeras.mdl",
+  "source": "ok"
+ },
+ "h04S": {
+  "name": "Felhound Shrine",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\AltarofStorms\\AltarofStorms.mdl",
+  "source": "ok"
+ },
+ "h04R": {
+  "name": "Forgotten One",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "Units\\Creeps\\ForgottenOne\\ForgottenOne.mdl",
+  "source": "ok"
+ },
+ "h04Q": {
+  "name": "Hell's Gate",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DarkPortal2\\DarkPortal2.mdl",
+  "source": "ok"
+ },
+ "h04P": {
+  "name": "Hell's Portal",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DarkPortal\\DarkPortal.mdl",
+  "source": "ok"
+ },
+ "h04O": {
+  "name": "Nether Ancient",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedTreeofLife\\CorruptedTreeofLife.mdl",
+  "source": "ok"
+ },
+ "h04N": {
+  "name": "Portal of the Abyss",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "doodads\\cinematic\\ShimmeringPortal\\ShimmeringPortal.mdl",
+  "source": "ok"
+ },
+ "h04M": {
+  "name": "Shadow Ancient",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedTreeofLife\\CorruptedTreeofLife.mdl",
+  "source": "ok"
+ },
+ "h04L": {
+  "name": "Void Portal",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "doodads\\cinematic\\ShimmeringPortal\\ShimmeringPortal.mdl",
+  "source": "ok"
+ },
+ "h04K": {
+  "name": "Well of Pain",
+  "kind": "building",
+  "race": "Corrupted",
+  "base": "hbla",
+  "mdl": "buildings\\demon\\CorruptedMoonWell\\CorruptedMoonWell.mdl",
+  "source": "ok"
+ },
+ "n027": {
+  "name": "Corrupted Annihilator",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nenc",
+  "mdl": "buildings\\demon\\CorruptedAncientProtector\\CorruptedAncientProtector.mdl",
+  "source": "ok"
+ },
+ "n01I": {
+  "name": "Corrupted Ent",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nenc",
+  "mdl": "units\\creeps\\CorruptedEnt\\CorruptedEnt",
+  "source": "ok"
+ },
+ "n01H": {
+  "name": "Corrupted Treant",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nenc",
+  "mdl": "units\\creeps\\CorruptedEnt\\CorruptedEnt",
+  "source": "ok"
+ },
+ "n01G": {
+  "name": "Felhound",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "npfl",
+  "mdl": "units\\creeps\\FelstalkerPurple\\FelstalkerPurple",
+  "source": "ok"
+ },
+ "h04I": {
+  "name": "Incubus",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "hfoo",
+  "mdl": "units\\nightelf\\HeroDemonHunter\\HeroDemonHunter.mdl",
+  "source": "ok"
+ },
+ "n01E": {
+  "name": "Infernal Tank",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "ninm",
+  "mdl": "units\\creeps\\InfernalCannonCannon\\InfernalCannonCannon",
+  "source": "ok"
+ },
+ "n01F": {
+  "name": "infernalmachine",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "ninm",
+  "mdl": "units\\creeps\\InfernalCannonFlame\\InfernalCannonFlame.mdl",
+  "source": "ok"
+ },
+ "n01D": {
+  "name": "Nether Drake",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nndk",
+  "mdl": "units\\creeps\\NetherDragon\\NetherDragon",
+  "source": "ok"
+ },
+ "n01B": {
+  "name": "Shadow Drake",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nndk",
+  "mdl": "units\\creeps\\NetherDragon\\NetherDragon",
+  "source": "ok"
+ },
+ "n01A": {
+  "name": "Void Keeper",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nvdl",
+  "mdl": "units\\creeps\\VoidWalker\\VoidWalker",
+  "source": "ok"
+ },
+ "n019": {
+  "name": "Void Walker",
+  "kind": "unit",
+  "race": "Corrupted",
+  "base": "nvdl",
+  "mdl": "units\\creeps\\VoidWalker\\VoidWalker",
+  "source": "ok"
+ },
+ "h07E": {
+  "name": "Ballista Tower",
+  "kind": "building",
+  "race": "Desert",
+  "base": "hgtw",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h079": {
+  "name": "Beacon of the Oasis",
+  "kind": "building",
+  "race": "Desert",
+  "base": "hhou",
+  "mdl": "SnStatue",
+  "source": "ok"
+ },
+ "n02O": {
+  "name": "Den of the Ogre Lord",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "war3mapImported\\ogrearena.mdl",
+  "source": "ok"
+ },
+ "n02N": {
+  "name": "Fire Gnoll Hut",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "war3mapImported\\GnollHutV1.01.mdl",
+  "source": "ok"
+ },
+ "n02P": {
+  "name": "Gnoll Tent",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "Buildings\\Other\\Tent1\\Tent1",
+  "source": "ok"
+ },
+ "n02Q": {
+  "name": "Harpy Nest",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "buildings\\other\\HarpyNest\\HarpyNest",
+  "source": "ok"
+ },
+ "n02R": {
+  "name": "Monstrous Sandkin Burrow",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "Doodads\\Ruins\\Structures\\RuinsBuilding\\RuinsBuilding1",
+  "source": "ok"
+ },
+ "n031": {
+  "name": "Nest of Harpy Matriarch",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "buildings\\other\\HarpyNest\\HarpyNest",
+  "source": "ok"
+ },
+ "n03B": {
+  "name": "Nest of Harpy Witch",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "buildings\\other\\HarpyNest\\HarpyNest",
+  "source": "ok"
+ },
+ "n033": {
+  "name": "Ogre Den",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "war3mapImported\\ogrearena.mdl",
+  "source": "ok"
+ },
+ "n036": {
+  "name": "Quillboar Yard",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "buildings\\orc\\TrollBurrow\\TrollBurrow",
+  "source": "ok"
+ },
+ "n037": {
+  "name": "Razormane Abode",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "war3mapImported\\BurrowLostOneV1.00.mdl",
+  "source": "ok"
+ },
+ "h07A": {
+  "name": "Sacred Peyote",
+  "kind": "building",
+  "race": "Desert",
+  "base": "hhou",
+  "mdl": "Doodads\\Barrens\\Plants\\Cactus\\Cactus1",
+  "source": "ok"
+ },
+ "n038": {
+  "name": "Salamander Hatchery",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "LizardEgg",
+  "source": "ok"
+ },
+ "n039": {
+  "name": "Sandkin Burrow",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "Doodads\\Ruins\\Structures\\RuinsBuilding\\RuinsBuilding1",
+  "source": "ok"
+ },
+ "n03A": {
+  "name": "Temple of Storm",
+  "kind": "building",
+  "race": "Desert",
+  "base": "npgr",
+  "mdl": "Doodads\\Barrens\\Props\\HellScreamThrone\\HellScreamThrone",
+  "source": "ok"
+ },
+ "n02T": {
+  "name": "Fire Gnoll",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "ngns",
+  "mdl": "units\\creeps\\GnollArcher\\GnollArcher",
+  "source": "ok"
+ },
+ "n02S": {
+  "name": "Gnoll",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "ngna",
+  "mdl": "units\\creeps\\GnollArcher\\GnollArcher",
+  "source": "ok"
+ },
+ "n034": {
+  "name": "Harpies' Matriarch",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nhrr",
+  "mdl": "units\\creeps\\HarpyQueen\\HarpyQueen",
+  "source": "ok"
+ },
+ "n02W": {
+  "name": "Harpy",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nhrr",
+  "mdl": "units\\creeps\\Harpy\\Harpy",
+  "source": "ok"
+ },
+ "n032": {
+  "name": "Harpy Witch",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nhrr",
+  "mdl": "units\\creeps\\HarpyQueen\\HarpyQueen",
+  "source": "ok"
+ },
+ "n035": {
+  "name": "Monstrous Sandkin",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nowb",
+  "mdl": "units\\creeps\\Owlbear\\Owlbear",
+  "source": "ok"
+ },
+ "n02X": {
+  "name": "Ogre",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nogr",
+  "mdl": "Units\\Creeps\\OgreOneHeadedArmored\\OgreOneHeadedArmored",
+  "source": "ok"
+ },
+ "n02Y": {
+  "name": "Ogre Lord",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nogl",
+  "mdl": "units\\creeps\\OgreLord\\OgreLord",
+  "source": "ok"
+ },
+ "n02V": {
+  "name": "Quillboar",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nqb1",
+  "mdl": "units\\creeps\\SpiritPig\\SpiritPig",
+  "source": "ok"
+ },
+ "n02U": {
+  "name": "Razormane",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nrzt",
+  "mdl": "units\\creeps\\RazorMane\\RazorMane",
+  "source": "ok"
+ },
+ "n02Z": {
+  "name": "Salamander",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nsll",
+  "mdl": "units\\creeps\\ThunderLizardSalamander\\ThunderLizardSalamander",
+  "source": "ok"
+ },
+ "n030": {
+  "name": "Sandkin",
+  "kind": "unit",
+  "race": "Desert",
+  "base": "nowb",
+  "mdl": "units\\creeps\\Owlbear\\Owlbear",
+  "source": "ok"
+ },
+ "h046": {
+  "name": "Altar of Blaze",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Outland\\Props\\Altar\\Altar.mdl",
+  "source": "ok"
+ },
+ "h045": {
+  "name": "Altar of Fire",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Outland\\Props\\Altar\\Altar.mdl",
+  "source": "ok"
+ },
+ "h05Z": {
+  "name": "Books of Conjuration",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "buildings\\other\\BookOfSummoning\\BookOfSummoning.mdl",
+  "source": "ok"
+ },
+ "h076": {
+  "name": "Discharge Tower",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "buildings\\human\\HumanTower\\HumanTower.mdl",
+  "source": "ok"
+ },
+ "h061": {
+  "name": "Elemental Guard Tower",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "buildings\\human\\HumanTower\\HumanTower.mdl",
+  "source": "ok"
+ },
+ "h06F": {
+  "name": "Elemental Rain",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "buildings\\other\\BookOfSummoning\\BookOfSummoning.mdl",
+  "source": "ok"
+ },
+ "h03Y": {
+  "name": "Golden Fountain",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Cinematic\\SunWell\\SunWell.mdl",
+  "source": "ok"
+ },
+ "h041": {
+  "name": "Greater Fissure",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Rocks\\Lords_Rock\\Lords_Rock3.mdl",
+  "source": "ok"
+ },
+ "h063": {
+  "name": "Linker",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Objects\\InventoryItems\\Rune\\Rune.mdl",
+  "source": "ok"
+ },
+ "h062": {
+  "name": "Mana Generator",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "units\\other\\BloodElfWagon\\BloodElfWagon.mdl",
+  "source": "ok"
+ },
+ "h06E": {
+  "name": "Meteor Shower",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "buildings\\other\\BookOfSummoning\\BookOfSummoning.mdl",
+  "source": "ok"
+ },
+ "h04C": {
+  "name": "Monument of Wind Stream",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Abilities\\Spells\\NightElf\\Cyclone\\CycloneTarget.mdl",
+  "source": "ok"
+ },
+ "h060": {
+  "name": "Obelisk of Elements",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Northrend\\Props\\NorthrendObilisk\\NorthrendObilisk.mdl",
+  "source": "ok"
+ },
+ "h042": {
+  "name": "Pillar of Globe-Lightning",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Felwood\\Structures\\FelwoodBrokenColumn\\FelwoodBrokenColumn0.mdl",
+  "source": "ok"
+ },
+ "h044": {
+  "name": "Pillar of St. Elmo's Fire",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Felwood\\Structures\\FelwoodBrokenColumn\\FelwoodBrokenColumn1.mdl",
+  "source": "ok"
+ },
+ "h040": {
+  "name": "Rock Pile",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Rocks\\Lords_Rock\\Lords_Rock7.mdl",
+  "source": "ok"
+ },
+ "h03Z": {
+  "name": "Spellbound Fountain",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Cinematic\\SunWell\\SunWell.mdl",
+  "source": "ok"
+ },
+ "h04E": {
+  "name": "Tower of Elder Knowledge",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Dalaran\\Terrain\\DalaranBuilding\\DalaranBuilding1.mdl",
+  "source": "ok"
+ },
+ "h04A": {
+  "name": "Trapped Gale",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Abilities\\Spells\\NightElf\\Cyclone\\CycloneTarget.mdl",
+  "source": "ok"
+ },
+ "h03X": {
+  "name": "Water Spring",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\City_Fountain\\City_Fountain.mdl",
+  "source": "ok"
+ },
+ "h04D": {
+  "name": "Zephyros Memorial",
+  "kind": "building",
+  "race": "Elemental",
+  "base": "hbla",
+  "mdl": "Abilities\\Spells\\NightElf\\Cyclone\\CycloneTarget.mdl",
+  "source": "ok"
+ },
+ "h034": {
+  "name": "Elemental Of Earth",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\creeps\\RockGolem\\RockGolem.mdl",
+  "source": "ok"
+ },
+ "h02Z": {
+  "name": "Elemental Of Fire",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "Units\\Creeps\\LavaSpawn\\LavaSpawn.mdl",
+  "source": "ok"
+ },
+ "h03P": {
+  "name": "Elemental Of Lightning",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\creeps\\RevenantOfTheWaves\\RevenantOfTheWaves.mdl",
+  "source": "ok"
+ },
+ "h02X": {
+  "name": "Elemental Of Water",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\human\\WaterElemental\\WaterElemental",
+  "source": "ok"
+ },
+ "o00D": {
+  "name": "Elemental Of Wind",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "oswy",
+  "mdl": "units\\orc\\SpiritWyvern\\SpiritWyvern",
+  "source": "ok"
+ },
+ "h03N": {
+  "name": "Greater Elemental Of Earth",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\creeps\\RockGolem\\RockGolem.mdl",
+  "source": "ok"
+ },
+ "u00F": {
+  "name": "Greater Elemental Of Fire",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "ugho",
+  "mdl": "Units\\Creeps\\HeroFlameLord\\HeroFlameLord",
+  "source": "author"
+ },
+ "h03R": {
+  "name": "Greater Elemental Of Lightning",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\creeps\\Revenant\\Revenant.mdl",
+  "source": "ok"
+ },
+ "h02Y": {
+  "name": "Greater Elemental Of Water",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "Units\\Creeps\\SeaElemental\\SeaElemental.mdl",
+  "source": "ok"
+ },
+ "o00E": {
+  "name": "Greater Elemental Of Wind",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "oswy",
+  "mdl": "units\\orc\\SpiritWyvern\\SpiritWyvern",
+  "source": "ok"
+ },
+ "h02W": {
+  "name": "Lesser Elemental Of Water",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\human\\WaterElemental\\WaterElemental",
+  "source": "ok"
+ },
+ "o00C": {
+  "name": "Lesser Elemental Of Wind",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "oswy",
+  "mdl": "units\\orc\\SpiritWyvern\\SpiritWyvern",
+  "source": "ok"
+ },
+ "h03V": {
+  "name": "Master Of Elements",
+  "kind": "unit",
+  "race": "Elemental",
+  "base": "hwat",
+  "mdl": "units\\human\\Sorceress\\Sorceress_V1.mdl",
+  "source": "ok"
+ },
+ "h014": {
+  "name": "Arcane Tower",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "war3mapImported\\AdvancedBuildableElvenGuardTower.mdl",
+  "source": "ok"
+ },
+ "h08X": {
+  "name": "Archery Range",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ElvenVillageBuilding6\\ElvenVillageBuilding6.mdl",
+  "source": "ok"
+ },
+ "h08Y": {
+  "name": "Archery Tower",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ElvenVillageBuilding6\\ElvenVillageBuilding6.mdl",
+  "source": "ok"
+ },
+ "h00V": {
+  "name": "Bloodelf War Academy",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\MageTower\\MageTower.mdl",
+  "source": "ok"
+ },
+ "h00Z": {
+  "name": "City of Magic",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ArcaneObservatory\\ArcaneObservatory.mdl",
+  "source": "ok"
+ },
+ "h06Y": {
+  "name": "Dragonhawk Portal",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Waygate\\Waygate.mdl",
+  "source": "ok"
+ },
+ "h059": {
+  "name": "Golden Shrine of Justice",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "Doodads\\Dungeon\\Props\\AzsharaStatue\\AzsharaStatue.mdl",
+  "source": "ok"
+ },
+ "h00T": {
+  "name": "Hall of Honor",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ElvenFarm\\ElvenFarm.mdl",
+  "source": "ok"
+ },
+ "h03F": {
+  "name": "Hall of the Eldest",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ElvenVillageBuilding3\\ElvenVillageBuilding3.mdl",
+  "source": "ok"
+ },
+ "h070": {
+  "name": "Highelf Siege Factory",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\human\\HumanShipyard\\HumanShipyard.mdl",
+  "source": "ok"
+ },
+ "h005": {
+  "name": "Obelisk of Light",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Frostmourne\\Frostmourne.mdl",
+  "source": "ok"
+ },
+ "h09X": {
+  "name": "School of Wizardry",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "Doodads\\Dalaran\\Terrain\\DalaranBuilding\\DalaranBuilding0.mdl",
+  "source": "ok"
+ },
+ "h00X": {
+  "name": "Tower of Supreme Magic",
+  "kind": "building",
+  "race": "Elf",
+  "base": "hbla",
+  "mdl": "Doodads\\Dalaran\\Terrain\\DalaranVioletCitadel\\DalaranVioletCitadel.mdl",
+  "source": "ok"
+ },
+ "n022": {
+  "name": "Archer",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "nhea",
+  "mdl": "units\\creeps\\HighElfArcher\\HighElfArcher",
+  "source": "ok"
+ },
+ "e005": {
+  "name": "Ballista",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "ebal",
+  "mdl": "Ballista.mdl",
+  "source": "ok"
+ },
+ "n006": {
+  "name": "Blademaster",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "nbel",
+  "mdl": "units\\other\\BloodElfLieutenant\\BloodElfLieutenant",
+  "source": "ok"
+ },
+ "h00U": {
+  "name": "Bloodthirster",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "hspt",
+  "mdl": "units\\human\\BloodElfSpellThief\\BloodElfSpellThief",
+  "source": "ok"
+ },
+ "n01Y": {
+  "name": "Dragonhawk Rider",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "nws1",
+  "mdl": "units\\creeps\\WindSerpent\\WindSerpent",
+  "source": "ok"
+ },
+ "n00Y": {
+  "name": "Elder Blademaster",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "nbel",
+  "mdl": "units\\other\\BloodElfLieutenant\\BloodElfLieutenant",
+  "source": "ok"
+ },
+ "n023": {
+  "name": "Master Archer",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "nhea",
+  "mdl": "units\\creeps\\SylvanusWindrunner\\SylvanusWindrunner.mdl",
+  "source": "ok"
+ },
+ "h07B": {
+  "name": "Sorceress",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "hsor",
+  "mdl": "units\\human\\Sorceress\\Sorceress",
+  "source": "ok"
+ },
+ "h00W": {
+  "name": "Wizard",
+  "kind": "unit",
+  "race": "Elf",
+  "base": "hmpr",
+  "mdl": "units\\human\\Priest\\Priest",
+  "source": "ok"
+ },
+ "h001": {
+  "name": "Artillery",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h000": {
+  "name": "Barracks",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\HumanBarracks\\HumanBarracks.mdl",
+  "source": "ok"
+ },
+ "h037": {
+  "name": "Chapel",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\TownHall\\TownHall.mdl",
+  "source": "ok"
+ },
+ "h038": {
+  "name": "Church",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\TownHall\\TownHall.mdl",
+  "source": "ok"
+ },
+ "h010": {
+  "name": "Gjallarhorn",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\other\\HornOfCenarius\\HornOfCenarius.mdl",
+  "source": "ok"
+ },
+ "h015": {
+  "name": "Gryphon Rock",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\GryphonAviary\\GryphonAviary.mdl",
+  "source": "ok"
+ },
+ "h05D": {
+  "name": "Gunner's Hall",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Structures\\Inn\\Inn.mdl",
+  "source": "ok"
+ },
+ "h05G": {
+  "name": "Heroic Shrine",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\AltarofKings\\AltarofKings.mdl",
+  "source": "ok"
+ },
+ "h00K": {
+  "name": "Hjordhejmen",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\ArcaneVault\\ArcaneVault.mdl",
+  "source": "ok"
+ },
+ "h072": {
+  "name": "Holy Altar",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "Doodads\\Dalaran\\Props\\KingThrone\\KingThrone.mdl",
+  "source": "ok"
+ },
+ "h0A1": {
+  "name": "Marksmen's Encampment",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\Farm\\Farm.mdl",
+  "source": "ok"
+ },
+ "h003": {
+  "name": "Sniper Nest",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\Farm\\Farm.mdl",
+  "source": "ok"
+ },
+ "h039": {
+  "name": "Stronghold",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\TownHall\\TownHall.mdl",
+  "source": "ok"
+ },
+ "h082": {
+  "name": "Tiny Multishot Tower",
+  "kind": "building",
+  "race": "Human",
+  "base": "hgtw",
+  "mdl": "war3mapImported\\PandarenTower.mdl",
+  "source": "ok"
+ },
+ "h081": {
+  "name": "Tiny Watch Tower",
+  "kind": "building",
+  "race": "Human",
+  "base": "hgtw",
+  "mdl": "buildings\\human\\HumanTower\\HumanTower",
+  "source": "ok"
+ },
+ "h07U": {
+  "name": "Vessel of Purity",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "war3mapImported\\HJar 14.mdl",
+  "source": "ok"
+ },
+ "h006": {
+  "name": "Watch Tower",
+  "kind": "building",
+  "race": "Human",
+  "base": "hgtw",
+  "mdl": "buildings\\human\\HumanTower\\HumanTower",
+  "source": "ok"
+ },
+ "h004": {
+  "name": "Weapon Lab",
+  "kind": "building",
+  "race": "Human",
+  "base": "hbla",
+  "mdl": "buildings\\human\\Workshop\\Workshop.mdl",
+  "source": "ok"
+ },
+ "h03B": {
+  "name": "Crusader",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hkni",
+  "mdl": "units\\human\\Knight\\Knight",
+  "source": "ok"
+ },
+ "h03A": {
+  "name": "Defender",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hfoo",
+  "mdl": "units\\human\\TheCaptain\\TheCaptain.mdl",
+  "source": "ok"
+ },
+ "hfoo": {
+  "name": "Footman",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hfoo",
+  "mdl": "units\\human\\Footman\\Footman",
+  "source": "ok"
+ },
+ "h016": {
+  "name": "Gryphon Rider",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hgry",
+  "mdl": "units\\human\\GryphonRider\\GryphonRider",
+  "source": "ok"
+ },
+ "h0A2": {
+  "name": "Heavy Gunner",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hrif",
+  "mdl": "units\\human\\Rifleman\\Rifleman",
+  "source": "ok"
+ },
+ "h074": {
+  "name": "Holy Warrior",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hkni",
+  "mdl": "units\\human\\ArthaswithSword\\ArthaswithSword.mdl",
+  "source": "ok"
+ },
+ "h05C": {
+  "name": "Marksman",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hrif",
+  "mdl": "units\\human\\Rifleman\\Rifleman",
+  "source": "ok"
+ },
+ "hmtm": {
+  "name": "Mortar",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hmtm",
+  "mdl": "units\\human\\MortarTeam\\MortarTeam",
+  "source": "ok"
+ },
+ "h03C": {
+  "name": "Paladin",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hkni",
+  "mdl": "units\\creeps\\LordGarithos\\LordGarithos.mdl",
+  "source": "ok"
+ },
+ "hrif": {
+  "name": "Sniper",
+  "kind": "unit",
+  "race": "Human",
+  "base": "hrif",
+  "mdl": "units\\human\\Rifleman\\Rifleman",
+  "source": "ok"
+ },
+ "n005": {
+  "name": "Warlock",
+  "kind": "unit",
+  "race": "Human",
+  "base": "nwiz",
+  "mdl": "units\\creeps\\Medivh\\Medivh.mdl",
+  "source": "ok"
+ },
+ "h05J": {
+  "name": "Aircraft Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\human\\ArcaneSanctum\\ArcaneSanctum.mdl",
+  "source": "ok"
+ },
+ "h09P": {
+  "name": "Arsenal",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\human\\Blacksmith\\Blacksmith",
+  "source": "ok"
+ },
+ "h09I": {
+  "name": "Assault Tank Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\UndeadShipyard\\UndeadShipyard.mdl",
+  "source": "ok"
+ },
+ "h06J": {
+  "name": "Blue Shield Generator",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\CrystalShield\\CrystalShield.mdl",
+  "source": "ok"
+ },
+ "h09L": {
+  "name": "Bomber Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\human\\ArcaneSanctum\\ArcaneSanctum.mdl",
+  "source": "ok"
+ },
+ "h05M": {
+  "name": "Demolition Lab",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\other\\AmmoDump\\AmmoDump.mdl",
+  "source": "ok"
+ },
+ "h05L": {
+  "name": "Energy Tower",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h05V": {
+  "name": "Golem Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "Units\\Creeps\\HeroTinkerFactory\\HeroTinkerFactory.mdl",
+  "source": "ok"
+ },
+ "h05T": {
+  "name": "Gun Smith",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\human\\Blacksmith\\Blacksmith",
+  "source": "ok"
+ },
+ "h09B": {
+  "name": "Heavy Tank Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\UndeadShipyard\\UndeadShipyard.mdl",
+  "source": "ok"
+ },
+ "h05U": {
+  "name": "Lumber Mill",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\human\\HumanLumbermill\\HumanLumbermill.mdl",
+  "source": "ok"
+ },
+ "h09J": {
+  "name": "Mine Layer Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\UndeadShipyard\\UndeadShipyard.mdl",
+  "source": "ok"
+ },
+ "h09T": {
+  "name": "Power Plant",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\City_Oblisk\\City_Oblisk.mdl",
+  "source": "ok"
+ },
+ "h097": {
+  "name": "Precious Golem Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "Units\\Creeps\\HeroTinkerFactory\\HeroTinkerFactory.mdl",
+  "source": "ok"
+ },
+ "h06Z": {
+  "name": "Protection Center",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Tavern\\Tavern.mdl",
+  "source": "ok"
+ },
+ "h05R": {
+  "name": "Red Shield Generator",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\other\\PowerGenerator\\PowerGenerator.mdl",
+  "source": "ok"
+ },
+ "h077": {
+  "name": "Rocket Lab",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "war3mapImported\\GoblinBarracks.mdl",
+  "source": "ok"
+ },
+ "h09H": {
+  "name": "Rocket Tank Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\UndeadShipyard\\UndeadShipyard.mdl",
+  "source": "ok"
+ },
+ "h069": {
+  "name": "Spare Part Heap",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Terrain\\Barricade\\Barricade1.mdl",
+  "source": "ok"
+ },
+ "h05X": {
+  "name": "Tank Factory",
+  "kind": "building",
+  "race": "Mech",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\UndeadShipyard\\UndeadShipyard.mdl",
+  "source": "ok"
+ },
+ "n024": {
+  "name": "Adamant Golem",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "nsgg",
+  "mdl": "units\\creeps\\GolemStatue\\GolemStatue",
+  "source": "ok"
+ },
+ "h099": {
+  "name": "Assault Tank",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hmtt",
+  "mdl": "WarWagon.mdl",
+  "source": "ok"
+ },
+ "z002": {
+  "name": "Flamegunner",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "zcso",
+  "mdl": "ChaosSpaceOrc.mdl",
+  "source": "ok"
+ },
+ "z003": {
+  "name": "Flamegunner Sergeant",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "zcso",
+  "mdl": "ChaosSpaceOrc.mdl",
+  "source": "ok"
+ },
+ "n01U": {
+  "name": "Gobbo Machinist",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "ncg1",
+  "mdl": "Units\\Creeps\\HeroTinkerRobot\\HeroTinkerRobot",
+  "source": "ok"
+ },
+ "n02M": {
+  "name": "Goblin Rocketeer",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "ngsp",
+  "mdl": "war3mapImported\\Grenadier.mdl",
+  "source": "ok"
+ },
+ "n01T": {
+  "name": "Goblin Shredder",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "ngir",
+  "mdl": "units\\creeps\\IronGolem\\IronGolem",
+  "source": "ok"
+ },
+ "n02J": {
+  "name": "Goliath",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "nsgg",
+  "mdl": "Goliath3.mdl",
+  "source": "ok"
+ },
+ "h06R": {
+  "name": "Gyrocopter",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hgyr",
+  "mdl": "GyroCopter.mdl",
+  "source": "ok"
+ },
+ "h06S": {
+  "name": "Heavy Tank",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hmtt",
+  "mdl": "units\\human\\WarWagon\\WarWagon",
+  "source": "ok"
+ },
+ "n01X": {
+  "name": "Iron Golem",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "nsgg",
+  "mdl": "units\\creeps\\GolemStatue\\GolemStatue",
+  "source": "ok"
+ },
+ "h06T": {
+  "name": "Light Tank",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hmtt",
+  "mdl": "WarWagon.mdl",
+  "source": "ok"
+ },
+ "n01V": {
+  "name": "Lunatic Goblin",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "ngsp",
+  "mdl": "units\\creeps\\GoblinSapper\\GoblinSapper",
+  "source": "ok"
+ },
+ "h06U": {
+  "name": "Mine Layer",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hmtt",
+  "mdl": "Units\\Creeps\\HeroTinker\\HeroTinker.mdl",
+  "source": "ok"
+ },
+ "h098": {
+  "name": "Rocket Tank",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hmtt",
+  "mdl": "units\\human\\WarWagon\\WarWagon",
+  "source": "ok"
+ },
+ "h06Q": {
+  "name": "Roterothopter",
+  "kind": "unit",
+  "race": "Mech",
+  "base": "hgyr",
+  "mdl": "units\\human\\Gyrocopter\\Gyrocopter",
+  "source": "ok"
+ },
+ "h00I": {
+  "name": "Ancient Pyramide",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\other\\NerubianZiggurat\\NerubianZiggurat.mdl",
+  "source": "ok"
+ },
+ "h00G": {
+  "name": "Coral Statue",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\CoralBed\\CoralBed.mdl",
+  "source": "ok"
+ },
+ "h05F": {
+  "name": "Lernaean Fountain",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\City_Fountain\\City_Fountain.mdl",
+  "source": "ok"
+ },
+ "h020": {
+  "name": "Murloc Camp",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\other\\MurlocHut1\\MurlocHut1.mdl",
+  "source": "ok"
+ },
+ "h022": {
+  "name": "Murloc Fortress",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Merchant\\Merchant.mdl",
+  "source": "ok"
+ },
+ "h021": {
+  "name": "Murloc Village",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Merchant\\Merchant.mdl",
+  "source": "ok"
+ },
+ "h01Z": {
+  "name": "Naga Spring",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\other\\FountainOfLifeDefiled\\FountainOfLifeDefiled.mdl",
+  "source": "ok"
+ },
+ "h00M": {
+  "name": "Oracle of Sirens",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\AltarOfDepths\\AltarOfDepths.mdl",
+  "source": "ok"
+ },
+ "h01B": {
+  "name": "Reptile Pool",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\TempleofTides\\TempleofTides.mdl",
+  "source": "ok"
+ },
+ "h032": {
+  "name": "Royal Spawning Grounds",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\SpawningGrounds\\SpawningGrounds.mdl",
+  "source": "ok"
+ },
+ "h00F": {
+  "name": "Spawning Grounds",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\SpawningGrounds\\SpawningGrounds.mdl",
+  "source": "ok"
+ },
+ "h00J": {
+  "name": "Swamp Well",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\FountainRuined\\FountainRuined.mdl",
+  "source": "ok"
+ },
+ "h080": {
+  "name": "Temple of Riptide",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\ShrineOfAshjara\\ShrineOfAshjara.mdl",
+  "source": "ok"
+ },
+ "h01Y": {
+  "name": "Temple of Snakes",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hbla",
+  "mdl": "buildings\\naga\\ShrineOfAshjara\\ShrineOfAshjara.mdl",
+  "source": "ok"
+ },
+ "h00N": {
+  "name": "Tidal Guardian",
+  "kind": "building",
+  "race": "Naga",
+  "base": "hgtw",
+  "mdl": "buildings\\naga\\TidalGuardian\\TidalGuardian.mdl",
+  "source": "ok"
+ },
+ "n01P": {
+  "name": "Ancient Hydra",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nahy",
+  "mdl": "Units\\Creeps\\Hydra\\Hydra",
+  "source": "ok"
+ },
+ "n007": {
+  "name": "Dragon Turtle",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nhyc",
+  "mdl": "Units\\Creeps\\DragonSeaTurtleRange\\DragonSeaTurtleRange",
+  "source": "ok"
+ },
+ "n00K": {
+  "name": "Murloc Assassin",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nmpe",
+  "mdl": "units\\creeps\\MurlocNightcrawler\\MurlocNightcrawler_V1.mdl",
+  "source": "ok"
+ },
+ "n00J": {
+  "name": "Murloc Champion",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nmpe",
+  "mdl": "units\\creeps\\MurlocFlesheater\\MurlocFlesheater_V1.mdl",
+  "source": "ok"
+ },
+ "n00I": {
+  "name": "Murloc Warrior",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nmpe",
+  "mdl": "units\\creeps\\MurlocMutant\\MurlocMutant_V1.mdl",
+  "source": "ok"
+ },
+ "n002": {
+  "name": "Naga Guardian",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nnrg",
+  "mdl": "units\\naga\\NagaRoyalGuard\\NagaRoyalGuard",
+  "source": "ok"
+ },
+ "n00X": {
+  "name": "Naga Royal Guard",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nnrg",
+  "mdl": "units\\naga\\NagaMyrmidon\\NagaMyrmidon.mdl",
+  "source": "ok"
+ },
+ "n00S": {
+  "name": "Naga Siren",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nnsu",
+  "mdl": "Units\\Naga\\NagaSummoner\\NagaSummoner",
+  "source": "ok"
+ },
+ "n004": {
+  "name": "Suumpmolk",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nnrg",
+  "mdl": "units\\naga\\SnapDragon\\SnapDragon.mdl",
+  "source": "ok"
+ },
+ "n03U": {
+  "name": "Winged Riptide Serpent",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nwgs",
+  "mdl": "NetherRayTC.mdl",
+  "source": "ok"
+ },
+ "n00H": {
+  "name": "Winged Serpent",
+  "kind": "unit",
+  "race": "Naga",
+  "base": "nwgs",
+  "mdl": "units\\naga\\WindSerpent\\WindSerpent",
+  "source": "ok"
+ },
+ "h02C": {
+  "name": "Ancient Guardian",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AncientOfWar\\AncientOfWar.mdl",
+  "source": "ok"
+ },
+ "h01J": {
+  "name": "Ancient of Eternity",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\TreeofLife\\TreeofLife.mdl",
+  "source": "ok"
+ },
+ "h02A": {
+  "name": "Ancient of Gale",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AncientOfWind\\AncientOfWind.mdl",
+  "source": "ok"
+ },
+ "h013": {
+  "name": "Ancient of Growth",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\TreeofLife\\TreeofLife.mdl",
+  "source": "ok"
+ },
+ "h024": {
+  "name": "Ancient of Hibernation",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AncientOfLore\\AncientOfLore.mdl",
+  "source": "ok"
+ },
+ "h01H": {
+  "name": "Ancient of Life",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\TreeofLife\\TreeofLife.mdl",
+  "source": "ok"
+ },
+ "h023": {
+  "name": "Ancient of Slumber",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AncientOfLore\\AncientOfLore.mdl",
+  "source": "ok"
+ },
+ "h02D": {
+  "name": "Ancient of Wonders",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AncientOfWonder\\AncientOfWonder.mdl",
+  "source": "ok"
+ },
+ "n02D": {
+  "name": "Ancient Protector",
+  "kind": "building",
+  "race": "Nature",
+  "base": "ncap",
+  "mdl": "buildings\\nightelf\\AncientProtector\\AncientProtector.mdl",
+  "source": "ok"
+ },
+ "h027": {
+  "name": "Emerald Dragon Roost",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DragonBuildingGreen\\DragonBuildingGreen.mdl",
+  "source": "ok"
+ },
+ "h071": {
+  "name": "Enigma",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DraneiHut0\\DraneiHut0.mdl",
+  "source": "ok"
+ },
+ "h012": {
+  "name": "Furbolg Abode",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\other\\FurbolgHut\\FurbolgHut.mdl",
+  "source": "ok"
+ },
+ "h00Y": {
+  "name": "Furbolg Hut",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "buildings\\other\\FurbolgHut2\\FurbolgHut2.mdl",
+  "source": "ok"
+ },
+ "h028": {
+  "name": "Monolith",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "Doodads\\Cinematic\\RessurectionStoneSW\\RessurectionStoneSW.mdl",
+  "source": "ok"
+ },
+ "h002": {
+  "name": "Spider Egg Clutch",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "Doodads\\Dungeon\\Terrain\\EggSack\\EggSack1.mdl",
+  "source": "ok"
+ },
+ "h00R": {
+  "name": "Spider Egg Hatchery",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "Doodads\\Dungeon\\Terrain\\EggSack\\EggSack0.mdl",
+  "source": "ok"
+ },
+ "h00Q": {
+  "name": "Spider Egg Nest",
+  "kind": "building",
+  "race": "Nature",
+  "base": "hbla",
+  "mdl": "Doodads\\Dungeon\\Terrain\\EggSack\\EggSack0.mdl",
+  "source": "ok"
+ },
+ "n02B": {
+  "name": "Ancient Bear",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "ngz1",
+  "mdl": "units\\nightelf\\DruidoftheClaw\\DruidoftheClaw.mdl",
+  "source": "ok"
+ },
+ "e00C": {
+  "name": "Ancient Keeper",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "edry",
+  "mdl": "units\\nightelf\\HeroKeeperoftheGroveGhost\\HeroKeeperoftheGroveGhost.mdl",
+  "source": "ok"
+ },
+ "n029": {
+  "name": "Bear",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "ngz1",
+  "mdl": "units\\creeps\\GrizzlyBear\\GrizzlyBear",
+  "source": "ok"
+ },
+ "n00U": {
+  "name": "Black Spider",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "nspb",
+  "mdl": "units\\creeps\\SpiderBlack\\SpiderBlack",
+  "source": "ok"
+ },
+ "n01W": {
+  "name": "Brood Mother",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "nsbm",
+  "mdl": "units\\creeps\\SpiderBlue\\SpiderBlue",
+  "source": "ok"
+ },
+ "e006": {
+  "name": "Dryad",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "edry",
+  "mdl": "units\\nightelf\\Dryad\\Dryad",
+  "source": "ok"
+ },
+ "n02A": {
+  "name": "Emerald Dragon",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "ngdk",
+  "mdl": "units\\creeps\\GreenDragon\\GreenDragon",
+  "source": "ok"
+ },
+ "n028": {
+  "name": "Furbolg Elder Shaman",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "nfre",
+  "mdl": "units\\creeps\\FurbolgElder\\FurbolgElder.mdl",
+  "source": "ok"
+ },
+ "n026": {
+  "name": "Furbolg Shaman",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "nfrs",
+  "mdl": "units\\creeps\\FurbolgShaman\\FurbolgShaman",
+  "source": "ok"
+ },
+ "n01N": {
+  "name": "Giant Spider",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "nsgt",
+  "mdl": "units\\creeps\\Spider\\Spider",
+  "source": "ok"
+ },
+ "e009": {
+  "name": "Keeper of the Grove",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "edry",
+  "mdl": "units\\nightelf\\HeroKeeperoftheGrove\\HeroKeeperoftheGrove.mdl",
+  "source": "ok"
+ },
+ "e00F": {
+  "name": "Mountain Giant",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "emtg",
+  "mdl": "units\\nightelf\\MountainGiant\\MountainGiant",
+  "source": "ok"
+ },
+ "e00G": {
+  "name": "Visioneer",
+  "kind": "unit",
+  "race": "Nature",
+  "base": "edry",
+  "mdl": "units\\creeps\\GnollWarden\\GnollWarden.mdl",
+  "source": "ok"
+ },
+ "h03E": {
+  "name": "Amazon's Hall",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\BarrowDens\\BarrowDens.mdl",
+  "source": "ok"
+ },
+ "h073": {
+  "name": "Elune's Lantern",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Props\\CrystalLamp\\CrystalLamp.mdl",
+  "source": "ok"
+ },
+ "h00B": {
+  "name": "Fountain of Wonders",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\FountainOfMana\\FountainOfMana.mdl",
+  "source": "ok"
+ },
+ "h07L": {
+  "name": "Guild of Shadows",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Buildings\\Other\\ElvenFishVillageBuilding1\\ElvenFishVillageBuilding1.mdl",
+  "source": "ok"
+ },
+ "h07M": {
+  "name": "House of Shadows",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Buildings\\Other\\ElvenFishVillageBuilding0\\ElvenFishVillageBuilding0.mdl",
+  "source": "ok"
+ },
+ "h00S": {
+  "name": "Hunter's Hall",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ElvenFishVillageBuilding2\\ElvenFishVillageBuilding2.mdl",
+  "source": "ok"
+ },
+ "h07D": {
+  "name": "Moon Altar",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\AltarOfElders\\AltarOfElders.mdl",
+  "source": "ok"
+ },
+ "h088": {
+  "name": "Moon Shrine",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\MoonWell\\MoonWell.mdl",
+  "source": "ok"
+ },
+ "h011": {
+  "name": "Nightelf Siege Factory",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\NightElf\\NightElfShipyard\\NightElfShipyard.mdl",
+  "source": "ok"
+ },
+ "h07H": {
+  "name": "Obelisk of Wilderness",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\other\\BridgeObelisk\\BridgeObelisk.mdl",
+  "source": "ok"
+ },
+ "h07O": {
+  "name": "Pillaged Hut",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Buildings\\Other\\ElvenFishVillageBuildingRuined2\\ElvenFishVillageBuildingRuined2.mdl",
+  "source": "ok"
+ },
+ "h03D": {
+  "name": "Ranger's Hall",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "buildings\\nightelf\\HuntersHall\\HuntersHall.mdl",
+  "source": "ok"
+ },
+ "h07N": {
+  "name": "Scorched Mansion",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Buildings\\Other\\ElvenFishVillageBuildingRuined0\\ElvenFishVillageBuildingRuined0.mdl",
+  "source": "ok"
+ },
+ "h08P": {
+  "name": "Silver Glade",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "Doodads\\Ashenvale\\Structures\\AshenRuinsBlocks\\AshenRuinsBlocks.mdl",
+  "source": "ok"
+ },
+ "h07I": {
+  "name": "Starfall Obelisk",
+  "kind": "building",
+  "race": "Nightelf",
+  "base": "hbla",
+  "mdl": "doodads\\cinematic\\IcecrownObelisk\\IcecrownObelisk.mdl",
+  "source": "ok"
+ },
+ "e004": {
+  "name": "Amazon",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "earc",
+  "mdl": "Units\\Undead\\EvilSylvanas\\EvilSylvanas.mdl",
+  "source": "ok"
+ },
+ "n01Z": {
+  "name": "Assassin",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "nwat",
+  "mdl": "units\\nightelf\\herowarden\\herowarden.mdl",
+  "source": "ok"
+ },
+ "e00A": {
+  "name": "Avatar of Vengeance",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "espv",
+  "mdl": "units\\nightelf\\SpiritOfVengeance\\SpiritOfVengeance",
+  "source": "ok"
+ },
+ "e00B": {
+  "name": "Avenging Spirit",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "even",
+  "mdl": "units\\nightelf\\Vengeance\\Vengeance",
+  "source": "ok"
+ },
+ "e007": {
+  "name": "Druid",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "edot",
+  "mdl": "units\\nightelf\\DruidoftheTalon\\DruidoftheTalon",
+  "source": "ok"
+ },
+ "e000": {
+  "name": "Faerie Dragon",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "efdr",
+  "mdl": "units\\nightelf\\FaerieDragon\\FaerieDragon",
+  "source": "ok"
+ },
+ "e002": {
+  "name": "Glaive Thrower",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "ebal",
+  "mdl": "units\\nightelf\\Ballista\\Ballista",
+  "source": "ok"
+ },
+ "e001": {
+  "name": "Huntress",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "earc",
+  "mdl": "units\\nightelf\\Archer\\Archer",
+  "source": "ok"
+ },
+ "e003": {
+  "name": "Ranger",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "earc",
+  "mdl": "units\\nightelf\\Shandris\\Shandris.mdl",
+  "source": "ok"
+ },
+ "n020": {
+  "name": "Royal Assassin",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "nssn",
+  "mdl": "units\\creeps\\assassin\\assassin",
+  "source": "ok"
+ },
+ "e00J": {
+  "name": "Sage Druid",
+  "kind": "unit",
+  "race": "Nightelf",
+  "base": "edot",
+  "mdl": "units\\nightelf\\MalFurion\\MalFurionNoStag.mdl",
+  "source": "ok"
+ },
+ "h03I": {
+  "name": "Azure Nest",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\other\\DragonBuildingBlue\\DragonBuildingBlue.mdl",
+  "source": "ok"
+ },
+ "h047": {
+  "name": "Chilling Mushroom",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Underground\\Plants\\ShroomsBlue\\ShroomsBlue.mdl",
+  "source": "ok"
+ },
+ "h03S": {
+  "name": "Crystal Palace",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\human\\TownHall\\TownHall.mdl",
+  "source": "ok"
+ },
+ "h043": {
+  "name": "Frost Claws",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Northrend\\Rocks\\North_IceClaw\\North_IceClaw8.mdl",
+  "source": "ok"
+ },
+ "h048": {
+  "name": "Frost Launcher",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Props\\IceCrownObelisk\\IceCrownObelisk1.mdl",
+  "source": "ok"
+ },
+ "h03W": {
+  "name": "Glacier",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Rocks\\Glacier\\Glacier7.mdl",
+  "source": "ok"
+ },
+ "h03L": {
+  "name": "Greater Frost Launcher",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "doodads\\cinematic\\IcecrownObelisk\\IcecrownObelisk.mdl",
+  "source": "ok"
+ },
+ "h03T": {
+  "name": "Ice Claws",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Northrend\\Rocks\\North_IceClaw\\North_IceClaw3.mdl",
+  "source": "ok"
+ },
+ "h03K": {
+  "name": "Ice Troll Hut",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\other\\IceTrollHut1\\IceTrollHut1.mdl",
+  "source": "ok"
+ },
+ "h03J": {
+  "name": "Ice Troll Voodoo Lounge",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\other\\IceTrollHut0\\IceTrollHut0.mdl",
+  "source": "ok"
+ },
+ "h04F": {
+  "name": "Icy Rocks",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Rocks\\Ice_SnowRock\\Ice_SnowRock4.mdl",
+  "source": "ok"
+ },
+ "h03Q": {
+  "name": "Icy Tower",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\other\\TowerDefenseTower\\TowerDefenseTower.mdl",
+  "source": "ok"
+ },
+ "h03U": {
+  "name": "Igloo",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Structures\\Igloo\\Igloo.mdl",
+  "source": "ok"
+ },
+ "h06L": {
+  "name": "Modern Igloo",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Terrain\\ClearIceRock\\ClearIceRock0.mdl",
+  "source": "ok"
+ },
+ "h07W": {
+  "name": "Snowveil Fountain",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "war3mapImported\\FrozenFountain.mdl",
+  "source": "ok"
+ },
+ "h049": {
+  "name": "Snowy Rocks",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "Doodads\\Icecrown\\Rocks\\Ice_SnowRock\\Ice_SnowRock9.mdl",
+  "source": "ok"
+ },
+ "h03O": {
+  "name": "World Freezer",
+  "kind": "building",
+  "race": "Northern",
+  "base": "hbla",
+  "mdl": "buildings\\other\\IceCrownTreasureBox\\IceCrownTreasureBox.mdl",
+  "source": "ok"
+ },
+ "n013": {
+  "name": "Ancient Wandigoo",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nwns",
+  "mdl": "units\\creeps\\WendigoShaman\\WendigoShaman",
+  "source": "ok"
+ },
+ "n02I": {
+  "name": "Angry Hrimthrusa",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "ntka",
+  "mdl": "Units\\Creeps\\tuskarLord\\tuskarLord.mdl",
+  "source": "ok"
+ },
+ "n010": {
+  "name": "Azure Drake",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nadk",
+  "mdl": "units\\creeps\\AzureDragon\\AzureDragon",
+  "source": "ok"
+ },
+ "n017": {
+  "name": "Frost Wolf",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nwwf",
+  "mdl": "units\\creeps\\WhiteWolf\\WhiteWolf",
+  "source": "ok"
+ },
+ "n011": {
+  "name": "Hrimthrusa",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "ntka",
+  "mdl": "Units\\Creeps\\tuskarRanged\\tuskarRanged",
+  "source": "ok"
+ },
+ "n014": {
+  "name": "Ice Queen",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nhea",
+  "mdl": "units\\human\\Jaina\\Jaina.mdl",
+  "source": "ok"
+ },
+ "n015": {
+  "name": "Ice Troll Shadow Priest",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nitp",
+  "mdl": "units\\creeps\\IceTrollShadowPriest\\IceTrollShadowPriest",
+  "source": "ok"
+ },
+ "o00A": {
+  "name": "Ice Troll Witch Doctor",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "odoc",
+  "mdl": "units\\orc\\WitchDoctor\\WitchDoctor",
+  "source": "ok"
+ },
+ "n016": {
+  "name": "Magnataur",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nmgd",
+  "mdl": "Units\\Creeps\\MagnataurBlue\\MagnataurBlue",
+  "source": "ok"
+ },
+ "n018": {
+  "name": "Polar Bear",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nplb",
+  "mdl": "units\\creeps\\PolarBear\\PolarBear",
+  "source": "ok"
+ },
+ "n012": {
+  "name": "Wandigoo",
+  "kind": "unit",
+  "race": "Northern",
+  "base": "nwen",
+  "mdl": "units\\creeps\\Wendigo\\Wendigo",
+  "source": "ok"
+ },
+ "h02U": {
+  "name": "Advanced Fighters' Hall",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\GreatHall\\GreatHall.mdl",
+  "source": "ok"
+ },
+ "o000": {
+  "name": "Anti Air Tower",
+  "kind": "building",
+  "race": "Orc",
+  "base": "owtw",
+  "mdl": "buildings\\orc\\WatchTower\\WatchTower",
+  "source": "ok"
+ },
+ "h07Q": {
+  "name": "Blood Shaman Tent",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "war3mapImported\\Lodge.mdl",
+  "source": "ok"
+ },
+ "h02R": {
+  "name": "Ceremonial Totem",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\TaurenTotem\\TaurenTotem.mdl",
+  "source": "ok"
+ },
+ "h036": {
+  "name": "Defensive Kodo Farm",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\PigFarm\\PigFarm.mdl",
+  "source": "ok"
+ },
+ "h07Z": {
+  "name": "Endurance Totem",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "units\\orc\\SentryWard\\SentryWard.mdl",
+  "source": "ok"
+ },
+ "h02P": {
+  "name": "Falcon-Clan Encampment",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\Mercenary\\Mercenary.mdl",
+  "source": "ok"
+ },
+ "h029": {
+  "name": "Fighters' Hall",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\GreatHall\\GreatHall.mdl",
+  "source": "ok"
+ },
+ "h06D": {
+  "name": "Forest Trapper's Hole",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\GnollHut2\\GnollHut2.mdl",
+  "source": "ok"
+ },
+ "h07Y": {
+  "name": "Healing Totem",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "units\\orc\\HealingWard\\HealingWard.mdl",
+  "source": "ok"
+ },
+ "h06I": {
+  "name": "Infostealer's Place",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\SpiritLodge\\SpiritLodge.mdl",
+  "source": "ok"
+ },
+ "h02K": {
+  "name": "Kodo Farm",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\PigFarm\\PigFarm.mdl",
+  "source": "ok"
+ },
+ "h02O": {
+  "name": "Legendary Totem",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "war3mapImported\\OrcAirTotemV2.mdl",
+  "source": "ok"
+ },
+ "h035": {
+  "name": "Melee Kodo Farm",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\PigFarm\\PigFarm.mdl",
+  "source": "ok"
+ },
+ "h02I": {
+  "name": "Orcish Siege Factory",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\WarMill\\WarMill.mdl",
+  "source": "ok"
+ },
+ "h02N": {
+  "name": "Serpent Rock",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "units\\orc\\SerpentWard\\SerpentWard.mdl",
+  "source": "ok"
+ },
+ "h02B": {
+  "name": "Shamanic Tent",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\SpiritLodge\\SpiritLodge.mdl",
+  "source": "ok"
+ },
+ "h092": {
+  "name": "Spellbreaker Kodo Farm",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\PigFarm\\PigFarm.mdl",
+  "source": "ok"
+ },
+ "h07X": {
+  "name": "Stasis Totem",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "units\\orc\\StasisTotem\\StasisTotem.mdl",
+  "source": "ok"
+ },
+ "h031": {
+  "name": "Superior Fighters' Hall",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\orc\\GreatHall\\GreatHall.mdl",
+  "source": "ok"
+ },
+ "h05E": {
+  "name": "Trapper's Hut",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ForestTrollHut0\\ForestTrollHut0.mdl",
+  "source": "ok"
+ },
+ "h02H": {
+  "name": "Troll Hut",
+  "kind": "building",
+  "race": "Orc",
+  "base": "hbla",
+  "mdl": "buildings\\other\\ForestTrollHut1\\ForestTrollHut1.mdl",
+  "source": "ok"
+ },
+ "o005": {
+  "name": "Axemaster",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ogru",
+  "mdl": "units\\orc\\Hellscream\\Hellscream.mdl",
+  "source": "ok"
+ },
+ "o00G": {
+  "name": "Blood Shaman",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "oshm",
+  "mdl": "war3mapImported\\ChaosShaman.mdl",
+  "source": "ok"
+ },
+ "o001": {
+  "name": "Catapult",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ocat",
+  "mdl": "units\\orc\\catapult\\catapult",
+  "source": "ok"
+ },
+ "o006": {
+  "name": "Defensive Kodo Rider",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "okod",
+  "mdl": "units\\orc\\KotoBeast\\KotoBeast",
+  "source": "ok"
+ },
+ "n02G": {
+  "name": "Forest Troll Trapper",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ndtb",
+  "mdl": "units\\creeps\\ForestTrollTrapper\\ForestTrollTrapper.mdl",
+  "source": "ok"
+ },
+ "o002": {
+  "name": "Grunt",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ogru",
+  "mdl": "units\\orc\\Grunt\\Grunt",
+  "source": "ok"
+ },
+ "o00F": {
+  "name": "Infostealer",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "oshm",
+  "mdl": "units\\orc\\OrcWarlockGuldan\\OrcWarlockGuldan.mdl",
+  "source": "ok"
+ },
+ "o007": {
+  "name": "Kodo",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "okod",
+  "mdl": "units\\orc\\KotoBeastNoRider\\KotoBeastNoRider.mdl",
+  "source": "ok"
+ },
+ "o008": {
+  "name": "Melee Kodo Rider",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "okod",
+  "mdl": "units\\demon\\ChaosKotoBeast\\ChaosKotoBeast.mdl",
+  "source": "ok"
+ },
+ "o003": {
+  "name": "Shaman",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "oshm",
+  "mdl": "units\\orc\\Shaman\\Shaman",
+  "source": "ok"
+ },
+ "o00B": {
+  "name": "Spellbreaker Kodo Rider",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "okod",
+  "mdl": "units\\orc\\KotoBeast\\KotoBeast",
+  "source": "ok"
+ },
+ "n00V": {
+  "name": "Troll Berserker",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ndtb",
+  "mdl": "units\\creeps\\DarkTroll\\DarkTroll",
+  "source": "ok"
+ },
+ "n01O": {
+  "name": "Troll Trapper",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ndtb",
+  "mdl": "units\\creeps\\DarkTrollTrapper\\DarkTrollTrapper.mdl",
+  "source": "ok"
+ },
+ "o004": {
+  "name": "Veteran Grunt",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "ogru",
+  "mdl": "units\\demon\\ChaosGrunt\\ChaosGrunt.mdl",
+  "source": "ok"
+ },
+ "o009": {
+  "name": "Wyvern Rider",
+  "kind": "unit",
+  "race": "Orc",
+  "base": "owyv",
+  "mdl": "units\\orc\\WyvernRider\\WyvernRider",
+  "source": "ok"
+ },
+ "n03D": {
+  "name": "Bamboo Dojo",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenDojoV2.mdl",
+  "source": "ok"
+ },
+ "n03F": {
+  "name": "Brew Hut",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenHouse.mdl",
+  "source": "ok"
+ },
+ "h07V": {
+  "name": "Celestial Chi Tower",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "hgtw",
+  "mdl": "war3mapImported\\PandarianElementalSanctuary.mdl",
+  "source": "ok"
+ },
+ "n03Q": {
+  "name": "Cloud Hangar",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandanBarracks.mdl",
+  "source": "ok"
+ },
+ "n03K": {
+  "name": "Fighting Tavern",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenBrewery.mdl",
+  "source": "ok"
+ },
+ "n03L": {
+  "name": "Jade Shrine",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenShrineV1.mdl",
+  "source": "ok"
+ },
+ "n03N": {
+  "name": "Pandaren Siege Workshop",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenWorkshop.mdl",
+  "source": "ok"
+ },
+ "h07P": {
+  "name": "Poof Tower",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "hgtw",
+  "mdl": "war3mapImported\\PandarenTower.mdl",
+  "source": "ok"
+ },
+ "n03S": {
+  "name": "Sagepaw Sanctum",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenDojoV2.mdl",
+  "source": "ok"
+ },
+ "n03P": {
+  "name": "Temple of Ten Thousand Drinks",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenPalace.mdl",
+  "source": "ok"
+ },
+ "n03H": {
+  "name": "Temple of the Wandering Spark",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "npgr",
+  "mdl": "war3mapImported\\PandarenTemple.mdl",
+  "source": "ok"
+ },
+ "h07R": {
+  "name": "Thunderpaw Spire",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "hhou",
+  "mdl": "war3mapImported\\PandarenFlightMaster.mdl",
+  "source": "ok"
+ },
+ "h07T": {
+  "name": "Withering Hall",
+  "kind": "building",
+  "race": "Pandaren Empire",
+  "base": "hhou",
+  "mdl": "war3mapImported\\PandarenBlacksmith.mdl",
+  "source": "ok"
+ },
+ "o00H": {
+  "name": "Brewshock Catapult",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "ocat",
+  "mdl": "war3mapImported\\InfernalCatapultV1.00.mdl",
+  "source": "ok"
+ },
+ "h07S": {
+  "name": "Cloud Ship",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "hgry",
+  "mdl": "war3mapImported\\PandarenTransportShip.mdl",
+  "source": "ok"
+ },
+ "n03O": {
+  "name": "Drunken Brewmaster",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nogr",
+  "mdl": "war3mapImported\\PandaDrunk_opt2.mdl",
+  "source": "ok"
+ },
+ "n03I": {
+  "name": "Echofoot Mystic",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nqb1",
+  "mdl": "war3mapImported\\Storm.mdl",
+  "source": "ok"
+ },
+ "n03J": {
+  "name": "Ironpaw Guardian",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nogr",
+  "mdl": "WarDancer.mdl",
+  "source": "ok"
+ },
+ "n03G": {
+  "name": "Ironpaw Militia",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nogr",
+  "mdl": "war3mapImported\\PandarenMilitia.mdl",
+  "source": "ok"
+ },
+ "n03M": {
+  "name": "Jade Elder",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nqb1",
+  "mdl": "KyoWarrior_E_002.mdl",
+  "source": "ok"
+ },
+ "n03E": {
+  "name": "Sagepaw Monk",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nqb1",
+  "mdl": "PandarenSage.mdl",
+  "source": "ok"
+ },
+ "n03T": {
+  "name": "Sagepaw Soulkeeper",
+  "kind": "unit",
+  "race": "Pandaren Empire",
+  "base": "nqb1",
+  "mdl": "PandarenSage.mdl",
+  "source": "ok"
+ },
+ "h01Q": {
+  "name": "City of Decay",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "Doodads\\Cityscape\\Structures\\CathedralRuined\\CathedralRuined.mdl",
+  "source": "ok"
+ },
+ "h01N": {
+  "name": "Crypt",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "Doodads\\Northrend\\Structures\\NorthrendCrypt\\NorthrendCrypt.mdl",
+  "source": "ok"
+ },
+ "h00A": {
+  "name": "Death Pit",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\SacrificialPit\\SacrificialPit.mdl",
+  "source": "ok"
+ },
+ "h03M": {
+  "name": "Defiled Granary",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\other\\GrainWarehouse\\GrainWarehouse.mdl",
+  "source": "ok"
+ },
+ "h01S": {
+  "name": "Dragon Cemetery",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\BoneYard\\BoneYard.mdl",
+  "source": "ok"
+ },
+ "h054": {
+  "name": "Graveyard",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Graveyard\\Graveyard.mdl",
+  "source": "ok"
+ },
+ "h01L": {
+  "name": "Haunted Mine",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\HauntedMine\\HauntedMine.mdl",
+  "source": "ok"
+ },
+ "h055": {
+  "name": "High Citadel of Necromancy",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Necropolis\\Necropolis.mdl",
+  "source": "ok"
+ },
+ "h01R": {
+  "name": "Rotting Hay Cart",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Props\\RottenHayCartbroken\\RottenHayCartbroken.mdl",
+  "source": "ok"
+ },
+ "h01P": {
+  "name": "Skull Pile",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "Doodads\\LordaeronSummer\\Props\\SkullPile\\SkullPile0.mdl",
+  "source": "ok"
+ },
+ "h056": {
+  "name": "Skull Shrine",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "Doodads\\Ashenvale\\Props\\Brazier\\Brazier.mdl",
+  "source": "ok"
+ },
+ "h01T": {
+  "name": "Slaughter House",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Slaughterhouse\\Slaughterhouse.mdl",
+  "source": "ok"
+ },
+ "h04Z": {
+  "name": "Tainted Farm",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\other\\GranaryInfected\\GranaryInfected.mdl",
+  "source": "ok"
+ },
+ "h01K": {
+  "name": "Temple of Bone",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Crypt\\Crypt.mdl",
+  "source": "ok"
+ },
+ "h04B": {
+  "name": "Temple of Necromancy",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Necropolis\\Necropolis.mdl",
+  "source": "ok"
+ },
+ "h01O": {
+  "name": "Turret of Souls",
+  "kind": "building",
+  "race": "Undead",
+  "base": "hbla",
+  "mdl": "buildings\\undead\\Ziggurat\\Ziggurat.mdl",
+  "source": "ok"
+ },
+ "u001": {
+  "name": "Banshee",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "uswb",
+  "mdl": "units\\creeps\\BansheeGhost\\BansheeGhost",
+  "source": "ok"
+ },
+ "n00E": {
+  "name": "Flesh Golem",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "nfgl",
+  "mdl": "units\\other\\FleshGolem\\FleshGolem",
+  "source": "ok"
+ },
+ "u000": {
+  "name": "Frost Wyrm",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "ufro",
+  "mdl": "units\\undead\\FrostWyrm\\FrostWyrm",
+  "source": "ok"
+ },
+ "u00D": {
+  "name": "Lich King",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "unec",
+  "mdl": "units\\undead\\HeroLich\\HeroLich_V1.mdl",
+  "source": "ok"
+ },
+ "u009": {
+  "name": "Mighty Necromancer",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "uktg",
+  "mdl": "units\\undead\\KelThuzadGhost\\KelThuzadGhost",
+  "source": "ok"
+ },
+ "u005": {
+  "name": "Necromancer",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "unec",
+  "mdl": "units\\undead\\Necromancer\\Necromancer",
+  "source": "ok"
+ },
+ "u007": {
+  "name": "Plague Bearer",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "uabo",
+  "mdl": "units\\undead\\Abomination\\Abomination",
+  "source": "ok"
+ },
+ "n01K": {
+  "name": "Suffocated Zombie",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "nzom",
+  "mdl": "units\\other\\DalaranMutant\\DalaranMutant.mdl",
+  "source": "ok"
+ },
+ "h01U": {
+  "name": "Vampire",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "hfoo",
+  "mdl": "units\\undead\\HeroDreadLord\\HeroDreadLord.mdl",
+  "source": "ok"
+ },
+ "h05H": {
+  "name": "Vampire Lord",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "hfoo",
+  "mdl": "units\\undead\\Tichondrius\\Tichondrius.mdl",
+  "source": "ok"
+ },
+ "n00B": {
+  "name": "Zombie",
+  "kind": "unit",
+  "race": "Undead",
+  "base": "nzom",
+  "mdl": "units\\creeps\\Zombie\\Zombie",
+  "source": "ok"
+ },
+ "e00E-a": {
+  "name": "Twins (kid 1)",
+  "mdl": "units\\critters\\VillagerKid\\VillagerKid",
+  "source": "author"
+ },
+ "e00E-b": {
+  "name": "Twins (kid 2)",
+  "mdl": "units\\critters\\VillagerKid1\\VillagerKid1",
+  "source": "author"
+ }
+}

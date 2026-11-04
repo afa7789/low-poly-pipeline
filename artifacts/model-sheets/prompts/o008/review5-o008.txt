@@ -1,0 +1,12 @@
+Recolour the kodo only. Its purple hide is wrong: it must match the approved sibling unit's kodo, a dusty tan-khaki hide (about #B09A68), with a dark earth-brown underside and shaded areas (about #4F3828). The change is a flat colour swap with no new shading, texture or detail.
+
+Make the same change in all five views:
+- Panel 1, front view: the head, ears, body and legs become tan-khaki. The shaded inner legs and the shadow under the jaw become dark earth brown. The two small eyes become red instead of green.
+- Panel 2, left profile: the head, ear, barrel body, legs and tail become tan-khaki. The belly band and far legs become dark earth brown. The eye becomes red.
+- Panel 3, back view: the rump, tail and legs become tan-khaki. The shaded area between the rear legs becomes dark earth brown.
+- Panel 4, top-down: the head, back, leg tops and tail become tan-khaki. The two small eyes become red.
+- Panel 5, bottom-up: the outer rim of the body and legs and the edges of the tail become tan-khaki. The large underside area and the tail's underside become dark earth brown.
+
+No purple may remain anywhere on the sheet.
+
+Everything else stays exactly as it is. Do not change the kodo's shape, pose, size or linework, its cream horns, tusks and toe claws, its iron tusk caps or olive foot soles. Do not change the orc rider with green skin and red vest, the respirator, the hatchets, the saddle, the rack, the banner or the ember cage. The five-panel layout, the position of every figure, the grey background, the flat coarse blockout style and the absence of text also stay unchanged.

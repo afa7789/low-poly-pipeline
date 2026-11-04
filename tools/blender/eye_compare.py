@@ -230,8 +230,7 @@ def snapshot(unit, n, dst, src=FULL):
         if (a / f"eye/round-{r}").exists():
             shutil.copytree(a / f"eye/round-{r}", eye / f"round-{r}", ignore=shutil.ignore_patterns("views", "sil", "board-*.png", "pairwise*"), dirs_exist_ok=True)
     final = summary["final_round"]
-    dsl = json.loads((eye / f"round-{final}/dsl.json").read_text())
-    eye_stage.finish(summary, eye / f"round-{final}/model.glb", dsl, eye / "input.glb", b, eye)
+    eye_stage.finish(summary, eye / f"round-{final}/model.glb", eye / "input.glb", b, eye)
     print(unit, dst, "rounds", final + 1, "seconds", summary["seconds"], "hash", summary["vertex_hash"])
 
 

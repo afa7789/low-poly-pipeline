@@ -46,7 +46,13 @@ USD_RTS = 3 * 0.051           # spec_pipeline.ensure_rts draws sheet-rts, sheet-
 MEDIANS_S = {"prompt": 113.0, "sheets": 45.0, "parts": 63.0, "model": 1629.0}
 # rig family per unit when the card's words are not enough: the flags the batteries used (v15.sh, 22.L4-4a, v2-hard-r2)
 RIG_OF = {"n00U": "spider", "n01N": "spider_high", "n01W": "spider_high", "n017": "quadruped", "n018": "quadruped",
-          "n00H": "wyrm", "n010": "drake", "n01I": "biped"}
+          "n00H": "wyrm", "n010": "drake", "n01I": "biped",
+          "e005": "vehicle", "e002": "vehicle", "o001": "vehicle", "o00H": "vehicle", "n007": "quadruped", "o007": "quadruped",
+          "h06S": "tracked", "n01T": "tracked", "h06U": "tracked", "n02J": "walker", "h06R": "aircraft", "h06Q": "aircraft", "h07S": "aircraft",
+          "n01E": "sled", "n01F": "sled", "n01P": "hydra", "hmtm": "crew", "n016": "centaur", "n01U": "crawler", "n03U": "ray",
+          "n019": "pod", "n01A": "pod", "o00C": "shard", "o00D": "shard", "o00E": "shard", "e00A": "wraith", "u001": "wraith", "h03R": "wraith",
+          "h03B": "mounted", "h03C": "mounted", "h016": "mounted_flyer", "o009": "mounted_flyer", "u000": "bird", "n01Y": "bird_rider",
+          "n008": "harpy", "e000": "drake", "z000": "quadruped", "h03P": "wraith"}                            # PIPELINE family table; artillery rolls on wheels
 RIG_WORDS = (("spider", "spider"), ("quadruped", "quadruped"), ("wolf", "quadruped"), ("bear", "quadruped"), ("hound", "quadruped"),
              ("felhound", "quadruped"), ("drake", "drake"), ("dragon", "drake"), ("wyrm", "wyrm"), ("serpent", "serpent"),
              ("naga", "naga"), ("harpy", "harpy"), ("rider", "mounted"), ("mounted", "mounted"), ("tank", "vehicle"),
@@ -58,13 +64,13 @@ PROPS_SLACK = (0.8, 1.2)      # props.json extent bracket around the longest sid
 
 # ---- roster and per-unit facts (pure over the compendium dict)
 
-def roster(comp):
-    """[{id, name, race, card}] of every kind == "unit" entry, in compendium order."""
+def roster(comp, kind="unit"):
+    """[{id, name, race, card, kind}] of every entry of that kind ("unit" | "building"), in compendium order."""
     out = []
     for race in comp["races"]:
         for e in race["entries"]:
-            if e.get("kind") == "unit":
-                out.append({"id": e["id"], "name": e["name"], "race": race["name"],
+            if e.get("kind") == kind:
+                out.append({"id": e["id"], "name": e["name"], "race": race["name"], "kind": kind,
                             "card": " ".join(str(e.get(k) or "") for k in ("description", "tooltip", "extendedTooltip"))})
     return out
 
@@ -176,7 +182,8 @@ def parse_eye_summary(summary):
     rounds = summary.get("rounds") or []
     if not rounds:
         return {}
-    last = rounds[-1]
+    final = summary.get("final_round")
+    last = next((r for r in rounds if final is not None and r.get("round") == final), rounds[-1])
     parts = last.get("parts")
     if isinstance(parts, (list, tuple)):
         parts = f"{parts[0]}/{parts[1]}"
@@ -243,13 +250,37 @@ def estimate_text(est, jobs=2):
 
 # ---- the commands (processes)
 
+REF_NOTES = {"u00F": "The original model has no usable print: it is the WC3 Firelord, a tall horned humanoid of molten rock wreathed in living flame."}
+
+
+def ref_rule(uid):
+    """The brief's reference sentence: the print of the unit's original game model (or a note) outranks the design card."""
+    shot = ROOT / "artifacts/reference/hive/renders" / f"{uid}.png"
+    icon = ROOT / "artifacts/reference/hive/icons" / f"{uid}.png"
+    source = REF_NOTES.get(uid) or (f"First Read {shot}: six views of the original game model." if shot.exists() else "")
+    if icon.exists():
+        source += (f" Read {icon} too: the unit's original icon. Some model prints loaded broken (white, black blotches, stray planes, wrong colours): "
+                   f"when the print looks broken, trust the icon for look and colour.")
+    if not source:
+        return ""
+    return (f"{source} The design card and its lore stay the design: keep its story, props, materials and dieselpunk redesign. The original only guards "
+            f"the archetype. If the card lost what the unit is (its kind of being, how it moves, its element, a demon that no longer reads as a demon), "
+            f"change just that, as little as possible, so the unit still reads at a glance as its name: a floating being stays floating, a spider stays "
+            f"a spider, a water elemental reads as water, a demon has demon colours and a void creature reads as void, even when the race palette says otherwise. Otherwise follow the card. Do not copy the original's look. ")
+
+
 def prompt_fill_brief(u, rig, templates, example):
     """The brief of the one claude -p call that fills the four templates for a unit."""
     return (f"You write image prompts for the model-sheet pipeline of a dieselpunk dark-fantasy low-poly RTS. Fill the four templates "
-            f"below for unit {u['id']} ({u['race']} {u['name']}, rig family {rig}) from its facts and card. Keep every template sentence "
+            f"below for unit {u['id']} ({u['race']} {u['name']}, rig family {rig}) from its facts and card. {ref_rule(u['id'])}Keep every template sentence "
             f"that is not a {{placeholder}} verbatim; replace each placeholder and each <angle-bracket> instruction with concrete text; "
             f"write one 'Panel N' line per view saying what is visible in that view; props are the card's, at most 4, largest crudest "
-            f"shape. When the unit's props are body parts (plates, claws, fists), set unit_props to null and say so in the hard prompt.\n\n"
+            f"shape. When the unit's props are body parts (plates, claws, fists), set unit_props to null and say so in the hard prompt. "
+            f"The unit moves in the game: the design must show how, matching its rig family (wheels, tracks, legs, wings, rotor, gasbag or a hover "
+            f"gap), never a fixed stand, planted frame or tripod, and never head, torso, arms and legs on a family without them. "
+            f"All views show the same neutral pose, standing or hovering level, wings and limbs at the same angle in each view, never a flying or "
+            f"action pose in one view only. The hard and hard-clean prompts must keep every part and every colour of the main sheet: remove nothing, recolour nothing. "
+            f"Keep the card's palette unless it hides what the unit is; then the element or creature sets the main colour and the palette becomes trim.\n\n"
             f"FACTS\n{u['facts']}\n\nCARD\n{u['card']}\n\n" + "".join(f"TEMPLATE {k}\n{v}\n\n" for k, v in templates.items())
             + f"EXAMPLE of a finished unit prompt (another unit):\n{example}\n")
 
@@ -278,7 +309,7 @@ def run_prompt(u, rig, log):
     facts = subprocess.run([sys.executable, str(MSHEETS / "unit_facts.py"), u["id"]], capture_output=True, text=True, cwd=MSHEETS)
     subprocess.run([sys.executable, str(MSHEETS / "unit_facts.py"), "--emit-prompt", u["id"]], capture_output=True, text=True, cwd=MSHEETS)
     templates = {k: (PROMPTS / f"00-template-{k}.txt").read_text() for k in ("unit", "unit-hard", "unit-hard-clean", "props")}
-    example = (PROMPTS / "n01N/unit-n01N.txt").read_text()
+    example = (PROMPTS / "00-example-unit.txt").read_text()
     got = claude_json(prompt_fill_brief({**u, "facts": facts.stdout}, rig, templates, example), PROMPT_SCHEMA, log)
     written = []
     for key, suffix in (("unit", ""), ("unit_hard", "-hard"), ("unit_hard_clean", "-hard-clean"), ("unit_props", "-props")):
@@ -297,7 +328,9 @@ def shell(argv, log, cwd=ROOT):
     with log.open("a") as f:
         f.write(f"\n$ {' '.join(map(str, argv))}\n{done.stdout}{done.stderr}\n")
     if done.returncode:
-        raise RuntimeError(cause_of(done.stdout + done.stderr))
+        err = RuntimeError(cause_of(done.stdout + done.stderr))
+        err.out = done.stdout + done.stderr
+        raise err
     return done.stdout
 
 
@@ -362,6 +395,166 @@ def run_model(u, rig, run_id, log):
     return {**got, "paths": [str(run.relative_to(ROOT))], "cost_usd": len(rts_missing) * USD_RTS / 3, "note": err_note}
 
 
+# ---- buildings: prompt (one claude -p fills the template's placeholders), one sheet, spec_pipeline --kind building
+# no parts stage (no segmenter for a building, no A-pose, no props sheet): face_kind is none without a parts.json identity, so no eyes
+
+BSTAGES = ("prompt", "sheets", "model")
+BUILDING_TEMPLATE = PROMPTS / "00-template-building.txt"
+BUILDING_FIELDS = ("panels", "sil", "props", "c0", "c1", "c2", "tier", "family", "cue", "sib", "cmp")
+BUILDING_SCHEMA = {"type": "object", "required": list(BUILDING_FIELDS), "properties": {k: {"type": "string"} for k in BUILDING_FIELDS}}
+USD_BUILDING_SHEET, USD_BUILDING_RTS = 0.046, 0.051          # sheet 2K + the one gameplay view ensure_rts draws
+
+
+def building_prompt_path(uid, prompts=PROMPTS):
+    return prompts / f"building-{uid}.txt"
+
+
+def building_state(uid, run_id, refs=REFS, prompts=PROMPTS, draft=DRAFT):
+    run = draft / uid / run_id
+    return {"prompt": building_prompt_path(uid, prompts).exists(), "sheet": (refs / uid / "sheet.jpg").exists(),
+            "rts": (refs / uid / "sheet-rts.jpg").exists(), "model": (run / "model.glb").exists() and (run / "review.md").exists()}
+
+
+def building_plan(state, stage="all", resume=True):
+    """BSTAGES up to `stage` (parts = sheets: a building has no parts stage) whose outputs are missing; the model only with --resume."""
+    last = {"all": "model", "parts": "sheets"}.get(stage, stage)
+    wanted = BSTAGES[:BSTAGES.index(last) + 1]
+    return [s for s in wanted if not (state[{"prompt": "prompt", "sheets": "sheet", "model": "model"}[s]] and (resume or s != "model"))]
+
+
+def building_reached(state):
+    last = "-"
+    for s, key in (("prompt", "prompt"), ("sheets", "sheet"), ("model", "model")):
+        if not state[key]:
+            break
+        last = s
+    return last
+
+
+def cost_of(text):
+    """Sum of the `cost=<usd>` that generate.py prints per image (the gateway's own number)."""
+    return sum(float(x) for x in re.findall(r"cost=([0-9.]+)", text))
+
+
+def building_brief(u, facts, card, chain, template, example):
+    return (f"You write image prompts for the model-sheet pipeline of a dieselpunk dark-fantasy low-poly RTS. Fill the placeholders of the "
+            f"building template below for {u['id']} ({u['race']} {u['name']}). {ref_rule(u['id'])}Return each field as plain text that reads naturally inside "
+            f"the template sentence it replaces.\n"
+            f"- panels: exactly five lines 'Panel 1, top left: front elevation, square-on: ...', 'Panel 2, top middle: left side elevation ...', "
+            f"'Panel 3, top right: back elevation ...', 'Panel 4, bottom left: right side elevation ...', 'Panel 5, bottom right: roof plan "
+            f"from directly above: ...', each saying what is visible in that view, drawn from the card's redesign (mass, door, roof, stack).\n"
+            f"- sil: the silhouette in one phrase (a riveted shed with ...). props: the card's props, at most 4, largest crudest shape, comma separated.\n"
+            f"- c0, c1, c2: main body colour, roof/small masses colour, and the ONE warm accent on a single lit point (window glow, furnace mouth, "
+            f"gem, lamp) in plain English colour words an image model understands (the race palette's Portuguese names mean: Preto-Fuligem soot black, Ferro-Tartareo hell iron grey, Sangue-Vivo blood red; keep the palette hex in mind); the accent must be a visible lit point of the building.\n"
+            f"- tier, family, cue, sib, cmp: rank in its chain ('base' / 'second tier' / 'top'), the family name, the silhouette event that marks "
+            f"the NEXT tier, the sibling or neighbour building to compare with, and how this block differs. A building with no chain: tier "
+            f"'only tier', family its own name, cue = a plausible bigger-version event, sib = another building of the race.\n"
+            f"Never mention eyes or faces unless the card gives the building one. Do not add figures, units or text.\n\n"
+            f"FACTS\n{facts}\n\nCARD\n{card}\n\nCHAIN\n{chain}\n\nTEMPLATE\n{template}\n\nEXAMPLE of a finished building prompt (other building):\n{example}\n")
+
+
+def run_building_prompt(u, comp, log):
+    sys.path.insert(0, str(MSHEETS))
+    import unit_facts
+    facts = subprocess.run([sys.executable, str(MSHEETS / "unit_facts.py"), u["id"]], capture_output=True, text=True, cwd=MSHEETS).stdout
+    card = unit_facts.card_section(u["id"])[2] or u["card"]
+    idx = {e["id"]: e for r in comp["races"] for e in r["entries"]}
+    e = idx[u["id"]]
+    pred = idx.get(e.get("predecessorId") or "")
+    succ = [x["name"] for x in idx.values() if x.get("predecessorId") == u["id"]]
+    chain = f"previous tier: {pred['name'] if pred else 'none'}; next tier: {', '.join(succ) or 'none'}; trains/relates to: {e.get('relatedName')}"
+    template = BUILDING_TEMPLATE.read_text()
+    got = claude_json(building_brief(u, facts, card, chain, template, (PROMPTS / "00-example-building.txt").read_text()), BUILDING_SCHEMA, log)
+    template = template.replace("Every panel holds exactly one building", LAYOUT_SENTENCE + "Every panel holds exactly one building", 1)
+    text = template.format(race=u["race"], name=u["name"], uid=u["id"], **{k: got[k].strip() for k in BUILDING_FIELDS})
+    if "{" in text or not got["panels"].strip():
+        raise RuntimeError("building prompt left a placeholder")
+    building_prompt_path(u["id"]).write_text(text.strip() + "\n")
+    return {"paths": [str(building_prompt_path(u["id"]).relative_to(ROOT))], "cost_usd": 0.0}
+
+
+LAYOUT_SENTENCE = ("The layout is exactly three drawings side by side in one top row and exactly two side by side in one bottom row, "
+                   "with empty background between the rows. ")            # PIPELINE 2, failure log: the model drifts to 2-1-2 without it
+SHEET_TRIES = 3
+
+
+def sheet_layout_ok(path, size=768):
+    """True when the sheet splits as 3+2: a row gap, two column gaps above it and one below (the cut silhouette.concept_panels needs)."""
+    sys.path.insert(0, str(ROOT / "tools/blender"))
+    import silhouette as S
+    fg = S.foreground(path, size)
+    rows = [r for r in S.gaps(fg, 1, 0, size) if r[0] > 0.2 * size and r[1] < 0.8 * size]
+    if not rows:
+        return False
+    r = max(rows, key=lambda r: r[1] - r[0])
+    split = (r[0] + r[1]) // 2
+    inner = lambda a, b: [g for g in S.gaps(fg, 0, a, b) if g[0] > 0.1 * size and g[1] < 0.9 * size]
+    return len(inner(0, split)) >= 2 and len(inner(split, size)) >= 1
+
+
+def run_building_sheet(u, log):
+    """Draw the sheet up to SHEET_TRIES times until it splits 3+2 (a 2-1-2 sheet feeds the gates a wrong panel); the last draw is kept
+    either way, with layout_ok in the record: a bad sheet is a CHECK, never an abort."""
+    dest = REFS / u["id"] / "sheet.jpg"
+    usd, gw = 0.0, 0.0
+    for tries in range(1, SHEET_TRIES + 1):
+        out = shell([sys.executable, "generate.py", str(building_prompt_path(u["id"])), "--out", f"refs/{u['id']}", "--name", "sheet"], log, cwd=MSHEETS)
+        usd, gw = usd + USD_BUILDING_SHEET, gw + cost_of(out)
+        ok = sheet_layout_ok(dest)
+        if ok:
+            break
+    return {"paths": [f"artifacts/model-sheets/refs/{u['id']}/sheet.jpg"], "cost_usd": usd, "gateway_cost": gw, "layout_ok": ok, "draws": tries}      # nominal price; the gateway prints another number (0.0034 for 0.046)
+
+
+def building_command(u, run_id):
+    return [sys.executable, "tools/blender/spec_pipeline.py", "--id", u["id"], "--race", u["race"], "--name", u["name"], "--kind", "building",
+            "--model", SESSION_MODEL, "--tag", "roster", "--run", run_id, "--deterministic", *EYE_RECIPE, "--eye-project", "tight"]
+
+
+def run_building_model(u, run_id, log):
+    """spec_pipeline --kind building with the eye recipe; exit 1/2 with a model on disk is a CHECK row (note kept), not an error."""
+    run = DRAFT / u["id"] / run_id
+    rts_new = not (REFS / u["id"] / "sheet-rts.jpg").exists()
+    try:
+        out, note = shell(building_command(u, run_id), log), ""
+    except RuntimeError as err:
+        if not (run / "model.glb").exists():
+            raise
+        out, note = getattr(err, "out", ""), str(err)
+    got = parse_pipeline_line(out)
+    summ = run / "eye/summary.json"
+    if summ.exists():
+        got = {**got, **{k: v for k, v in parse_eye_summary(json.loads(summ.read_text())).items() if v is not None}}
+    return {**got, "paths": [str(run.relative_to(ROOT))], "cost_usd": USD_BUILDING_RTS * rts_new, "gateway_cost": cost_of(out), "note": note}
+
+
+def building_step(u, args, status, comp):
+    """One building's planned stages; same failure rule as step: a failed stage ends this building only, and is a status row."""
+    entry = status.doc["units"].get(u["id"]) or new_entry(u, "building")
+    log = ROSTER / args.run_id / "logs" / f"{u['id']}.log"
+    log.touch()
+    state = building_state(u["id"], args.run_id)
+    for stage in building_plan(state, args.stage, args.resume):
+        t0 = time.perf_counter()
+        try:
+            got = {"prompt": lambda: run_building_prompt(u, comp, log), "sheets": lambda: run_building_sheet(u, log),
+                   "model": lambda: run_building_model(u, args.run_id, log)}[stage]()
+            rec = {"state": "done", **got}
+        except Exception as err:          # noqa: BLE001 - every failure of a building is a row, never a stop
+            rec = {"state": "failed", "error": str(err)[:200]}
+        rec["s"] = round(time.perf_counter() - t0, 1)
+        entry["stages"][stage] = rec
+        entry["total_s"] += rec["s"]
+        entry["cost_usd"] += rec.get("cost_usd", 0.0)
+        state = building_state(u["id"], args.run_id)
+        entry["reached"] = building_reached(state)
+        status.put(entry)
+        print(f"{u['id']} {stage}: {rec['state']} {rec.get('error', '')} ({rec['s']} s)", file=sys.stderr, flush=True)
+        if rec["state"] == "failed":
+            break
+    return entry
+
+
 # ---- per unit and the batch
 
 class Status:
@@ -421,6 +614,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--units", default="", help="comma-separated unit ids")
     ap.add_argument("--all-units", action="store_true", help="every kind == unit of data/compendium.json (162)")
+    ap.add_argument("--all-buildings", action="store_true", help="every kind == building of data/compendium.json (233): prompt, one sheet, spec_pipeline --kind building")
     ap.add_argument("--jobs", type=int, default=2, help="units in parallel (each one runs at most one Blender / claude at a time)")
     ap.add_argument("--run-id", default="roster-v1", help="runs/draft/<id>/<run-id> and runs/roster/<run-id>/")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, the table of what exists and the estimate; run nothing")
@@ -430,18 +624,22 @@ def main(argv=None):
     comp = json.loads(COMPENDIUM.read_text())
     want = [x for x in args.units.split(",") if x]
     units = [u for u in roster(comp) if args.all_units or u["id"] in want]
-    missing = sorted(set(want) - {u["id"] for u in units})
+    buildings = [u for u in roster(comp, "building") if args.all_buildings or u["id"] in want]
+    missing = sorted(set(want) - {u["id"] for u in units + buildings})
     if missing:
         sys.exit(f"not units of the compendium: {', '.join(missing)}")
-    if not units:
-        ap.error("--units or --all-units")
+    if not units and not buildings:
+        ap.error("--units, --all-units or --all-buildings")
     if args.dry_run:
-        return dry_run(units, args)
+        for b in buildings:
+            print(f"{b['id']}: building, to run: {', '.join(building_plan(building_state(b['id'], args.run_id), args.stage, args.resume)) or 'nothing'}")
+        return dry_run(units, args) if units else 0
     out = ROSTER / args.run_id
     (out / "logs").mkdir(parents=True, exist_ok=True)
     status = Status(out / "status.json")
     with cf.ThreadPoolExecutor(max(1, args.jobs)) as pool:
         list(pool.map(lambda u: step(u, args, status), units))
+        list(pool.map(lambda b: building_step(b, args, status, comp), buildings))
     final = table(status.doc["units"].values())          # every unit of the run, also those of an earlier --resume call
     (out / "table.md").write_text(final + "\n")
     print(final)

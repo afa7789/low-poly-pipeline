@@ -1,0 +1,4 @@
+# unit prompt for o00G (Blood Shaman, Orc)
+# range=380 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: The "bled" counterpart of the base Shaman: same hunched silhouette, but the cauldron slung crosswise is larger and always boiling — the "blood" is raw crude the tribe calls blood, seeping through the stitching. The leather mask runs two pipes: one beak tube breathing smoke in, one back tube feeding the boil; the hidden face is doctrine and the cauldron is the face. The valve-pipe staff carries a brazier at the tip dripping burning oil, and the beak wick stays lit — the card's fire sits at the mask. The buff is a pour: he tips the cauldron over the ally's weapon; Inner Fire is soot armor laid on, not a spell (note: A0GT is Passive/None in the sim). Story: the battalion only trusts a weapon after it has passed the boil. Budget: ~600 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

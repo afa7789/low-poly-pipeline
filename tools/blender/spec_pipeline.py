@@ -2428,9 +2428,9 @@ def build_parser():
     ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="box",
                     help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3); "
                          "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3; default since 37.L19-0); on = grown islands; off = flat colours")
-    ap.add_argument("--eye-project", choices=("off", "on"), default="off",
+    ap.add_argument("--eye-project", choices=("off", "on", "tight"), default="tight",
                     help="--eye on, with a painted atlas: the concept sheet delit and projected on the atlas from its five panels and the left mirrored (eye_project.py, PIPELINE 39.L20-0); "
-                         "texels no view sees keep the procedural paint")
+                         "texels no view sees keep the procedural paint; tight (default by the author, L20-2): flat, with the colour gate and the per-piece filter, accents kept")
     ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="cvt",
                     help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b; default since 37.L19-0: "
                          "always under the 700 budget, 2x faster; a cluster too thin for the CVT falls to the QEM, and to its own pieces when the QEM overshoots)")

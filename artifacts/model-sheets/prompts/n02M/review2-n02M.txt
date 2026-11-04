@@ -1,0 +1,25 @@
+Edit this model sheet. Keep the same goblin body, proportions, pose, big ears, sealed goggles, filter mask, long arms, big brown gloves, match bundle on the left wrist, and the three-rocket rack with its size, tilt and position over the right shoulder. Keep the five-panel layout, the framing and position of every view, the grey background, the heavy black line and the flat coarse blockout style. Add no text. Only the changes below are allowed, and each one must appear in all five views.
+
+The goal is to fix the colours, add three dieselpunk clothing pieces, and clear the back. The result must read as the same goblin as its predecessor, a sapper with a slate-blue Brodie helmet, a maroon leather apron and khaki puttees, now upgraded with a rocket rack.
+
+CHANGES
+1. Remove the wooden crate backpack completely. Nothing replaces it: no tank, no box, no pack, no cylinder on the back. Two wide dark-brown leather straps run over the shoulders and hold the rack against the upper back.
+2. Remove the brass spotting scope and its tube completely.
+3. Add a wide-brimmed steel Brodie helmet in flat slate blue (#7388A0) on the head, as one large simple shape, sitting just above the goggles.
+4. Replace the bright red vest with a long, thick leather apron in dark maroon (#5E2A2C), reaching the knees, worn over a plain charcoal tunic (#3A3A40).
+5. Change the black trousers to slate grey (#55585F). Wrap the lower legs in khaki puttees (#B5A67C) as a few broad flat bands above dark charcoal boots.
+
+COLOURS
+- Skin stays olive green.
+- Gloves and straps are brown leather.
+- Rocket bodies are dark gunmetal (#4A4F55) with dull brass noses (#8C6B33), plus one broad dull brass band around each rocket.
+- The mask stays dark brown.
+- The filter block changes from bright yellow to dull brass.
+- The only bright accent on the figure is the small orange-yellow fuse flame at the rear of the centre rocket.
+
+VIEW BY VIEW
+- Front view: the helmet brim sits above the goggles. The maroon apron covers the torso and thighs, and the straps go over both shoulders. The charcoal tunic shows at the arms' roots. The puttees show below the apron. The rockets rise behind the right shoulder (viewer's left), and nothing rises behind the other shoulder.
+- Left profile view: the helmet brim sticks out front and back. There is no crate behind the body, so the rack rests directly on the upper back on its straps. The apron hangs at the front, the charcoal tunic shows at the back, and the puttees show on the lower legs.
+- Back view: the full back of the helmet is visible. The charcoal tunic fills the back, crossed by the two leather straps and the apron's tie strap. The rack sits on the upper back with the lit fuse. The puttees show on both lower legs.
+- Top-down view: the round helmet covers the top of the head, with both ears out at the sides. The charcoal back with straps shows behind the helmet, with the rack over it and no crate. The scope is gone. The apron edge and the toes of both boots show in front.
+- Bottom-up view: the crate underside is replaced by the charcoal tunic hem and the maroon apron hem. The slate-grey legs and the puttee bands show above the soles. The helmet brim shows behind the head. The underside of the rack stays, and the scope is gone.

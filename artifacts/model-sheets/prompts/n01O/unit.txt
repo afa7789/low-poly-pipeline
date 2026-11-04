@@ -1,0 +1,4 @@
+# unit prompt for n01O (Troll Trapper, Orc)
+# range=325 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: The legendary's smaller brother: same crouched troll family, shorter reach (325 against 550) and no charred mantle. Weapons: a braided rope net with valve weights coiled on the throwing hand and a shovel-harpoon; the rope feeds through an open pitch pot on the belt, whose wick ring stays lit — the card's fire — so the cord grips when it lands, which is the Ensnare made physical. The face is covered: leather wrap plus a bone visor. Pose: short dry throw (half the legendary's arc); idle spreads the net on the ground to dry. Story: he hunts what flies and sells what he drops back to whoever built it — the horde profits from both sides. Budget: ~600 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

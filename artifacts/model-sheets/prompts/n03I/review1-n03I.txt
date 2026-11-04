@@ -1,0 +1,15 @@
+Edit this model sheet by recolouring only. Keep every shape, line, proportion, pose, prop, the five-panel layout, the grey #CCCCCC background, the flat coarse blockout style and the heavy black outline exactly as they are. Do not add, remove, move or redraw anything: no hat, no new props, no new detail, no text. Use flat colour fills only, with one flat tone per surface and no gradients.
+
+Apply this same colour change to the same parts in all five views (front, left profile, back, top-down, bottom-up):
+- Long coat and its sleeves: lacquer pink becomes deep navy blue (#14296B).
+- High collar: jade green becomes bright sky blue (#4FA3E8).
+- Apron skirt: jade green becomes dark umber brown (#4B362A).
+- Boots: terracotta red becomes pale straw tan (#B9A070).
+- Goggle lenses: jade green becomes glowing ice cyan (#5FDCF5). The goggle band stays dark.
+- Fur: the head stays off-white (#EDE8E0), and the dark ears and dark patches around the eyes become warm chestnut brown (#6B4128).
+- Mitts: dark brown stays.
+- Metal fan: gunmetal grey stays. Any pink showing between its ribs becomes grey like the fan.
+- Long-handled kettle: tea terracotta stays, as the only warm race accent.
+- Mud puddle: mud brown stays.
+
+No pink and no jade green may remain anywhere on the sheet. All else stays unchanged, in every panel.

@@ -1,0 +1,19 @@
+Edit this five-panel model sheet of one Human Mortar unit. Make only the changes below, and make the same changes on the same figure in all five views (front, left profile, back, top-down, bottom-up).
+
+1. NO HEAD. Remove the whole head in all five views: bald skull, face, ears, orange beard, moustache and the braided beard tip. There is no head, face, neck, helmet or gas mask of any kind. The body ends at the flat steel shoulder yoke, which closes straight across the top of the torso, and the mortar tube and its cradle rise directly from that yoke. Fill all the space the head and beard covered with the yoke, the tube and the chest of the coat. The silhouette must clearly read as headless.
+
+2. REMOVE THE LANTERN AND THE BOARD. Remove the lantern and its ring from the hip, and remove the flat dark board and its straps from the back, in all five views. Do not add anything on the back in their place: no fuel tank, gas tank, backpack or box. The back is plain coat.
+
+3. DIESELPUNK CLOTHES, three large crude shapes:
+- Replace the cape with a long worn muddy olive military greatcoat, with real sleeves on both arms, a wide collar flat under the yoke, a row of big plain buttons down the closed front, a thick belt, and a ragged mud-brown hem at the same length as the old cape.
+- Add two crossed ammunition bandoliers in tan leather with large brass shell blocks, forming one big X over the chest, in the area the beard used to cover. In the back view the straps cross on the plain coat.
+- Add puttees to the lower legs: thick faded cobalt-blue cloth bands wrapped over the shins, above the same soot-black leather boots.
+
+View by view:
+- Front: no head above the yoke, the tube rises straight up from it; greatcoat front, X of bandoliers on the chest, blue puttees, no lantern.
+- Left profile: no head or beard in front of the yoke; the greatcoat falls straight from the yoke, its chest line closing where the beard hung; one bandolier strap shows at the side; blue puttee; no lantern.
+- Back: no ears or skull beside the tube; greatcoat back with the strap X, no board; blue puttees; no lantern.
+- Top-down: no head or beard around the tube; the top shows the yoke, the cradle and the tube over the greatcoat shoulders; no lantern.
+- Bottom-up: no beard over the crate and no chin behind it; the crate shows clean with the greatcoat hem and the blue puttees around the boot soles; no lantern.
+
+Everything else stays exactly as it is: the five-panel layout and panel positions, the light-grey background, the ground lines, the pose, the proportions and height, both arms and both hands gripping the crate handles, the mortar tube with its angle, cradle and elevation screw, the steel yoke, the umber crate with its brass shell nose, the boots, the flat coarse blockout style with heavy black line, flat tones and no small detail. No text, no labels, no frame lines, no shadows on the background.

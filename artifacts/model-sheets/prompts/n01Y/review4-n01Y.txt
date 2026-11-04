@@ -1,0 +1,16 @@
+Edit this model sheet. Change only the rider's gear so he reads as a Trench Crusade style dieselpunk trench soldier instead of a medieval knight. Do not change the dragonhawk at all: its body, head, horns, beak, wings, tail plumes, talons, colours and pose stay exactly as they are. The five-panel layout, the position and size of every view, the grey background, the flat coarse blockout style with heavy lines, and the absence of text also stay.
+
+The rider stays the same slim elf in the same seated pose and place on the bird's back, with his long blond hair and all limbs. Make these changes, as large crude shapes with no small detail:
+1. Helmet: replace the knight helmet with a deep steel-blue Stahlhelm with a wide flared brim and a gold trim line, merged with a riveted-looking gas mask visor: a flat faceplate with a cross-shaped eye slit, two round glass eyes in ice blue and one short round filter at the chin. One long pointed elf ear pokes out on each side of the helmet.
+2. Body: replace the plate armour, pauldrons and skirt with a long worn muddy olive-brown military greatcoat, buttoned to the neck, whose skirt falls over the legs and past the saddle area on both sides of the bird. Keep one plain dented steel-blue pauldron on each shoulder. Two crossed dark-leather ammunition bandoliers form a large X on the chest and back. Legs: dark puttees wrapped over heavy dark leather boots.
+3. Weapon: replace the white lance with one long bolt-action rifle with a dark wooden stock, a dark steel barrel and a long bayonet on the muzzle, held level in the right hand, with the same length and in the same place as the lance, pointing straight forward along the direction of flight.
+4. Shield: replace the round knight shield with a battered round steel trench shield in dull grey-blue with a plain dark cross on it, the same size and on the same left arm; no gold boss.
+
+Apply the same changes in all five views:
+- Front view: gas mask helmet facing the camera with the cross slit and filter, bandolier X on the chest, greatcoat over the shoulders and legs, the rifle muzzle and bayonet on image left seen short, in place of the lance tip, trench shield on image right.
+- Left profile: the helmet's flared brim and the mask filter in profile, greatcoat skirt hanging down the bird's flank, puttees and boot below it, the full rifle with bayonet level pointing image left, trench shield in side view showing the cross.
+- Back view: back of the Stahlhelm with the blond hair below it, the bandolier X on the back of the greatcoat, trench shield on image left, the rifle butt on image right.
+- Top-down view: round helmet brim, pauldrons and greatcoat from above, trench shield on image left, the full rifle with bayonet on image right, parallel to the bird's body and pointing toward the head.
+- Bottom-up view: the rifle now lies parallel to the bird's body on image left, bayonet pointing toward the head, no longer sticking out sideways; only the greatcoat skirt hem, boots and rifle show from the rider, in the same pose as in the other views.
+
+No backpack, no tanks, no hoses, no saddle equipment, no extra props. Everything else stays exactly as it is.

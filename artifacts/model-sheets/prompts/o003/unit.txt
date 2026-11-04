@@ -1,0 +1,4 @@
+# unit prompt for o003 (Shaman, Orc)
+# range=350 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: The physical-fire priest: a leather kilt with valve-bell rings (ritual rattle), a leather mask whose beak respirator stays lit — at 32 px the flame at the beak is the read — and a pipe-staff topped with a kodo skull; a leather bellows on his back pumps air into a fire, not into a machine. The card's fire sits at the beak, with the bellows feeding it. Pose: sings with a flat palm blowing smoke; the buff is a breath of smoke laid over the ally's weapon — Inner Fire made literal (note: A02M is Passive/None in the sim). Story: he prays to what is buried and expects fire as the answer — the shamans burn on purpose, feeding the awakening the world owes, barrel by barrel. Budget: ~550 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

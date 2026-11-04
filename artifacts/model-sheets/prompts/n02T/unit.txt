@@ -1,0 +1,4 @@
+# unit prompt for n02T (Fire Gnoll, Desert)
+# range=385 palette=`#C2B280` Areia Cozida | `#6F5C42` Tamareira Morta | `#FF9218` Chama de Poço
+# redesign: At 32 px, a high-rising shovel-crossbow and flare fork turn the hunched hyena into a sharp diagonal above a broad pack. Baked Sand and Raw Canvas dominate, with Well Pitch on the fuel barrel, Tower Iron on the weapon, and one Well Flame wick. A canvas respirator hood and cracked goggles cover the face; the four props are the shovel-crossbow, fuel barrel, flare fork, and hand jar. It reloads by dipping a bolt into the barrel and touching it to the fork, while the elevated aim communicates Fowlhunter without a magical effect. Pitch-stained gaiters sink into the dune base, and its nomad tally says it was sold to the first castle that paid for a clear sky. Budget: approximately 500 tris, one atlas, transparency only on the wick flame.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

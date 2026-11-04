@@ -1,0 +1,35 @@
+[
+  {
+    "name": "canvas_muzzle",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.194,
+      0.291
+    ]
+  },
+  {
+    "name": "barb_ridge",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.375,
+      0.562
+    ]
+  },
+  {
+    "name": "tally_tag",
+    "where": "anchor neck, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.083,
+      0.124
+    ]
+  }
+]

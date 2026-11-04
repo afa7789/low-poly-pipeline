@@ -1,0 +1,20 @@
+Recolour this model sheet only. Do not redraw it. Every shape, outline, proportion, pose, prop, the five-panel layout, every view and its position, the grey background, the flat coarse blockout style and the absence of text all stay exactly as they are. The dark iron-blue fur is the wrong colour: the creature must become mostly white, like the white polar bear it is upgraded from.
+
+Apply the same colour change to the same body parts in all five views:
+
+1. White fur: the whole long horse-like lower body, the whole torso, the shaggy chest and belly fur, the tail and the large shoulder mane all become clean snow white (#EEF3F7), the same white as the polar bear predecessor. Where a second flat tone is needed, use a pale cool grey (#C4D2DE) on the underside. No dark iron-blue fur remains anywhere on the body.
+
+2. Blue skin: the head around the respirator plate, both arms from shoulder to wrist, and both mitt hands become a clear medium blue (#4F86C6), as on the original character. This makes the head and arms stand out strongly against the white body.
+
+3. Lower legs: the ice-blue frozen mud patches on all four legs, including the small splashes above them, become near-black (#23262B), keeping exactly the same shapes. The toes and hooves at the very bottom of each foot become dull gold (#B8963E).
+
+4. Unchanged colours: the ivory tusks with their white bands, the ice-blue respirator plate, the amber eye slits, the amber square chest lamp and its dark plate, the dark harness belt, the iron-grey anvil and the iron-grey axe all keep their current colours. Keep the same dark outline everywhere.
+
+By view:
+- Front view: white torso, chest fur, mane and legs; blue head, arms and hands; near-black lower legs with gold toes.
+- Left profile view: white long body, torso, mane and tail; blue head, arm and hand; near-black lower legs with gold toes on all visible legs.
+- Back view: white rump, tail, torso and mane; blue arms and hands, and blue on the small piece of head showing above the mane; near-black lower legs with gold toes.
+- Top-down view: white long body, mane and tail; blue head, arms and hands; the small leg and foot tips showing at the body's edges in near-black and gold.
+- Bottom-up view: white belly, chest and tail; blue arms and hands; all four foot soles in dull gold with a near-black rim.
+
+Change nothing except these colours. Add no new shapes, markings, props, texture or gradients. Keep flat colour with one tone per surface.

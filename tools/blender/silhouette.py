@@ -1077,6 +1077,8 @@ def wing_numbers(front):
     h = front.shape[0]
     region, cx = wing_side(front)
     rows = np.nonzero(region.any(axis=1))[0]
+    if not len(rows):                         # no wing clear of the body in this front panel
+        return {"span": 0.0, "tip": [0.0, 0.0], "root_x": 0.0, "root_y": 0.0, "width": 0.0, "area": 0.0}
     mid = np.array([(np.nonzero(region[r])[0].min() + np.nonzero(region[r])[0].max() + 1) / 2 for r in rows])
     wid = np.array([np.ptp(np.nonzero(region[r])[0]) + 1 for r in rows])
     k = max(len(rows) // 7, 1)

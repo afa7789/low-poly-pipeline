@@ -1,0 +1,24 @@
+[
+  {
+    "name": "root_collar",
+    "where": "anchor neck, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.369,
+      0.553
+    ]
+  },
+  {
+    "name": "resin_crust_dorsal_spines",
+    "where": "anchor back, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.363,
+      0.544
+    ]
+  }
+]

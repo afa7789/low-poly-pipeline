@@ -1,0 +1,20 @@
+Edit this model sheet. Keep the same character, the five-panel layout, every view and its position, scale and ground line, the grey background, the heavy coarse line, the flat blockout style and the no-text rule. Keep the body proportions, hunched shoulders, head, black gas mask, red lenses, grey filter snout, belt, boots and planted-feet pose. Change only the following, the same way in all five views.
+
+1. Remove the back tank completely: the pressure tank, its grey bands, the brass valve wheel, the square register block and the whole curled black feed hose. Nothing is worn on the back, and no backpack or other gear replaces it. Remove the vaporiser gun too, since nothing feeds it.
+
+2. Dress the figure in one long, heavy, pure black military greatcoat over the existing body, worn open at the front, with wide lapels and a plain flat back. The hem falls to mid-shin as one large crude shape. Both legs and both boots stay visible below it, and the gas-mask head and the belt stay as they are.
+
+3. In the right hand, exactly where the vaporiser was, put one oversized heavy revolver as a large crude shape, with a steel grey barrel and cylinder and a black grip, pointing forward and low at the waist.
+
+4. The left arm, which rested on the register block or held the hose, now hangs bent with a closed black fist at the left hip, just above the oil flask. Keep one single oil flask at the left hip.
+
+5. Colour: more black, no brown. The whole figure is deep, near-pure black, darker than now: greatcoat, overalls, sleeves, gloves, mask and boots. Separate the masses only with the heavy line and a slightly lighter charcoal on the lapels, gloves and boots. Remove all brown, umber, tan, brass and gold everywhere, including the flask stopper and neck, which become steel grey. The only colours are black, charcoal, steel grey on the filter snout, belt buckle, revolver and flask, and the red lenses as the single warm accent.
+
+Per view:
+Panel 1, front: no valve wheel or tank behind the head and no hose loop at the hip. The open greatcoat with its lapels is visible, the revolver is held low in the right hand, and the left fist is at the hip above the flask.
+Panel 2, left profile: the tank, wheel and register block are gone, leaving a clean back line of black greatcoat down to mid-shin. The left fist is at the hip above the flask, and the revolver barrel shows just ahead of the waist.
+Panel 3, back: only the plain flat black back of the greatcoat from collar to mid-shin, with the boots below. The fist shows at one side and the revolver hand at the other, with no hose. No red shows from this side.
+Panel 4, top-down: the tank, wheel and hose are gone. The black shoulders and coat back fill that space behind the mask head, and the revolver sits where the vaporiser was.
+Panel 5, bottom-up: the hose and vaporiser are gone. The two boot soles sit inside the dark circle of the greatcoat hem, the revolver underside sits where the vaporiser was, the closed fist is on the other side, and only one flask base shows.
+
+All else stays exactly as it is in the current sheet. The figure must stay readable at 32x32 pixels. Add no new props, details, effects or text.

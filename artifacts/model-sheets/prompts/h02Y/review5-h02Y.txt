@@ -1,0 +1,10 @@
+Edit this model sheet with one change only: remove the eyes from the water elemental in every view where they appear. Delete the two glowing pale eye shapes and fill each spot with the same flat blue water tone as the surrounding head, so the head becomes a smooth, blank, eyeless wave form with no eye sockets, no glow, no brow marks and no new facial features.
+
+Apply the same change to all five views:
+Panel 1 (front, top left): remove both glowing eyes from the front of the head under the white foam crest.
+Panel 2 (left profile, top centre): remove the one visible glowing eye from the side of the head.
+Panel 3 (back, top right): no eyes are visible here; keep this view unchanged, with no eyes added.
+Panel 4 (top-down, bottom left): remove the small eye marks on the head tip below the white foam, leaving plain blue water.
+Panel 5 (bottom-up, bottom right): no eyes are visible here; keep this view unchanged, with no eyes added.
+
+Everything else stays exactly as it is: the five-panel layout, every view and its position, the same pose, proportions and silhouette, the white foam crest, the shell shoulder pads on rust plates, the spiky water splashes, the fists, the single water column body joining the ripple pool on the ground, all colours, the flat coarse blockout style, the grey background, and no text.

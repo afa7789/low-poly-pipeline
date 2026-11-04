@@ -1,0 +1,10 @@
+Edit this model sheet. Make one change only: remove the dark brown rock at the back of the figure, together with the small grey square box mounted on it, which must not be left floating. Nothing replaces them. Where they were, continue the white cloud with its same rounded outline and flat tone, or show the plain grey background where the rock stuck out past the cloud.
+
+Apply the same change to all five views:
+- Panel 1, front view, top left: the rock and box are not visible here, so the panel stays exactly as it is. Make sure no dark rock shows anywhere.
+- Panel 2, left profile, top middle: erase the rock and box projecting to the right of the cloud. The cloud's back edge becomes a closed, rounded puffy outline, with empty grey background behind it.
+- Panel 3, back view, top right: erase the rock and its square opening from the centre of the cloud, and erase the box above it. Show only the plain, unbroken white back of the cloud in the crook of the V.
+- Panel 4, top-down view, bottom left: erase the rock and box projecting above the cloud toward the top of the panel. The cloud's top edge becomes a closed, rounded puffy outline, with empty grey background beyond it.
+- Panel 5, bottom-up view, bottom right: erase the rock projecting above the cloud toward the top of the panel. The grey belly and white rim of the cloud become a closed, rounded puffy outline, with empty grey background beyond it.
+
+All else stays exactly as it is: the five-panel layout, the position, size and pose of every figure, the asymmetric V of two dark grey spars with their longer and shorter lengths, the pale glass-cyan edge strips, the white cloud, the single small orange ember point, the thin ground lines, the hover gap, the colours, the heavy coarse line, the flat blockout style and the light-grey background. Add nothing new and no text.

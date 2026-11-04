@@ -1,0 +1,13 @@
+Edit this model sheet: the character is missing its ears, so add one pair of large pointed goblin ears to the head, and change nothing else.
+
+The ears: two big leaf-shaped ears, one on each side of the head, attached at goggle-band height just behind the end of the band. They point outward and slightly up and back. Each ear is a single simple block with a hard outline, coloured flat goblin green (#6FA030), with the same heavy coarse black line as the rest of the drawing. They are long enough that their tips reach past the side edges of the tank. They have no inner ear detail, no earrings and no hair. The mask stays as it is, and the ears come out through it as the only skin showing.
+
+Add the same pair of ears, with the same size, shape, colour and position on the head, in all five views:
+
+- Panel 1, front view, top left: both ears stick out to the left and right of the masked head at goggle-band height, drawn over the tank behind them, with the tips passing the tank's side edges.
+- Panel 2, left profile, top middle: the near (left) ear is drawn on the side of the head just behind the goggle band, seen flat as a full leaf shape, pointing back and slightly up over the tank. The far ear stays hidden behind the head.
+- Panel 3, back view, top right: the head is hidden by the tank, so only the outer part of both ears shows, coming out from behind the tank's left and right edges at the same height as in the front view.
+- Panel 4, top-down view, bottom left: both ears extend sideways from the left and right of the head, seen from above, above the shoulders and angled slightly toward the tank.
+- Panel 5, bottom-up view, bottom right: both ears show from below, extending sideways from either side of the head beside the goggle band.
+
+Everything else stays exactly as it is: the five-panel layout, every view, the pose, proportions, silhouette, tank, goggle band, mask, torch, flame, hose coil, mitts, boots, all colours, the light-grey background, the flat coarse blockout style and the empty margins. No text, no labels.

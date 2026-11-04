@@ -1,0 +1,14 @@
+Edit this model sheet. Make one change only, the same change in all five views: remove both grey feathered wings completely and put one rigid structure on the character's back in their place.
+
+Removing the wings: no feathers, wing shapes or wing stumps remain in any view. Wherever a wing covered the background, fill with the same flat grey background. Wherever a wing covered the hood, pauldrons, robe, shield or staff, restore that part as it would look without the wing.
+
+The new back structure: one solid armoured crest of dark charcoal metal with a thick gold rim, the same charcoal and gold as the robe trim and hood. It is a flat upright plate mounted between the shoulder blades, and its top splits into three large straight blades pointing up and slightly outward like a crown. The centre blade is the tallest. A single thick electric cyan strip runs up the middle of the plate, matching the cyan of the robe's lightning. It is rigid and fixed to the back, with no hinges and no folding, and it does not read as a wing. It is no wider than the pauldrons, its blades rise to about the height of the top of the hood, and it is built from a few large flat shapes with no small hardware. It is not a backpack, tank, engine or machine.
+
+The same structure in each view:
+- Panel 1, front view: only the three blade tips show, rising behind the hood and shoulders on both sides of the head.
+- Panel 2, left profile: the plate is seen edge-on as one thick narrow gold-rimmed slab standing against the upper back, behind the hood, with its blades rising upward.
+- Panel 3, back view: the full plate and all three blades are seen flat on, with the cyan strip, mounted between the shoulders above the robe's lightning line. The hood stays visible in front of the centre blade only where it naturally overlaps.
+- Panel 4, top-down view: the structure is a thick narrow gold-rimmed bar with three blade tips, lying across the upper back directly behind the hood, between the pauldrons.
+- Panel 5, bottom-up view: the blades show as three blade tips rising behind the hood and shoulders, at the same relative size as in the other views.
+
+Everything else stays exactly as it is: the five-panel layout, every view and its position, the pose, the proportions, the hood, the silver mask and its glowing eyes, the green gem, the pauldrons, the arms, the robe with its gold scales and cyan lightning, the zigzag hem, the horned skull shield, the crystal staff, the underside disc, the colours, the coarse flat line style, the grey background and the absence of text.

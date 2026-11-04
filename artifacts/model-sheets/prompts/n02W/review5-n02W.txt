@@ -1,0 +1,12 @@
+Edit this five-panel model sheet. Change only the face; everything else stays exactly as it is.
+
+The change: simplify the face to low-poly game level. Replace the small, realistic drawn eyes, eyebrows, nose lines, mouth line and face shading with one flat cream face plane and only two simple dark angular eye shapes as large plain blocks, plus at most one short straight dark stroke for the mouth. No eyebrows, no pupils or irises, no eyelids, no nose drawing, no lips, no shading on the face. The face stays a face, in the same place and at the same size inside the canvas head wrap, and must read at 32x32 pixels.
+
+Apply the same change to all five views:
+- Panel 1, front: the flat cream face with the two dark block eyes and the one short mouth stroke, seen straight on.
+- Panel 2, left profile: the same simplified face from the side: a plain flat cream profile with one dark block eye and no drawn nostril or lip detail.
+- Panel 3, back: no face is visible; the wrapped back of the head stays unchanged.
+- Panel 4, top-down: no face detail is added; the head seen from above stays unchanged.
+- Panel 5, bottom-up: no face detail is added; the head stays unchanged, showing the same wrapped shape as now.
+
+All else stays unchanged: the five-panel layout, the grey background, every view, the pose, proportions, canvas wrap, wings and their green, rust and yellow colours, bare cream legs and torso, black bird legs and talons, the heavy outline and the flat coarse blockout style. Do not add any props, text, labels or frames.

@@ -1,0 +1,16 @@
+Edit this model sheet: keep the design exactly as it is and add four props to the same character, drawn in the same flat coarse style as large crude shapes, in all five views. The rider, horse, pose, proportions, colours, motor-cleaver, helmet, brass pauldrons, crossed bandoliers, crimson coat, olive bard and wrapped horse legs do not change.
+
+The four new props:
+1. War standard: one straight dark steel pole fixed behind the saddle, rising straight up behind the rider's back and past the helmet, ending about one helmet height above it. A narrow crimson banner slab with one brass stripe and a plain, blank face hangs from the top. It is a banner only, with no lettering or emblem, and it is not a lance.
+2. Saddle shotgun: a riveted double-barrel piston shotgun in a long brown leather scabbard, strapped to the saddle on the rider's left side behind the left leg. The scabbard angles down and backward along the horse's flank, with the wooden stock sticking up and the two barrels' ends showing at the bottom.
+3. Purity seal: one big dark-red wax seal disc with one short, wide blank ecru scroll strip hanging from it, fixed on the rider's left brass pauldron.
+4. Gas mask: one chunky dark grey gas mask with two round lenses and one short snout, hanging from the belt at the rider's left hip.
+
+The same change in every view:
+- Panel 1, front: the banner and pole rise above and behind the helmet on the centre line. The seal and scroll sit on the pauldron on the drawing's right. The gas mask hangs at the hip on the drawing's right. The shotgun stock shows just past the rider's left leg on the drawing's right, on the side opposite the cleaver.
+- Panel 2, left profile: the pole rises from behind the saddle, past the back of the helmet, with the banner above it. The seal and scroll sit on the near pauldron. The gas mask hangs at the near hip. The full shotgun scabbard lies across the flank behind the near leg.
+- Panel 3, back: the pole runs up the centre of the rider's back, past the helmet, to the banner. The seal and scroll sit on the pauldron on the drawing's left. The gas mask hangs at the hip on the drawing's left. The shotgun stock and scabbard show on the drawing's left, on the side opposite the cleaver.
+- Panel 4, top-down: the banner top and pole are seen just behind the helmet on the centre line. The seal sits on the pauldron on the side opposite the cleaver. The gas mask and the shotgun scabbard lie along that same side of the rider and horse.
+- Panel 5, bottom-up: the shotgun scabbard's end and the gas mask stick out past the belly on the side opposite the cleaver. The pole's lower end is just visible behind the saddle if it clears the horse's body.
+
+Make no other changes. Everything else stays exactly as it is: the five-panel layout, the position and size of every figure, the grey background, the flat coarse style, the wide empty margins and the absence of text. Every figure stays fully inside the page, and the banner must not be cropped, touch the page edge or touch a neighbouring figure.

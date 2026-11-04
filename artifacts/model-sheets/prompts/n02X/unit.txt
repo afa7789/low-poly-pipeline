@@ -1,0 +1,4 @@
+# unit prompt for n02X (Ogre, Desert)
+# range=60 palette=`#C2B280` Areia Cozida | `#6F5C42` Tamareira Morta | `#FF9218` Chama de Poço
+# redesign: At 32 px, a drum-shaped torso anchors one rising drill-pipe club tipped with a valve wheel. Baked Sand and Raw Canvas dominate, Tower Iron is used consistently on wire, rivets, club, and tank-car shoulder plate, Well Pitch soaks the leather, and one Well Flame fuse marks the belt. A canvas respirator and iron goggles cover the face; the pipe club, tank-car plate, oil can, and bolt belt are the four props. The whole torso turns through Pulverize, while thick pitch-soaked wrappings physically explain resistance rather than granting a ward. Knee-high oily dune crust broadens the base, and the shoulder plate still bears the crossed-out Human rail company that sold the ogre with the wreck. Budget: approximately 700 tris, one atlas, no transparency.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

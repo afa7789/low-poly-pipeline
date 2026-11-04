@@ -1,0 +1,15 @@
+Recolour this model sheet. Change only the flat fill colours. Do not change any shape, outline, proportion, pose, prop, prop position, line weight or panel position. The five-panel layout, the light-grey #CCCCCC background, the flat coarse blockout style and the absence of text all stay exactly as they are. The model is approved; this is a colour swap only.
+
+Remove all pink and all jade green from the figure. Apply this same colour map identically in all five views (front, left profile, back, top-down, bottom-up), so every view shows the same character in the same colours:
+
+- Sleeveless breastplate/vest: now deep chestnut brown (was jade green). Its edge trim is now pale cream (was light mint). This covers the green areas in the front, profile and back views and the green rings in the top-down and bottom-up views. The chipped corner and crack stay, shown in pale cream.
+- Barrel belly: now warm russet brown, clearly lighter and redder than the vest (was light pink). This covers the belly in the front, profile and back views and the large underside in the bottom-up view.
+- Flat band around the belly: now pale cream (was darker pink), in every view where it shows, including the visible band below the vest in the top-down view.
+- Arms, including the burnt forearms, and legs: now dark charcoal grey (were black and black-brown). Mitt hands and feet: a slightly lighter slate grey.
+- Fur: the white face and head become a soft light grey-white. Eye patches, nose and the two ears stay dark charcoal. The small eyes become a small spot of bright green, wherever the eyes show.
+- Basket hat: now dark umber-grey with one pale tan band along the outer brim (was plain straw tan). Keep its weave lines. Apply this to the hat's top and its underside in all views.
+- Keg on the back: now weathered grey-brown wood with charcoal bands (was jade green), including the keg ends seen in the top-down and bottom-up views. The tap becomes dark grey.
+
+Keep unchanged: the wood-brown rifle stock, its grey barrel, the pale bayonet, the grey-tan canteen and the terracotta red wax seal.
+
+The result reads as a dark brown and cream robed panda with grey fur and charcoal limbs, in several clearly different colours, with no pink and no green except the eyes. All colours stay flat, one tone per surface, with no gradients, no texture and no shading added.

@@ -1,0 +1,29 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough flat-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — an Ancient Hydra (id n01P) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them.
+
+Subject: a huge three-headed hydra beast, a true four-legged reptile monster. It is NOT a naga and NOT snake-like: no human torso, no arms, no upright belly, no standing on two legs, no serpent coil, no body tapering straight into a tail. It is drawn from the attached predecessor sheet and is visibly that same lizard creature grown old and enormous.
+
+What stays from the predecessor: the low, wide, heavy lizard body held close to the ground, the crouched stance on four splayed clawed legs with ivory claws, the long thick tail lying straight back, the tan belly, the teal-green back with its row of low dark spines, the tall orange fin sails with dark red ribs on the shoulders, the glowing cyan eyes, and the yellow-green glowing throat sac, now one large sac low on the chest at the base of the necks.
+
+What grows: the body is about one and a half times as massive, with much thicker legs, a deeper chest and a heavier tail. The single neck becomes three thick necks rising from the shoulders. The fin sails are larger, with a few torn notches. The back spines are bigger.
+
+The three heads, as in the original icon: each is a broad, blunt reptile head with a wide open mouth, big ivory fangs, a magenta forked tongue, a dark maroon mouth interior and two glowing cyan eyes, with no pupils. Each head has teal-blue scales and a small crest of ivory horns. The central head stands highest and is the largest, with two big curved black ram-like horns sweeping up and out, one short ivory horn on the snout and a grey chin beard. The two outer heads are lower and have two swept-back ivory horns each. The necks are warm brown with a pale tan ribbed throat side and teal-blue only at the top where they meet the heads.
+
+Colours, several clearly different areas: teal-blue heads, warm brown necks, teal-green back, legs and tail, tan belly, orange and dark red sails, black and ivory horns, magenta tongues, cyan eyes, yellow-green sac. The body is not one single colour.
+
+No gear, no machine parts, no harness, no sled, no valve, no lens, no armour, no props of any kind: this is a living creature.
+
+Panel 1, top left: front view facing the camera: the wide low chest close to the ground, both front legs splayed out to the sides with claws forward, the yellow-green sac on the chest, the three necks rising from the shoulders in a fan, the central head at the top and the two outer heads lower to either side, all three heads facing the camera with open jaws and tongues, the orange sails rising behind the shoulders, the hind feet just visible behind the front legs.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the long low body on four legs, the front and hind legs both clearly visible and planted on the ground line, the long thick tail lying straight back along the ground, the row of spines along the back, the orange sail on the shoulder, the three necks rising up and forward from the shoulders in a stepped group with the central head highest, all heads facing left, the sac bulging under the chest.
+
+Panel 3, top right: back view of the same figure: the thick tail pointing toward the camera in the centre, the two hind legs splayed to either side, the wide spined back, the two orange sails spread above it, the three necks rising behind in the same fan with the backs of the three heads, the black horns on the central head, tongues and eyes not visible.
+
+Panel 4, bottom left: top-down view from directly above: the body pointing to the top of the panel, the three necks fanning forward from the shoulders with the central head in the middle and the outer heads to either side, all horns visible, the two orange sails spread to the sides, all four splayed legs with claws, the spine row down the middle of the teal-green back and the long tail running to the bottom of the panel.
+
+Panel 5, bottom right: bottom-up view from directly below: the same figure pointing to the top of the panel, the tan belly running from chest to tail tip, the yellow-green sac on the chest, the three tan-ribbed necks fanning forward to the undersides of the three open jaws, all four legs splayed with the soles of the feet and claws visible, the edges of the orange sails showing either side.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same features in the same places, same pixel height, same ground line. Neutral static pose, all four feet planted on the ground line, the three necks held in the same fixed fan in every view, no strike, no breath firing. Chunky game proportions as in Warcraft III, heads in proportion to the massive body, not chibi and not big-headed. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks — body, four legs, tail, three necks, three heads, two sails — with hard edges and no small detail, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Weapon match: this unit attacks at long range through its three open jaws; the heads are its only weapons and it holds nothing.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

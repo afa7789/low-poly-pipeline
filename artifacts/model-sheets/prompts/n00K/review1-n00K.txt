@@ -1,0 +1,12 @@
+Edit this model sheet. Change one thing only, in all five views: replace the verdigris diving helmet on the head with a beast-skull helmet, as in the original game icon.
+
+Remove the round metal dome, its rim bands, the round side port and the single central turquoise lens. In their place, the creature wears the bleached upper skull of a sea beast over the top of its head. It is one big blocky mass of flat bone colour (#D8C8A8) with a second flat tone of darker brown (#7A5F48) in the hollows. It has two dark, hollow, slanted sockets and a dark nose slit at the centre of the snout. A row of big, uneven, curved bone fangs hangs from the skull's upper edge, down over the mouth. Two round glowing turquoise fish eyes (#1CC8B4), one on each side of the head, bulge out from under the skull's rear corners; they are the only eyes. The wide fish jaw below stays in the same place and at the same size, with its own row of fangs, now biting up against the skull's fangs.
+
+The same helmet appears in all five views, at the same size as the old helmet and at the same place on the neck:
+- Panel 1, front: the full skull face, seen from the front, with both sockets, the nose slit and the hanging fangs over the jaw, and one turquoise eye at each side of the head.
+- Panel 2, left profile: the skull seen from the side, its snout pointing the same way as the old helmet's front, with one socket, the fangs hanging over the jaw and one turquoise eye bulging from the side of the head. No round port.
+- Panel 3, back: the smooth rounded rear of the bone skull in the same spot where the helmet top now shows above the cape. No fangs or eyes are visible.
+- Panel 4, top-down: the top of the bone skull from above, where the helmet dome is now, with the snout and fang tips at the front and a turquoise eye bulging on each side. No lens.
+- Panel 5, bottom-up: the underside of the head where it is now, with the bone fangs ringing the upper edge around the jaw's underside and the bone skull rim showing behind it.
+
+Everything else stays exactly as it is: the black body, the arms, the legs, the feet, the verdigris torn cape, the chest strap, the belt, the loincloth, the oil-stain blocks, the barbed hook, the net-line drum, all colours other than the helmet, the pose, the proportions, the five-panel layout and every view, the light-grey background, the flat coarse blockout style with heavy lines, and no text.

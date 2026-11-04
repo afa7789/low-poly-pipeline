@@ -1,0 +1,48 @@
+[
+  {
+    "name": "horn_mask",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.246,
+      0.37
+    ]
+  },
+  {
+    "name": "scratched_lenses",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.125,
+      0.188
+    ]
+  },
+  {
+    "name": "sample_case",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.171,
+      0.257
+    ]
+  },
+  {
+    "name": "glass_vials",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.087,
+      0.131
+    ]
+  }
+]

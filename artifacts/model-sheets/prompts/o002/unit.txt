@@ -1,0 +1,4 @@
+# unit prompt for o002 (Grunt, Orc)
+# range=100 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: This model is the race's base body: it defines the vocabulary the other 14 units inherit — hunch, leather hood, no helmet, small stitched pack. One-hand shovel-axe (a drill-shovel lashed to a short haft with two rivets), an oil horn on the belt as "ammunition", and always two rags — one to wipe, one to wet. A leather hood with a simple respirator covers the face; a burnt-wick lamp smolders in a soot-caked horn cup on the belt — the card's living fire. Pose: heavy foot-dragging walk, axe low; the attack is a digging stroke — the horde digs ruin. Story: he does not understand wells, he understands fire; the first order he learns is "wet the rag". Budget: ~450 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

@@ -1,0 +1,15 @@
+Edit this model sheet. Change only the limbs. The creature must have exactly four limbs, like a bat: two wing arms and two rear legs. The wing arms ARE its front legs.
+
+Change in all five views:
+- Delete both separate front walking legs and both front feet with their toes completely. Leave no stump, no extra foot and no extra hand. Only the two rear legs remain as legs, unchanged.
+- Rebuild each wing arm as one straight, simple limb coming directly out of the shoulder, where the front leg used to attach, with no zig-zag and no bent elbow. It runs from the shoulder to the wing wrist. The wrist carries the same small claws as now, and all the wing fingers fan out from that wrist.
+- On the ground the creature rests on four points: the two wing wrist claws and the two rear feet. The wrist claws take the place of the deleted front feet, planted on the ground line. No claws stay up in the air at the top of the arm.
+
+Per view:
+- Panel 1, front: the two front legs and feet are gone. Each wing arm goes straight down and slightly outward from the shoulder to its wrist claws on the ground line, beside the chest, and the wing rises from that wrist on the outer side. The rear feet stay on the ground line, and the belly stays clear of the ground.
+- Panel 2, left profile: the front leg and foot are gone. The near wing arm goes straight down from the shoulder to the wrist claws on the ground line, under the chest where the front foot was, and the wing rises from that arm and wrist. Only the rear leg remains as a leg.
+- Panel 3, back: the two front legs and feet are gone. The wing arms go straight down and slightly outward from the shoulders to the wrist claws on the ground line, mirroring panel 1, and the rear legs stay as they are.
+- Panel 4, top-down: both front feet with their toes, the ones beside the neck, are gone. Each wing arm is a straight line from the shoulder out to the wrist claws at the leading edge of the wing, with no bend. The two rear legs stay.
+- Panel 5, bottom-up: the same as panel 4, seen from below. Both front feet with their toes are gone, each wing arm is straight from shoulder to wrist claws, the underside of each arm has the same cream colour with teal edge as now, and the two rear legs stay.
+
+Everything else stays exactly as it is: the wing membrane with its size, outline, rainbow gradient, dark border, white spots and crescent moons; the wing fingers' teal colour; the head, face and eyes; the body, belly stripes and colours; the curly striped tail; the rear legs. Keep the five-panel layout, the position and scale of every figure, the thin ground line, the grey background, the flat coarse line style and the absence of any text. Add no props and no new parts. Every view shows the same character in the same pose.

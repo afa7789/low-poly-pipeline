@@ -1,0 +1,8 @@
+Edit this model sheet with one change only: make the rock creature look smaller and weaker, because it is a level 1 unit. Redraw the same character at about 80% of its current size and mass, with the same change in all five views.
+
+Apply this to every view (front, left profile, back, top-down, bottom-up):
+- Scale the whole figure down to about 80% of its current height and width, keeping it centred in its panel. The front, profile and back figures stay on one shared ground line and match each other in height.
+- Make the body slightly less massive within that smaller size: narrower shoulders, a thinner torso, and thinner arms. Reduce the two huge square fists the most, so they are clearly smaller than now, though still big and blocky.
+- Scale the drill bit, the rust plate, the rear rock spine, the glass knuckle wedges and the orange chest tear down with the body, keeping their places and proportions.
+
+Everything else stays exactly as it is: same character, same design, same pose, same head, both arms and both legs, same parts in the same places, same colours (charcoal-brown and grey rock, rust plate and drill bit, pale glass, orange chest tear), same coarse flat blockout style with heavy lines. The five-panel layout and the order of all five views stay. Keep the plain light-grey background, now with wider empty margins around each smaller figure. Do not add any new parts, text, labels, frames or shadows.

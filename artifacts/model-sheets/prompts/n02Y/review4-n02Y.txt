@@ -1,0 +1,18 @@
+Edit this model sheet of the two-headed Desert Ogre Lord. The problem to fix: the hoods and the body are the same tan and flow into each other, so the hoods look like they grow out of his skin, and the torso has almost no clothing. Make the hoods read as cloth worn over a clothed, armoured body, with these changes, identical in all five views:
+
+1. Skin: recolour all visible skin, now only the arms and hands, to the warm orange-tan of the predecessor ogre (#C89868). It must be clearly different from the hoods.
+2. Hoods: keep both hoods, their shape, the grey respirators and the eye slits, but make them separate pieces of pale bone-coloured canvas (#DDD2B5), with a thick darker hem where each hood ends. Each hood sits on a collar and never touches skin.
+3. Collar: add one wide steel-grey (#6A6A6E) gorget with a brass-yellow (#D4A93A) rim around the base of both hoods, covering the whole neck area, so a hard line separates hood from body.
+4. Tunic: dress the whole torso, pot belly and back in a sleeveless dark olive military tunic (#5E6244), so no bare skin shows on the torso. Keep the pot belly silhouette.
+5. Pauldrons: add two big steel-grey pauldrons with a brass-yellow rim, one on each shoulder, with black centre panels and the same pale crossed X mark as the predecessor's single pauldron.
+6. Chest and belly: turn the grey chest plate into a steel breastplate with a brass-yellow rim, keeping its round gauge and single orange slit. Add one large curved steel belly plate with a brass-yellow rim over the tunic. Replace the brown back plate with a matching plain steel back plate with a brass-yellow rim. Remove the harness straps.
+7. Waist and limbs: add the predecessor's wide wrapped dark brown cloth sash at the waist, over the top of the trousers. Add one plain steel vambrace with a brass-yellow rim on the bare club-arm forearm, and one plain steel knee plate with a brass-yellow rim on each leg, above the mud line.
+
+The same changes per view:
+- Front view: collar under both hoods, pauldrons, breastplate, belly plate, sash, vambrace on the forearm of the club arm, both knee plates.
+- Left profile: hood hem on the collar, near pauldron with X seen side-on, tunic under the breastplate and belly plate following the belly curve, sash, knee plate; the back plate seen edge-on.
+- Back view: hood backs ending in the hem on the collar, both pauldrons, steel back plate on the olive tunic, sash, vambrace, backs of the legs without knee plates.
+- Top-down view: both hood tops inside the steel collar ring, both pauldrons with X seen from above, olive tunic between them, breastplate edge and belly plate curve at the front.
+- Bottom-up view: underside of the belly plate and olive tunic, sash, undersides of both pauldrons, vambrace, bottom edges of the knee plates.
+
+Everything else stays exactly as it is: the five-panel layout and every view, the grey background, the ground lines, the pose, the two heads, the proportions and silhouette, the club in the same hand, the drum shield and its forearm bracer in the same place, the brown trousers, the black pitch mud and black boots, the heavy coarse line and flat colour blocks with no text. Do not add a backpack, chimney, tank, hoses, rivets or any other prop. New pieces are few large flat shapes, one flat tone each, readable at low poly.

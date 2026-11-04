@@ -1,0 +1,46 @@
+[
+  {
+    "name": "branch_crown",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.164,
+      0.245
+    ]
+  },
+  {
+    "name": "throat_cistern",
+    "where": "anchor throat, on bone neck.1",
+    "bones": [
+      "neck.1"
+    ],
+    "extent": [
+      0.135,
+      0.202
+    ]
+  },
+  {
+    "name": "concession_ring",
+    "where": "anchor neck, on bone neck.1",
+    "bones": [
+      "neck.1"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  },
+  {
+    "name": "ring_gem_pendant",
+    "where": "anchor chest, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.063,
+      0.095
+    ]
+  }
+]

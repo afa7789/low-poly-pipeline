@@ -1,0 +1,14 @@
+Edit this model sheet. Make exactly two changes, the same two changes on the same character in all five views: a bigger gun and one more plate of armour.
+
+CHANGE 1, BIGGER GUN: the flamethrower in the orc's right hand becomes clearly oversized. Scale the whole gun up, keeping its design: the two stacked square grey barrels, the tan perforated block with its large black holes and the wooden grip. The barrels and the block become about twice as thick and tall, the holes grow with the block, and the gun becomes a little longer. It stays held in the same right hand, at the same hip, at the same level angle, pointing straight forward. It now reads as a heavy two-barrel weapon nearly as wide as the orc's thigh is long. The gun must look much bigger than the single-barrel gun of the previous rank. It must stay inside its panel, with its flame close to the muzzle, and must not touch the neighbouring figure.
+
+CHANGE 2, ONE MORE PLATE OF ARMOUR: add one single large steel chest plate, flat mid-grey with a plain brass rim, strapped over the leather apron. It covers the chest from just under the black neck cowl down to just above the belt. It is one big plain shape, with no rivets, no emblem and no small detail. The belt, the lower apron and the crossed straps on the back stay visible. Add no other armour.
+
+The same changes, view by view:
+- Panel 1, front view: the gun is much thicker and larger at the hip, with both square muzzles facing the camera; the steel chest plate fills the chest between cowl and belt.
+- Panel 2, left profile: the gun is much thicker, a little longer, and still projects forward from the hip; the side edge of the chest plate stands out from the chest above the belt.
+- Panel 3, back view: the larger gun block shows behind the right hand and sticks out further past the hip; the two edges of the chest plate show just past the ribs at both sides of the torso; the crossed straps stay as they are.
+- Panel 4, top-down view: the gun below the right hand is much wider and a little longer; the lower edge of the chest plate shows in front of the helmet brim, above the belt.
+- Panel 5, bottom-up view: the gun rising beside the right hand is much wider and a little longer; the underside of the chest plate shows above the belt.
+
+Everything else stays exactly as it is: the same green orc with the same face, tusks and eye patch, the black helmet with its brass crest, spikes and horns, the red and brass stacked shoulder pads, the black neck cowl, the grey tunic and sleeves, the brown apron, belt and straps, the steel greaves, the boots, the hands, the proportions and the pose. The colours, the five-panel layout, the position and size of every figure, the grey background, the heavy line, the flat coarse blockout style and the absence of any text all stay unchanged. Every view shows the same character in the same pose, with one full-body figure per panel, never cropped.

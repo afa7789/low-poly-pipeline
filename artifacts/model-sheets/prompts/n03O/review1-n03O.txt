@@ -1,0 +1,20 @@
+Recolour this model sheet only. Treat it as a flat colour swap: every shape, outline, proportion, pose, prop, face, the five-panel layout, the grey background, the heavy line and the flat coarse blockout style stay exactly as they are. Nothing is added, removed, moved or redrawn, and no text appears. The pink, jade green and purple-black all disappear from the figure. Use one flat tone per surface, with no gradients or texture.
+
+Apply the same colour map to all five views:
+- Dark purple-black fur on the torso, arms, legs and ears, and the dark eye patch: warm chestnut brown (#6B3F24).
+- Pale cream face, muzzle and belly: clean off-white fur (#EFEDE6).
+- Near-black oil mud on the legs and mitts: stays as it is, darker than the brown fur.
+- Basket hat, currently pink with a jade crown: pale woven-straw tan brim (#B08D57) with a dark iron-grey crown (#4A4A4C). The underside of the brim is a darker tan.
+- Waist kegs and the big keg backpack, currently jade: aged parchment tan (#CDB88A), with their facet lines kept.
+- Pink box kettle: strong pure red (#D01818), including its spout and handle.
+- Terracotta feed duct and waist belt: black (#1E1C1E).
+- Burnt swollen left eye: stays terracotta. The narrowed right eye gets a small bright blue iris (#2F7FD6).
+
+Panel by panel, the same swap:
+- Panel 1, front: brown body, off-white face and belly, straw-and-iron hat, tan kegs, black duct and belt, red kettle.
+- Panel 2, left profile: brown body, off-white face and belly, straw-and-iron hat, tan kegs and backpack, black duct and belt, red kettle.
+- Panel 3, back: brown back and ears, off-white belly showing at the waist, straw-and-iron hat, tan backpack and kegs, black duct and belt, red kettle.
+- Panel 4, top-down: straw brim ring with the iron-grey octagon crown at the centre, brown shoulders, off-white belly, tan kegs and backpack, black duct, red kettle.
+- Panel 5, bottom-up: brown underside and arms, off-white belly, near-black mud on the feet and mitts, tan kegs, black belt, red kettle, darker tan under the hat brim.
+
+All five views must use identical colours for the same parts.

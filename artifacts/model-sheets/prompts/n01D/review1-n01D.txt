@@ -1,0 +1,10 @@
+Edit this five-panel model sheet. Change only one thing: the limbs. The drake currently has two unfinished blocky stubs at its hips. Replace them with two complete short hind legs, one left and one right. Each leg is a thick thigh, a short shin and a small foot with three blunt black claws. Keep the legs small and tucked under the rear of the body, drawn in the same deep violet with the same heavy coarse line and flat colour as the body, with black claws matching the black root claw on the tail. Both legs must still hover clear of the ground; the legs do not stand on anything.
+
+Make the same change in all five views, with the same leg size, position and pose:
+- Panel 1, front view: both legs show below the lower torso, one on each side of the tail, in place of the two stubs.
+- Panel 2, left profile: the left leg shows in full under the rear of the body in place of the stub, thigh angled back and foot hanging down, with the right leg just visible behind it.
+- Panel 3, back view: both legs show from behind, one on each side of the tail, in place of the two stubs.
+- Panel 4, top-down view: only the outer edges of the thighs and the foot claws show beyond the hips, on both sides, in place of the stubs.
+- Panel 5, bottom-up view: both legs show in full against the underside at the hips, in place of the stubs, with the claws pointing back along the tail.
+
+Everything else stays exactly as it is: the head, face, neck, green throat reservoir, neck ring, torn wings, long tail and root claw, all colours, the proportions, the pose, the five-panel layout and the position and size of every figure, the solid light-grey background, the flat coarse blockout style, and no text.

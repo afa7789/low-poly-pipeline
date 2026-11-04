@@ -1,0 +1,26 @@
+Edit this model sheet. Keep the same orc with the same body, proportions, pose, silhouette and hand-held props. Keep the five-panel layout, the position and size of every figure, the light-grey #CCCCCC background, the heavy coarse line, the flat blockout style, and no text. Make only the three changes below, and apply each one identically in all five views: front, left profile, back, top-down and bottom-up.
+
+1. REMOVE EVERYTHING FROM THE BACK. Delete the black cauldron, the rust hide pack and its straps, and the floating grey smoke blocks. Delete any axe, haft stub or other object that sticks out behind the shoulders or above them. The one axe stays only in the right hand, in its current place, and nothing is carried on the back.
+- Front view: remove the smoke block and the short haft stub showing above the axe blade.
+- Left profile: remove the cauldron, pack and smoke, and close the back with a clean line of vest and shoulder.
+- Back view: remove the cauldron, pack and smoke, and remove the dark shape under the kilt. Show the plain back of the vest and kilt.
+- Top-down view: remove the cauldron, pack, smoke and the haft stub behind the shoulder, leaving only the head between the wide shoulders.
+- Bottom-up view: remove the dark round cauldron base between the legs, and show the underside of the kilt there.
+
+2. ADD TWO LARGE, CRUDE DIESELPUNK PIECES, taken from the predecessor orc, so this reads as the same character upgraded. Keep the existing dark-red respirator and the tusks.
+- Replace the yellow headband and bare green skull with the same steel Stahlhelm as the predecessor: steel grey, a gold centre stripe, and two short ivory horns. Make it a little heavier here. The head is identical in all five views, including the bottom-up view.
+- Add two wide crossed leather ammunition bandoliers with a few big gold cartridge blocks over the chest. They show as a plain X of straps on the back, as on the predecessor.
+- Add no other gear, backpack, tank, pot or lantern.
+
+3. RECOLOUR to the original game model, with flat colours and several clearly different colours:
+- Skin on head, arms, hands, legs and feet: bright yellow-lime green (#8DB52E) instead of the dull mid green.
+- Vest: warm saddle brown (#7A4A24) instead of black.
+- Big shoulder plates: light steel grey (#8E9399) instead of black.
+- Kilt and forearm guards: orange-rust red (#A5441E). The forearm guards are no longer grey.
+- Bandolier straps: dark brown (#3A2415).
+- Waist sash: gold (#E2A81E).
+- Banner cloth: black (#141414) with a wide gold border, no emblem and no lettering. Its pole stays dark brown.
+- Axe blade: stays steel grey with its gold edge. The haft stays dark brown.
+- Respirator: stays oxblood red. The tusks and horns stay ivory. The eyes stay yellow.
+
+Everything else stays exactly as it is: the shoulders, body shapes, the axe in the right hand, the banner in the left hand, the legs, and all five views. Every figure stays complete, with all limbs, never cropped.

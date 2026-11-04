@@ -1,0 +1,15 @@
+Recolour this model sheet only. This is a colour change: do not redraw, reshape, move, add or remove anything. Keep the five-panel layout, all five views, the figure's design, pose, proportions, every prop and its position, the heavy black outline, the flat coarse blockout style, the solid light-grey background and the absence of text exactly as they are. The sheet is currently almost entirely dark iron blue-grey. Replace that with the several clearly different colours of the original unit, one flat tone per surface:
+
+- Long coat body, sleeves and hood: warm moss olive green (#7A7A2E), with a darker olive (#55561F) for the hood interior and the coat underside.
+- Shoulder cape, cuffs and the short leg bands showing below the coat hem (now pale blue): snowy off-white fur colour (#F1ECE6).
+- Walrus muzzle and face area around the tusks (now grey), and both big mitts: fleshy salmon pink (#C9796B).
+- Tusks: warm ivory (#EFE6CF), no longer blue.
+- Visor: dark brown (#3F2A20), keeping its amber slit.
+- Boots, including their crust: rust red-brown (#8A4A38).
+- Belt and hook-and-float bag: dark leather brown (#5A3A28).
+- Harpoon head, sieve and hooks: bright glowing ice blue (#4FB4F0); the vial glass is the same ice blue with its amber fill unchanged. Harpoon shaft stays wood tan.
+- Rope coil stays tan; float and lamp keep their amber accents, with the lamp body in dark leather brown.
+
+Apply the same colour change to the same parts in all five views. Front view: olive coat, off-white cape and cuffs, salmon muzzle and mitts, ivory tusks, rust boots, ice-blue harpoon head. Left profile: the same, including muzzle, tusk, mitt, bag and boots. Back view: olive hood and coat, off-white cape and cuffs, brown bag, salmon mitts, rust boots. Top-down view: olive hood crown and coat, off-white shoulder cape, salmon muzzle and mitts, ivory tusks, brown bag, ice-blue harpoon head. Bottom-up view: dark olive coat underside, rust boot soles with off-white leg bands around them, salmon mitts, brown bag underside, ice-blue harpoon head.
+
+Everything else stays unchanged.

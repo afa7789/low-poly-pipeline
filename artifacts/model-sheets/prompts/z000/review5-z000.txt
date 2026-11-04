@@ -1,0 +1,15 @@
+Edit this model sheet: simplify the creature. It has too many small details, so remove them and merge what is left into a few large plain shapes for a low-poly model. The creature stays the same character: a low four-legged demon hound with purple hide, dark near-black lower legs, one orange carapace, an orange-masked head with two red eyes and bared teeth, two pale horns and two long red quills rising from the shoulders.
+
+Make these same changes on the creature in all five views (front, left profile, back, top-down, bottom-up):
+- Remove the three small red spines along the back, including the red diamond inlays on the armour. The two long red quills are the only quills left.
+- Merge all the segmented orange armour plates into one smooth single carapace over the shoulders and back, with no plate divisions and no inner lines.
+- Remove the four pale bone spikes at the shoulders, leaving only the two head horns as pale spikes on the upper body.
+- Keep the two long red quills, but make them slightly shorter and thicker, plain flat red. Replace their pale collars with quills growing directly out of the carapace.
+- Remove the red shards and spikes on the legs and elbows.
+- Remove the star-shaped blade at the tail tip. The tail becomes a short plain tapered tail with a simple point.
+- Remove the pointed ears.
+- Remove the rib lines, muscle lines, belly highlight and two-tone purple shading. The hide is one flat purple tone in every view, including the underside in the bottom-up view.
+- Reduce each paw to two large plain pale claws, shaped simply.
+- Simplify the head to the orange mask, one flat purple jaw, two red eyes and a few large teeth, removing the wrinkle and snout lines.
+
+Add nothing new: no gear, no props. Everything else stays exactly as it is: the five-panel layout, the position and scale of every view, the same pose in every view, the colours, the body proportions, the solid light-grey background, the flat coarse blockout style with heavy outlines, and no text.

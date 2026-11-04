@@ -1,0 +1,16 @@
+Edit this model sheet: make the Desert Gnoll look like a weak, low-tier, underfed creature. It stays the same character, with the same design, and only its build and gear change.
+
+The change, applied the same way to all five views:
+- Body: make the figure about 15% smaller in its panel. Remove all the muscle bulk. The heavy shoulders become narrow, sloping and bony. The chest and waist become thin and scrawny, with a skinny, slightly sunken torso. Keep the low hunch, and make it more cowering.
+- Limbs: both arms become thin and stringy with small hands, about half their current thickness. Both legs become thin and knobbly-kneed, with smaller feet. All limbs stay present, and the lower legs stay black.
+- Head: the head stays the same design, with the same canvas mask, seam, eye slits, orange smear and two ears, and it is scaled down with the body. It may look slightly too large for the skinny neck. The mane ridge becomes thinner and sparser.
+- Gear: remove the clay jar and the small pick completely. Make the shovel-crossbow about a third shorter, with a thin shaft, a smaller shovel blade, a smaller bow and a much smaller pitch-ball bolt with its small ember. It must look like a crude, flimsy tool that is almost too much for the creature to carry. Keep the same diagonal grip in both hands. Keep the waist cord, thinner.
+
+View by view:
+- Front view: narrow bony shoulders, thin arms holding the smaller crossbow across the chest, skinny legs, no jar on the shoulder.
+- Left profile: thin wedge body with a skinny hunched back, sparse mane, thin arm, thin bent legs, no jar on the shoulder, no pick at the back.
+- Back view: narrow back and thin waist, sparse mane, thin arms and legs, no jar, no pick, smaller crossbow ends showing.
+- Top-down view: narrow, thin body seen from above, small shoulders, sparse mane, smaller crossbow, no jar, no pick.
+- Bottom-up view: smaller feet and thin legs, thin body, smaller crossbow and shovel blade, no jar, no pick.
+
+All else stays exactly as it is: the same five-panel layout and panel positions, every view and its camera angle, the same neutral pose in every view, the same colours, the same flat coarse blockout style with heavy line, and the plain grey background with no text. All five figures remain the same character at the same height as each other, on the same ground line, each one complete and uncropped.

@@ -1,0 +1,16 @@
+Edit this five-panel model sheet of the troll. Add exactly three dieselpunk changes, as large crude flat shapes, the same in all five views. Everything else stays exactly as it is: the layout, panel positions, grey background, heavy line, flat blockout style, pose and proportions of every view. The purple skin, pale chest, red crest, cream face paint, red eyes, long nose, tusks, long ears, dark forearm bands, brown sash and torn blue loincloth also stay. The figure stays bare-armed and bare-footed, with no text.
+
+Change 1, crossed bandoliers: two wide dark olive leather straps cross in a big X over the bare torso, each from one shoulder to the opposite hip, carrying a few big blocky dull-brass shells.
+
+Change 2, motor-cleavers: both cleavers keep their position, size, grey blade and grip, but each gains one small boxy black two-stroke engine at the guard, where the blade meets the handle, and one short stubby rust-orange exhaust at the pommel, below the fist.
+
+Change 3, puttees: the dark bands on both shins are replaced by muddy khaki cloth wrappings, wound in a few wide diagonal strips from ankle to below the knee. The feet stay bare.
+
+Apply the changes in each view:
+Panel 1, front: the X of the bandoliers on the chest; a motor-cleaver in each hand; puttees on both shins.
+Panel 2, left profile: the straps pass over the left shoulder and across the chest and back; the visible cleaver shows the engine at its guard and the exhaust below the fist; puttees on the shin.
+Panel 3, back: the same X crosses the bare back, under the crest; the exhausts and engines show at both hands; puttees on both shins.
+Panel 4, top-down: the straps run over both shoulders; both cleavers show their engines at the guard; puttees show on the shins where they are visible.
+Panel 5, bottom-up: the X of the bandoliers on the chest; both cleavers show their engines and exhausts; puttees on both shins.
+
+Add nothing else. No tank, bottle, pipe, hose, backpack or anything else on the back or in the mouth. No helmet, gas mask, coat, shoulder plates, cuirass or gold trim: this is the lower-tier troll, and the armour belongs to the upgrade.

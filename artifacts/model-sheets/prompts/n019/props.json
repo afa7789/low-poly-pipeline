@@ -1,0 +1,46 @@
+[
+  {
+    "name": "vein_stalk",
+    "where": "anchor top of pod, on bone stalk.1",
+    "bones": [
+      "stalk.1"
+    ],
+    "extent": [
+      0.349,
+      0.523
+    ]
+  },
+  {
+    "name": "resin_crust",
+    "where": "anchor back, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.435,
+      0.653
+    ]
+  },
+  {
+    "name": "root_feeler_rear_centre",
+    "where": "anchor underside rear of pod, on bone tendril1.1",
+    "bones": [
+      "tendril1.1"
+    ],
+    "extent": [
+      0.13,
+      0.194
+    ]
+  },
+  {
+    "name": "root_feeler.L",
+    "where": "anchor underside front left of pod, on bone tendril2.1",
+    "bones": [
+      "tendril2.1"
+    ],
+    "extent": [
+      0.112,
+      0.168
+    ]
+  }
+]

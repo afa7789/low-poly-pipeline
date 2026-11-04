@@ -1,0 +1,15 @@
+Edit this model sheet. Keep the same character and design: the same gold lion-head prow with glowing blue eyes and black tusk spikes, dark hull, red side armour plates, copper side pipes, grey exhaust stacks with black tips, brass rocket launcher with its yellow band on the dark cradle, and the rear plate. Keep all its colours and its flat coarse blockout style with heavy outlines. The only design change is proportion: make the whole tank much more chunky and cartoonish, like a Warcraft 3 tank, squat, fat and toy-like.
+
+Make the same change in all five views:
+- Hull: about one third shorter from front to back, and taller and wider, so it reads as a compact heavy block instead of a long low slab.
+- Lion head: keep it in the same proportion to the hull, as thick and heavy as the hull, with a deeper jaw, a blunter muzzle and rounder cheeks. Do not make it oversized and do not turn it into a chibi face.
+- Tracks: about twice as thick and taller, wide fat tread blocks that stick out past the hull on both sides. Each side is one continuous fat track, with big round wheels inside it.
+- Rocket launcher: shorter and much fatter tubes with big round mouths, on a thick, stubby cradle. Keep the same number of tubes and the yellow band.
+- Exhaust stacks: shorter and about twice as thick.
+- Copper pipes: much thicker and simplified into one fat bend per side.
+- Spikes: fewer, bigger and blunter.
+- All shapes: slightly rounded corners and exaggerated, swollen forms. Remove thin trim lines, small bolts and small details, leaving only a few large shapes for a low-poly model.
+
+Fix the layout: the sheet currently shows the left profile twice. Delete the second profile so there are exactly five drawings of the unit: top row front, left profile and back; bottom row top-down and bottom-up. Each view stays the same view of the same character in the same neutral pose, level on its tracks, with the launcher at the same elevation, the same proportions in every view, and wide empty margins between the drawings.
+
+Everything else stays: the plain grey background, no text, no labels, no frames, no shadows, no smoke, no crew and no added props.

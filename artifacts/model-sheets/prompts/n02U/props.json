@@ -1,0 +1,48 @@
+[
+  {
+    "name": "forehead_plate",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.154,
+      0.23
+    ]
+  },
+  {
+    "name": "barbs.L",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.312,
+      0.469
+    ]
+  },
+  {
+    "name": "club",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.181,
+      0.271
+    ]
+  },
+  {
+    "name": "barbed_wire_wrap",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.14,
+      0.21
+    ]
+  }
+]

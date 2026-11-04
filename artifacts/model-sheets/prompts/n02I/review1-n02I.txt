@@ -1,0 +1,23 @@
+Recolour this model sheet and change nothing else. This is a colour-only edit: keep every shape, outline, silhouette, proportion, pose, prop and prop position exactly as drawn. The layout of five panels, all five views, the framing, the figure sizes, the solid light-grey background, the heavy black line and the flat coarse blockout style all stay. Add nothing, remove nothing, and add no text.
+
+Replace the single slate blue-grey that now covers the whole body with these clearly different flat colours, one flat tone per surface, with no gradients or texture:
+- Head, including the blunt skull seen around the goggles and the top of the head, and both mitts: ruddy rose-terracotta skin (#B9654F), the warm pink-red of the original icon and the same skin as the predecessor walrus.
+- Torso, belly and both arms: very dark plum-brown (#3B2A33), like the original's dark coat.
+- Legs below the belly: a slightly darker plum (#2C2028).
+- Boots: warm red-brown leather (#8A4A38), matching the predecessor's boots, with the frozen mud patches kept as they are in pale off-white (#E6E1D6).
+- Oversized shoulder pauldron: mustard ochre gold (#C9A02C) instead of pale blue, with its rim bands in a darker ochre (#9A7520).
+- Three harpoon rails with their heads: saturated glacier blue (#4DB2EE), the ice-blue of the original's weapon.
+- Back frame plate, trigger, crank, wheel at the waist, tank straps and lamp cap and base: dark warm brown (#4A3428).
+- Brine tank: stays pale ice blue (#BFE4F4).
+- Goggle frames and respirator: blue-black (#20262E), so they stand out against the rose head.
+
+These stay unchanged: amber goggle lenses, amber lamp glass, ivory tusks and ivory whalebone springs.
+
+Apply the same recolour to all five views:
+- Front view: rose head and mitts, plum torso, belly and arms, ochre pauldron on the viewer's right, glacier-blue rails behind the head, red-brown boots.
+- Left profile view: rose head and mitts, plum body, ochre pauldron, glacier-blue rails, brown frame, pale ice tank.
+- Back view: rose back of the head and mitts, plum back, ochre pauldron on the viewer's left, glacier-blue rails, brown frame, pale ice tank.
+- Top-down view: rose head, plum shoulders and belly, ochre pauldron, glacier-blue rail tops.
+- Bottom-up view: plum belly and legs, rose mitts, red-brown boot soles with pale mud, ochre pauldron rim, pale ice tank.
+
+The same colour must sit on the same part in every view.

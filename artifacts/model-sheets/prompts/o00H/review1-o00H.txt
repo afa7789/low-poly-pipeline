@@ -1,0 +1,24 @@
+Recolour this model sheet. Change only the flat colours. Every shape, line, proportion and prop, the five-panel layout, the light-grey background, the coarse flat blockout style and the absence of text all stay exactly as they are. Do not add, remove, move or redraw anything.
+
+Remove all pink and all green from the unit. The colours come from the original game model: weathered wood, black iron, steel, gold and crimson bands. Apply one flat tone per surface, no gradients or texture, with this same colour map in all five views:
+
+- Carriage, side beams, tail arm and the flat underside (all currently pink): warm weathered tan wood (#B08A5A).
+- Wheel faces (currently pink): the same tan wood. Wheel rims, treads, axle and hub stay dark iron, with the hub's centre ring in gold.
+- Mortar tube (currently pink): mid steel grey (#7E858C). The thick ring at the muzzle: bright gold (#D9A520). The inside of the bore: near black (#1E1C1E).
+- Boiler body (currently green): black iron charcoal (#34353A).
+- Boiler straps (currently dark): crimson red (#B3202A).
+- Chimney: stays dark iron, with its top cap in gold.
+- Relief valve: gold, including its handle and base.
+- All terracotta-red masses (the panel under the carriage and the tail block): crimson red (#B3202A).
+- House seal on the tube flank: gold.
+- Pressure gauge: bone ivory face (#E6DCC3), gold ring.
+
+Per view:
+
+- Front view: steel tube with gold muzzle ring, charcoal boiler behind it, tan carriage, crimson panel below, tan-and-iron wheels seen edge-on as dark iron treads.
+- Left profile: steel tube with gold ring and gold seal, charcoal boiler with crimson straps, gold valve, dark chimney with gold cap, tan wheel face with dark rim and gold hub ring, tan tail arm with crimson tail block.
+- Back view: charcoal boiler end with ivory and gold gauge, steel tube behind it with gold ring, dark chimney with gold cap, tan carriage, crimson panel, dark iron treads.
+- Top-down view: steel tube with gold muzzle ring, charcoal boiler with crimson straps, gold valve, dark chimney opening, tan carriage beams, crimson panel between them, dark iron treads.
+- Bottom-up view: tan underside and beams, dark iron axle, steel tube with gold muzzle ring, dark iron treads.
+
+The result must show the same unit in the same pose in every view, with no pink or green anywhere.

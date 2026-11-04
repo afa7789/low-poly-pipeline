@@ -1,0 +1,15 @@
+Recolour this model sheet only: the model is right, but the colours are wrong and must become sober, muted and dignified. Change nothing but the flat fill colours. Keep every shape, line, proportion, pose, prop and prop position exactly as drawn in all five views, along with the five-panel layout, the solid light-grey #CCCCCC background, the heavy black outline, the flat coarse blockout style and the empty margins. Add no text and no new objects.
+
+Remove all hot pink, magenta, plum and saturated green and orange from the figure. Apply this same colour mapping identically in all five views (front, left profile, back, top-down, bottom-up):
+
+- Main tunic body and upper sleeves: from hot pink to deep muted slate blue (#3F4A57).
+- Sleeve cuffs, tunic hem band, short trousers and shoes: from plum to dark charcoal (#2B2F36). The inside of the tunic in the bottom-up view becomes the same charcoal, slightly darker.
+- Conical hat, top of the eight-sided hat in the top-down view, and the flat carrying plate behind the jar: from orange terracotta to dull aged straw (#A8926A).
+- Cracked chest and hip plates: from pink to pale grey celadon glaze (#A9B5A6), with their cracks kept as they are.
+- Bead veil and glaive blade with its hooked shard: from bright green to subdued dark jade (#4F7A68).
+- Jar, including its stopper, and keg body: from bright terracotta to dark weathered umber (#6E4A38). Keg bands, jar neck and rims: dark brown (#4A3A2E).
+- Vapour block above the jar: from terracotta to flat ash grey (#8F9499).
+- Glaive shaft, chest and hip straps, belt and keg sling: dark brown (#4A3A2E).
+- Hands and bare shins: from pink to muted warm beige (#B59A82).
+
+Each surface keeps one flat tone, with no gradients, texture or shading. In the end the top-down view reads as straw hat over slate tunic, the bottom-up view as charcoal hem with umber jar and keg, and all five views show the same colours on the same parts.

@@ -1,0 +1,59 @@
+[
+  {
+    "name": "obelisk_flake_spine",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.274,
+      0.41
+    ]
+  },
+  {
+    "name": "drill_bit",
+    "where": "anchor shoulder.R, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.116,
+      0.175
+    ]
+  },
+  {
+    "name": "swallowed_steel_plate",
+    "where": "anchor shoulder.R, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.163,
+      0.244
+    ]
+  },
+  {
+    "name": "glass_shards.L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.158,
+      0.237
+    ]
+  },
+  {
+    "name": "glass_shards.R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.158,
+      0.237
+    ]
+  }
+]

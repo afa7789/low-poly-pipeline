@@ -1,0 +1,4 @@
+# unit prompt for o001 (Catapult, Orc)
+# range=1000 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: At 32 px the curved arm carries not a basket but a stitched cauldron dripping fire — the banded bucket is the signature. The frame belongs to the engine morphology: crooked diagonal timbers under a leather covering, iron mine-cart wheels, axles lashed with rope and anchor chain. Four corner pitch torches stay lit in transit — the fire travels with the machine — and the loader crew works hooded in leather respirators. Pose: slow heavy reload with a visible spill of oil along the arc; only a smoke trail and a tow wick, no complex particles. Story: it was built to not break walls — it soaks the wall in oil and strikes the match; the garrison decides the rest. Budget: ~800 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

@@ -1,0 +1,17 @@
+Edit this model sheet. Remove the wrong extra limbs and change nothing else. The creature has exactly four legs (two front, two rear) plus the two long scythe arms on the shoulders, in every view, matching the side view.
+
+Apply the same correction to all five views:
+
+Panel 1, top left, front view: erase the two dark crimson blade-like legs that stand on the outside of the front legs, left and right, and fill the space they leave with the plain grey background. Only the two front legs with their dark clawed paws remain on the ground line. The head, chest, shoulders and scythe arms stay as they are.
+
+Panel 2, top middle, left profile: no change. This view is correct and is the reference: one scythe arm on the shoulder, one visible front leg and one visible rear leg, on the near side, with their far-side twins hidden.
+
+Panel 3, top right, back view: erase the two red blade-like legs that stand on the outside of the legs, left and right, and fill the space they leave with the plain grey background. Only the two rear legs remain on the ground line. The back, quills, shoulders and scythe arms stay as they are.
+
+Panel 4, bottom left, top-down view: erase the two short red stub limbs with small paws that stick out of the sides of the body between the front and rear legs, and fill the space they leave with the plain grey background. Exactly four legs remain: the two front legs with dark paws near the scythe-arm roots and the two rear legs with dark paws at the hips. The armour plates, quills, tail and scythe arms stay as they are.
+
+Panel 5, bottom right, bottom-up view: erase the two short rounded red stub limbs between the front and rear legs, and fill the space they leave with the plain grey background. Exactly four legs remain: the two front legs with dark paws near the scythe-arm roots and the two rear legs at the hips. The dark belly, head, tail and scythe arms stay as they are.
+
+Where a limb is removed, close the body outline cleanly, with the same heavy line and flat colour, leaving no gap, stump or ghost mark.
+
+Everything else stays exactly the same: the five-panel layout, the position and size of every figure, the pose, proportions, head, face, horns, tusks, orange eyes, armour plates, quills, tail, scythe arms, all colours, the heavy coarse line, the flat blockout style, the ground line, the light-grey background, and no text.

@@ -1,0 +1,4 @@
+# unit prompt for h06T (Light Tank, Mech)
+# range=375 palette=`#42484D` Ferro de Caldeira | `#8C6B33` Latão de Poço | `#FFE600` Chama-Piloto
+# redesign: "Baron's Van": a compact riveted-plate shell, deliberately shorter in plan than the Assault Tank, with one crooked stack and a roof klaxon — at 32 px a compact block with a horn on top, separated from the Assault Tank by overall width and by horn versus transverse cannon. Materials: cast iron, soot, well brass; one emissive, the single headlamp. Props: brass klaxon on the roof, glass headlamp, open rear tool box with a handsaw, riveted rear ladder. Pose/anim: bouncing march on rigid suspension; short recoil with a sneeze of smoke. Story: the first vehicle an heir goblin receives — loud, absurdly proud of the klaxon, and the tank the barons send ahead so they do not lose a real furnace. Budget: 500–650 tris; 1 atlas; alpha only on smoke.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

@@ -1,0 +1,59 @@
+[
+  {
+    "name": "shoulder_gate",
+    "where": "anchor shoulders, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.313,
+      0.47
+    ]
+  },
+  {
+    "name": "root_claw.L",
+    "where": "anchor foot.L, on bone foot.L",
+    "bones": [
+      "foot.L",
+      "foot.R"
+    ],
+    "extent": [
+      0.182,
+      0.273
+    ]
+  },
+  {
+    "name": "root_claw.R",
+    "where": "anchor foot.R, on bone foot.R",
+    "bones": [
+      "foot.R",
+      "foot.L"
+    ],
+    "extent": [
+      0.182,
+      0.273
+    ]
+  },
+  {
+    "name": "dead_leaf_slab",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.246,
+      0.37
+    ]
+  },
+  {
+    "name": "rust_collar",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.135,
+      0.202
+    ]
+  }
+]

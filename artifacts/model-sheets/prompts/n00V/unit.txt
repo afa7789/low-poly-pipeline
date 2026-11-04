@@ -1,0 +1,4 @@
+# unit prompt for n00V (Troll Berserker, Orc)
+# range=300 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: Pose and weapon must match the real 300 range: a weighted butcher cleaver on a knotted hide line, hurled and reeled back, plus a second short cleaver kept in hand — the throw is the whole-body animation and the line restores it (note: range 300 comes from the compendium data; treat it as intentional and keep the long reach legible). Face: the race's only bare face — the mouth drinks straight from the oil pipe, which is the message (art bible §5). Crouched forward charge, torn leather belts, bite marks on his own forearm; the reserve bottle wears a lit wick — the card's fire. The blades are saw-cut shovel steel on well-pipe hafts. Story: he drinks the buried blood to stop fearing fire. Budget: ~550 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

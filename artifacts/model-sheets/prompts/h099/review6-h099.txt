@@ -1,0 +1,26 @@
+Edit this model sheet: the tank is far too long. Make it dramatically shorter from nose to tail and much chunkier and more cartoonish, like a stubby, toy-like Warcraft 3 tank. Go much further than a slight squash: remove about 40 percent of the total length, so the whole vehicle, including plow, cannon and exhausts, is a short fat block.
+
+Apply the same change to the same character in all five views:
+
+Target proportions: seen from above or below, the full vehicle from plow tip to rear plate is at most 1.2 times as long as it is wide, nearly square. In left profile, the full length is at most 1.2 times the height. The hull itself is a short, fat, almost cube-like block.
+
+- Hull: cut the middle out of the hull so its length is about half of what it is now. Make it taller and wider, with big soft rounded corners.
+- Wheels: make all four wheels about 20 percent bigger and fatter, with very thick tyres. The front and rear wheels on each side almost touch, with only a small gap between them, and the rear pair stays slightly larger.
+- Plow: keep the same gold-rimmed grey plow, but pull it tight against the nose with no gap, and make it thicker, wider and blunter, projecting only a short way forward.
+- Turret: keep the same round grey turret with its gold bands, but make it a fatter, rounder dome that fills the top of the short hull.
+- Cannon: cut the gold cannon to half its length and make it twice as thick, a stubby fat barrel with the same big hexagonal muzzle.
+- Exhausts: cut the two exhausts to half their length and make them twice as thick, short fat stacks with the same black sooty tips, angled out at the same V, staying close to the hull.
+- Copper cylinders: keep both side cylinders, but shorten them and make them fatter to fit the short body.
+- Outlines and shapes: use a heavier cartoon outline and merge everything into fewer, larger, simpler rounded shapes.
+
+Per view:
+
+- Front view: same front layout with the wide plow, but the whole tank looks wider, fatter and more squat, with a bigger round turret, stubby exhausts and fat wheels.
+- Left profile: this view shows the biggest change. The red and gold hull, the two wheels, the plow, the short cannon and the exhausts are all packed into a compact, nearly square silhouette.
+- Back view: same square gold-framed rear plate and red circle on the turret, with the tank wider and more squat and the exhausts stubby.
+- Top-down view: keep the same orientation, with the plow at the bottom. The plan becomes nearly square, the round turret fills most of the deck, and the cannon, plow and exhausts barely stick out of the short body.
+- Bottom-up view: keep the same orientation, with the plow at the left. The underside is cut to the same near-square plan, the two axles sit close together, and the red square stays between them.
+
+This is the upgraded heavy tank, so it must still look heavier and stronger than the Light Tank through sheer width and bulk, despite being shorter.
+
+Everything else stays: the same design and character, the same parts in the same places, and the same colours (grey, gold, red, copper orange, black). Also keep the five-panel layout, every view and its orientation, the grey background, the flat coarse blockout style, the wide empty margins and the no-text rule. Each figure stays whole and uncropped. Add no new parts, details, shadows or text.

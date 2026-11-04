@@ -1,0 +1,21 @@
+Edit this model sheet. Keep the character and add only a little fire and a few lightning highlights, the same additions in all five views. Everything else stays exactly as it is: the five-panel layout, the grey background, every view, the pose, proportions, silhouette, line weight, the flat coarse blockout style, the dark rock body, the brown feet, the obelisk head, the four-sector halo ring and its colours, the rod, the gauge, the hip cases and the belly core. Do not add any new props, text or labels.
+
+FIRE, flat shapes in the same style and in the colours of its predecessor (orange #FF7A00, yellow #FFD700, dark red rim), with heavy black outline and no gradients:
+1. One small flame sits on the very tip of the obelisk head, and it is no taller than about one fifth of the head.
+2. The cracks in the obelisk head become thin glowing seams of molten orange and yellow. The head stays faceless, with no eyes and no mouth.
+3. Thin molten orange-yellow seams run along the joints between the shale slabs of the torso, shoulders and arms, and a few run as cracks through the brown feet.
+4. Small flame licks rise from both shoulder slabs.
+The rock stays the main mass. The fire is an accent, about one tenth of the figure, and the body must not turn into a fire creature.
+
+LIGHTNING HIGHLIGHTS, flat pale cyan #00FFFF shapes:
+1. Two or three small jagged bolt-shaped highlights sit on the rock edges of the arms and shoulders.
+2. One small jagged bolt crackles out of the lightning sector of the halo ring and stays close to the ring.
+
+SAME CHANGE IN EACH VIEW:
+Panel 1, front: head-tip flame, glowing head cracks, seams on chest, arms and feet, shoulder flames, cyan bolts on the arms.
+Panel 2, left profile: the same flame seen from the side, the same seams on the head, stacked slabs, arm and foot, the shoulder flame, cyan bolts on the arm.
+Panel 3, back: the same flame seen from behind, glowing cracks on the back of the head, seams between the back slabs and through the feet, shoulder flames, cyan bolts on the arms.
+Panel 4, top-down: the flame seen from above on the head tip, glowing seams on the head and shoulders, shoulder flames, seams through the feet, cyan bolts on the arms and at the lightning sector of the ring.
+Panel 5, bottom-up: molten cracks through the two soles, seams on the visible underside of the slabs and arms, the tips of the shoulder flames, cyan bolts on the arms and at the lightning sector of the ring.
+
+The flames, seams and bolts sit in the same places on the figure in every view. The figure stays readable at 32x32 pixels.

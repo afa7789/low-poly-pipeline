@@ -1,0 +1,46 @@
+[
+  {
+    "name": "tar_spout_cowl",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.375,
+      0.562
+    ]
+  },
+  {
+    "name": "tail_gauge",
+    "where": "anchor tail, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.135,
+      0.202
+    ]
+  },
+  {
+    "name": "pressure_sac",
+    "where": "anchor flank, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.215,
+      0.322
+    ]
+  },
+  {
+    "name": "feed_hose",
+    "where": "anchor flank, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.444,
+      0.666
+    ]
+  }
+]

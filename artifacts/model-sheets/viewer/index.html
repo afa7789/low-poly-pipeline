@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model-sheet refs</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #14161a;
+  color: #d5d9df;
+}
+header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #262a31;
+  background: #191c21;
+}
+header h1 { margin: 0; font-size: 13px; font-weight: 600; color: #9aa3af; letter-spacing: .02em; }
+#search {
+  width: 280px;
+  padding: 5px 10px;
+  font: inherit;
+  color: inherit;
+  background: #0f1115;
+  border: 1px solid #2c313a;
+  border-radius: 6px;
+  outline: none;
+}
+#search:focus { border-color: #4a5568; }
+#kind { display: flex; gap: 2px; padding: 2px; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; }
+#kind button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  color: #9aa3af;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#kind button:hover { color: #d5d9df; }
+#kind button.active {
+  background: #232833;
+  color: #d5d9df;
+  border-left-color: #5b8def;
+}
+#progress { font-size: 12px; color: #7d8590; }
+#progress .renders { color: #6fbf73; }
+#progress .mdx { color: #5b8def; }
+#progress .ours { color: #a78bfa; }
+#progress .icons { color: #7d8590; }
+#progress .glb { color: #c4b5fd; }
+#progress .rev-ok { color: #6fbf73; }
+#progress .rev-no { color: #e06c6c; }
+.export-link { font-size: 11px; color: #8ab0f0; text-decoration: none; white-space: nowrap; }
+.export-link:hover { text-decoration: underline; }
+main { flex: 1; display: flex; min-height: 0; }
+#list {
+  flex: none;
+  width: 240px;
+  overflow-y: auto;
+  border-right: 1px solid #262a31;
+  background: #171a1f;
+}
+#list .group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7d8590;
+  background: #171a1f;
+}
+#list .row {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+#list .row:hover { background: #1e222a; }
+#list .row.active { background: #232833; border-left-color: #5b8def; }
+#list .row .name { display: block; }
+#list .row .name img { border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+#list .row .meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  font-size: 11px;
+  color: #7d8590;
+}
+#list .row .uid { font-family: ui-monospace, Menlo, Consolas, monospace; }
+#list .row .dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: #5a6270;
+}
+#list .row .dot.render { background: #6fbf73; }
+#list .row .dot.mdxonly { background: #d4a72c; }
+#list .row .tier {
+  padding: 0 5px;
+  border: 1px solid #3a4150;
+  border-radius: 4px;
+  line-height: 15px;
+}
+#list .row .rev-ok { color: #6fbf73; }
+#list .row .rev-no { color: #e06c6c; }
+#sheet { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; }
+#sheet figure { margin: 0 0 16px; }
+#sheet img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #0f1115;
+  border-radius: 4px;
+  cursor: zoom-in;
+}
+#sheet figcaption {
+  padding-top: 4px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #7d8590;
+}
+.compare {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+.compare.c3 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
+/* #sheet figure (id) outranks `.compare figure` — scope it to keep cells flush */
+#sheet .compare figure { margin: 0; }
+.ours-select {
+  font: inherit;
+  font-size: 11px;
+  background: #0f1115;
+  color: #d5d9df;
+  border: 1px solid #2c313a;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  width: 100%;
+}
+#divider {
+  flex: none;
+  width: 6px;
+  cursor: col-resize;
+  background: #191c21;
+  border-left: 1px solid #262a31;
+  border-right: 1px solid #262a31;
+}
+#divider:hover, #divider:focus { background: #2c313a; outline: none; }
+#card {
+  flex: none;
+  width: 360px;
+  overflow-y: auto;
+  padding: 16px;
+  background: #171a1f;
+  border-left: 1px solid #262a31;
+}
+#card h2 { margin: 0; font-size: 17px; font-weight: 600; }
+#card .title { display: flex; gap: 10px; align-items: center; margin: 0 0 8px; }
+#card .title img { flex: none; border-radius: 6px; }
+#card h3 {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7d8590;
+}
+#card .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+#card .badge {
+  padding: 1px 8px;
+  font-size: 12px;
+  border: 1px solid #3a4150;
+  border-radius: 999px;
+  color: #b6bdc8;
+}
+#card .badge.uid {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  color: #7d8590;
+}
+#card .costs { display: flex; gap: 14px; margin-top: 12px; }
+#card .costs span { color: #b6bdc8; }
+#card .review {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #262a31;
+}
+#card .review > * { flex-basis: auto; }
+#card .review button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  color: #b6bdc8;
+  background: #0f1115;
+  border: 1px solid #2c313a;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#card .review button:hover { border-color: #4a5568; }
+#card .review button:disabled { opacity: .6; cursor: default; }
+#card .review button.ok.active { background: #1c3320; border-color: #3f7a45; color: #8fd18f; }
+#card .review button.no.active { background: #3a1e1e; border-color: #8a4040; color: #e08a8a; }
+#card .review .note {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: #9aa1ab;
+}
+#card .review .ts { flex-basis: 100%; font-size: 11px; color: #7d8590; }
+#card .review textarea {
+  flex-basis: 100%;
+  font: inherit;
+  font-size: 13px;
+  min-height: 56px;
+  resize: vertical;
+  padding: 6px 8px;
+  color: inherit;
+  background: #0f1115;
+  border: 1px solid #2c313a;
+  border-radius: 6px;
+  outline: none;
+}
+#card .review textarea:focus { border-color: #5b8def; }
+#card .review .err { flex-basis: 100%; margin: 0; font-size: 12px; color: #d08770; }
+#card .review .err.net { color: #7d8590; }
+#card .stats { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; }
+#card .stats .k { color: #7d8590; }
+#card .modelpath {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  word-break: break-all;
+  margin: 0 0 6px;
+  color: #b6bdc8;
+}
+#card .tooltip {
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #c3c9d2;
+  background: #0f1115;
+  border: 1px solid #262a31;
+  border-radius: 6px;
+}
+#card .related { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+#card .files { flex-direction: row; gap: 12px; margin-top: 6px; }
+#card .related button, #card .related a, #card .site a {
+  font: inherit;
+  font-size: 13px;
+  color: #8ab0f0;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+#card .related button:hover, #card .related a:hover, #card .site a:hover { text-decoration: underline; }
+#card .site { margin-top: 18px; }
+#card .empty { color: #7d8590; }
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .88);
+  cursor: zoom-out;
+}
+#overlay[hidden] { display: none; }
+#overlay img { max-width: 95vw; max-height: 95vh; }
+#error { margin: 8px 0; color: #d08770; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Model-sheet refs</h1>
+  <input id="search" type="search" placeholder="Search id / name / race" aria-label="Search units" autocomplete="off" spellcheck="false">
+  <div id="kind" role="group" aria-label="Filter by kind">
+    <button type="button" data-kind="unit">Units</button>
+    <button type="button" data-kind="building">Buildings</button>
+    <button type="button" data-kind="all">All</button>
+  </div>
+  <span id="progress" aria-live="polite"></span>
+  <a class="export-link" href="/api/export" download="concept-review.json" title="Download approved/rejected/pending as JSON">&#x2B07; json</a>
+  <a class="export-link" href="/api/export.md" download="concept-review.md" title="Download approved/rejected/pending as Markdown for prompting">&#x2B07; md</a>
+</header>
+<main>
+  <aside id="list" aria-label="Units"></aside>
+  <section id="sheet" aria-label="Reference images"></section>
+  <div id="divider" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize panel"></div>
+  <section id="card" aria-label="Unit details"></section>
+</main>
+<div id="overlay" hidden><img alt=""></div>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const listEl = $("#list"), sheetEl = $("#sheet"), cardEl = $("#card"),
+      overlayEl = $("#overlay"), dividerEl = $("#divider"), searchEl = $("#search");
+
+let units = [];
+let visibleUnits = [];
+const byId = new Map();
+let current = null;
+let rejectEditorOpen = false;
+
+const KIND_KEY = "refs-viewer:kind";
+let kindFilter = localStorage.getItem(KIND_KEY) || "unit";
+if (!["unit", "building", "all"].includes(kindFilter)) kindFilter = "unit";
+
+const stripWc3 = (t) => t
+  .replace(/\|c[0-9a-fA-F]{8}/g, "")
+  .replace(/\|r/g, "")
+  .replace(/\|n/g, "\n")
+  .replace(/\n{3,}/g, "\n\n");
+
+const siteUrl = (id) => "https://castlefight.cfd/compendium/races/unit?id=" + encodeURIComponent(id);
+const renderUrl = (id) => "/render/" + encodeURIComponent(id) + ".png";
+
+function modelState(u) {
+  if (u.render) return { cls: "render", title: "WC3 render ready" };
+  if (u.mdx) return { cls: "mdxonly", title: "mdx only" };
+  return { cls: "", title: "no model yet" };
+}
+
+function renderStats(s) {
+  const el = $("#progress");
+  el.textContent = "";
+  if (!s) return;
+  const n = (v, cls) => {
+    const sp = document.createElement("span");
+    sp.className = cls;
+    sp.textContent = v;
+    return sp;
+  };
+  el.append("models: ", n(s.render, "renders"), " renders \u00b7 ",
+            n(s.mdx, "mdx"), " mdx \u00b7 ",
+            n(s.ours ?? 0, "ours"), " ours / ", String(s.total),
+            " \u00b7 ", String(s.refs), " with art",
+            " \u00b7 ", n(s.icons ?? 0, "icons"), " icons \u00b7 ",
+            n(s.glb ?? 0, "glb"), " glb");
+  const reviewed = s.reviewed ?? 0;
+  if (reviewed) {
+    el.append(" \u00b7 ", n(s.approved ?? 0, "rev-ok"), " \u2713 ",
+              n(s.rejected ?? 0, "rev-no"), " \u2717");
+  }
+}
+
+function renderList() {
+  const q = searchEl.value.trim().toLowerCase();
+  listEl.textContent = "";
+  visibleUnits = [];
+  let lastRace;
+  for (const u of units) {
+    if (kindFilter === "unit" && u.kind !== "unit") continue;
+    if (kindFilter === "building" && u.kind !== "building") continue;
+    if (q && ![u.id, u.name, u.race].some((v) => (v || "").toLowerCase().includes(q))) continue;
+    visibleUnits.push(u);
+    const race = u.race || "";
+    if (race !== lastRace) {
+      const h = document.createElement("h2");
+      h.className = "group";
+      h.textContent = race || "—";
+      listEl.append(h);
+      lastRace = race;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "row" + (u === current ? " active" : "");
+    btn.dataset.id = u.id;
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = u.name;
+    if (u.icon) {
+      const ic = document.createElement("img");
+      ic.src = "/icon/" + encodeURIComponent(u.id) + ".png";
+      ic.alt = "";
+      ic.loading = "lazy";
+      ic.width = 16;
+      ic.height = 16;
+      ic.onerror = () => { ic.hidden = true; };
+      name.prepend(ic);
+    }
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const st = modelState(u);
+    const dot = document.createElement("span");
+    dot.className = "dot " + st.cls;
+    dot.title = st.title;
+    meta.append(dot);
+    const uid = document.createElement("span");
+    uid.className = "uid";
+    uid.textContent = u.id;
+    meta.append(uid);
+    if (u.tier) {
+      const tier = document.createElement("span");
+      tier.className = "tier";
+      tier.textContent = u.tier;
+      tier.title = "Tier";
+      meta.append(tier);
+    }
+    if (u.review) {
+      const approved = u.review.verdict === "approved";
+      const m = document.createElement("span");
+      m.className = approved ? "rev-ok" : "rev-no";
+      m.textContent = approved ? "\u2713" : "\u2717";
+      m.title = approved ? "Approved" : (u.review.note || "Rejected");
+      meta.append(m);
+    }
+    if (u.race) {
+      const r = document.createElement("span");
+      r.textContent = u.race;
+      meta.append(r);
+    }
+    btn.append(name, meta);
+    btn.addEventListener("click", () => select(u));
+    listEl.append(btn);
+  }
+}
+
+function pickOursFile(files) {
+  if (files.includes("model-front.png")) return "model-front.png";
+  if (files.includes("model-wc3.png")) return "model-wc3.png";
+  return files[0];
+}
+
+function defaultOursIndex(ours) {
+  for (let i = ours.length - 1; i >= 0; i--) {
+    if (!ours[i].name.toLowerCase().includes("invalid")) return i;
+  }
+  return ours.length - 1;
+}
+
+function makeOursFigure(u) {
+  const ours = u.ours;
+  const fig = document.createElement("figure");
+  const idx = defaultOursIndex(ours);
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  const cap = document.createElement("figcaption");
+  const apply = (i) => {
+    const v = ours[i];
+    img.src = "/ours/" + encodeURIComponent(v.name) + "/" +
+              encodeURIComponent(pickOursFile(v.files));
+    img.alt = u.id + " ours " + v.name;
+    cap.textContent = "ours \u2014 " + v.name;
+  };
+  apply(idx);
+  img.addEventListener("click", () => {
+    overlayEl.querySelector("img").src = img.src;
+    overlayEl.hidden = false;
+  });
+  if (ours.length > 1) {
+    const sel = document.createElement("select");
+    sel.className = "ours-select";
+    sel.setAttribute("aria-label", "Ours version");
+    for (let i = 0; i < ours.length; i++) {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = ours[i].name;
+      sel.append(o);
+    }
+    sel.value = String(idx);
+    sel.addEventListener("change", () => apply(Number(sel.value)));
+    fig.append(sel);
+  }
+  fig.append(img, cap);
+  return fig;
+}
+
+function renderSheet(u) {
+  sheetEl.textContent = "";
+  const makeFigure = (src, alt, caption) => {
+    const fig = document.createElement("figure");
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.src = src;
+    img.alt = alt;
+    img.addEventListener("click", () => {
+      overlayEl.querySelector("img").src = img.src;
+      overlayEl.hidden = false;
+    });
+    const cap = document.createElement("figcaption");
+    cap.textContent = caption;
+    fig.append(img, cap);
+    return fig;
+  };
+  const refsUrl = (f) => "/refs/" + encodeURIComponent(u.id) + "/" + encodeURIComponent(f);
+
+  const primary = u.images.includes("sheet.jpg") ? "sheet.jpg" : u.images[0];
+  const ours = (u.ours && u.ours.length) ? u.ours : null;
+  const cells = [];
+  if (u.render) cells.push("wc3");
+  if (ours) cells.push("ours");
+  if (primary) cells.push("concept");
+
+  if (cells.length > 1) {
+    const box = document.createElement("div");
+    box.className = "compare" + (cells.length === 3 ? " c3" : "");
+    for (const c of cells) {
+      if (c === "wc3") box.append(makeFigure(renderUrl(u.id), u.id + " wc3 render", "wc3 model"));
+      else if (c === "ours") box.append(makeOursFigure(u));
+      else box.append(makeFigure(refsUrl(primary), u.id + " " + primary, primary));
+    }
+    sheetEl.append(box);
+  } else if (cells.length === 1) {
+    if (cells[0] === "wc3") sheetEl.append(makeFigure(renderUrl(u.id), u.id + " wc3 render", "wc3 render"));
+    else if (cells[0] === "ours") sheetEl.append(makeOursFigure(u));
+    else sheetEl.append(makeFigure(refsUrl(primary), u.id + " " + primary, primary));
+  }
+  for (const f of u.images) {
+    if (f === primary) continue;
+    sheetEl.append(makeFigure(refsUrl(f), u.id + " " + f, f));
+  }
+}
+
+function statRow(grid, k, v) {
+  if (v === null || v === undefined || v === "") return;
+  const key = document.createElement("span");
+  key.className = "k";
+  key.textContent = k;
+  const val = document.createElement("span");
+  val.textContent = v;
+  grid.append(key, val);
+}
+
+async function postReview(body) {
+  let res;
+  try {
+    res = await fetch("/api/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    const err = new Error("Couldn't reach serve.py");
+    err.network = true;
+    throw err;
+  }
+  let data = null;
+  try { data = await res.json(); } catch { /* non-JSON body */ }
+  if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+  return data;
+}
+
+/* Re-render card in place, keeping its scroll (review bar actions only). */
+function rerenderCard() {
+  const top = cardEl.scrollTop;
+  renderCard(current);
+  cardEl.scrollTop = top;
+}
+
+/* Apply a saved (or cleared) review to the live unit object and repaint. */
+function savedReview(u, review) {
+  const live = byId.get(u.id.toLowerCase()) || u;
+  live.review = review;
+  if (current && current.id === u.id) {
+    current = live;
+    rerenderCard();
+  }
+  renderList();
+}
+
+function renderReviewBar(u) {
+  const bar = document.createElement("div");
+  bar.className = "review";
+  if (rejectEditorOpen) {
+    bar.classList.add("review-editor");
+    const ta = document.createElement("textarea");
+    ta.rows = 3;
+    ta.placeholder = "What's wrong with this concept?";
+    ta.setAttribute("aria-label", "Rejection note");
+    if (u.review && u.review.verdict === "rejected") ta.value = u.review.note || "";
+    const err = document.createElement("p");
+    err.className = "err";
+    err.hidden = true;
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "Save";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    save.addEventListener("click", async () => {
+      save.disabled = cancel.disabled = true;
+      try {
+        const review = await postReview({ id: u.id, verdict: "rejected", note: ta.value });
+        rejectEditorOpen = false;
+        savedReview(u, review);
+      } catch (e) {
+        save.disabled = cancel.disabled = false;
+        err.textContent = e.network ? "Couldn't reach serve.py \u2014 is it running?" : e.message;
+        err.className = "err" + (e.network ? " net" : "");
+        err.hidden = false;
+      }
+    });
+    cancel.addEventListener("click", () => {
+      rejectEditorOpen = false;
+      if (current) rerenderCard();
+      else cardEl.textContent = "";
+    });
+    bar.append(ta, err, save, cancel);
+    return bar;
+  }
+
+  const review = u.review;
+  const ok = document.createElement("button");
+  ok.type = "button";
+  ok.className = "ok" + (review && review.verdict === "approved" ? " active" : "");
+  ok.textContent = "\u2705 Approve";
+  const no = document.createElement("button");
+  no.type = "button";
+  no.className = "no" + (review && review.verdict === "rejected" ? " active" : "");
+  no.textContent = "\u274c Reject";
+  bar.append(ok, no);
+  if (review && review.verdict === "rejected" && review.note) {
+    const p = document.createElement("p");
+    p.className = "note";
+    p.textContent = review.note;
+    bar.append(p);
+  }
+  if (review) {
+    const ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = String(review.ts || "").slice(0, 10);
+    bar.append(ts);
+  }
+  const post = async (body) => {
+    ok.disabled = no.disabled = true;
+    try {
+      savedReview(u, await postReview(body));
+    } catch {
+      ok.disabled = no.disabled = false;
+    }
+  };
+  ok.addEventListener("click", () => {
+    /* same verdict again -> clear the review */
+    post(review && review.verdict === "approved"
+      ? { id: u.id, clear: true }
+      : { id: u.id, verdict: "approved" });
+  });
+  no.addEventListener("click", () => {
+    if (review && review.verdict === "rejected") {
+      post({ id: u.id, clear: true });
+      return;
+    }
+    rejectEditorOpen = true;
+    rerenderCard();
+  });
+  return bar;
+}
+
+function renderCard(u) {
+  cardEl.textContent = "";
+  const entry = u.entry;
+  const title = document.createElement("div");
+  title.className = "title";
+  const h = document.createElement("h2");
+  h.textContent = u.name;
+  title.append(h);
+  if (u.icon) {
+    const ic = document.createElement("img");
+    ic.src = "/icon/" + encodeURIComponent(u.id) + ".png";
+    ic.alt = "";
+    ic.width = 44;
+    ic.height = 44;
+    ic.onerror = () => { ic.hidden = true; };
+    title.append(ic);
+  }
+  cardEl.append(title);
+
+  const badges = document.createElement("div");
+  badges.className = "badges";
+  const badge = (text, cls) => {
+    const b = document.createElement("span");
+    b.className = "badge" + (cls ? " " + cls : "");
+    b.textContent = text;
+    badges.append(b);
+  };
+  if (u.race) badge(u.race);
+  if (u.tier) badge("Tier " + u.tier);
+  if (entry && entry.buildingType) badge("Building (" + entry.buildingType + ")");
+  else if (u.kind) badge(u.kind);
+  badge(u.id, "uid");
+  cardEl.append(badges);
+
+  const reviewBar = renderReviewBar(u);
+  cardEl.append(reviewBar);
+  if (rejectEditorOpen) reviewBar.querySelector("textarea")?.focus();
+
+  cardEl.append(Object.assign(document.createElement("h3"), { textContent: "WC3 model" }));
+  const w = u.wc3;
+  if (u.render) {
+    const img = document.createElement("img");
+    img.src = renderUrl(u.id);
+    img.alt = u.id + " wc3 render";
+    img.loading = "lazy";
+    img.addEventListener("click", () => {
+      overlayEl.querySelector("img").src = img.src;
+      overlayEl.hidden = false;
+    });
+    cardEl.append(img);
+  }
+  if (!w) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No WC3 model data.";
+    cardEl.append(p);
+  } else {
+    if (w.mdl) {
+      const mp = document.createElement("p");
+      mp.className = "modelpath";
+      mp.textContent = w.mdl;
+      cardEl.append(mp);
+    }
+    const wb = document.createElement("div");
+    wb.className = "badges";
+    const wbadge = (text, cls) => {
+      const b = document.createElement("span");
+      b.className = "badge" + (cls ? " " + cls : "");
+      b.textContent = text;
+      wb.append(b);
+    };
+    if (w.source === "ok") wbadge("WC3 model");
+    else if (w.source === "author") wbadge("custom/author");
+    if (w.base) wbadge("base: " + w.base);
+    if (wb.childNodes.length) cardEl.append(wb);
+    if (u.mdx) {
+      const dl = document.createElement("div");
+      dl.className = "related";
+      const a = document.createElement("a");
+      a.href = "/mdx/" + encodeURIComponent(u.id) + ".mdx";
+      a.textContent = "Download .mdx";
+      dl.append(a);
+      cardEl.append(dl);
+    }
+  }
+
+  if (u.prompt || u.glb) {
+    const files = document.createElement("div");
+    files.className = "related files";
+    if (u.prompt) {
+      const a = document.createElement("a");
+      a.href = "/prompt/" + encodeURIComponent(u.id);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "prompt";
+      files.append(a);
+    }
+    if (u.glb) {
+      const a = document.createElement("a");
+      a.href = "/glb/" + encodeURIComponent(u.id);
+      a.setAttribute("download", "");
+      a.textContent = "model.glb";
+      files.append(a);
+    }
+    cardEl.append(files);
+  }
+
+  if (!entry) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No compendium entry for this id.";
+    cardEl.append(p);
+    return;
+  }
+
+  const costs = [];
+  for (const [label, v] of [["gold", entry.goldCost], ["lumber", entry.lumberCost], ["food", entry.foodCost]]) {
+    if (v !== null && v !== undefined && v !== 0) costs.push(v + " " + label);
+  }
+  if (costs.length) {
+    const row = document.createElement("div");
+    row.className = "costs";
+    for (const c of costs) {
+      const s = document.createElement("span");
+      s.textContent = c;
+      row.append(s);
+    }
+    cardEl.append(row);
+  }
+
+  const st = entry.stats;
+  if (st) {
+    cardEl.append(Object.assign(document.createElement("h3"), { textContent: "Stats" }));
+    const grid = document.createElement("div");
+    grid.className = "stats";
+    let dmg;
+    if (st.damageMin !== null && st.damageMin !== undefined && st.damageMax !== null && st.damageMax !== undefined) {
+      dmg = st.damageMin + "-" + st.damageMax;
+    } else {
+      dmg = st.damageBase;
+    }
+    statRow(grid, "Attack Type", st.attackType);
+    statRow(grid, "Attack Damage", dmg);
+    statRow(grid, "Range", st.range ?? "melee");
+    statRow(grid, "Move Speed", st.moveSpeed);
+    statRow(grid, "Attack Cooldown", st.cooldown);
+    statRow(grid, "Build Time", st.buildTime);
+    statRow(grid, "Armor Type", st.armorType);
+    statRow(grid, "Armor", st.defense);
+    statRow(grid, "Hit Points", st.hitPoints);
+    statRow(grid, "Mana", st.mana);
+    if (grid.childNodes.length) cardEl.append(grid);
+  }
+
+  const tip = stripWc3(entry.extendedTooltip || entry.tooltip || entry.description || "").trim();
+  if (tip) {
+    cardEl.append(Object.assign(document.createElement("h3"), { textContent: "Tooltip / abilities" }));
+    const pre = document.createElement("pre");
+    pre.className = "tooltip";
+    pre.textContent = tip;
+    cardEl.append(pre);
+  }
+
+  const rel = [
+    ["Predecessor", entry.predecessorId],
+    ["Related", entry.relatedId],
+    ["Produced by", entry.producedBy?.id],
+    ["Produces", entry.produces?.id],
+    ["Upgrades to", entry.upgradesTo?.id],
+  ].filter(([, id]) => id !== null && id !== undefined && id !== "");
+  if (rel.length) {
+    cardEl.append(Object.assign(document.createElement("h3"), { textContent: "Related" }));
+    const wrap = document.createElement("div");
+    wrap.className = "related";
+    for (const [label, id] of rel) {
+      const target = byId.get(String(id).toLowerCase());
+      if (target) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label + ": " + target.name;
+        b.addEventListener("click", () => select(target));
+        wrap.append(b);
+      } else {
+        const a = document.createElement("a");
+        a.href = siteUrl(id);
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = label + ": " + id;
+        wrap.append(a);
+      }
+    }
+    cardEl.append(wrap);
+  }
+
+  const site = document.createElement("div");
+  site.className = "site";
+  const a = document.createElement("a");
+  a.href = siteUrl(u.id);
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.textContent = "Open on castlefight.cfd";
+  site.append(a);
+  cardEl.append(site);
+}
+
+function select(u) {
+  current = u;
+  rejectEditorOpen = false;
+  history.replaceState(null, "", "#" + u.id);
+  renderList();
+  renderSheet(u);
+  renderCard(u);
+  listEl.querySelector(".row.active")?.scrollIntoView({ block: "nearest" });
+}
+
+async function load() {
+  let data;
+  try {
+    const res = await fetch("/api/units");
+    if (!res.ok) throw new Error(res.status);
+    data = await res.json();
+  } catch {
+    sheetEl.textContent = "";
+    const p = document.createElement("p");
+    p.id = "error";
+    p.textContent = "Failed to load /api/units — is serve.py running?";
+    sheetEl.append(p);
+    return;
+  }
+  units = data.units || [];
+  renderStats(data.stats);
+  if (!units.length) {
+    const p = document.createElement("p");
+    p.id = "error";
+    p.textContent = "No reference images found under artifacts/model-sheets/refs/.";
+    sheetEl.append(p);
+    return;
+  }
+  units.sort((a, b) =>
+    (a.race || "").localeCompare(b.race || "") ||
+    (a.name || "").localeCompare(b.name || "") ||
+    a.id.localeCompare(b.id));
+  for (const u of units) byId.set(u.id.toLowerCase(), u);
+  renderList();
+  select(byId.get(decodeURIComponent(location.hash.slice(1)).toLowerCase()) || visibleUnits[0] || units[0]);
+  setInterval(refresh, 5000);
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/units");
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    renderStats(data.stats);
+    const next = data.units || [];
+    next.sort((a, b) =>
+      (a.race || "").localeCompare(b.race || "") ||
+      (a.name || "").localeCompare(b.name || "") ||
+      a.id.localeCompare(b.id));
+    const cur = current ? next.find((u) => u.id === current.id) : null;
+    const changed = !cur || JSON.stringify(cur) !== JSON.stringify(current);
+    units = next;
+    byId.clear();
+    for (const u of units) byId.set(u.id.toLowerCase(), u);
+    if (!changed) return;
+    current = cur || null;
+    const keepScroll = (el) => [el.scrollTop, el.scrollLeft];
+    const ls = keepScroll(listEl), ss = keepScroll(sheetEl), cs = keepScroll(cardEl);
+    renderList();
+    listEl.scrollTop = ls[0]; listEl.scrollLeft = ls[1];
+    /* Reject-note editor open: never rebuild the card (would destroy the
+       typed note) — stats/list still update; card resets on explicit select. */
+    if (current && !rejectEditorOpen) {
+      renderSheet(current);
+      renderCard(current);
+      sheetEl.scrollTop = ss[0]; sheetEl.scrollLeft = ss[1];
+      cardEl.scrollTop = cs[0]; cardEl.scrollLeft = cs[1];
+    }
+    sheetEl.scrollTop = ss[0]; sheetEl.scrollLeft = ss[1];
+    cardEl.scrollTop = cs[0]; cardEl.scrollLeft = cs[1];
+  } catch {
+    /* transient poll failure — keep current view */
+  }
+}
+
+searchEl.addEventListener("input", renderList);
+
+const kindEl = $("#kind");
+function setKind(k) {
+  kindFilter = k;
+  localStorage.setItem(KIND_KEY, k);
+  for (const b of kindEl.querySelectorAll("button")) {
+    const on = b.dataset.kind === k;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
+  renderList();
+}
+kindEl.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b && b.dataset.kind) setKind(b.dataset.kind);
+});
+setKind(kindFilter);
+
+overlayEl.addEventListener("click", () => { overlayEl.hidden = true; });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { overlayEl.hidden = true; return; }
+  if (!overlayEl.hidden) return;
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  const t = e.target;
+  if (t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  if (!visibleUnits.length) return;
+  e.preventDefault();
+  let idx = visibleUnits.indexOf(current);
+  if (idx === -1) idx = e.key === "ArrowDown" ? -1 : visibleUnits.length;
+  const next = idx + (e.key === "ArrowDown" ? 1 : -1);
+  if (next < 0 || next >= visibleUnits.length) return;
+  select(visibleUnits[next]);
+});
+
+function setPanelW(w) {
+  w = Math.round(Math.min(Math.max(260, w), window.innerWidth * 0.7));
+  cardEl.style.width = w + "px";
+}
+const savedW = parseInt(localStorage.getItem("refs-viewer:panel-w"), 10);
+if (savedW) setPanelW(savedW);
+
+dividerEl.addEventListener("pointerdown", (e) => {
+  dividerEl.setPointerCapture(e.pointerId);
+  dividerEl.onpointermove = (ev) => setPanelW(window.innerWidth - ev.clientX);
+  dividerEl.onpointerup = () => {
+    dividerEl.onpointermove = dividerEl.onpointerup = null;
+    localStorage.setItem("refs-viewer:panel-w", cardEl.style.width);
+  };
+});
+dividerEl.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") setPanelW(cardEl.offsetWidth + 24);
+  else if (e.key === "ArrowRight") setPanelW(cardEl.offsetWidth - 24);
+  else return;
+  e.preventDefault();
+  localStorage.setItem("refs-viewer:panel-w", cardEl.style.width);
+});
+
+load();
+</script>
+</body>
+</html>

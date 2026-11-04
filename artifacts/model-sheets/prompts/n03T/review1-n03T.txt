@@ -1,0 +1,18 @@
+Recolour this model sheet and change nothing else. This is a colour-only edit: keep every shape, outline, line weight, proportion, pose, prop and position exactly as drawn. Keep the five-panel layout, all five views, the grey background (#CCCCCC), the flat coarse blockout style and the absence of text. Do not redraw, add or remove anything. Use one flat tone per surface, with no gradients and no texture.
+
+Apply this same colour change to the same parts in all five views (front, left profile, back, top-down, bottom-up):
+
+- Hat: the pink hat becomes flat ochre gold (#A67C32), including the brim, crown and hat band.
+- Robe: the near-black robe body and sleeves become flat mid grey (#55565C).
+- Robe trim: the jade sleeve cuffs and jade hem become ochre gold (#A67C32). The jade crossing lapel on the chest becomes crimson red (#B3201F).
+- Pink straps and waist sash: become crimson red (#B3201F).
+- Boiler: the jade boiler becomes crimson red (#B3201F), including its body, lid and both spouts. It is the big red mass of the figure. Its underside and spout openings become a darker red (#7E1616).
+- Ladle: the shaft becomes crimson red (#B3201F) and the cup becomes dark iron (#3A383C).
+- Push bar: becomes dark iron (#3A383C).
+- Stove: stays dark charcoal iron, darkened slightly to #3A383C, with the same chimney. The firebox mouth stays terracotta (#C64E3D) and is the only terracotta left on the figure.
+- Fur: all brown fur becomes as follows. Ears are black (#1C1C1E). Hands are grey (#74767C). The back of the head is cream (#EEE5CC). The neck area around the mask and the undershirt are black (#1C1C1E).
+- Legs and feet: the brown legs and terracotta feet become black (#1C1C1E), including the foot soles in the bottom-up view and the feet showing in every other view.
+- Mud marks on the legs: the terracotta patches keep their exact shapes and become off-white (#E8E8E8).
+- Mask: stays white porcelain with its black eye patches and cracks, unchanged.
+
+The result must use the grey, crimson red, ochre gold, black and cream of the predecessor Sagepaw (n03E), so it reads as the same character. No pink, jade green or brown may remain anywhere on the figure.

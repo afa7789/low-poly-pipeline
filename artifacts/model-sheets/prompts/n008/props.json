@@ -1,0 +1,71 @@
+[
+  {
+    "name": "horns",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.104,
+      0.157
+    ]
+  },
+  {
+    "name": "spiked_pauldron_L",
+    "where": "anchor shoulder.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.077,
+      0.116
+    ]
+  },
+  {
+    "name": "spiked_pauldron_R",
+    "where": "anchor shoulder.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.071,
+      0.107
+    ]
+  },
+  {
+    "name": "steel_bound_ledger",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.156,
+      0.234
+    ]
+  },
+  {
+    "name": "belt",
+    "where": "anchor waist, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.119,
+      0.178
+    ]
+  },
+  {
+    "name": "seal_chain",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.098,
+      0.147
+    ]
+  }
+]

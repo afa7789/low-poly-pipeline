@@ -1,0 +1,18 @@
+Edit this model sheet: remove the fantasy ornaments and leave only plain trench gear made of canvas, leather straps and steel plate, with one bright colour, crimson red. Keep everything else exactly as it is: the same kodo body, tan-brown hide, horns, red eyes, teeth, toes and long tail; the same green orc rider with the same face and the same seated pose; the same spear in the same hand; the same proportions, grey background, flat coarse line style, layout, position and scale of every drawing. Add no new props.
+
+Apply these same changes to the unit in every drawing on the sheet:
+1. Delete every steel spike from the kodo's armour plates, leaving smooth surfaces with no spikes, studs or stumps.
+2. Repaint the four red shield-shaped plates as plain flat matte steel-grey rectangular plates with blunt, slightly rounded corners and no cream or ivory border. They stay in the same places on the shoulders and hips, the same size or slightly smaller.
+3. Replace every twisted black rope with a flat, wide, plain dark-brown leather strap, following the same path around the body. No braids, no rope texture, no buckles.
+4. Replace the helmet with a plain, wide-brimmed steel-grey Brodie trench helmet with no top spike or crest. The rider's face stays visible.
+5. Repaint the rider's baggy crimson cloth as plain dark-brown canvas trousers tucked into simple dark leather boots, covering the bare feet. Add two flat leather straps crossing the bare green chest and back.
+6. Add one simple flat crimson canvas saddle cloth directly under the rider, at the same size as the red cloth now spread there. This cloth is the only bright colour on the unit apart from the kodo's red eyes and mouth.
+
+View by view, the same change:
+- Front view: spikes gone from both shoulder plates, plates now plain steel; rope over the head and shoulders becomes a flat leather strap; plain Brodie helmet; crossed chest straps; crimson saddle cloth shows at the rider's hips.
+- Left profile view: spikes gone from the front and rear plates, both now plain steel; ropes become flat leather straps; plain Brodie helmet; canvas trousers and a leather boot instead of the bare foot; crimson saddle cloth under the rider.
+- Back view, and the rear three-quarter drawing: spikes gone from all plates, now plain steel; ropes become flat leather straps; plain Brodie helmet; crossed straps on the rider's back; crimson saddle cloth under the rider.
+- Top-down view: all four plates plain steel with no spikes; ropes become flat leather straps; the helmet seen from above as a plain round steel disc with its wide brim and no point; crimson saddle cloth under the rider.
+- Bottom-up view: spikes and red plate edges removed, any visible plate edges now plain steel; the rope around the neck becomes a flat leather strap; belly, feet, horn and tail unchanged.
+
+Everything not named here stays unchanged. No text, no labels, no spikes, no rope, no ornaments.

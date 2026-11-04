@@ -1,0 +1,17 @@
+Edit this model sheet. Make only two changes: add a long cape, and make the outfit look less futuristic. Everything else stays exactly as drawn: the five-panel layout, the light-grey background, the five figures with their size, position, pose and limb angles, the flat coarse blockout style with heavy lines, and no text. The purple face, the long ears, the dark violet cowl, the laced silver chest plates, both short blades, the wrist bell and both crossed hook-crescents all stay. The same character, the same woman, stays in every view.
+
+CHANGE 1, THE CAPE: Give her one long, plain, wide cloth cape in deep teal-green with a simple flat silver edge trim. It hangs from both shoulders, falls to just above the ankles, and flares wider towards the hem, like the cape of her predecessor but longer and larger. It is one big flat block of colour with one flat tone and no folds, texture or pattern. The cape hangs behind the arms, so both arms, both blades, the bell and the pouch stay fully visible. The hook-crescents are worn on top of the cape, so they stay fully visible.
+
+Show the same cape in all five views:
+- Panel 1, front: the two cape edges are visible behind the arms and on both sides of the legs, falling to just above the ankles, and the open front still shows the body.
+- Panel 2, left profile: the cape falls straight behind the back and flares backward to just above the ankles, with the crescents lying over it.
+- Panel 3, back: the cape covers the whole back and the legs down to just above the ankles, as one wide flared teal-green shape with silver trim. The crossed X of hook-crescents lies on top of it, and the cowl and ears stay above it.
+- Panel 4, top-down: the cape spreads out from the shoulders as a wide teal-green shape with silver trim on the side behind her back, and the crossed crescents lie on top of it.
+- Panel 5, bottom-up: the inside of the cape is seen as a wide teal-green shape behind the legs, with the silver-trimmed hem around the boot soles, and the blades, bell and pouch stay in front of it.
+
+CHANGE 2, LESS FUTURISTIC: Apply the same three fixes in all five views.
+- Replace the skin-tight one-piece catsuit with old-fashioned layered clothing: a loose dark violet cloth tunic with a short skirted hem at mid-thigh, cinched by a plain brown leather belt, over slightly loose dark trousers. The body outline stays the same height and pose but no longer looks like a sleek bodysuit.
+- Change the boxy device on the right forearm into a soft, rounded brown leather pouch tied on with one strap. It must not look like a gadget or wrist computer.
+- Change the neon glowing purple eyes into plain solid white glowing eyes with no pupils, like her predecessor, and remove the sharp visor-like mask shape around them, so the face reads as a natural purple night elf face framed by the cowl. This applies to every view where the face shows.
+
+No new props, no extra straps or hardware, no neon, no glow other than the white eyes, no sci-fi shapes.

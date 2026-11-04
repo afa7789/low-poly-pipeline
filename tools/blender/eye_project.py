@@ -42,6 +42,13 @@ RIM = 0.012                 # erosion of the panel and model masks, share of the
 DEPTH_EPS = 0.012           # depth test tolerance, share of the model height
 DEPTH_EDGE = 0.02           # a step of depth between neighbour pixels over this share of the height is a depth edge
 SCALES = np.arange(0.88, 1.121, 0.03)   # the registration's scale sweep per axis, around the height-to-height scale
+OWN_AB, OWN_L = 0.06, 0.15  # L20-2: a dominant colour further than this from the DSL colour of its piece (OKLab) is the neighbour's (hfoo hands and straps: L .21-.24); set by hand on 2 units
+ACC_C, ACC_REL = 0.05, 1.6   # L20-2 accent: OKLab chroma of the DSL colour at least this and this times the palette's (texel-weighted median)
+WORDS = {"red": (15, 35), "orange": (55, 20), "brass": (80, 25), "gold": (85, 25), "amber": (70, 25), "yellow": (100, 25), "green": (140, 40), "teal": (195, 30),
+         "blue": (255, 35), "purple": (310, 35), "violet": (300, 30), "pink": (350, 25)}      # colour words of an identity line -> hue centre, half-width (OKLab degrees); open list
+ACC_LEAK = 0.03             # L20-2: a projected colour this near (OKLab a, b) an accent colour does not go on a piece that is not that accent
+TIGHT_GATE, TIGHT_PARTS = (0.04, 0.2), (0.03, 0.08, 0.5)   # L20-2: --eye-project tight, the author's choice over the two test units: gate_keep (ab, L), part filter (ab, L, share)
+PART_MIN = 8               # L20-2: a piece with fewer covered texels than this has no dominant colour worth the name
 FIT_N = 128                 # the registration's mask height, px
 OK_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566], [0.0883024619, 0.2817188376, 0.6299787005]])
 OK_M2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468], [1.9779984951, -2.4285922050, 0.4505937099], [0.0259040371, 0.7827717662, -0.8086757660]])
@@ -450,9 +457,79 @@ def png_bytes(img):
 
 
 # ---------------------------------------------------------------- the stage
-def project(pos, tri, uv, atlas, panels, mode="on", k=K, soft=False):
+def gate_keep(mixed, own, ab_max, l_max=None):
+    """L20-1: which projected colours a texel accepts: near its own painted colour in hue and chroma (and in L when l_max is given). All sRGB 0..255."""
+    a, b = to_oklab(mixed), to_oklab(own)
+    keep = np.linalg.norm(a[..., 1:] - b[..., 1:], axis=-1) <= ab_max
+    return keep if l_max is None else keep & (np.abs(a[..., 0] - b[..., 0]) <= l_max)
+
+
+def dominant(rgb, ab_max, l_max):
+    """(3,) sRGB the sheet gives a piece: the OKLab median of its projected colours, then the median of those within the tolerance of it (twice)."""
+    dom = from_oklab(np.median(to_oklab(rgb), axis=0))
+    for _ in range(2):
+        near = gate_keep(rgb, dom, ab_max, l_max)
+        dom = from_oklab(np.median(to_oklab(rgb[near]), axis=0)) if near.any() else dom
+    return dom
+
+
+def accents(colours, areas, identity):
+    """(P,) bool: the pieces whose DSL colour is an accent, a saturated detail over a darker or neutral body (eyes, glass, jewels, brass). By colour only, never by name:
+    chroma over ACC_C and over ACC_REL times the palette's (median chroma weighted by `areas`), or, when an `identity` line says a colour word (WORDS), a chroma over
+    ACC_C at that hue."""
+    lab = to_oklab(colours)
+    chroma, hue = np.hypot(lab[:, 1], lab[:, 2]), np.degrees(np.arctan2(lab[:, 2], lab[:, 1])) % 360
+    order = np.argsort(chroma)
+    base = chroma[order][np.searchsorted(np.cumsum(areas[order]), areas.sum() / 2)] if areas.sum() else 0.0
+    said = [WORDS[w] for line in identity for w in WORDS if w in line.lower()]
+    named = np.zeros(len(colours), bool)
+    for centre, half in said:
+        named |= np.abs((hue - centre + 180) % 360 - 180) <= half
+    return (chroma >= ACC_C) & ((chroma >= ACC_REL * base) | named)
+
+
+def part_filter(mixed, cov, piece, colours, names, ab_max, l_max, share):
+    """L20-2: the colour a piece takes from the sheet, one per piece. mixed (n, 3) sRGB projected, cov (n,) covered, piece (n,) the piece of every texel,
+    colours (P, 3) sRGB the DSL gives the pieces, names (P,). A piece is painted when its dominant colour is near its DSL colour (OWN_AB, OWN_L) and `share` of its
+    covered texels are within the tolerance of it: those texels keep their projection, every other texel of the piece (refused, uncovered) takes the dominant
+    colour. Any other piece keeps the procedural paint whole. (colours (n, 3), painted (n,), per-piece report)."""
+    out, painted, report = mixed.copy(), np.zeros(len(mixed), bool), []
+    for p in np.unique(piece):
+        mine = piece == p
+        seen = mine & cov
+        if seen.sum() < PART_MIN:
+            continue
+        dom = dominant(mixed[seen], ab_max, l_max)
+        near = seen & gate_keep(mixed, dom, ab_max, l_max)
+        uniform = bool(gate_keep(dom, colours[p], OWN_AB, OWN_L) and near.sum() / seen.sum() >= share)
+        report.append({"piece": int(p), "name": names[p], "texels": int(mine.sum()), "covered": int(seen.sum()), "kept": int(near.sum()),
+                       "dominant": [int(x) for x in dom.round()], "dsl": [int(x) for x in colours[p]], "painted": uniform})
+        if uniform:
+            out[mine & ~near], painted[mine] = dom, True
+    return out, painted, report
+
+
+def piece_accents(parts, points):
+    """(piece (n,) of every point, accent (P,)) for `parts`, (None, None) without."""
+    if not parts:
+        return None, None
+    fields, rgb, _, identity = parts[:4]
+    piece = eye_paint.nearest_piece(points, fields)
+    return piece, accents(rgb, np.bincount(piece, minlength=len(rgb)).astype(float), identity)
+
+
+def shield(cov, mixed, piece, accent, rgb):
+    """`cov` without the texels of the accent pieces (they keep their paint) and without the projected colours that are an accent's, on a piece that is not it (no leak)."""
+    leak = np.zeros(len(cov), bool)
+    for i in np.nonzero(accent)[0]:
+        leak |= gate_keep(mixed, rgb[i], ACC_LEAK) & (piece != i)
+    return cov & ~accent[piece] & ~leak
+
+
+def project(pos, tri, uv, atlas, panels, mode="on", k=K, soft=False, gate=None, parts=None):
     """(img (S, S, 3) uint8, used (S, S), lead (S, S), info): the atlas of the model with the sheet projected; texels no view sees keep `atlas`.
-    soft: the weight's cosine from interpolated normals (the cut-off stays on the triangle's own normal)."""
+    soft: the weight's cosine from interpolated normals (the cut-off stays on the triangle's own normal). gate: (ab_max, l_max), see gate_keep: a refused texel keeps `atlas`.
+    parts: (fields, colours, names, identity, ab_max, l_max, share), see part_filter and accents (an accent piece is never touched: no gate, no projection) (L20-2): after the gate, a texel takes its piece's dominant colour or keeps `atlas`."""
     nrm = eye_paint.normals(pos, tri)[0]
     used, P, N, T = eye_paint.rasterize(uv, pos, tri, nrm)
     smooth = soft_normals(pos, tri, T[used], P[used]) if soft else None
@@ -471,12 +548,22 @@ def project(pos, tri, uv, atlas, panels, mode="on", k=K, soft=False):
         colours.append(lookup(lit[v][mode], px, py))
     colours, weights = np.array(colours), np.array(weights)
     mixed, cov = blend(colours, weights)
+    piece, accent = piece_accents(parts, P[used])
+    cov = shield(cov, mixed, piece, accent, parts[1]) if parts else cov
+    refused = 0
+    if gate:
+        accepted = cov & gate_keep(mixed, atlas[used].astype(float), *gate)
+        refused, cov = int(cov.sum() - accepted.sum()), accepted
+    report = []
+    if parts:
+        mixed, cov, report = part_filter(mixed, cov, piece, *parts[1:3], *parts[4:])
+        report = {"accent": [parts[2][i] for i in np.nonzero(accent)[0]], "pieces": report}
     img = atlas.astype(float).copy()
     img[np.nonzero(used)[0][cov], np.nonzero(used)[1][cov]] = mixed[cov]
     lead = np.full(used.shape, -1)
     lead[used] = np.where(cov, np.argmax(weights, axis=0), -1)
     info = {"mode": mode, "cameras": cams, "palette": palette, **coverage(weights, names, visible), "k": k, "soft": soft, "disagreement": disagreement(colours, weights, names),
-            "seams": seams(img, lead, used, uv, pos, tri, names), "texels": int(used.sum())}
+            "seams": seams(img, lead, used, uv, pos, tri, names), "texels": int(used.sum()), "gate": gate, "refused": refused, "parts": report}
     done, grown = eye_paint.dilate(img, used, 1)
     done[~grown] = done[grown].mean(0)
     return np.clip(done, 0, 255).astype(np.uint8), used, lead, info
@@ -490,7 +577,20 @@ def lead_map(lead):
     return out
 
 
-def apply(glb, unit, mode="on", k=K, soft=False):
+def read_parts(where, unit):
+    """(fields, colours (P, 3) sRGB, names, identity) of the pieces of the model: eye_skin's fields.json beside it and the fused DSL in eye/ (same order, one field per piece); the identity lines of refs/<unit>/parts.json."""
+    where = pathlib.Path(where)
+    fields = json.loads((where / "fields.json").read_text())["pieces"]
+    dsl = json.loads((where / "eye/fused.dsl.json").read_text())
+    if len(fields) != len(dsl["pieces"]):
+        raise SystemExit(f"{where}: {len(fields)} fields for {len(dsl['pieces'])} DSL pieces")
+    rgb = {m: [int(h[i:i + 2], 16) for i in (0, 2, 4)] for m, h in dsl["colours"].items()}
+    parts = REFS / unit / "parts.json"
+    identity = json.loads(parts.read_text()).get("identity", []) if parts.exists() else []
+    return fields, np.array([rgb[p["mat"]] for p in dsl["pieces"]], float), [p["name"] for p in dsl["pieces"]], identity
+
+
+def apply(glb, unit, mode="on", k=K, soft=False, gate=None, parts=None):
     """The sheet of `unit` on the atlas of `glb` in place. atlas.png (alpha = used texels) + atlas-procedural.png, atlas-noline.png, lead.png, project.json beside it. The info."""
     import io
     from PIL import Image
@@ -500,23 +600,30 @@ def apply(glb, unit, mode="on", k=K, soft=False):
     doc = json.loads((REFS / unit / "sheet.json").read_text()) if (REFS / unit / "sheet.json").exists() else {}
     panels = sheet_panels(REFS / unit / "sheet.jpg", doc)
     atlas = np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))
-    img, used, lead, info = project(pos, tri, uv, atlas, panels, mode, k, soft)
+    img, used, lead, info = project(pos, tri, uv, atlas, panels, mode, k, soft, gate, parts and (*read_parts(where, unit), *parts))
     swap_atlas(glb, png_bytes(img))
     Image.fromarray(atlas).save(where / "atlas-procedural.png")
     Image.fromarray(np.dstack([img, np.where(used, 255, 0).astype(np.uint8)])).save(where / "atlas.png")
     Image.fromarray(lead_map(np.where(used, lead, -2))).save(where / "lead.png")
     if mode == "on":
-        Image.fromarray(project(pos, tri, uv, atlas, panels, "flat", k, soft)[0]).save(where / "atlas-noline.png")
+        Image.fromarray(project(pos, tri, uv, atlas, panels, "flat", k, soft, gate, parts and (*read_parts(where, unit), *parts))[0]).save(where / "atlas-noline.png")
     (where / "project.json").write_text(json.dumps(info, indent=1))
     return info
 
 
 def apply_stage(glb, unit, project_mode):
-    """The one call of eye_stage.finish: {} when off."""
+    """The one call of eye_stage.finish: {} when off, or when tight has no piece fields or no sheet (a gate never stops the pipeline)."""
+    if project_mode == "tight":
+        if not ((pathlib.Path(glb).parent / "fields.json").exists() and (REFS / unit / "sheet.jpg").exists()):
+            return {}
+        try:
+            return apply(glb, unit, "flat", gate=TIGHT_GATE, parts=TIGHT_PARTS)
+        except ValueError as err:                  # a panel that registers nowhere: the procedural paint stays, the unit is still produced
+            return {"error": str(err)[:200]}
     return apply(glb, unit, project_mode) if project_mode in MODES else {}
 
 
-def run_variant(unit, src, tag, mode, k=K, soft=False):
+def run_variant(unit, src, tag, mode, k=K, soft=False, gate=None, parts=None):
     """A copy of a run with another mode of the projection, from its body before the hull: `model-body.glb` -> project -> hull."""
     import shutil
     import outline
@@ -527,16 +634,19 @@ def run_variant(unit, src, tag, mode, k=K, soft=False):
     for f in from_dir.iterdir():
         if f.is_file() and not f.name.startswith("pairwise"):
             shutil.copy(f, out / f.name)
+    if parts:
+        (out / "eye").mkdir()
+        shutil.copy(from_dir / "eye/fused.dsl.json", out / "eye/fused.dsl.json")
     shutil.copy(from_dir / "model-body.glb", out / "model.glb")
-    info = apply(out / "model.glb", unit, mode, k, soft)
+    info = apply(out / "model.glb", unit, mode, k, soft, gate, parts)
     shutil.copy(out / "model.glb", out / "model-body.glb")
     outline.apply(out / "model.glb", hull=True)
-    print(unit, tag, json.dumps({k: info[k] for k in ("uncovered_pct", "seen_pct")}))
+    print(unit, tag, json.dumps({k: info[k] for k in ("uncovered_pct", "seen_pct", "refused", "texels")}))
 
 
-def sheet(unit, runs):
+def sheet(unit, runs, history=HISTORY):
     import leva18
-    print(leva18.sheet(unit, runs=runs, wires=(), hive=False, history=HISTORY))
+    print(leva18.sheet(unit, runs=runs, wires=(), hive=False, history=pathlib.Path(history)))
 
 
 def main(argv=None):
@@ -549,14 +659,21 @@ def main(argv=None):
     v.add_argument("--from", dest="src", default="v19-default")
     v.add_argument("--k", type=int, default=K)
     v.add_argument("--soft", action="store_true", help="the weight's cosine from interpolated normals")
+    v.add_argument("--gate-ab", type=float, help="L20-1: refuse a projected colour this far (OKLab a, b) from the texel's painted colour")
+    v.add_argument("--gate-l", type=float, help="with --gate-ab: also refuse this far in L")
+    v.add_argument("--part-ab", type=float, help="L20-2: one colour per piece: refuse a projected colour this far (OKLab a, b) from the piece's dominant colour")
+    v.add_argument("--part-l", type=float, default=0.2, help="with --part-ab: also refuse this far in L")
+    v.add_argument("--part-share", type=float, default=0.5, help="with --part-ab: a piece with less of its covered texels near its dominant colour keeps the procedural paint")
     s = sub.add_parser("sheet")
     s.add_argument("unit")
     s.add_argument("--runs", default="v16-r3,v19-default,v20-proj,v20-proj-flat,v20-proj-raw")
+    s.add_argument("--history", default=str(HISTORY), help="the dir of the board (never overwritten)")
     args = ap.parse_args(argv)
     if args.cmd == "variant":
-        run_variant(args.id, args.src, args.tag, args.mode, args.k, args.soft)
+        run_variant(args.id, args.src, args.tag, args.mode, args.k, args.soft, (args.gate_ab, args.gate_l) if args.gate_ab else None,
+                    (args.part_ab, args.part_l, args.part_share) if args.part_ab else None)
     else:
-        sheet(args.unit, tuple(args.runs.split(",")))
+        sheet(args.unit, tuple(args.runs.split(",")), args.history)
     return 0
 
 

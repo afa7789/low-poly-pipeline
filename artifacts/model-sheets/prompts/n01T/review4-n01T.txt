@@ -1,0 +1,19 @@
+Edit this model sheet by simplifying it for a low-poly model. The design is approved, so reduce small detail only. Keep the same robot, silhouette, proportions, pose, colours, large shapes and goblin pilot. Keep the five-panel layout, the framing and size of every view, the grey background, the heavy black outline and the flat coarse blockout style, with no text.
+
+Make these same simplifications on the figure in all five views (front, left profile, back, top-down and bottom-up), wherever each part is visible:
+
+1. Saw blades: replace the many small thin teeth with about ten large, blunt, blocky teeth, and make each blade one flat mustard-brass disc with one plain round hub. In the views where the blades are edge-on (front, back, top-down, bottom-up), draw each blade as a plain thick slab with a few large notches, removing all the small curved marks and the jagged wobble.
+
+2. Jaw grille: replace the many thin orange and black stripes with five thick, flat orange bars separated by wide black gaps. Keep the two dark lower tusks.
+
+3. Small hardware: remove the small round bolts, pins and pivot rings on the jaw corners, hips, knees, elbows and forearm cuffs, and the concentric rings at the shoulder arch and hip. Keep only the one plain round pivot at the saw hub.
+
+4. Panel lines: remove the thin seams, inset lines, double edges, chips, scratches and small speck marks on the hull, shoulders, forearms, thighs, shins, feet and pelvis. Each armour block becomes one large flat shape in one flat tone. Merge the darker and lighter tan bands on the thighs and brow into one flat tone per block.
+
+5. Shoulder spikes: keep them as simple plain cones, and remove the extra small white triangle marks on top of the shoulders in the top-down view.
+
+6. Goblin pilot: keep the green head, big ears and goggles, but simplify the goggles to two plain discs on one plain band. Remove the small chest strap and the fine facial wrinkles.
+
+7. Exhaust horn: keep the same curved shape and position, in one flat brass tone with no highlight or inner line, plus one simple dark mouth or base.
+
+Add nothing new and do not move, resize, recolour or redesign anything else. Every view keeps the same character in the same pose. The result should be fewer, larger shapes that stay readable at very small size.

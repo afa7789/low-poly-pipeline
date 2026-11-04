@@ -1,0 +1,19 @@
+Recolour this model sheet only. Do not redraw anything: every shape, outline, proportion, pose, prop, the five-panel layout, the grey #CCCCCC background, the flat coarse blockout style and the empty margins stay exactly as they are, with no text added. Each area keeps its exact borders and is only filled with a new flat colour, one flat tone per area, no texture, stripes or gradients.
+
+New colours, taken from the original white wolf:
+- All the dark iron blue-grey fur (head, ears, body, upper legs, tail) becomes pale silver-white #E4E8EA. Keep the heavy black outline so the wolf stands out clearly from the grey background.
+- The pale ice-blue frozen mud on the lower legs becomes near-black #24262B, as dark leg wraps, except the paws themselves, which become clean white #F7F8F8.
+- The pale ice-blue tail tip becomes mid steel grey #858E96.
+- The amber harness becomes dull gold #C9A227, the same width and with the same break and torn end.
+- The tow rope stays its current tan.
+- The eyes become bright glacier blue #39C6DE.
+- The teeth become warm ivory #EFE6CF. The nose stays black.
+
+Apply the same change in all five views:
+- Front view: silver-white head and body, glacier-blue eyes, ivory teeth, dull gold harness, near-black lower legs, white paws.
+- Left profile view: silver-white body and tail with steel-grey tail tip, glacier-blue eye, dull gold harness, near-black lower legs, white paws, tan rope.
+- Back view: silver-white body, steel-grey tail tip, thin dull gold harness edge, near-black lower legs, white paws, tan rope.
+- Top-down view: silver-white back, head and tail with steel-grey tail tip, dull gold harness, white paws, tan rope.
+- Bottom-up view: silver-white belly and jaw, with the darker chest patch in steel grey #858E96, dull gold harness, near-black lower legs, white paw undersides with their pad lines kept, steel-grey tail tip, tan rope.
+
+Nothing else changes.

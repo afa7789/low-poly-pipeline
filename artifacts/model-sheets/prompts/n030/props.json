@@ -1,0 +1,13 @@
+[
+  {
+    "name": "collar",
+    "where": "anchor neck, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.195,
+      0.292
+    ]
+  }
+]

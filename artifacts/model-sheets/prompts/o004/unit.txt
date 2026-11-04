@@ -1,0 +1,4 @@
+# unit prompt for o004 (Veteran Grunt, Orc)
+# range=100 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: The difference from the plain Grunt at 32 px is exactly the helmet: a holed boiler pot jammed upside down, handle down as the chinstrap — a pot silhouette no other grunt has. The pot does not cover the face, so a leather mouth-guard sits under the brim (doctrine). Bigger shovel-axe with a leather-wrapped grip; carved rings on the haft are the count — wells burned, unnamed, not even his. A coal-lamp hangs at the belt, kept from his first well — the card's fire. Pose: high guard, axe shoulder at face height; the crit is a full-body step-in. Story: every notch is a burned well without a name. Budget: ~550 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

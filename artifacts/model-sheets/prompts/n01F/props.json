@@ -1,0 +1,90 @@
+[
+  {
+    "name": "chest_coffin_gem",
+    "where": "anchor chest, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  },
+  {
+    "name": "barrel",
+    "where": "anchor back, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.544,
+      0.816
+    ]
+  },
+  {
+    "name": "muzzle_ring",
+    "where": "anchor back, on bone spine.4",
+    "bones": [
+      "spine.4"
+    ],
+    "extent": [
+      0.21,
+      0.315
+    ]
+  },
+  {
+    "name": "rear_plate",
+    "where": "anchor back, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.378,
+      0.567
+    ]
+  },
+  {
+    "name": "horn.L",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.26,
+      0.39
+    ]
+  },
+  {
+    "name": "wheel.L",
+    "where": "anchor body side L, on bone spine.1",
+    "bones": [
+      "spine.1"
+    ],
+    "extent": [
+      0.472,
+      0.708
+    ]
+  },
+  {
+    "name": "hub_spike.L",
+    "where": "anchor wheel.L, on bone spine.1",
+    "bones": [
+      "spine.1"
+    ],
+    "extent": [
+      0.12,
+      0.18
+    ]
+  },
+  {
+    "name": "tusk_outer.L",
+    "where": "anchor body front, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.304,
+      0.456
+    ]
+  }
+]

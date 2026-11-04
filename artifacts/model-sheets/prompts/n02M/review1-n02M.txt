@@ -1,0 +1,23 @@
+Recolour this model sheet only. Keep every shape, line, proportion, pose, prop and position exactly as drawn, and keep the five-panel layout, every view, the light-grey background, the heavy black outline, the flat coarse blockout style and the absence of text. Nothing is added, removed, moved or redrawn. Each surface keeps one flat tone, with no gradients, texture or shading.
+
+The sheet is now too dark and too brass: nearly everything is charcoal or ochre. Replace that with these clearly different colours, so the unit is visibly the same green goblin as its predecessor, wearing the red and steel of the original model:
+
+- Skin: the head, both ears and both bare arms from shoulder to glove cuff become goblin olive green (#7A8548). The head is no longer charcoal.
+- Torso: the chest and belly become strong signal red (#B3261E). The shoulder straps stay dark brown leather.
+- Legs: the trousers change from ochre to dark charcoal (#3A3C42).
+- Boots: mid iron grey (#5A5C64), with the sole trim also iron grey and no brass.
+- Gloves and wrist cuffs: the big mitts become worn leather brown (#8A6236).
+- Rockets: the long body of all three rockets becomes pale gunmetal steel (#8E949A). The pointed nose cones and the tail fins and band stay polished brass (#B8923A), so each rocket reads as steel with gold ends and not as a solid brass spike.
+- Crate: warm reddish wood brown (#6B4226), clearly darker and redder than the brass.
+- Scope: stays brass (#B8923A), with its lens unchanged.
+- Mask and goggles: the snout of the mask becomes dark leather brown (#5A4028). The goggle frames stay brass, the lenses stay flat grey, and the filter block stays yellow (#FFE600).
+- Fuse and matches: the fuse stays yellow and the match bundle keeps its pale wood colour.
+
+Apply the same change in all five views, so every part has the same colour in each:
+- Panel 1, front: green head, ears and arms; red torso; brown gloves; charcoal trousers; grey boots; steel rockets with brass noses.
+- Panel 2, left profile: green head, ear and arm; red torso; brown glove; charcoal trousers; grey boot; red-brown crate; steel rockets with brass noses and tails.
+- Panel 3, back: green head, ears and arms; brown gloves; red-brown crate; charcoal trousers; grey boots; steel rockets with brass ends; brass scope.
+- Panel 4, top-down: green head, ears and arms; red-brown crate; steel rockets with brass noses; brown gloves; grey boots.
+- Panel 5, bottom-up: grey soles; charcoal trousers; green arms; brown gloves; red-brown crate underside; steel rockets with brass ends.
+
+Everything else stays exactly as it is.

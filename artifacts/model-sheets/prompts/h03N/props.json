@@ -1,0 +1,70 @@
+[
+  {
+    "name": "crown_plate_center",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.194,
+      0.291
+    ]
+  },
+  {
+    "name": "crown_plate_left",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.201,
+      0.301
+    ]
+  },
+  {
+    "name": "drill_stem",
+    "where": "anchor abdomen, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.535,
+      0.802
+    ]
+  },
+  {
+    "name": "rail_sleeper",
+    "where": "anchor back, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.406,
+      0.61
+    ]
+  },
+  {
+    "name": "seismic_ring.L",
+    "where": "anchor wrist.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.15,
+      0.225
+    ]
+  },
+  {
+    "name": "seismic_ring.R",
+    "where": "anchor wrist.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.153,
+      0.229
+    ]
+  }
+]

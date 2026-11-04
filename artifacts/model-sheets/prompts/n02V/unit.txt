@@ -1,0 +1,4 @@
+# unit prompt for n02V (Quillboar, Desert)
+# range=68 palette=`#C2B280` Areia Cozida | `#6F5C42` Tamareira Morta | `#FF9218` Chama de Poço
+# redesign: At 32 px, a low boar block carries one rising ridge of short Tower Iron barbs, smaller and cleaner than the Razormane coil. Baked Sand dominates, Well Pitch darkens the load straps, Tower Iron is the sole wire metal, and one Well Flame tail rag supplies the accent. A two-hole canvas muzzle covers the snout; the barb ridge, shallow oil-jar saddle, muzzle, and tally tag are the four props. It attacks shoulder-first so the literal barbs explain returned damage without a reactive effect. Oil-stained dust climbs to the knees, and the nomad brand records a herd bred by feeding pipeline fence and waste pitch. Budget: approximately 400 tris, one atlas, no transparency.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

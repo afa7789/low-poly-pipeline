@@ -1,0 +1,22 @@
+Recolour this model sheet only. Change nothing but the flat fill colours. Every shape, line, proportion, prop and pose stays exactly as drawn, as do the five-panel layout, every view, the heavy black outlines, the flat coarse blockout style and the light-grey background. Do not add or remove anything, and add no text.
+
+Replace the current all-navy, grey and amber scheme with these flat colours, taken from the original character:
+- Hood around the head, high collar, coat body, coat skirt and sleeves: rich royal violet purple.
+- Wide shoulder cape and the band at the skirt hem: clean white.
+- Toothed crown and square chest clasp: warm gold.
+- Visor: bright pale ice cyan.
+- Bare lower face: warm light skin tone, no longer pale blue.
+- Mitt hands and boots: near-black charcoal.
+- Staff shaft and foot: dark brown.
+- Valve wheel and jointed lamp arm: gold.
+- Spray nozzle: bright teal cyan.
+- Lamp: dark brown housing with a bright teal cyan glass, no longer amber.
+
+Apply the same change to all five views, so each part has the same colour everywhere it appears:
+- Panel 1, front: violet hood, collar, coat and sleeves; white shoulder cape and hem; gold crown and clasp; ice cyan visor; skin-tone lower face; charcoal mitts and boots; brown staff shaft with gold wheel and lamp arm, teal nozzle and teal lamp glass.
+- Panel 2, left profile: the same colours on the crown, visor, lower face, hood, collar, shoulder cape, coat, sleeve, hem, mitts, boots and staff with its lamp arm, nozzle and lamp.
+- Panel 3, back: gold crown; violet hood, collar, coat back and sleeves; white shoulder cape and hem; charcoal mitts and boots; the staff in the same colours.
+- Panel 4, top-down: gold crown ring around the violet top of the hood; white shoulder cape; violet coat and sleeves; white hem edge; gold clasp; charcoal mitts and boots; the staff in the same colours.
+- Panel 5, bottom-up: charcoal boot soles and mitts; white hem band; the inside of the skirt in a darker flat violet; violet coat and sleeves; white shoulder cape; gold crown and clasp; ice cyan visor; the staff in the same colours.
+
+Keep one flat tone per surface, with no gradients, texture, gloss or shadows.

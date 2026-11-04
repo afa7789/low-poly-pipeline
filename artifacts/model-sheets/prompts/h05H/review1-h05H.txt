@@ -1,0 +1,27 @@
+Edit this model sheet by changing only the colours and adding three small regal pieces, so the figure reads as a vampire lord. It must also read as the upgraded version of its predecessor, the purple-coated, gold-trimmed vampire in black gloves and boots. Keep everything else exactly as it is: the five-panel layout, the grey background, every view, the pose, the proportions, the silhouette of the coat and its split tails, the wide stance, the bald pale face with its fangs, the cane and the tally strip in their places, the heavy line and the flat coarse blockout style. Add no text.
+
+COLOUR CHANGES, the same in all five views:
+- Coat, sleeves and both split coat-tails: change the off-white to deep royal purple, one flat tone.
+- Inner coat panel and undersides of the tails: darker purple. The neck opening stays near-black.
+- High collar: black outside, darker purple inside.
+- Broad flat gold trim: add a band along the collar edge, down the front opening, around the hem of both tails and around the sleeve cuffs. The bands must be thick enough to read at 32x32 pixels.
+- Hands: black leather gloves in place of the pale hands.
+- Boots and boot soles: black instead of brown, with soles in very dark grey.
+- Belt: black, with a gold square buckle set with one teal gem block.
+- Cane: black shaft, and the claw head changes from grey-brown to gold.
+- Tally strip: the bone blocks stay bone-coloured, and its backing strap turns black.
+- Skin: keep it pale with a faint cold mauve tint so it no longer matches the old coat colour. Eyes and brow brand stay glowing green.
+
+ADDED PIECES, the same in all five views, with no other props:
+1. A slim gold circlet around the bald head, with two short curved gold horns rising from it above the temples. The face stays fully bare and visible.
+2. One flat black shoulder plate on each shoulder, edged in gold, sharply angular and slightly wider than the shoulder.
+3. The gold trim on the raised collar, which makes the collar the lordly frame of the head.
+
+SAME CHANGE IN EACH VIEW:
+- Panel 1, front: purple coat with gold front band and hem, black collar and belt with gold gem buckle, black gloves and boots, gold claw on the cane, gold horned circlet, both shoulder plates.
+- Panel 2, left profile: purple coat with gold hem and cuff, black collar edged in gold, near shoulder plate, black glove and boot, gold horned circlet seen from the side with one horn in front of the other, gold claw head showing past the far side of the body.
+- Panel 3, back: plain purple coat back with gold hem on both tails, black belt, black collar edged in gold, both shoulder plates, circlet band around the back of the bald head with both horns rising, black gloves and boots, gold claw on the cane.
+- Panel 4, top-down: purple shoulders, coat-tails with gold hems, gold-edged black collar ring around the head, circlet ring and two horns on the head, black shoulder plates, black gloves, gold claw head.
+- Panel 5, bottom-up: very dark grey soles on black boots, darker purple tail undersides with gold hem edges, black gloves, black cane shaft, gold claw head, horn tips just showing beyond the collar.
+
+Everything not named above stays unchanged.

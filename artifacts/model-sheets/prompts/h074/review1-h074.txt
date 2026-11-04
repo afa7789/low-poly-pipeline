@@ -1,0 +1,12 @@
+Edit this model sheet. Make one change only: remove the hanging lantern completely from the unit, in all five views. This includes the lantern body, its amber flame, its ring and hook, and the flat horizontal bar that holds it. Nothing replaces it, and no other prop is added.
+
+Apply the same removal in each view:
+- Panel 1, top left, front view: remove the lantern and bar on the viewer's left, beside the shoulder and ribbon arm.
+- Panel 2, top middle, left profile: remove the lantern and bar behind the shoulder.
+- Panel 3, top right, back view: remove the lantern and the bar crossing the back and shoulder on the viewer's right.
+- Panel 4, bottom left, top-down view: remove the lantern top and the long bar reaching out from behind the shoulder at the upper left.
+- Panel 5, bottom right, bottom-up view: remove the lantern base, its glow and its bar at the lower left.
+
+Where the lantern and bar were, show only what was behind them: the complete steel pauldron, the arm, the surcoat, or the plain flat light-grey background. Rebuild those surfaces cleanly in the same flat tones and heavy coarse line. Leave no ghost outline, smudge, leftover bar stub or amber glow.
+
+Everything else stays exactly as it is: the same man, bare head and face, cropped dark hair, steel pauldrons and arm guards, olive and umber surcoat, belt, ledger books at the hip, ecru ribbon on the upper arm, mail legs, boots, and the upright sword held in the same hand. Keep the same pose, proportions, colours and position in every view. Keep the five-panel layout, grey background, flat coarse blockout style and empty margins, with no text or labels.

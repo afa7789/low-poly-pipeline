@@ -1,0 +1,79 @@
+[
+  {
+    "name": "flame_tip",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.091,
+      0.136
+    ]
+  },
+  {
+    "name": "shoulder_slag_L",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.059,
+      0.088
+    ]
+  },
+  {
+    "name": "shoulder_slag_R",
+    "where": "anchor shoulder.R, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.073,
+      0.109
+    ]
+  },
+  {
+    "name": "chest_rock_upper",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.063,
+      0.094
+    ]
+  },
+  {
+    "name": "belly_rock",
+    "where": "anchor belly, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.05,
+      0.075
+    ]
+  },
+  {
+    "name": "molten_base_pool",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.541,
+      0.811
+    ]
+  },
+  {
+    "name": "ember_drip_R",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.082,
+      0.123
+    ]
+  }
+]

@@ -1,0 +1,4 @@
+# unit prompt for o009 (Wyvern Rider, Orc)
+# range=430 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: The air force without airships: a wyvern whose wings are stitched hide patches — kept flying with leather and line — so the beast signature reads as a ridge broken by asymmetric patches and a wing edge of seams. The saddle carries a sack of fire bottles and a bellows at the saddle bow; the rider throws shovel-tip lances dripping burning tar and wears a leather respirator. The card's fire is in the bottles and on the lance tips; the poison is burnt tar and reads as a smoking bead at the tip, never as a glow. Pose: diagonal dive with a smoke trail — the only transparency allowed on the model. Story: the horde does not build zeppelins — it domesticates beasts willing to breathe smoke. Budget: ~800 tris (wyvern + rider).
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

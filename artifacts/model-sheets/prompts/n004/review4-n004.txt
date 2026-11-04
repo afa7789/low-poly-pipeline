@@ -1,0 +1,15 @@
+Edit this model sheet. It shows one creature in five views: front, left profile, back, top-down and bottom-up. Keep the character, but make its head much smaller, make it read as a real lizard, and show that it spits. Make the same changes in all five views, so they show the same creature in the same pose.
+
+Changes to the creature:
+1. Smaller head: shrink the head to about half its current size, so it is clearly narrower than the chest and in normal game proportions, not big-headed or chibi. Shape it as a flat, tapered lizard wedge with a long narrow snout, set on a slimmer, slightly longer neck that reaches forward. Replace the heavy, frowning, frog-like brow and wide grin with plain lizard features: one small glowing pale-turquoise eye on each side of the head. Scale the two ivory horns and the teeth down with the head.
+2. More lizard-like body: make the chest and shoulders slimmer and the body long, low and flat, with the belly slung just above the ground. Sprawl all four legs out to the sides with bent elbows and knees, as a monitor lizard stands, instead of standing upright under the body. Keep all four legs and the clawed feet. The long tapering tail stays and now lies level with the body.
+3. Spitter: add one swollen throat sac under the jaw in acid yellow-green, with the mouth slightly open and the same acid yellow-green inside. It is part of the creature's flesh, not a device. Do not draw a flying jet or puddle of spit.
+
+The same changes in each view:
+- Front view: small narrow head low and forward, well below the top of the shoulders, snout pointing at the camera, one eye visible on each side, mouth slightly open, yellow-green throat sac under the jaw, wide low chest, front legs sprawled far out left and right.
+- Left profile view: small wedge head on the slim forward neck, one side eye, mouth slightly open, throat sac bulging under the jaw, long low body, near front and hind legs bent and sprawled, tail level.
+- Back view: slim low body with the tail in the middle, hind legs sprawled far out left and right, the small head hidden or just showing past the chest, no eyes or mouth visible.
+- Top-down view: small narrow head at the end of the slim neck, clearly narrower than the shoulders, an eye on each side, the throat sac showing only as a slight bulge at each side of the jaw, all four legs sprawled out to the sides in two even pairs.
+- Bottom-up view: small narrow lower jaw with the yellow-green throat sac filling its underside, slim tan belly, all four legs sprawled out to the sides in two even pairs that match the top-down view.
+
+Everything else stays exactly as it is: the teal-green hide, darker teal back, tan belly, the two orange fan fins with red ribs at the shoulders, the dark red mouth, the ivory claws, the back spines, the layout and position of every view, the light-grey background, the flat coarse blockout style with heavy lines and few large shapes. No text, no labels, no machines, no gear, no added props.

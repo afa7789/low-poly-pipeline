@@ -245,7 +245,10 @@ def our_stats(unit, run="v16-r1"):
     w = np.array(area) / sum(area)
     big, spread = palette_stats(np.array(colours), w)
     summary = DRAFT / unit / run / "eye/summary.json"
-    pieces = json.loads(summary.read_text())["rounds"][-1]["pieces"] if summary.exists() else None
+    pieces = None
+    if summary.exists():
+        s = json.loads(summary.read_text())
+        pieces = next((r["pieces"] for r in s["rounds"] if r.get("round") == s.get("final_round") and "pieces" in r), None)
     return derived({"name": f"{unit} {run}", "tris": tris, "verts": verts, "parts": pieces, "materials": len(colours),
             "textures": 0, "bones": sum(len(s["joints"]) for s in j.get("skins", [])), "hull_tris": hull,
             "missing_tex": 0, **shape_stats(cloud[:, 0], cloud[:, 1], cloud[:, 2]),

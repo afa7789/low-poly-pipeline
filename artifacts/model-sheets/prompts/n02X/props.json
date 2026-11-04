@@ -1,3 +1,60 @@
 [
-  {"name": "drill-pipe club with brass disc", "where": "held in the hand, from the hand down past the knee", "bones": ["forearm.R", "forearm.L", "arm.R", "arm.L"], "extent": [0.3, 0.7]}
+  {
+    "name": "drill-pipe club",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.564,
+      0.846
+    ]
+  },
+  {
+    "name": "valve wheel",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.139,
+      0.208
+    ]
+  },
+  {
+    "name": "tank-car shoulder plate",
+    "where": "anchor shoulder.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.19,
+      0.285
+    ]
+  },
+  {
+    "name": "oil can",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.139,
+      0.208
+    ]
+  },
+  {
+    "name": "bolt belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.346,
+      0.52
+    ]
+  }
 ]

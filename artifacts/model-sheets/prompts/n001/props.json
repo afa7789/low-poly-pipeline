@@ -1,0 +1,35 @@
+[
+  {
+    "name": "collar",
+    "where": "anchor neck, on bone neck.1",
+    "bones": [
+      "neck.1"
+    ],
+    "extent": [
+      0.153,
+      0.23
+    ]
+  },
+  {
+    "name": "crossed_chains",
+    "where": "anchor chest, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.258,
+      0.387
+    ]
+  },
+  {
+    "name": "chest_plate",
+    "where": "anchor chest, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.16,
+      0.24
+    ]
+  }
+]

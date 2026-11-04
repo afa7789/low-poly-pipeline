@@ -51,7 +51,7 @@ def bone_axes(direction):
     """Blender's rest frame of a bone with roll 0 (vec_roll_to_mat3_normalized):
     the local Y runs along the bone, X and Z follow the shortest turn from +Y."""
     n = math.sqrt(sum(c * c for c in direction))
-    x, y, z = (c / n for c in direction)
+    x, y, z = (c / n for c in direction) if n else (0.0, 1.0, 0.0)         # a zero-length bone keeps the rest frame
     theta, alt = 1.0 + y, x * x + z * z
     if theta <= 6.1e-3 and alt <= 2.5e-4 ** 2:       # straight down -Y: Blender flips X and Y
         return (-1.0, 0.0, 0.0), (0.0, -1.0, 0.0), (0.0, 0.0, 1.0)

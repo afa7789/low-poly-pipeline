@@ -1,0 +1,19 @@
+Edit this model sheet. Change one thing only: the boar-man must now hold the wire reel in his free, empty hand instead of leaving it on the ground. The free hand is the one opposite the oil can. It is on the image-left in the front view and the image-right in the back view. The oil can stays in its own hand.
+
+The new held prop is the one from the original game model: one thick straight dark iron rod gripped in the fist, pointing backward and held level at hand height, about as long as the torso is tall. One short taut wire hangs from the rod's rear end, and the existing crooked spool hangs from that wire as a heavy barbell-shaped weight. The spool keeps its two flat flanges and wound wire, and its size stays about the same. It hangs freely with its bottom just above the ground line and never touches the ground. The rod, wire and spool use the current dark iron grey and dead-palm brown, drawn as one coarse flat shape with no small hardware.
+
+Remove the flat wire band that currently runs from the big coil on the back down to the spool, so the spool is connected only to the rod. The big barbed coil stays where it is. The oil can's hose stays, running from the can to the collar and coil as it does now.
+
+Make the same change in all five views:
+
+Panel 1, front: the fingers of the free hand (image-left) close around the rod, seen almost end-on as a short stub in the fist. The wire drops behind the fist, and the spool hangs directly below the hand, clear of the ground. Remove the band behind the leg.
+
+Panel 2, left profile: the hand of the visible, currently empty arm grips the rod, which runs level to the right, past the back of the figure. The wire drops from the rod's rear end, and the spool hangs from it just above the ground, in about the same place as now. Remove the band running from the coil to the spool.
+
+Panel 3, back: the free hand (image-right) grips the rod, seen almost end-on and pointing at the camera. The wire drops from its end, and the spool hangs below the hand, clear of the ground. Remove the long band crossing the back from the coil to the spool.
+
+Panel 4, top-down: the free hand (image-left) grips the rod, which runs straight toward the top of the panel alongside the body, past the coil. The spool sits under the rod's far end, seen from above. Remove any band joining the spool to the coil.
+
+Panel 5, bottom-up: the free fist (image-left) grips the rod, which runs straight toward the bottom of the panel alongside the body, past the legs. The spool hangs at the rod's far end, seen from below, on the same side as the fist. Move the spool away from the legs and remove any band joining it to the coil.
+
+All else stays exactly as it is: the body, proportions, pose, head, orange warning plate, tusks, ears, crest, collar and hook, coil, oil can and hose, muddy legs, colours, line style, the five-panel layout, every view's position and scale, the solid grey background and the absence of any text.

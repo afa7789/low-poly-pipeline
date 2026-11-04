@@ -130,6 +130,17 @@ class Parts(unittest.TestCase):
         self.assertEqual([c.args[1] for c in apply.call_args_list], ["grow", "box"])
 
 
+class BestRound(unittest.TestCase):
+    """eye_stage.best_round: no disaster, then most parts, then the latest; a stop entry has no tris."""
+    def test_choice(self):
+        r = lambda n, k, disaster=(): {"round": n, "tris": 600, "parts": [k, 35], "disaster": list(disaster)}  # noqa: E731
+        for rounds, want in (([r(0, 21), r(1, 21), r(2, 18), r(3, 18)], 1),
+                             ([r(0, 30, ["front"]), r(1, 18)], 1),
+                             ([r(0, 18), {"round": 1, "stop": True}], 0)):
+            with self.subTest(want=want):
+                self.assertEqual(eye_stage.best_round(rounds), want)
+
+
 class Contour(unittest.TestCase):
     """eye_stage.finish: the hull only for hull and both; ink and off add none."""
     def finish(self, contour):
@@ -137,11 +148,12 @@ class Contour(unittest.TestCase):
             out = pathlib.Path(tmp)
             (out / "eye/round-0").mkdir(parents=True)
             (out / "eye/round-0/model.glb").write_bytes(b"glb")
-            summary = {"rounds": [{"round": 0, "tris": 1}], "unit": "u", "from": "s", "llm_calls": 0, "resends": 0}
+            (out / "eye/round-0/dsl.json").write_text('{"pieces": [], "colours": {}}')
+            summary = {"rounds": [{"round": 0, "tris": 1, "parts": [1, 1], "disaster": []}], "unit": "u", "from": "s", "llm_calls": 0, "resends": 0}
             with mock.patch.object(eye_stage, "build"), mock.patch.object(eye_stage, "vertex_hash", return_value="h"), mock.patch.object(eye_stage, "stretch_of", return_value={}), \
                     mock.patch.object(eye_stage.eye_skin, "apply_stage", return_value={}), mock.patch.object(eye_stage.eye_paint, "apply_stage", return_value={}) as paint, \
                     mock.patch.object(eye_stage.outline, "apply", return_value=True) as hull:
-                eye_stage.finish(summary, out / "x", {"pieces": [], "colours": {}}, None, out, out / "eye", paint="on", contour=contour)
+                eye_stage.finish(summary, out / "x", None, out, out / "eye", paint="on", contour=contour)
         return hull.call_count, paint.call_count
 
     def test_hull_modes(self):

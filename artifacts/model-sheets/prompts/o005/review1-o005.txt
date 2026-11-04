@@ -1,0 +1,25 @@
+Edit this five-panel model sheet of the Orc Axemaster. Make only two changes, a recolour and the removal of one axe, and apply both to all five views. Keep everything else exactly as it is: every shape, outline, proportion, the pose, the face, the respirator, the shoulder plates, the vest, the kilt, the banner, the cauldron and hide pack, the smoke block, the five-panel layout, each figure's position and size, the light-grey background, the flat coarse blockout style with heavy black line, and no text. The figure must stay the same model, only repainted, with one axe fewer.
+
+CHANGE 1: REMOVE THE AXE FROM THE BACK. The unit carries only one axe: the one held in its right hand, with the head in front of the chest. Delete the second axe that rises behind the right shoulder, including its big head, its haft and its flame. Delete all flames from the sheet. Where something is deleted, show clean grey background or the unchanged body behind it. Add nothing in its place.
+- Panel 1, front: remove the big axe head, the flame and the haft stubs above and behind the shoulder on the viewer's left. Keep the held axe with its head at the chest and its haft running down to the lower left.
+- Panel 2, left profile: remove the tall vertical haft and flame rising behind the shoulder. The held axe is on the far side of the body, so only a small part of its steel head shows past the chest.
+- Panel 3, back: remove the big axe head, the flame and the haft above the shoulder on the viewer's right. Keep the lower haft in the hand; the axe head is hidden by the body.
+- Panel 4, top-down: remove the haft stub sticking out behind the shoulder next to the cauldron, and remove the flame from the axe head. Keep the held axe at the hand, once only.
+- Panel 5, bottom-up: remove the flame and the small haft stub behind the axe head. Keep the held axe at the hand, once only.
+
+CHANGE 2: RECOLOUR, same flat tones and same colours in all five views. Remove the rust-brown and ember-orange scheme completely. The new colours follow the original Warcraft III orc and match the green, black, oxblood and gold of its predecessor, so this is visibly the same character upgraded:
+- All skin, meaning head, ears, arms, hands and legs: orc green, a strong yellow-leaning green (#5F8A3C). No rust or red skin anywhere.
+- Tusks: ivory (#D8CDA8).
+- Shoulder plates, vest and feet: soot black (#231F1E).
+- Forearm bracers: dark steel grey (#55565A).
+- Kilt stays soot black only in its shadow lines; its main colour and the hide pack straps and pack: oxblood red (#5A2626).
+- Belt: gold (#C9A23A).
+- Respirator: oxblood red (#5A2626), with its grille lines kept.
+- Brow band: gold (#C9A23A) instead of orange.
+- Eyes: small amber (#E8A030), where the eyes are already drawn.
+- Held axe head: steel grey (#77777C), with its cutting edge gold (#C9A23A) instead of orange. Haft: dark brown (#3B2A20).
+- Banner cloth: golden yellow (#D4AE32), flat with no emblem. Banner pole: dark brown (#3B2A20).
+- Cauldron: soot black (#231F1E), as now.
+- Smoke block: dark grey (#4A4A4C).
+
+No orange glow or flame remains anywhere. One flat tone per surface, no gradients, no texture, no added detail. All five views must show the identical colours on the identical parts.

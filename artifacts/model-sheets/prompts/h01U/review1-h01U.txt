@@ -1,0 +1,22 @@
+Recolour this model sheet and change nothing else. This is a colour-only edit: keep every shape, outline, line weight, proportion, prop and pose exactly as drawn, and keep the five-panel layout, all five views, the light-grey background (#CCCCCC), the flat coarse blockout style and the empty margins. Add no text and no new objects, no wings, no horns and no new detail. Replace the single all-over brown with these flat colours, one flat tone per surface:
+
+- Long coat, including its sleeves: deep royal purple (#4B2A7A).
+- Inside of the high collar: the same purple, one step darker (#2E1A52).
+- Outer face of the high collar: near-black (#17151C).
+- Thin edging on the existing collar rim, coat hem and centre coat opening: antique gold (#C9A23A). Colour only those existing edges, and add no new lines or ornaments.
+- Round ball mask: near-black (#17151C), with its existing seam line kept.
+- Eye slits: glowing yellow-green (#B8E62E), replacing the current teal-green.
+- Bare jaw: pale mauve-lilac flesh (#C9B3C4), replacing the bone colour. The open mouth stays dark and the two fangs stay ivory.
+- Gloves and tall boots: near-black (#17151C), with boot soles one step lighter in dark grey (#3A3840).
+- Cane-rapier: steel grey blade and guard, unchanged in colour.
+- Knuckle-bone tally: ivory bone, unchanged in colour.
+
+Apply the same change identically to all five views:
+
+- Front: black mask, yellow-green eyes, mauve jaw, purple coat with gold edging on the collar, opening and hem, black gloves and boots.
+- Left profile: the same colours, with the one visible eye yellow-green and the jaw mauve.
+- Back: black back of the mask, black outer collar with gold rim, unbroken purple coat back with gold hem, black gloves and boots.
+- Top-down: black mask top with yellow-green eyes, black collar with gold rim, purple shoulders and sleeves, black gloves and boot tips.
+- Bottom-up: dark grey boot soles, dark purple coat underside inside a gold hem ring, purple sleeves, black gloves.
+
+The result is the same character and the same drawing, with only the colours changed.

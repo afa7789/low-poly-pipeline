@@ -1,13 +1,35 @@
 [
   {
-    "name": "broken_snag",
+    "name": "broken vertical snag",
     "where": "anchor back, on bone spine",
     "bones": [
       "spine"
     ],
     "extent": [
-      0.255,
-      0.383
+      0.211,
+      0.316
+    ]
+  },
+  {
+    "name": "root collar",
+    "where": "anchor neck, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.309,
+      0.463
+    ]
+  },
+  {
+    "name": "swallowed axe chip",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.09,
+      0.135
     ]
   }
 ]

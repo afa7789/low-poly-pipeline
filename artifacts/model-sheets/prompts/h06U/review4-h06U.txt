@@ -1,0 +1,12 @@
+Edit this model sheet and change one prop only: the goblin's backpack must clearly be a backpack full of mines.
+
+The change: replace the closed brass box on the goblin's back, including its glowing orange hexagon panel, with an open brass carrying rack of the same width and height, worn in the same place. The rack is a simple thick frame with a flat back plate and one crossbar. It holds four large round black mines stacked two over two, each mine an exact copy of the mine in the goblin's hand: dark round body with a few short red spikes. The mines are big, crude shapes that fill the rack and read clearly as a load of mines at small size. Remove the hexagon and the orange glow completely. This pack is not a fuel tank, and it has no tank, canister, cylinder or glowing panel.
+
+Show the same change in all five views, with the same rack and same four mines in the same place on the back:
+- Panel 1, front view: the rounded tops of the upper two mines, with their red spikes, show above and behind the shoulders on each side of the neck, along with a little of the brass frame.
+- Panel 2, left profile: the rack is seen from the side on the goblin's back, with the outer mines bulging past the frame and a clear column of two round spiked mines, one over the other.
+- Panel 3, back view: the full rack fills the area where the box was, with all four mines fully visible in a two-by-two grid inside the brass frame, and the crossbar between the rows.
+- Panel 4, top-down view: the brass rack sits where the box was, seen from above behind the head, with the round tops of the upper two mines and their red spikes on each side of the arm mount.
+- Panel 5, bottom-up view: the underside of the brass frame and the round undersides of the lower two mines, with their red spikes, show just past the goblin's back.
+
+Everything else stays exactly as it is: the goblin's green skin, face, ears, hair, proportions and pose; the grey apron with red trim, belt, trousers and steel boots; the wrench in one hand and the spiked mine in the other; the two soot-tipped exhaust pipes and the tall brass mechanical arm with its two claws, both still rising from the top of the pack. Keep the five-panel layout, the position and size of every figure, the solid light-grey background, the flat coarse blockout style with heavy lines, and no text, labels or frame lines. Add no other props.

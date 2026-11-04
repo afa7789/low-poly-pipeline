@@ -1,0 +1,18 @@
+Edit this model sheet. Keep the same character and exactly the same drawing style: heavy dark outline, flat colour blocks, and the same orange, crimson, pale yellow and charcoal colours. Make one change only: this creature must look a bit more like a slime and much less powerful. It is a weak low-tier fire elemental: a small, soft, gooey blob of molten fire, not a muscular brute.
+
+Make this same change in all five views:
+- Body: remove the broad muscular shoulders, the chest and the tall column waist. The body becomes one short, squat, rounded mass of soft molten slime, wider at the bottom than at the top, like a melting drop that sags and slumps into the lava puddle under it. It stays a single mass that joins the ground in one point, with no legs.
+- Size: the creature is clearly smaller and lower, about two thirds of its current height, with a smaller puddle in proportion and the same ground line in every view. Leave more empty grey around it.
+- Arms: keep both arms and both fists, but make them short, thin, soft and drooping, like stubby melting blobs hanging from the sides of the body. The charcoal fists become small rounded lumps with no sharp crystal shards.
+- Head: keep the dark charcoal face with the two yellow eye slits, but make it smaller and rounder, sunk into the top of the blob with no neck. Keep it at normal game proportions, never chibi or big-headed. Reduce the tall flame crest to one small soft flame tip.
+- Remove everything that reads as strong or armoured: the shoulder spikes and shoulder crystals, the horn-like flame curls, the arm bands and arm blades, the rib bars and the large rock plates on the lower body. Keep only two or three small rounded charcoal lumps floating in the molten surface as a trim, placed the same way in every view.
+- Surface: replace the sharp jagged flame edges with smooth, rounded, dripping slime edges, a few fat drips running down the sides, and a simple pale yellow glow in the middle of the body that follows the soft shape. The whole body still reads as fire and molten lava.
+
+View by view, showing the same pose and the same creature:
+- Front view: squat blob facing the camera, face near the top, stubby arms drooping at the sides, the blob melting into the puddle.
+- Left profile view: same blob from its left side, rounded front and back, one stubby arm with its small fist at the side, no flame wisps streaming behind it.
+- Back view: same rounded blob from behind, with the pale yellow glow as a simple soft shape, both stubby arms at the sides, the small flame tip on top.
+- Top-down view: a rounded blob seen from directly above, with the small head and flame tip at the centre, stubby arms at both sides, the smaller puddle ring around it.
+- Bottom-up view: the round underside of the smaller puddle with its swirl, and only the small stubby arms and fists showing at the sides.
+
+Everything else stays: the five-panel layout with three panels on top and two below, the position of every view, the solid grey background, the flat coarse blockout style, one full figure in each panel with none cropped, and no text, labels, frames or shadows. Add no gear or props.

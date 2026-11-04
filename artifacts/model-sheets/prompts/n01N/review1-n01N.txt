@@ -1,0 +1,14 @@
+Edit this model sheet. The spider's design is approved: keep its shape, proportions, pose, eight-legged silhouette and body parts exactly as drawn. The only problem is that it reads as a tree made of brown bark and roots. Recolour it and remove the wood look so it reads as a living giant spider with hard insect shell. Apply the same changes in all five views: front, left profile, back, top-down and bottom-up.
+
+Remove from every view: all wood-grain lines, bark cracks and bark texture on the front body, the abdomen and the legs, and the brown wood colour everywhere. Every surface becomes smooth flat-toned spider shell. Keep the existing segment lines on the abdomen and the joint lines on the legs, because they are the spider's body structure. They must not look like wood.
+
+New colours, one flat tone per surface, the same part the same colour in all five views:
+- Front body (head section): mossy spider green. Front, profile and top-down views show it from above and the side. In the bottom-up view its underside is a darker green.
+- Abdomen: very dark aubergine, almost black, smooth shell. This applies in all views, including the underside in the bottom-up view.
+- Rust-red plate on the abdomen: keep it in the same place and shape, and keep its rust-red colour. It is the mark carried over from the predecessor spider.
+- Eight legs: dull violet purple, with the tip of each foot and the thorn at each joint in dull gold. The thorns keep their size and place but read as sharp shell spurs, not plant thorns. The legs read as spider legs, not roots.
+- Two chelicerae (the fangs at the front): pale straw-tan instead of green. Keep their size, position and curve, but replace the jagged snapped-branch ends with a clean tapered fang point, so they no longer look like broken branches.
+- Eyes: deep dark red instead of bright green, same number, size and position in every view that shows them.
+- Spinneret at the rear: the base is mossy green, matching the front body, and the nozzle is dull gold instead of bright green. Same shape and position.
+
+Everything else stays exactly as it is: the layout and the position of every view, the size of every figure, the grey background, the ground lines, the heavy coarse outline, the flat coarse blockout style, the empty margins and no text. Do not add any props, gear, moss, leaves or new details.

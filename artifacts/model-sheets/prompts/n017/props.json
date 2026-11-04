@@ -1,4 +1,0 @@
-[
-  {"name": "broken sled harness band", "where": "looped over the shoulders and chest, broken knot hanging at the front", "bones": ["spine.2"], "extent": [0.2, 0.6]},
-  {"name": "tow rope", "where": "dragging from the rear paw along the ground", "bones": ["leg3.lower", "leg4.lower", "tail.1"], "extent": [0.2, 0.6]}
-]

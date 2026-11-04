@@ -1,0 +1,10 @@
+Edit this model sheet: remove the whole backpack from the character in all five views, and change nothing else. The backpack means the rectangular pack frame, its shoulder straps, the X-shaped braces with the round valve-cross, the tall grey cylinder and the low grey cylinder at the waist. Where they were, show the character's plain body in the same soot black flat tone, with the same heavy outline, so the figure is a thin goat-legged courier with nothing on its back.
+
+Apply the same removal in each view:
+- Panel 1, front (top left): erase the tall cylinder rising behind the shoulder, the low cylinder end showing beside the waist, and the two straps over the chest and shoulders. The chest is plain black.
+- Panel 2, left profile (top middle): erase the tall cylinder, the round low cylinder behind the waist, the frame along the back and the strap over the shoulder. Show a clean back outline of the torso, running down to the belt.
+- Panel 3, back (top right): erase the frame, X braces, valve-cross, tall cylinder and low cylinder. Show a plain black back from the shoulders to the belt, with the back of the head, arms, belt and legs complete and unbroken where the props used to cover them.
+- Panel 4, top-down (bottom left): erase both round cylinder tops, the bar between them, the frame and the straps. Show only plain black shoulders and upper back behind the head.
+- Panel 5, bottom-up (bottom right): erase the grey cylinder base between and behind the legs, and the straps around the shoulders. Show the plain black underside of the body there.
+
+Keep everything else exactly as it is: the five-panel layout, the position, size and pose of every figure, the iron horn-mask with its two scratched lenses, the horns and ears, the thin torso, both arms, the goat legs and split hooves, the belt, the valve-wrench on the belt, the sample case with its vials, red seal and drop, the short harpoon, all colours, the flat coarse blockout style with heavy lines, and the plain light-grey background with no text. Do not add any new prop, and do not redraw the character.

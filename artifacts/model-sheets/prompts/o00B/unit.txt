@@ -1,0 +1,4 @@
+# unit prompt for o00B (Spellbreaker Kodo Rider, Orc)
+# range=200 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: Its own contour against the other kodos: one whole nailed hide-and-plate quilt over the back — asymmetric, sagging, coarse-stitched, a quilt rather than an engineered shell — the anti-magic armor has to outweigh the Defensive's patch plates at a glance. The rider wears a waxed leather coat that gleams with oil (repellent) and a leather respirator. Attack emitter: a waxed valve-spike on a wrapped grip — a short weapon he rams with from the saddle. The pressure-gauge trophy is gone; the card's fire is a slow-burning chest censer hung on the kodo, keeping the tar workable. Story: the clan survived an elven alchemical cloud — the quilted scars became doctrine. Budget: ~800 tris (kodo + rider).
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

@@ -1,0 +1,12 @@
+Edit this model sheet. Make one change only: the Vampire fights with claws instead of weapons. Remove the cane-rapier and the knuckle-bone tally completely, and turn both hands into clawed hands.
+
+The new hands are the same on both arms and in all five views. Keep the black glove cuffs on the forearms as they are. Below each cuff, the hand is a large, simple, open hand in the pale raw-bone colour of the jaw, ending in four long, thick, curved, pointed bone claws, each about as long as the palm, plus a shorter thumb claw. The claws are big, crude, flat shapes that read clearly as a claw at 32x32 pixels. The arms keep their exact pose, hanging at the sides, with the claws pointing down and clear of the coat. The hands hold nothing. The figure carries no sword, cane, staff, tally, bone or any other prop.
+
+Apply the same change in every view:
+Panel 1, front view: remove the sword and its guard at the viewer's left and the bone tally at the viewer's right. Both hanging hands become clawed hands, claws pointing down, with empty background where the props were.
+Panel 2, left profile view: remove the bone tally from the near left hand. The near hand becomes a clawed hand seen from the side, claws pointing down and curving slightly forward, clear of the coat. No sword anywhere in this panel.
+Panel 3, back view: remove the bone tally at the viewer's left and the sword at the viewer's right. Both hands become clawed hands, claws pointing down, with empty background where the props were.
+Panel 4, top-down view: remove the round sword pommel and guard from the hand at the viewer's left and the tally top from the hand at the viewer's right. Both hands become clawed hands seen from above, showing the backs of the pale hands with the claw tips just beyond the fingers.
+Panel 5, bottom-up view: remove the round grey sword end at the viewer's left and the long bone at the viewer's right. Both hands become clawed hands seen from below, with the claw tips pointing toward the camera as small bone points around each pale palm, close to the coat hem.
+
+Everything else stays exactly as it is: the five-panel layout, the panel positions, the sizes and ground line, the same pose in every view, the black ball mask with green eyes, the bare pale jaw with the fangs, the high collar, the purple coat with its gold trim, the black boots, the colours, the grey background, the flat coarse blockout style with heavy lines, and no text or labels.

@@ -1,0 +1,24 @@
+Edit this model sheet: keep the design exactly as it is and add more props. The rider, horse, pose, proportions, colours and every existing prop stay unchanged: the steel helmet, moustache face, crimson coat, camouflage-brown pauldrons with wax seals, crossed bandoliers, red banner on its pole, motor-cleaver, gas mask, holstered double-barrel shotgun, steel horse mask, olive chest apron and rump cloth, and wrapped horse legs. The five-panel layout, grey background, flat coarse line style, figure size and positions also stay, and there is no text.
+
+Add these six new props, each as one large crude shape in the same flat style, clearly visible at a glance. Each prop sits in the same place on the unit in all five views. "Cleaver side" means the side where the motor-cleaver hangs. "Shotgun side" means the side where the shotgun hangs.
+
+1. Helmet crests and lamp: two big upswept brass wing crests bolted to the left and right sides of the steel helmet, plus one round brass headlamp with a pale lens bolted to the helmet front.
+2. Round steel shield: one large battered round shield with a brass centre boss, hung from the saddle on the cleaver side, beside the rider's thigh and over the horse's flank.
+3. Field battery radio: one squat dark wooden box with two brass terminals on top and one thin upright whip antenna, strapped across the horse's rump on top of the olive cloth, well behind the rider. It sits on the horse, not on the rider's back.
+4. Saddlebags: two large bulging tan leather saddlebags, one hanging on each side of the horse's rump over the olive cloth, below the radio box.
+5. Gas grenades: a wide dark leather collar across the horse's chest above the olive apron, carrying three fat grey round grenades on each shoulder of the horse.
+6. Heavy revolver: one oversized steel revolver with a wooden grip in a big tan chest holster, strapped over the bandoliers on the rider's chest on the cleaver side, tilted grip-up.
+
+Apply the same change in every view:
+
+Panel 1, front: the brass wing crests rise on both sides of the helmet with the lamp at its centre. The revolver holster is on the chest. The shield hangs on the drawing's left, between the rider's leg and the cleaver. The grenades bulge on both horse shoulders beside the head. The saddlebags stick out slightly behind the horse's flanks on both sides. The antenna tip shows above the rider's pauldron.
+
+Panel 2, left profile: one wing crest is seen flat on the helmet side, with the lamp at the helmet front edge. The revolver holster shows at the front of the chest. The grenades and collar are at the horse's chest and shoulder. The full radio box and antenna are on the rump behind the shotgun stock. The full near saddlebag is on the rump. Only a sliver of the shield rim shows below the horse's belly on the far side.
+
+Panel 3, back: both wing crests show on the helmet. The radio box is centred on the rump above the tail, with the antenna rising beside the banner pole. The two saddlebags hang left and right of the tail. The shield shows at the drawing's right, on the cleaver side. The grenades peek out past both sides of the horse's chest. The revolver holster shows only as a strap across the rider's back.
+
+Panel 4, top-down: both wing crests spread left and right from the round helmet top, with the lamp at its front edge. The radio box top with its two brass terminals sits on the olive rump cloth. The saddlebags stick out on both sides of the rump. The full round shield rim shows on the cleaver side. The collar crosses the horse's chest with the grenades on both shoulders. The revolver grip shows on the rider's chest.
+
+Panel 5, bottom-up: the undersides of the two saddlebags stick out on both sides of the rump. The round shield shows edge-on beside the belly on the cleaver side. The collar and grenades show at the horse's chest behind the raised neck. The tips of the wing crests may show past the rider if they fit naturally. The radio box and revolver are hidden.
+
+Do not add fuel tanks, a backpack or any new creature parts. Everything else stays exactly as it is in the current sheet.

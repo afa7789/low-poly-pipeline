@@ -1,0 +1,22 @@
+Edit this five-panel model sheet. Make only two changes, recolour the figure and give it a troll face, and apply both to all five views. Keep everything else exactly as it is: the five-panel layout, the grey background, the wide margins, the coarse flat blockout style with heavy dark outlines, and every figure's pose, proportions, silhouette, size and position. Keep every prop in its place and shape: hood, long ears, breathing tubes, chest collar, coat, two hip bags, valve-key staff, ice block on the hand, censer and boots. Add no new props, no hair, no text and no labels.
+
+CHANGE 1, COLOUR. Replace the all-blue-grey look with several clearly different flat colours, using the same assignment in all five views:
+- All bare skin, meaning the two long ears, the forearms and hands, and the new face, becomes saturated teal-green troll skin (#3FA08F), not pale ice blue.
+- The hood and coat, including the sleeves, become warm brown leather (#7A5230).
+- The trousers and the two hip bags become near-black charcoal (#2B2B30).
+- The boots become dark teal (#1F6F68), keeping their patches of frozen mud as they are.
+- The two breathing tubes become cream bone-white (#E6DFC8).
+- The staff shaft becomes light tan wood (#B98A4E) and its T-shaped key head becomes bone white (#EFEDE4).
+- The ice block on the hand and the censer stay pale ice blue (#A6DCF2).
+- The chest collar stays amber (#FFB224) as the one warm accent, and the amber tube ends on the back stay amber.
+
+CHANGE 2, FACE. Remove the grey smoke block from the hood opening and put a real ice troll face there, drawn in the same few big flat shapes: teal-green skin, one long hooked drooping nose, heavy angry brows, two small glowing pale-blue eyes, a wide mouth with two short ivory tusks jutting upward from the lower jaw, and a chin. The breathing tubes stay, but they attach at the sides of the hood and jaw so that the nose, mouth and tusks stay fully visible. The face stays readable at 32x32 pixels.
+
+The same face in each view:
+- Panel 1, front: the full face seen from the front, filling the hood opening, with the nose hanging down the centre, both eyes and both tusks visible.
+- Panel 2, left profile: the same face in side view at the front of the hood, with the long hooked nose jutting forward past the hood edge, one eye and one tusk visible.
+- Panel 3, back: no face is visible; apply only the colour changes.
+- Panel 4, top-down: the hood still covers the head; only the tip of the long teal nose pokes out past the front edge of the hood, plus the colour changes.
+- Panel 5, bottom-up: the dark hood opening now shows the underside of the face, with the teal chin and jaw, the two tusks and the underside of the nose.
+
+Every view stays the same character in the same pose. Everything not named here stays unchanged.

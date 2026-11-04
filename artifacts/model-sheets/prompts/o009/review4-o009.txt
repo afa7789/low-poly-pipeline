@@ -1,0 +1,14 @@
+Edit this five-panel model sheet. Change one thing only: replace the rider's medieval spear with a 1920s-1940s dieselpunk firearm, in all five views.
+
+Remove completely, in every view: the wooden spear shaft, the silver barbed spearhead with its hooked side prongs, and the black tar drip hanging from it.
+
+New weapon, the same object in every view: a long, heavy bolt-action trench rifle with a bayonet, as a few large crude shapes. It has a chunky dark-brown wooden stock at the rear, a thick gunmetal-grey receiver block with one big square bolt handle, a thick straight gunmetal barrel, and one long, plain, straight steel-grey bayonet blade fixed at the muzzle. It has no barbs, prongs, hooks or drips, no scope, no belts, no glow and no muzzle flash. It must read clearly as a gun at small size, not as a spear or polearm.
+
+The rifle takes exactly the place, length, angle and thickness class of the old spear, with the bayonet tip where the spear tip was and the stock where the butt of the shaft was:
+- Panel 1, front view: the rifle lies level across the rider's shoulders, held in both green fists, with the bayonet pointing to the left of the panel and the stock on the right.
+- Panel 2, left profile: the rifle is level, held in both fists, with the bayonet reaching forward to the left of the panel and the stock ending behind the rider's shoulder.
+- Panel 3, back view: the rifle lies level across the rider's shoulders, held in both fists, with the bayonet pointing to the right of the panel and the stock on the left.
+- Panel 4, top-down view: the rifle stands upright on the right of the figure, parallel to the body, with the bayonet at the top and the stock at the bottom, the bolt handle visible on the receiver.
+- Panel 5, bottom-up view: the rifle stands upright on the left of the figure, parallel to the body, with the bayonet at the top and the stock at the bottom, seen from its underside.
+
+Everything else stays exactly as it is in every view: the lion-faced wyvern with its dark-brown mane, tan spotted hide, red and black wings, hind legs and striped spade tail; the green orc rider with the skull helmet, white feathers, tusks, strap, wraps and hide loincloth; all poses, colours, proportions and positions; the five-panel layout, the solid light-grey background, the flat coarse blockout style with heavy lines, and no text.

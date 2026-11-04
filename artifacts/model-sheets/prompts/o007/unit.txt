@@ -1,0 +1,4 @@
+# unit prompt for o007 (Kodo, Orc)
+# range=100 palette=`#1A1716` Fuligem | `#7E3420` Ferrugem Tribal | `#FF5E12` Brasa Tribal
+# redesign: Beast signature: a long low mass whose ridge is interrupted by an asymmetric hide-and-bone load; the camp's pack beast wears an empty saddle and a war drum lashed mute — the scout who rode it fell and the kodo keeps marching. Stolen oil barrels ride on hide belts, a towing chain drags, tusks are wrapped in worn leather. A small fire-pot burns at the saddle horn for the fallen rider — mourning is the card's living fire. Pose: slow swaying walk, head low; the attack is a tusked headbutt — the only kodo that fights without a weapon. Story: the horde does not let even the beast stop. Budget: ~700 tris.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt

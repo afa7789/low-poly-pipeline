@@ -1,0 +1,13 @@
+Edit this five-panel model sheet of a Human Footman. Keep the same character, and make only the changes below, identically in all five views (front, left profile, back, top-down, bottom-up).
+
+1. LESS BULKY: slim the whole body into a leaner infantryman. Narrow the shoulders and torso by about a quarter, thin both arms and both legs to match, and remove the barrel-chested, inflated mass so the waist reads narrower than the shoulders. Keep the same total height, the same ground line and the same proportions in every view. He stays a modest, low-tier soldier, drawn as simple blocks with all limbs present.
+
+2. REMOVE THE BACK GEAR AND THE LANTERN: delete the backpack, the canteen and the belt lantern completely from every view. The back of the tunic is now clean, and the hand beside the old lantern hangs empty. There is nothing on the back, no pack, no tank, no canister and no pouch. In the top-down and bottom-up views, nothing projects from behind the body or from the hip.
+
+3. CROSSED AMMUNITION BANDOLIERS: delete the blue chest plate and the brown chest harness and straps. In their place, two large crossed umber-brown ammunition bandoliers run from each shoulder to the opposite hip, drawn as wide flat bands with a few big chunky brass cartridge blocks, forming a clear X on the chest in the front view and the same X on the back in the back view. They show as one diagonal band across the torso in the left profile, as bands over the shoulders in the top-down view and as band edges at the chest in the bottom-up view.
+
+4. PUTTEES OVER LEATHER BOOTS: replace the tall black boots with shorter dark-brown leather ankle boots, and wrap the lower legs from knee to ankle in pale khaki puttees, drawn as one flat khaki block with two or three coarse diagonal wrap lines. The change shows on both legs in the front, profile and back views. In the bottom-up view, the two boot soles stay in the same place, with a thin rim of khaki puttee visible around them where the view allows.
+
+5. COLOUR ACCENT: because the blue plate is gone, turn the high tunic collar insignia blue (#2E52E8) so the blue still reads on the unit, in all views where the collar shows.
+
+Everything else stays exactly as it is: the five-panel layout and the position of each figure, the solid light-grey background, the wide margins, the same neutral standing pose in every view, the steel Brodie helmet, the dark face band with its two eye points, the olive tunic and trousers, the umber belt with its square brass buckle, the bolt-action rifle with fixed bayonet and its hand position and angle in each view, the flat coarse blockout style with heavy line and flat tones, and no text, labels, frames or shadows.

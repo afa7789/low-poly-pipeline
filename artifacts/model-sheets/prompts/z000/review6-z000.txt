@@ -1,0 +1,14 @@
+Edit this model sheet. Change only the quills and the edge of the back shell, and make the same change in all five views. The goal is quills that clearly read as projectiles this creature can throw, and a slightly more alien, chaotic creature.
+
+CHANGE 1, the quills: remove the two long curved red horn-like spikes from the back completely. Replace them with six separate quills growing out of the orange shell, three on each side of the spine, in two mirrored rows. Each quill is a short, straight, rigid dart, about as long as the creature's head and neck together, far shorter than the old spikes. Each has a thin dark red shaft, a thicker bone-coloured barbed tip shaped like a crude arrowhead with two backward hooks, and a small dark round socket in the shell at its base. The quills fan upward and outward, leaning slightly backward, and are spaced apart so that each one reads as a single loose missile ready to be shot off the body. No curves, no horns, no rack, no frame, no machinery.
+
+CHANGE 2, the shell edge: keep the orange shell and its overall size, but cut its lower edge and spine into a few large, jagged, hooked chitin plates, like an insect-alien carapace, as three or four big sharp shapes per side. Also add one bone-coloured barbed tip to the end of the tail, the same shape as the quill tips. Keep these as large simple shapes, with no small detail.
+
+Same change in each view:
+- Front view: three quills fan out on each side above the shell, with the jagged shell edge around the shoulders.
+- Left profile view: the three left-side quills rise from the back in a row, leaning backward, with the jagged spine plates between them and the barbed tail tip at the end of the tail.
+- Back view: three quills fan out on each side, mirroring the front view, with the jagged rear edge of the shell and the barbed tail tip.
+- Top-down view: two rows of three quills with round sockets on the shell, pointing outward to both sides and slightly toward the tail, with the jagged shell outline and the barbed tail tip.
+- Bottom-up view: the shell still hides the quill bases, and only the bone barbed tips show past the shell's sides. The jagged shell edge shows at the sides, and the barbed tail tip is visible.
+
+Everything else stays exactly as it is: the head, red eyes, teeth, cream horns, purple hide, dark lower limbs, cream claws, body proportions and pose, all colours, the five-panel layout and the position and scale of every figure, the grey background, the flat coarse blockout style with heavy lines, and no text.

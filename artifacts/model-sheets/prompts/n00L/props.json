@@ -1,0 +1,58 @@
+[
+  {
+    "name": "neck_manifold_stack",
+    "where": "anchor neck, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.167,
+      0.251
+    ]
+  },
+  {
+    "name": "head_side_pipe.L",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.054,
+      0.081
+    ]
+  },
+  {
+    "name": "chest_wound_valve",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.109,
+      0.163
+    ]
+  },
+  {
+    "name": "drum_lid_pauldron",
+    "where": "anchor shoulder, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.165,
+      0.247
+    ]
+  },
+  {
+    "name": "lot_tag",
+    "where": "anchor collar, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.07,
+      0.105
+    ]
+  }
+]

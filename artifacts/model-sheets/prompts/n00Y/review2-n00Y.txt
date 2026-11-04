@@ -1,0 +1,16 @@
+Edit this five-panel model sheet. Make only the changes below, identically in all five views. Everything else stays exactly as it is: the layout, the grey background, the positions and sizes of the five figures, the pose, the proportions, the flat coarse blockout style with heavy lines and flat tones, the brass bell cap with its three-spike plate, the tall collar with its blue lining, the long teal coat with the double apron, the belt, the pale lime sleeves, the black gloves, the brass knee plates and the dark boots. Add no text or labels.
+
+Change 1, remove the non-combat props: delete the brass sealing stamp at the left hip and the dark ledger block with its straps behind the hips, leaving only plain coat and belt there. Nothing replaces them. The figure's left hand stays an empty closed fist. Nothing hangs from the belt or the back. There is no backpack, no tank and no container.
+
+Change 2, gas-mask visor: replace the flat dark face plate with a large crude crimson red knight's visor fused with a gas mask. It is one solid blunt wedge that juts forward from under the brim of the bell cap to the top of the collar, keeping the one single large blue lens at its centre. No skin, eyes or mouth show.
+
+Change 3, steel pauldrons: replace the broad brass yoke over the chest and shoulders with two big chunky near-black steel pauldrons with one thick brass rim, one on each shoulder, as large simple rounded blocks. Between them, the upper chest and back show a small plain brass breastplate panel that sits above the coat.
+
+Change 4, motor-sword: the long sword stays in the figure's right hand at the same place and angle, with the same long pale blade, now fully bare with no scabbard. Its guard becomes one chunky near-black block, a small two-stroke engine drawn as one simple shape with one brass band, and a short thick stubby brass exhaust pipe sticks out at the pommel.
+
+The same changes view by view:
+- Front view: red visor with blue lens above the collar; a black pauldron on each shoulder with brass breastplate panel between them; plain coat at the viewer's right hip, with the stamp and block gone; engine guard and exhaust pommel at the fist on the viewer's left.
+- Left profile view: the red visor seen from the side as a blunt wedge pointing forward with the lens at the front; one pauldron on the near shoulder; no stamp and no brass peg at the hip; no ledger behind the hips, so the back of the coat is a clean line; bare blade with the engine guard and exhaust showing just ahead of the coat.
+- Back view: the visor is not seen, only the bell cap; both pauldrons from behind, with plain coat between them and the brass panel removed from the back if it would read as a yoke; no ledger and no straps on the back; the stamp is gone; bare blade with engine guard and exhaust at the fist on the viewer's right.
+- Top-down view: both pauldrons as big black rounded blocks with brass rims either side of the collar ring; the wedge of the red visor just showing at the front under the cap; no ledger projecting behind the back; no stamp; engine guard and exhaust seen from above at the right fist.
+- Bottom-up view: the lower faces of both pauldrons; no ledger and no stamp; the sword drawn as a bare pale blade rather than a dark scabbard, with the underside of the engine guard at the fist.

@@ -1,0 +1,25 @@
+[
+  {
+    "name": "chest_gauge",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.068,
+      0.101
+    ]
+  },
+  {
+    "name": "pump_head_club",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.383,
+      0.574
+    ]
+  }
+]

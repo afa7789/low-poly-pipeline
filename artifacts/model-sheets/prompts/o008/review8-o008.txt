@@ -1,0 +1,26 @@
+Edit this model sheet. Remove the ornaments and leave only plain trench gear: canvas, leather straps, steel plate and ammo pouches. Make the same change in all five views.
+
+REMOVE from every view where they appear:
+- the wooden drum or barrel on each flank, with its rust-red bands and its axle
+- the steel spike bolts sticking out sideways past each flank
+- the big round cream disc with the rust-red rim on the flank
+- the orange diamond-quilted saddle with its raised front and rear boards
+- the steel cap on the tip of the big horn and the steel rings around the horns, so the horns are plain bare bone
+
+Where these are removed, show plain kodo hide. Nothing sticks out past the flanks any more, so the silhouette becomes the plain kodo body and the rider.
+
+ADD the same gear in the same places in every view, as large plain flat shapes with no pattern, emblem, rivets or trim:
+- a flat olive-drab canvas saddle blanket, a simple rectangle draped over the back under the rider, with straight edges
+- one wide dark-brown leather girth strap around the belly, holding the blanket
+- one curved plain grey steel plate strapped across the shoulder hump, just in front of the rider
+- one squat dark-brown leather ammo pouch with a plain flap on each flank, hanging flat against the blanket and close to the body
+- on the rider, two crossed dark-brown leather straps over the chest of the red vest, joining into one plain strap panel on the back
+
+Per view:
+- Front: the grey plate shows as a band over the top of the hump under the rider; the ends of the blanket and a thin edge of each pouch show at the sides of the body; the straps cross on the rider's chest.
+- Left profile: the blanket under the rider, the girth strap running down from it around the belly, the plate on the hump in front of the rider, one pouch on the near flank where the disc was, the crossed straps on the rider's chest and side.
+- Back: the blanket over the back under the rider, a thin edge of each pouch at the sides of the body, the strap panel on the rider's back.
+- Top-down: the plate crossing the shoulders, the blanket under the rider, one pouch lying flat at each side of the blanket, the crossed straps on the rider. The drums and spikes are gone from both sides.
+- Bottom-up: the girth strap as one brown band across the dark belly, with no drums or spikes beside the body.
+
+KEEP everything else exactly as it is: the kodo's body, head, horns, tail, tusks, eyes, colours and proportions; the rider's green skin, face, red vest, red bandana, dark trousers, gloves and pose; the single hatchet held in the same hand at the same height. Keep the five-panel layout, the position, orientation, size and pose of every view, the grey background, the ground lines, the flat coarse blockout style and the heavy line. Add no text, labels or extra props.

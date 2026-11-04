@@ -1,0 +1,90 @@
+[
+  {
+    "name": "husk_lobe_large.R",
+    "where": "anchor body, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.372,
+      0.558
+    ]
+  },
+  {
+    "name": "husk_lobe_small.L",
+    "where": "anchor body, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.358,
+      0.538
+    ]
+  },
+  {
+    "name": "resin_crust.R",
+    "where": "anchor husk_lobe_large.R, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.336,
+      0.504
+    ]
+  },
+  {
+    "name": "resin_crust.L",
+    "where": "anchor husk_lobe_small.L, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.255,
+      0.383
+    ]
+  },
+  {
+    "name": "fermentation_bladder",
+    "where": "anchor back, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.099,
+      0.148
+    ]
+  },
+  {
+    "name": "root_1",
+    "where": "anchor body, on bone tendril1.1",
+    "bones": [
+      "tendril1.1"
+    ],
+    "extent": [
+      0.381,
+      0.571
+    ]
+  },
+  {
+    "name": "root_2",
+    "where": "anchor body, on bone tendril2.1",
+    "bones": [
+      "tendril2.1"
+    ],
+    "extent": [
+      0.363,
+      0.545
+    ]
+  },
+  {
+    "name": "root_3",
+    "where": "anchor body, on bone tendril3.1",
+    "bones": [
+      "tendril3.1"
+    ],
+    "extent": [
+      0.376,
+      0.565
+    ]
+  }
+]

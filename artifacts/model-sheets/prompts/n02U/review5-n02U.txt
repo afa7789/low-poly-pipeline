@@ -1,0 +1,10 @@
+Edit this model sheet. Change one thing only: the character carries exactly one mace, the same dark wooden club with barbed wire bands, always in its right hand. The left hand is always an empty closed fist, the same as the empty fist already drawn in the front and back views. There is never a second mace, a second handle or a stray handle end anywhere.
+
+Apply this to all five views:
+- Panel 1, top left, front view: no change. One mace in the hand on the viewer's left, empty fist on the viewer's right.
+- Panel 2, top middle, left profile: this view shows the character's left side, so the near left arm now ends in an empty closed fist hanging at the hip and holds nothing. Keep one mace in the same place, now gripped by the far right hand, with the near arm and body overlapping its handle where they cross it.
+- Panel 3, top right, back view: no change. One mace in the hand on the viewer's right, empty fist on the viewer's left.
+- Panel 4, bottom left, top-down view: keep the one mace on the viewer's left. Remove the small dark handle stub sticking up behind the shoulder on the viewer's left, leaving clean shoulder outline. The fist on the viewer's right stays empty.
+- Panel 5, bottom right, bottom-up view: keep only the mace in the hand on the viewer's left. Remove the second mace on the viewer's right completely, handle and head, and draw that hand as an empty closed fist in its place.
+
+All else stays exactly as it is: the five-panel layout, every view and its pose, the grey background, the flat coarse blockout style, the body, proportions, colours, head, tusks, grey metal brow band, dark red mane, grey back spikes, scars, muddy legs, hooves and tail with its orange tip. No text. Add nothing else.

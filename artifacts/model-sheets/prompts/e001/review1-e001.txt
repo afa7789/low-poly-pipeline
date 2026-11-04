@@ -1,0 +1,13 @@
+Edit this model sheet by making exactly two colour changes, and apply both identically to the same figure in all five views.
+
+1. SKIN: recolour all visible skin (the face mask, neck and pointed ears) from saturated bright purple to a much paler, desaturated pale lilac-lavender (about #D3C6EC). It must still read as a pale purple night elf skin, not white, grey or human. Use one flat tone, with the eye slits unchanged.
+2. CAPE: recolour the whole cape from mid grey-violet to a much darker, near-black blue-violet (about #1C1A26). Use one flat tone on both the outside and the underside. It must be clearly darker than the hood, jerkin and leggings, while the heavy black outline stays visible as the cape's edge.
+
+Apply the changes per view:
+- Front view (top left): pale face, neck and ears; darker cape showing behind the legs and at the shoulders.
+- Left profile (top middle): pale face, neck and ear; darker cape falling behind the body.
+- Back view (top right): pale ear tips; the whole wide cape darker, with the quiver slab keeping its current grey.
+- Top-down view (bottom left): pale ears and visible part of the face; the cape spreading behind the shoulders darker.
+- Bottom-up view (bottom right): pale face and ears; the underside of the cape with its two points darker.
+
+Change nothing else. Keep the hood, jerkin, gloves, boots, plate pieces, bow, sheaf, lantern and trap, tooth toggle, all other colours, every shape, the pose, proportions, the line work and the flat coarse blockout style exactly as they are. Keep the five-panel layout, every view's position and size, and the plain light-grey background, with no text.

@@ -1,0 +1,21 @@
+Recolour this model sheet only. Do not change any shape, proportion, pose, outline, prop, position or panel. The five-panel layout, the light-grey background (#CCCCCC), the heavy black line, the flat coarse blockout style and the absence of text all stay exactly as they are. Every view keeps the same drawing. Only the flat fill colours change, and each part gets the same new colour in all five views. Add no new parts, patterns, trim, shading, gradients or texture.
+
+Colour map, applied to every part wherever it is visible:
+- Skin: the bare torso, both arms and both big hands change from soot black to bright orc green (#6AA82A), the same green as the predecessor shaman o003.
+- Shorts: the short trousers on the upper legs stay black (#1A1716). They are now the only black clothing on the figure.
+- Beak mask: the whole mask and its long beak tube change from rust to pale bone white (#E6DFCF), the same bone tone as the predecessor's mask. The eye holes become solid black. The ember-orange beak tip stays ember orange (#FF5E12).
+- Sling: the wide diagonal sling plate changes from rust to strong blood red (#C8161A).
+- Cauldron: the cauldron body changes from rust to soot black (#1A1716). Its rim changes to gold-yellow (#E0A81C).
+- Crude: the heaped crude and the runs down the cauldron's side change from dark brown to strong blood red (#C8161A).
+- Back tube: the tube from the back of the mask to the cauldron changes from rust to gold-yellow (#E0A81C).
+- Boots: the boots and their soles change from rust to bronze tan (#9A7A48).
+- Staff: the staff shaft changes from rust to dark brown (#4A2E20). The valve block and the brazier cup change from rust to gold-yellow (#E0A81C). The ember square in the brazier stays ember orange (#FF5E12).
+
+The same change in each view:
+- Panel 1, front: green chest, arms and hands, black shorts, bone mask and beak with orange tip, blood-red sling, tan boots, the blood-red crude and gold rim showing behind the head, dark brown staff with gold valve block and gold brazier with orange ember.
+- Panel 2, left profile: bone mask and beak with orange tip, gold back tube, green torso and arm, blood-red sling, black shorts, tan boots, soot-black cauldron with gold rim, blood-red heap and blood-red run, gold brazier with orange ember above the shoulder.
+- Panel 3, back: soot-black cauldron with gold rim, blood-red heap and blood-red runs, green arms and back, blood-red sling, black shorts, tan boots, dark brown staff with gold valve block and gold brazier with orange ember.
+- Panel 4, top-down: bone mask and beak with orange tip, gold back tube, green shoulders and arms, blood-red sling, gold cauldron rim around the blood-red crude with a soot-black cauldron body, tan boot tips, gold brazier with orange ember.
+- Panel 5, bottom-up: tan boot soles, black shorts, green torso, arms and hands, blood-red sling, bone beak tube with orange tip, soot-black cauldron base, dark brown staff, gold brazier with orange ember.
+
+Everything else stays exactly as it is in the current sheet.

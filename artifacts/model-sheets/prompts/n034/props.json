@@ -1,0 +1,24 @@
+[
+  {
+    "name": "feather_crown",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.206,
+      0.308
+    ]
+  },
+  {
+    "name": "crown_purple_gem",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.027,
+      0.041
+    ]
+  }
+]

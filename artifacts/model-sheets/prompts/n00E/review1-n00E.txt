@@ -1,0 +1,16 @@
+Recolour this model sheet only. Change nothing but the flat colour fills. Keep the five-panel layout, the light-grey background (#CCCCCC), every view, the pose, proportions, silhouette, line work, props, stitch positions and the coarse flat blockout style exactly as they are. Add no shapes, details, shading, gradients, texture or text.
+
+Replace the current cream, brown and green scheme with these colours, taken from the original unit, and apply the same mapping to the same part in all five views (front, left profile, back, top-down, bottom-up):
+
+- All bare flesh (the left arm with its mitt, both legs, and the head skin where it shows): raw pinkish-tan flesh (#C98F6E) instead of cream.
+- All stitch seams on the flesh: blood red (#A3201E) instead of black.
+- The rib slabs around the drum, and their ends in the top-down and bottom-up views: dull gold (#D49A2A) instead of cream.
+- The drum body, lid and underside: cold steel grey (#7C8488) instead of dark brown-grey.
+- The shoulder caps, the iron boom arm with its struts and elbow joint, the chain bar and the crane hook: near-black iron (#2A2A30) instead of brown.
+- The suction hose: deep slate blue (#2C4468) instead of dark brown.
+- The block feet and their soles: deep slate blue (#2C4468) instead of dark brown.
+- The respirator mask and its head strap: near-black iron (#2A2A30) instead of brown.
+- The two eye points: glowing red (#E0201C) instead of green, in every view where the eyes show.
+- The X on the drum lid in the top-down view: blood red (#A3201E) instead of green, same shape and size.
+
+No green and no brown remain anywhere on the figure. Each part keeps one flat tone. All else stays unchanged.

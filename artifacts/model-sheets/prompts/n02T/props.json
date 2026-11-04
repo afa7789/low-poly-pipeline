@@ -1,0 +1,92 @@
+[
+  {
+    "name": "cracked goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.11,
+      0.165
+    ]
+  },
+  {
+    "name": "respirator snout filter",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.059,
+      0.088
+    ]
+  },
+  {
+    "name": "leather belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.131,
+      0.197
+    ]
+  },
+  {
+    "name": "shovel-crossbow",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.745,
+      1.118
+    ]
+  },
+  {
+    "name": "fuel barrel",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.268,
+      0.402
+    ]
+  },
+  {
+    "name": "flare fork",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.258,
+      0.387
+    ]
+  },
+  {
+    "name": "wick flame",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.081,
+      0.122
+    ]
+  },
+  {
+    "name": "hand jar",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.136,
+      0.203
+    ]
+  }
+]

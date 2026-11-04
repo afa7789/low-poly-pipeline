@@ -1,0 +1,23 @@
+Recolour this model sheet only. Do not redraw it. Every shape, outline, silhouette, proportion, pose, prop, position, the five-panel layout, the grey #CCCCCC background, the flat coarse blockout style and the absence of text stay exactly as they are. This is a colour swap on the existing flat areas, with no new shapes and no new detail. The colours come from the original icon: a white-furred ape with purple bare skin. They also match its predecessor, the white-and-purple Wandigoo, so this reads as the same creature grown bigger. Remove all the dark blue-grey and all the pale ice blue from the figure.
+
+Apply the same colour map to all five views:
+- Body fur: the whole dark blue-grey body, arms, legs, shoulders and hump become pale lavender-white fur (#E8E6F0).
+- Face: the whole face, muzzle, brow and ears become bare purple skin (#6E5A96), with slightly darker purple (#4E3F70) only where the current sheet already has a darker facial plane.
+- Hands: each mitt from the wrist down becomes the same purple skin (#6E5A96).
+- Feet: the pale-blue crusted feet and lower legs become the same purple skin (#6E5A96), keeping the same jagged upper edge.
+- Mane: the pale-blue mane ridge becomes silver-grey (#9A9CA8), with its inner marks a darker grey, so it stands out clearly from the white fur.
+- Tusks: warm bone ivory (#E6D3A8).
+- Drill-bit claws: the same warm bone ivory (#E6D3A8), keeping their shape and facet lines.
+- Mouth: the open maw interior stays near-black maroon (#2A1420).
+- Eyes: stay glowing amber-yellow (#FFB224).
+- Half-lamp: stays as it is, amber lens and grey casing.
+- Cable and hook: stay mid grey as they are.
+
+Panel by panel, the same change in each view:
+Panel 1, front: white-lavender body and arms, purple face and ears, ivory tusks, silver-grey mane spike above the head, purple mitts with ivory drill claws, purple feet and lower legs.
+Panel 2, left profile: white-lavender body, purple face, ivory tusk, silver-grey saw-tooth mane along the whole spine, purple mitt with ivory drill claws, purple foot and lower leg.
+Panel 3, back: white-lavender back and arms, silver-grey mane strip down the centre, purple mitts with ivory drill claws, purple feet and lower legs.
+Panel 4, top-down: white-lavender shoulders, hump and arms, silver-grey mane strip, purple face, ivory tusks, purple mitts with ivory drill claws, purple lower legs and feet where they show.
+Panel 5, bottom-up: white-lavender torso and arms, purple head and jaw underside, ivory tusks, purple mitts with ivory drill claws, purple foot soles.
+
+All outlines stay the same heavy dark line. Keep flat tones with no gradients, no texture, no shading and no shadows. All else stays unchanged.

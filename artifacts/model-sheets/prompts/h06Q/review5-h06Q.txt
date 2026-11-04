@@ -1,0 +1,15 @@
+Edit this model sheet. The design is approved and only has too much detail: simplify it into fewer, larger flat shapes for a low-poly model. Keep the same unit, the same silhouette and proportions, the same pose, the same colours and the same parts in the same places: bald moustached goggled pilot in the fur-collared jacket, tan fuselage, olive biplane wings, two side engines, top rotor on its mast, red-tipped tail, gun, two rust-red floats with shark mouths.
+
+Make exactly these simplifications, and apply the same change in all five views (front, left profile, back, top-down, bottom-up):
+- Rotor mast: replace the open lattice tower with cross bracing by one solid plain steel-blue tapered pylon, with no holes and no X bracing. In the top-down and bottom-up views, the hub stays one plain round disc.
+- Fuselage: remove all rivets, seams, hatch outlines and thin panel lines. The steel-blue nose plate and belly plate each become one plain flat shape with a clean edge.
+- Machine gun: one plain dark-grey bar with a blocky body. No perforated barrel jacket, no sights, no small parts.
+- Rear engine block behind the pilot: one plain grey box, with no cylinders, fins or pipes.
+- Side engines: each is one plain dark disc inside one plain brass ring with a plain centre dot in front view. Remove all radial fins and blades. From behind, each is one plain dark disc, and from above and below, one plain dark block with one brass band.
+- Wings: remove the aileron outlines and all inner lines, so each wing is one flat olive shape. Keep only one thick strut per side between the wings, with no diagonal bracing, and make the float legs two thick plain struts per float, with no cross pieces.
+- Floats: remove the rivets, seams and strap hardware, and reduce the two straps on each float to one plain flat darker band or none. The shark mouth becomes one simple white shape with four or five large zigzag teeth and one plain eye on each side, without red gums or small shading. On the bottom-up view, use the same simple shape.
+- Tail: one flat tan fin with one flat red block; no inner lines.
+- Pilot: same character, drawn with fewer shapes. The moustache and beard are one brown mass, the fur collar is one cream mass with a smooth edge and no fur tufts, the jacket is one flat dark red block, and the goggles are two plain blue circles with a brass rim. No wrinkles, stitching or pockets.
+- Remove all weathering, streaks, wear marks, shading gradients and small hardware everywhere. One flat tone per surface, with a heavy coarse outline.
+
+Everything else stays unchanged: the five-panel layout, the position and scale of every view, the same pose in every view, the light-grey background, the flat coarse blockout style, no text and no labels.

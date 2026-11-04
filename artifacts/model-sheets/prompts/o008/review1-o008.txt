@@ -1,0 +1,21 @@
+Recolour this model sheet. Change only the colours of the flat fills. Every shape, outline, proportion, pose, prop, the layout and all views stay exactly as they are, in the same positions. Add no new parts, no patterns, no texture and no text. Keep the light-grey background, the flat coarse blockout style and the heavy black line.
+
+Apply the same colour change to all five views (front, left profile, back, top-down, bottom-up), so each part has the same colour in every view where it is visible:
+
+- Kodo hide: all soot-black body, head, legs, ears and tail become a clear violet purple. Keep one flat tone per surface.
+- Kodo underside: the belly and the undersides of the body in the bottom-up view become a darker indigo purple. The foot soles become a muted olive brown.
+- Kodo eyes: glowing acid green instead of orange.
+- Tusks and claws: the dull brown-pink tusks and the toe claws become pale ivory bone.
+- Tusk caps: the rust-red tips and their dark bands become steel grey.
+- Quilted hide under the saddle: ochre tan instead of brown-pink.
+- Saddle and belly strap: warm brown, with the saddle's rim in a lighter ochre tan.
+- Rider skin: the black head, arms and shoulders become orc green.
+- Rider vest: bright saturated red, clearly brighter than before.
+- Rider respirator: stays rust red.
+- Rider gloves and legs: dark brown.
+- Rider eyes: ember orange stays.
+- Hatchets: all blades, both the held one and the two racked ones, become steel grey with a pale edge. Hafts stay wood brown.
+- Banner: the brown-pink skin becomes pale cream parchment. The pole and crossbar stay dark wood brown.
+- Ember cage: stays black with its orange glow.
+
+The result must read as several clearly different colours: purple kodo, green-skinned orc in red, ivory tusks, ochre saddle cloth, grey steel, cream banner. It must no longer read as a black unit. Change nothing else.

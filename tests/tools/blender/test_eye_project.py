@@ -120,6 +120,65 @@ class Mix(unittest.TestCase):
         self.assertTrue(np.allclose(n[0], n[1], atol=1e-3))
 
 
+class Gate(unittest.TestCase):
+    def test_gate_keep(self):
+        grey, skin, dark = [120.0, 124.0, 128.0], [235.0, 190.0, 160.0], [50.0, 53.0, 56.0]
+        for mixed, l_max, want in ((skin, None, False), (dark, None, True), (dark, 0.1, False), ([125.0, 128.0, 131.0], 0.1, True)):
+            with self.subTest(mixed=mixed, l_max=l_max):
+                self.assertEqual(bool(P.gate_keep(np.array([mixed]), np.array([grey]), 0.04, l_max)[0]), want)
+
+
+class Parts(unittest.TestCase):
+    """L20-2: one colour per piece, accents untouched."""
+    HELMET, SLEEVE, LENS = np.array([125.0, 131.0, 135.0]), np.array([132.0, 129.0, 96.0]), np.array([106.0, 30.0, 44.0])
+
+    def test_nearest_piece_is_the_field_that_holds_the_point(self):
+        box = lambda c: {"n": [[1, 0, 0], [-1, 0, 0]], "d": [c + 1, 1 - c], "slot": 0}      # noqa: E731  x in [c-1, c+1]
+        pts = np.array([[0.2, 0, 0], [4.1, 0, 0], [2.0, 0, 0]])
+        self.assertEqual(P.eye_paint.nearest_piece(pts, [box(0), box(4)]).tolist(), [0, 1, 0])
+
+    def test_accents_by_colour_and_by_what_the_identity_says(self):
+        pal = np.array([self.SLEEVE, self.HELMET, self.LENS, [50.0, 100.0, 180.0]])
+        area = np.array([900.0, 500.0, 40.0, 30.0])
+        with self.subTest("saturated over a neutral palette"):
+            self.assertEqual(P.accents(pal, area, []).tolist(), [False, False, True, True])
+        with self.subTest("the body colour is never an accent, said or not"):
+            self.assertFalse(P.accents(pal, area, ["olive tunic"])[0])
+        with self.subTest("a colour word lifts a modest chroma"):
+            soft = np.array([self.HELMET, [150.0, 140.0, 100.0]])
+            self.assertEqual(P.accents(soft, np.array([1.0, 1.0]), ["brass valve", "olive coat"]).tolist(), [False, True])
+
+    def test_part_filter_one_colour_per_piece(self):
+        n = 60
+        piece = np.r_[np.zeros(20, int), np.ones(20, int), np.full(20, 2)]
+        mixed = np.tile(self.HELMET, (n, 1))
+        mixed[:4] = self.SLEEVE                                     # a stripe of another piece's colour on piece 0
+        mixed[20:40] = [60.0, 60.0, 60.0]                           # piece 1 is dark in the sheet but a steel helmet in the DSL
+        cov = np.ones(n, bool)
+        cov[16:20] = False                                          # holes of piece 0
+        out, painted, rep = P.part_filter(mixed, cov, piece, np.array([self.HELMET, self.HELMET, self.HELMET]), ["a", "b", "c"], 0.04, 0.2, 0.5)
+        with self.subTest("a stripe and a hole take the dominant colour"):
+            self.assertTrue(np.allclose(out[:20], self.HELMET, atol=1.0) and painted[:20].all())
+        with self.subTest("a dominant far from the DSL colour keeps the paint"):
+            self.assertFalse(painted[20:40].any())
+        with self.subTest("the report"):
+            self.assertEqual([(r["name"], r["painted"]) for r in rep], [("a", True), ("b", False), ("c", True)])
+
+    def test_shield_drops_accent_pieces_and_their_colour_elsewhere(self):
+        piece = np.array([0, 0, 1, 1])
+        mixed = np.array([self.LENS, self.HELMET, self.LENS, self.HELMET])
+        rgb = np.array([self.LENS, self.HELMET])
+        kept = P.shield(np.ones(4, bool), mixed, piece, np.array([True, False]), rgb)
+        self.assertEqual(kept.tolist(), [False, False, False, True])        # lens piece, then the lens colour on the other piece
+
+
+class Stage(unittest.TestCase):
+    def test_tight_without_fields_or_sheet_is_a_no_op(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(P.apply_stage(pathlib.Path(tmp) / "model.glb", "hfoo", "tight"), {})
+            self.assertEqual(P.apply_stage(pathlib.Path(tmp) / "model.glb", "hfoo", "off"), {})
+
+
 class Glb(unittest.TestCase):
     def test_swap_atlas_moves_what_follows(self):
         vec = np.arange(6, dtype="<f4").tobytes()

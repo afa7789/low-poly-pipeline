@@ -1,0 +1,21 @@
+Edit this model sheet. Make only two changes, and apply both to all five views: remove the hat and recolour the creature in vibrant Warcraft III murloc colours. Everything else stays exactly as it is: the five-panel layout, the panel positions, the grey background, the heavy coarse line, the flat blockout style, the no-text rule, and the figure's pose, proportions, silhouette, size and ground line. The huge fanged mouth, cheek fins, back fin, arms, webbed hands, frog legs, webbed feet, the cudgel in the same hand, and the rope belt with its block weights also stay.
+
+CHANGE 1: REMOVE THE HAT. Delete the wide flat round green disc from the head completely, together with the cowrie shell on it. No helmet, cap, lid, shell or any other headgear remains. Where the hat was, draw the bare top of the creature's own low, rounded fish-frog head, in the same skin as the rest of the head and with no new props. Both glowing eyes stay in their current places and are now fully visible.
+- Front view: the bare domed head top shows above the two eyes. Remove the disc and shell.
+- Left profile view: the bare head slopes smoothly from the snout back to the nape, with the back fin starting there. Remove the disc and shell. The cudgel stays where it is.
+- Back view: the bare back of the head shows above the shoulders. Remove the disc.
+- Top-down view: the big round disc and shell are gone. The bare fish-frog head shows from above, wedge-shaped and rounded, with the two eyes near its front edge, and it joins the body at the neck.
+- Bottom-up view: the ring of the disc around the head is gone. Only the underside of the jaw and the head outline remain.
+
+CHANGE 2: VIBRANT COLOURS. Replace the dark black and muted teal palette with bright, saturated, clearly different flat colours, one flat tone per surface, with no gradients. Use the same colours in all five views:
+- Skin of the head, back, arms and legs: vivid saturated emerald green. No black skin remains.
+- Face mask around the mouth and eyes, and the snout: bright yellow-olive green.
+- Belly, throat, lower jaw, palms and foot soles: pale warm yellow-green.
+- Cheek fins, back fin and the webbing of the hands and feet: bright acid yellow-green, with darker teal-green at the fin tips.
+- Eyes: bright glowing ice blue.
+- Mouth interior: deep crimson, with a pink-red tongue. Fangs: warm ivory instead of teal.
+- Small magenta-pink patch on the top of the head, as a skin marking only.
+- Rope belt: warm straw tan. Block weights: mid steel grey.
+- Cudgel: mid steel grey head on a warm brown shaft.
+
+Apply these colours in each view wherever that surface is visible: green back and fin in the back and top-down views, pale belly and soles in the bottom-up view, and face colours, eyes and mouth in the front and profile views. Keep the black outlines. Change nothing else.

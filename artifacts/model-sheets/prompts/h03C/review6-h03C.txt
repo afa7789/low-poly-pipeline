@@ -1,0 +1,25 @@
+Edit this five-panel model sheet. The unit has too many props: remove the items listed below and change nothing else. Keep the same character, horse, pose, proportions, colours, line style, layout, grey background and panel positions. Every view stays, and there is still no text.
+
+REMOVE from the unit in all five views:
+1. The brass wings on the helmet, both of them. The helmet becomes a plain steel Stahlhelm with its one brass band.
+2. The round brass lamp on the helmet front.
+3. All bags: both tan saddlebags on the horse's flanks, and any pouch behind the saddle.
+4. All guns: the revolver and its holster on the rider's chest, the double-barrelled gun with its long brown leather case hanging beside the rider's leg, and the wooden stock sticking up behind the saddle.
+5. The round steel shield on the rider's left side.
+6. The row of grey grenades on the horse's chest strap. Keep the plain brown strap and the olive chest cloth.
+7. The wooden battery crate with brass terminals behind the saddle, and the thin curved wire antenna.
+
+KEEP exactly as they are: the rider's face with moustache and beard, the crimson coat, the brown gloves, the large tan pauldrons with their red wax seals and cream ribbons, the belt and crossed leather straps, the boots and stirrups, the big cleaver sword held point-down in the rider's right hand, the rider's left hand on the reins, the horse with its grey face plate, olive saddle cloth, olive leg wraps, black mane and tail, and the crimson banner with its gold stripe.
+
+The banner pole was fixed to the crate, so it now rises straight from the back of the saddle, in the same place.
+
+Where a removed prop covered something, fill in what was behind it in the same flat colours: the horse's tan flank and rump, the olive saddle cloth, the rider's crimson coat and leg, the boot and stirrup.
+
+Apply the same change in each view:
+- Panel 1, front: no wings or lamp on the helmet, no revolver on the chest, no shield on the right of the page, no gun case by the leg, no grenades. The rider's boot and the horse's side are fully visible.
+- Panel 2, left profile: no wing or lamp on the helmet, no revolver, no shield, no gun case, no wooden stock, no crate, no antenna, no saddlebag, no grenades. The rider's leg, boot, saddle cloth and horse flank are clear, and the banner pole rises from the back of the saddle.
+- Panel 3, back: no wing, no crate, no antenna, no saddlebags, no shield, no gun case. The horse's rump and tail are clear, and the banner pole rises from the saddle up the rider's back.
+- Panel 4, top-down: no wings, no lamp, no revolver, no shield, no crate, no antenna, no saddlebags, no gun barrels, no grenades. The helmet, pauldrons, coat, saddle cloth, horse's back and cleaver remain.
+- Panel 5, bottom-up: no wing, no shield, no saddlebags, no gun barrels, no grenades. The horse's underside, four hooves, rider's boots, chest strap and cleaver remain.
+
+The only props left on the unit are the cleaver sword and the banner.

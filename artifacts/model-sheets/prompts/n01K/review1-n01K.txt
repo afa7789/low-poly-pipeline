@@ -1,0 +1,22 @@
+Recolour this model sheet and change nothing else. The model is approved: keep every shape, outline, proportion, pose, prop, the blank face-less sack, the five-panel layout, the position and size of all five views, the grey background, the heavy black line and the flat coarse blockout style. Do not add, remove, move or redraw anything. No text. Only the flat fill colours change, and they replace the current bone, brown and green scheme, which is wrong.
+
+New colours, taken from the original frost-zombie unit, applied by body part:
+- Sack hood on the head: pale frost grey-green (#C4D2C8).
+- Shoulder cape, the torn collar piece of sack lying over the shoulders, chest top and upper back: strong cobalt blue (#2F55C8).
+- Bare torso, upper arms and shins: icy blue-white (#E4ECF4).
+- Forearms and hands, the area that is green now: deep cobalt blue (#2F55C8), with the same jagged edge where they meet the upper arm.
+- Torn trousers: dark royal blue (#1E2F8C).
+- Boots and the neck band: very dark navy (#141C48).
+- Chest flask and its straps' flask body: bright ice cyan (#6FD6EE), with its lighter top band in pale cyan (#BDEFF8). Its straps stay dark navy.
+- Hose arc and straw: cold slate grey (#6C7A8C).
+- Rake: stays rusty red-brown (#7A3F28), the one warm colour on the figure, with its rust marks kept.
+There must be no bone beige, no brown clothing and no green fill left anywhere on the figure except the pale grey-green hood.
+
+Apply the identical change to all five views so they show the same character: 
+Front view: pale grey-green hood, cobalt cape, icy torso, cyan flask, cobalt forearms, dark blue trousers, navy boots, slate hose and straw, rust rake. 
+Left profile view: the same colours on the hood, band, cape, torso, flask, straw, hose, forearm, trousers and boots, and the rake bar in rust. 
+Back view: pale grey-green hood, navy band, cobalt cape over an icy back, slate hose, cobalt forearms, dark blue trousers, navy boots, rust rake. 
+Top-down view: pale grey-green hood, cobalt cape and shoulders, cobalt forearms, slate hose, cyan flask edge, navy boots, rust rake. 
+Bottom-up view: navy boot soles, dark blue trousers, icy torso underside, cyan flask, slate hose and straw, cobalt cape edge, grey-green hood underside, cobalt forearms and hands, rust rake.
+
+Keep colours flat, one tone per surface, no gradients, no gloss, no new texture, no shadows on the background.

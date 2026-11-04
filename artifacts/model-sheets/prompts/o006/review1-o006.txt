@@ -1,0 +1,21 @@
+Recolour this model sheet. Change only the colours. Every shape, outline, proportion, prop, pose and position stays exactly as drawn, as do the five-panel layout, the plain light-grey background (#CCCCCC), the flat coarse blockout style with heavy dark lines, and the empty margins. Do not add, remove, move or redraw anything, and add no text, patterns or texture. Use one flat tone per surface.
+
+Apply this same colour map to every part visible in all five views (front, left profile, back, top-down, bottom-up):
+
+- Kodo hide: replace the soot black on the head, body, all four legs and tail with the warm khaki tan of the predecessor kodo's hide. It is the same animal, and this is the main colour of the sheet.
+- Kodo belly: dark earth brown, only on the underside. This covers the whole belly in the bottom-up view and the under-edge of the body where it shows. The leg undersides in the bottom-up view become a darker tan-brown.
+- Nose horn, tusks and hooves: pale bone cream.
+- Kodo eyes: small and bright red.
+- Plate quilt on the ridge: replace the rust red with cold steel grey on every plate.
+- Rider's skin: replace the black on the head, ears, neck, torso, both arms and both hands with bright orc green.
+- Rider's legs: dark brown leather.
+- Respirator and chest straps: dark brown leather.
+- Brow band: deep crimson red instead of orange.
+- Round lid-shield: deep crimson red on its faces and its edge, with the bar across it in dark iron grey.
+- Lid-dart: steel grey blade with a brown wood handle.
+- Cook-brazier pot and its lid: warm wood brown, the same in every view.
+- Saddle and fur under the rider: stay leather brown.
+
+Apply the map consistently in all five views. In the front view: tan head, cream horn and tusks, red eyes, steel quilt, green rider, crimson shield. In the left profile: tan body, steel quilt, green rider, crimson shield edge, brown brazier. In the back view: tan rump and tail, steel quilt, green rider's back with brown straps, crimson shield, brown brazier. In the top-down view: tan head, body and tail, steel quilt, green arms and shoulders, crimson brow band and shield, brown brazier. In the bottom-up view: dark earth brown belly, tan head, tail and leg edges, cream hooves and horn tip, brown brazier, and the sliver of plate at the flank in steel grey.
+
+No soot-black fill remains anywhere except the outlines. Everything else stays exactly as it is.

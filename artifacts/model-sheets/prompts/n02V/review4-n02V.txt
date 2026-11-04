@@ -1,0 +1,14 @@
+Edit this model sheet: add red details to the boar's hide, and change nothing else. Use one deep blood-red (#A81E1E) as a flat colour with hard edges, placed in the same spots on the same character in all five views.
+
+The change has two parts:
+1. Red hide: one large, rough, flat blood-red patch covers the shoulder hump and runs back along both sides of the spine to mid-back, with a jagged lower edge that stops high on the flanks. A smaller red patch covers the top of the rump. The tan hide stays visible on the lower flanks, the head and the rest of the body.
+2. Red scars: three thick, simple diagonal slashes in the same blood-red, like old wounds, on each flank. One more short scar crosses the forehead and one crosses the left cheek above the muzzle. Keep them few, large and bold, with no thin lines and no dripping blood.
+
+Apply the same change in every view:
+- Panel 1, front view: the red shoulder patch shows on both sides above and behind the head, with the forehead scar and the left cheek scar on the face.
+- Panel 2, left profile: the red patch on the shoulder hump and upper back under the barbs, the red rump patch, three slashes on the flank, and the cheek and forehead scars on the head.
+- Panel 3, back view: the red rump patch on top of the rump around the base of the tail rag, the red shoulder patch showing above it on both sides of the barb ridge, and the ends of the flank slashes on both sides.
+- Panel 4, top-down view: the red patch along both sides of the barb ridge from the shoulders to mid-back, the red rump patch, the flank slashes on both sides of the body, and the forehead scar on the head.
+- Panel 5, bottom-up view: only the lower ends of the flank slashes showing at the outer edges of the body, on both sides, and the cheek scar at the left edge of the head if visible. The belly keeps its current colour.
+
+Everything else stays exactly as it is: the five-panel layout, every view, the pose, proportions, silhouette, ground lines, line weight, the flat coarse blockout style and the grey background. The tan base hide, grey iron barbs, canvas muzzle, tusks, ears, eyes, neck strap and tag, brown dust on the legs, dark hooves and orange tail rag are all unchanged. Add no new props and no text. The red stays a detail colour on a tan boar, and the body must not turn fully red.

@@ -1,0 +1,11 @@
+Edit this model sheet: make the character more shadowy, like a dark spirit made of shadow. Change only her colouring and add a thin shadow aura. Everything else stays exactly as it is: the five-panel layout, every view, the pose, proportions, silhouette, armour shapes, helmet, long hair, spiked pauldrons, bracers, belt and crescent glaive, the grey background, the flat coarse line style, and no text.
+
+Make these same changes in all five views (front, left profile, back, top-down, bottom-up):
+1. Skin: change the pale lilac skin to a deep dusky shadow purple, much darker but still clearly purple.
+2. Armour and clothes: darken the dark violet armour towards near-black indigo. Darken the silver trim and the crescent glaive to a dull smoky steel. Darken the gold belt trim to an old dim brass.
+3. Helmet and hair: keep them clearly different colours from the body. Deepen the teal helmet to a dark shadowed teal and the green hair to a very dark green.
+4. Eyes and gem: keep the eyes bright glowing white and the helmet gem bright blue. These are now the brightest points on the figure.
+5. Shadow aura: add a few large, simple, flat wisps of near-black violet shadow rising from the shoulders and hanging from the lower legs and the hair tips. Draw them as hard-edged flat shapes, 3 to 5 on the figure, hugging the body closely. They must not hide any limb, the face or the glaive. Use the same wisps in the same places in every view.
+6. Transparency: the whole body has one single even look in all five views. The left profile view currently has see-through ghost legs and hips, while the other views are solid. Redraw the profile as solid, matching the other four views, so no view is transparent.
+
+All limbs and the face stay fully visible. Do not add any new props, gear, gradients, soft glow, cast shadows or textures: keep flat tones with hard edges. The figure must not turn into a single dark blob: the purple skin, indigo armour, teal helmet, dark green hair and steel glaive must stay readable as separate colours.

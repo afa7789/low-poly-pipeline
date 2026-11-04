@@ -1,0 +1,20 @@
+Edit this five-panel model sheet to make the unit simpler. The design is nearly right: only remove the small add-on props listed below, in all five views, and do not redesign anything.
+
+Remove these four things from the unit, wherever they appear:
+1. The stack of pierced blue-grey plates on the flank.
+2. The bent vent pipe with the flared or round open top.
+3. The dark glass jar and its strap under the front of the launch rail.
+4. The cream bottle-shaped ampoule on the dart, leaving one plain clean steel dart shaft with its spear tip.
+
+Also replace the coiled elevation screw and the handwheel with one plain, solid, flat brass block post. It stands in the same place, behind the fat dark tank, and holds up the rail. No spring coil, no spokes, no wheel and no side bars or discs sticking out of the cradle.
+
+Make the same change in each view:
+- Panel 1, top left (front): remove the plate stack at image right, the pipe at image left, the small handwheel disc beside the tank, the jar and strap in front of the tank, and the round ampoule circle at the top. The dark round tank now shows clean and whole behind the rail.
+- Panel 2, top middle (left profile): remove the plate stack so the plain brass cradle side shows between the two wheels, with no bracket left behind. Remove the jar under the rail and the ampoule on the dart. Replace the coil and spoked handwheel with the plain brass post.
+- Panel 3, top right (back): remove the plate stack at image left, the pipe at image right, and the handwheel disc. Replace the coil above the counterweight with the plain brass post.
+- Panel 4, bottom left (top-down): remove the plate stack at image left, the pipe at image right, the handwheel and side bars on both sides, the jar shape under the front of the rail, and the ampoule on the dart. Replace the crossbar-mounted handwheel with the simple post, seen as a plain block under the rail.
+- Panel 5, bottom right (bottom-up): remove the plate stack at image right, the pipe at image left, and the thin handwheel bar at image left. The cradle sides are clean straight edges.
+
+Fill every removed area with the plain surface or the grey background that would be behind it, with no leftover bolts, brackets, stubs or outlines.
+
+Everything else stays exactly as it is: the five-panel layout and the size and position of every view, the grey background, the brass cradle, the four dark wheels, the fat dark tank with its cream band, the brass launch rail, the brass bow arms, the steel dart, the slider block, the rear counterweight, all colours, the heavy outline, the flat coarse blockout style, and the neutral level pose. No crew, no face and no text. Add nothing new except the plain brass post.

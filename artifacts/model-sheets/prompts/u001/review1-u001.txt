@@ -1,0 +1,20 @@
+Recolour this model sheet only. Do not redraw anything: keep every shape, outline, proportion, pose, prop and panel position exactly as it is, along with the five-panel layout, the grey background (#CCCCCC), the heavy black line, the flat coarse blockout style and the absence of text. The only change is to replace the current cream, brown and green fills with the new flat colours below, one flat tone per surface, with no gradients, no glow effects, no shading and no texture.
+
+Colour map, replacing every cream, brown and green area:
+- Everything now cream (wide-brimmed hat, sleeves, dress body, three-tier plume) becomes spectral sea-green teal (#5FBFB0).
+- The hair, hat band and apron, now brown, become deep blue-black midnight (#1E2A4A).
+- The mask and veil, now brown, become ashen corpse grey (#6F7682).
+- The eye slits become pale icy cyan (#CFF7F2), flat colour only.
+- The work gloves, now brown, become the same ashen grey (#6F7682).
+- The hose, the hand siren and the straps, now brown, become dark gunmetal teal (#1F5A5E), with the inside of the siren horn staying near-black.
+- The resin now green in the flask, the seep at the foot of the plume and the drip become vivid violet purple (#7A35C8).
+- The flask glass above the resin, now cream, becomes the pale icy cyan (#CFF7F2).
+
+Apply the same colour change in all five views:
+- Front view: teal hat, sleeves, dress and plume; midnight hat band and apron; grey mask, veil and gloves; icy cyan eye slits; gunmetal hose and siren; violet seep and drip.
+- Left profile view: the same, plus midnight hair, and violet resin with icy cyan glass in the flasks, gunmetal hose, siren and straps.
+- Back view: teal hat, sleeves, dress and plume; midnight hat band and hair; violet resin with icy cyan glass in the flask; gunmetal hose and straps; violet seep and drip.
+- Top-down view: teal hat, sleeves and plume rings; midnight hat band and apron; grey gloves; gunmetal hose and siren; violet resin with icy cyan glass in the flask.
+- Bottom-up view: teal plume rings and sleeves; grey gloves; gunmetal hose and siren; violet eight-sided seep and drip.
+
+Everything else stays exactly as it is in all five views. No cream, brown or green may remain on the figure.

@@ -1,0 +1,20 @@
+Edit this five-panel model sheet. Change ONLY the head of the creature, and make the same head change in all five views. The head should stop reading as a dog or wolf and become an alien demon head, with only a slight hound-like shape left.
+
+The new head, the same design in every view:
+- Lower and flatter than now: a wedge-shaped skull carried low and forward, its top line running almost level with the neck and back. The head must not rise as high as it does now.
+- A much shorter muzzle, blunt and tapered, about half its current length. Remove the dog nose and nostrils.
+- Remove the tall pointed dog ears. Replace them with two small swept-back ear spurs lying flat against the rear of the skull, no taller than the top of the skull.
+- Large smooth chitin plates over the face: one big crest plate from the brow over the top of the skull to the back of the head, ending in a low swept-back point, plus one plate along each cheek and one over the snout. Keep them few, large and hard-edged, like the plates on the creature's back.
+- Two narrow, slanted glowing orange eyes set deep under the brow plate, smaller and thinner than now, with no dog-like brow or expression.
+- A short, low jaw with two tusks curving up and outward from the lower jaw in bone cream. Replace the rows of many small dog teeth with a few large, simple teeth.
+
+Head colours use only the sheet's existing palette: crimson red on the chitin plates, dark plum in the recesses and under the jaw, bone cream on the tusks and teeth, orange on the eyes. Keep the same heavy black outline and flat colour blocks. The head stays low detail, with few large shapes.
+
+The change in each view:
+- Panel 1, top left, front view: the low flat wedge head seen head-on, with the brow plate, narrow glowing eyes, short snout plate and two upcurved tusks. No tall ears, and the head sits lower in front of the chest.
+- Panel 2, top middle, left profile, facing left: the same head in side view, showing the flat skull line, swept-back crest plate, cheek plate, one narrow eye, short muzzle, one tusk and a small ear spur lying flat.
+- Panel 3, top right, back view: the same head seen from behind as a low rear edge of crest plate with two small swept-back ear spurs. Remove the tall ears that now rise above the back, so that only a low head shape shows.
+- Panel 4, bottom left, top-down view: the same head from above as a short wedge covered by the crest and snout plates, with the small ear spurs lying back along its sides, the two eye slits at its edges and the tusk tips just showing. It is noticeably shorter than the current long snout.
+- Panel 5, bottom right, bottom-up view: the same head from below, with a short dark jaw underside, the two tusks at its sides and a few large teeth at the front. It is noticeably shorter than the current long snout.
+
+Everything else stays exactly as it is, in every view: the body, neck, legs, paws and claws, the two raised scythe arms with their bone blades, the back plates, the bone spikes, the tail, all colours, the pose, proportions and position of every figure. The five-panel layout, the ground line, the plain light-grey background, the flat coarse blockout style and the absence of any text also stay unchanged.

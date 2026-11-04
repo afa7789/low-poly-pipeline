@@ -1,0 +1,46 @@
+[
+  {
+    "name": "throat_reservoir",
+    "where": "anchor throat, on bone neck.1",
+    "bones": [
+      "neck.1"
+    ],
+    "extent": [
+      0.162,
+      0.242
+    ]
+  },
+  {
+    "name": "concession_ring",
+    "where": "anchor neck base, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  },
+  {
+    "name": "wing_upper.L",
+    "where": "anchor back, on bone wing1.upper",
+    "bones": [
+      "wing1.upper"
+    ],
+    "extent": [
+      0.247,
+      0.37
+    ]
+  },
+  {
+    "name": "wing_lower.L",
+    "where": "anchor back, on bone wing1.lower",
+    "bones": [
+      "wing1.lower"
+    ],
+    "extent": [
+      0.335,
+      0.503
+    ]
+  }
+]

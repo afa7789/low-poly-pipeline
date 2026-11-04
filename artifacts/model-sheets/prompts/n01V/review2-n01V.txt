@@ -1,0 +1,19 @@
+Edit this five-panel model sheet of the Mech Lunatic Goblin. Make exactly two changes and apply each to all five views: make the barrel smaller, and add three large, crude dieselpunk clothing pieces. Everything else stays as it is.
+
+CHANGE 1: SMALLER BARREL
+Shrink the cast-iron barrel to about half its current volume, so it is a small keg clearly narrower than the goblin's torso. It runs only from the lower chest to the top of the thighs, and the goblin no longer reads as a barrel with legs. Keep its colour, its bands, the brass seal on its front and the short lit fuse with its yellow flame on its top rim. The mitts stay at the sides of the barrel, moved inward only as far as needed to stay against the smaller barrel, and they still hold the lever detonator and the match bundle. The goblin's body size does not change, and the torso, legs and arms that the old barrel hid now show.
+
+CHANGE 2: THREE DIESELPUNK PIECES
+1. A steel Brodie helmet: a wide, shallow, flat-brimmed trench helmet in light blue-grey steel, sitting on top of the head between the ears. The face, nose, grin and both ears stay fully visible, and the brass goggles now rest on the front of the helmet above the brim.
+2. A thick leather apron in dark oxblood red, replacing the grey smock on the front of the torso. It runs from the chest to just above the knees, with one broad neck strap and one broad waist strap, as a single large flat shape.
+3. Puttees: wide khaki cloth wraps on both shins from the knee to the top of the iron boots, drawn as three or four broad bands, with no fine lines.
+
+SAME CHANGES IN EACH VIEW
+- Panel 1, front: the small barrel is held in front of the belly, with the oxblood apron visible above, around and below it. The helmet is on the head, the goggles are on its front, and puttees are on both shins.
+- Panel 2, left profile: the small barrel sits close against the apron front and no longer bulges far past the body. The helmet brim is visible front and back, the goggles are on the helmet front, the apron edge shows at the front of the torso, and one puttee leg is visible.
+- Panel 3, back: the mantle stays as it is. The back of the helmet replaces the bare skull, with the goggle band around the helmet, and the apron's neck strap shows at the nape. The barrel no longer shows at the sides, and the fuse flame still peeks out beside the body. Puttees are on both shins.
+- Panel 4, top-down: a round helmet dome and brim cover the top of the head, with the goggles at its front edge, and the nose and ears still show. The barrel lid with its fuse is a much smaller circle, the mitts sit closer in with the detonator and matches, and the apron shoulder strap shows.
+- Panel 5, bottom-up: the barrel underside is a much smaller circle, the oxblood apron underside shows around it, the mitts sit closer in with the detonator and matches, and the puttee cuffs show above the boot soles.
+
+KEEP UNCHANGED
+Keep the goblin's green skin, head shape, big ears, long hooked nose, huge yellow-toothed grin and brown mitts. Keep the lever detonator, match bundle, torn charred mantle and iron boots. Do not change the pose, the proportions of the body, or the position and scale of each figure. All five views show the same character in the same pose. Keep the five-panel layout, the grey background, the flat coarse blockout style and the heavy outline. Add no text and no other props: no tank or fuel tank, no backpack, no hoses and no pipes.

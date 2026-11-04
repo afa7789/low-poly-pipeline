@@ -402,7 +402,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
         base_dir = eye / "base"
         ev = measure(src, base_dir, sheet, unit["rig"])
         summary["base"] = {"seconds": round(time.monotonic() - t0, 1), "parts": ev["parts"], "views": ev["views"], "tris": None}
-        stem, label, prev, last_glb = src.stem, "old model", None, None          # the renders are named after the GLB they come from
+        stem, label, last_glb = src.stem, "old model", None          # the renders are named after the GLB they come from
         imgs_extra = [("sheet", sheet)] + [(k, REFS / uid / f) for k, f in (("hard", "sheet-hard.jpg"), ("props", "sheet-props.jpg")) if (REFS / uid / f).exists()]
         cur = {"work": base_dir, "ev": ev, "dsl": None, "face": ctx["face"]}
         r, builds, note, listed, stalls = 0, 0, "", [], 0
@@ -460,13 +460,13 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                                       "pieces": info["pieces"], "parts": ev["parts"], "views": ev["views"], "disaster": ev["disaster"], "resent": seen["failed"], "resend_why": seen["why"]})
             log(f"eye round {r}: {info['tris']} tris, {info['pieces']} pieces, parts {ev['parts'][0]}/{ev['parts'][1]}, llm {llm_s:.0f}s")
             stalls = judge_step(stop, judge, eye, r, src_run, cur["ev"], ev, stalls, summary)
-            cur, last_glb, label, prev, note, stem = {"work": rd, "ev": ev, "dsl": doc_r, "face": ctx["face"]}, glb, f"round {r} model", doc_r, "", glb.stem
+            cur, last_glb, label, note, stem = {"work": rd, "ev": ev, "dsl": doc_r, "face": ctx["face"]}, glb, f"round {r} model", "", glb.stem
             r += 1
             if stalls >= STALLS or (r >= rounds and not (disaster_only(ev) and r < cap)):
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, prev, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project)
+    return finish(summary, last_glb, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project)
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -514,7 +514,7 @@ def replayed(summary, src, src_run, eye, out, rotate, recipe):
     if src_run == out:
         return summary
     summary["timing"], summary["seconds"] = {}, 0.0
-    return finish(summary, eye / "replay.glb", replay_dsl(eye), src, out, eye, *recipe)
+    return finish(summary, eye / "replay.glb", src, out, eye, *recipe)
 
 
 def replay_dsl(eye):
@@ -536,16 +536,22 @@ def replay_run(summary, src, eye, out, rotate):
     return summary
 
 
-def finish(summary, last_glb, dsl, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off"):
-    """The files of the stage: model.glb (the last built round, outlined), clay.glb, anim stretch, summary.json, review.md.
+def best_round(rounds):
+    """The built round to ship: no disaster, then most coherent parts, then the latest (rounds can get worse: n01N 21/35 -> 18/35)."""
+    return max((r for r in rounds if "tris" in r), key=lambda r: (not r["disaster"], r["parts"][0], r["round"]))["round"]
+
+
+def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off"):
+    """The files of the stage: model.glb (the best built round, or the recorded one on a replay, outlined), clay.glb, anim stretch, summary.json, review.md.
     fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs)."""
     if last_glb is None:
         summary["final_round"] = None
         (eye / "summary.json").write_text(json.dumps(summary, indent=1))
         return summary
-    summary["final_round"] = max(r["round"] for r in summary["rounds"] if "tris" in r)
+    summary.setdefault("final_round", best_round(summary["rounds"]))
     final = eye / f"round-{summary['final_round']}" / "model.glb"
     summary["vertex_hash"] = vertex_hash(final)
+    dsl = json.loads((final.parent / "dsl.json").read_text())
     if fuse:
         dsl, summary["fuse"] = eye_fuse.fuse(dsl, fuse)
         (eye / "fused.dsl.json").write_text(json.dumps(dsl, indent=1))
@@ -636,5 +642,5 @@ def run_in_pipeline(args, src_run, ask):
 def from_run(args, ask):
     """spec_pipeline --eye-from RUN: only the stage, on runs/draft/<id>/RUN into args.out. Exit code."""
     s = run_in_pipeline(args, RUNS / args.id / args.eye_from, ask)
-    print(f"{args.id}\t{args.run}\teye {args.eye}\tfinal round {s.get('final_round')}\t{s.get('seconds')} s\tparts {(s.get('rounds') or [{}])[-1].get('parts')}")
+    print(f"{args.id}\t{args.run}\teye {args.eye}\tfinal round {s.get('final_round')}\t{s.get('seconds')} s\tparts {next((r.get('parts') for r in s.get('rounds', []) if r.get('round') == s.get('final_round')), None)}")
     return 0 if s.get("final_round") is not None else 1

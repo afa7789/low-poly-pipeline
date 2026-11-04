@@ -328,15 +328,20 @@ def quantize(px, mid):
     return out
 
 
+def nearest_piece(P, fields):
+    """(n,) index in `fields` of the piece whose convex field is nearest to every surface point."""
+    best, idx = np.full(len(P), np.inf), np.zeros(len(P), int)
+    for i, f in enumerate(fields):
+        d = (P @ np.asarray(f["n"], float).T - np.asarray(f["d"], float)).max(1)
+        take = d < best
+        best[take], idx[take] = d[take], i
+    return idx
+
+
 def texel_slots(P, fields):
     """(n,) material slot of every surface point: the slot of the piece whose convex field is nearest (L18-3: on a united mesh the triangles straddle
     two pieces and a per-triangle colour zigzags along the seam; the piece fields draw the seam where the pieces meet)."""
-    best, slot = np.full(len(P), np.inf), np.zeros(len(P), int)
-    for f in fields:
-        d = (P @ np.asarray(f["n"], float).T - np.asarray(f["d"], float)).max(1)
-        take = d < best
-        best[take], slot[take] = d[take], f["slot"]
-    return slot
+    return np.array([f["slot"] for f in fields])[nearest_piece(P, fields)]
 
 
 def border_ink(mask, mid, isl_map):

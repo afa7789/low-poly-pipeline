@@ -1,0 +1,24 @@
+Edit this five-panel model sheet of the Mountain Giant. Change only the materials, the colours and the removal of the tree described below. Keep the body design, proportions, stone face, silhouette of head, torso, shoulders and legs, the same pose in every view, the five-panel layout, panel positions, figure sizes, ground line, solid light-grey background, heavy black line, flat coarse blockout style and the absence of text.
+
+Same changes in all five views (front, left profile, back, top-down, bottom-up):
+
+1. No wood anywhere. Delete the uprooted tree completely: its leafy crown, trunk, branches, root ball and dangling roots. Fill the area where it stood with plain empty background. The arm that held it now hangs straight down at the giant's side, mirroring the other arm, and ends in an empty closed grey stone mitt.
+
+2. Delete all the wooden pegs from both shoulder plates. Delete the three wooden stitches across the chest scar. The scar stays as a plain narrow dark crack in the stone, in the front view and every other view where it appears. Nothing is added in place of the pegs.
+
+3. No brown anywhere. Every brown bark surface on the arms, legs, back, hips and feet becomes flat weathered grey stone, drawn as the same large blocks with the same outlines, in two clearly different stone tones: a mid cool grey and a darker slate grey with a slight violet-blue cast. The back's bark becomes dark slate, and its central fissure stays as a lighter grey stone strip.
+
+4. The root-fan feet keep their shape and wide spread but become split grey stone slabs, not roots or wood.
+
+5. The rust brown and orange on both shoulder plates is removed. Both plates become light grey stone with broad flat moss-green patches over their top edges, and the larger bright green patch on one plate stays where it is.
+
+6. Add more moss, using the same flat tones as the existing moss collar, which stays: a mid moss green and a lighter yellow-green. Add large simple moss patches on the hips and waist, on the knee blocks, and in the fissures of the arms and thighs. Keep each patch a large flat shape, placed the same way in every view. The thin bright green vein from the chest to the foot stays as a moss-green line, ending in the stone foot.
+
+Per view:
+- Front: the tree on the right side of the panel is gone, and the arm on that side hangs straight with an empty stone mitt.
+- Left profile: the tree crown behind the head and the root ball behind the leg are gone, leaving only the giant.
+- Back: the tree on the left side of the panel is gone, and the arm on that side hangs straight with an empty stone mitt.
+- Top-down: the round tree crown and root ball on the right side of the panel are gone, and the empty stone mitt shows beside the torso.
+- Bottom-up: the tree crown, trunk and root ball on the right side of the panel are gone, and the underside of the empty stone mitt shows beside the torso. The foot soles are grey stone.
+
+The result should read as a giant of grey stone blocks overgrown with moss, with no brown, no orange, no wood and no held item. Everything else stays exactly as it is.

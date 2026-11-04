@@ -1,0 +1,19 @@
+Edit this five-panel model sheet of the Faerie Dragon. Change only two things, the head size and the wings, and make both changes in all five views. Everything else stays exactly as it is.
+
+CHANGE 1: SMALLER HEAD. The head is far too big. Shrink the whole head to about 60% of its current size in every view, including the snout, jaw, eyes, the two dark horns and the red head crest, and shrink the two thin striped feelers beside the horns with it. The head keeps its shape, green colour and violet eyes, and only its size changes. It must look small on the long neck and clearly narrower than the chest, with chunky game proportions and nothing chibi or big-headed. Taper the neck slightly so it meets the smaller head cleanly. The neck length and the body do not change.
+- Front view: small head, about half the width of the chest.
+- Left profile: small head on the same neck, with the body, red back sail and spiral tail unchanged.
+- Back view: only a small part of the head shows above the neck, with smaller horns and crest.
+- Top-down view: small head at the front of the neck, narrower than the shoulders.
+- Bottom-up view: small underside of the head and jaw at the front of the neck.
+
+CHANGE 2: WINGS LIKE THE ORIGINAL WARCRAFT 3 MODEL. Replace the neat butterfly wings with wider, ragged Warcraft 3 faerie dragon wings. Each wing is one very wide, long, tattered sheet that spreads far out sideways from the shoulder, much wider than it is deep, with a shallow notch separating a broad front part from a shorter rear part. It is not two rounded butterfly lobes. The outer and rear edges break into long, thin, jagged spikes and torn tatters, and the wing tip ends in a long hooked point. Keep the current wing colours, arranged in the same order from body to tip: a hot magenta and orange-red inner part with one white oval eyespot, a band of pale lilac cracked glass held in dark veins, then a very dark purple outer part with a white crescent mark near the tip and violet tips on the spikes. Use few large shapes, because this becomes a low-poly model. Both wings match and hold the same pose in every view: spread wide and nearly flat, tilted up only about 20 degrees from level, never in a steep V.
+- Top-down view: both wings fully spread flat to either side, showing the full shape and colours above.
+- Bottom-up view: the same wing shape and colours seen from below, as a mirror of the top-down view.
+- Front view: replace the steep upward blades with both wings reaching far out to the sides at the same shallow 20 degree tilt, seen almost edge-on as long, thin, jagged magenta and dark purple strips.
+- Back view: the same wide, shallow, almost edge-on wings as the front view.
+- Left profile: add the near wing, which the current drawing does not show. It rises from the shoulder at the same shallow tilt, seen as a low, foreshortened jagged sheet of magenta and dark purple in front of the red back sail, without hiding the sail.
+
+Because the wings are now wider, scale the whole figure down equally in all five panels just enough that every wing tip stays inside its own panel, with a clear empty margin and no contact with the neighbouring figure. All five figures stay the same size as each other and are never cropped.
+
+Keep everything else unchanged: the five-panel layout and each figure's position and view angle, the grey background, the flat coarse blockout style and heavy line, the teal body with pale spots and dark stripes, the orange belly, all four legs and claws, the red back sail, the striped spiral tail, the same still pose in every view and all body colours. Do not add any props, gear or text.

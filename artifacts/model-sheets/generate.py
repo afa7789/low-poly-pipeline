@@ -38,6 +38,7 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = "https://api.ppq.ai/v1/images/generations"
+PG12_NOTE = "Context: concept art for low-poly units of a PG-12 dark-fantasy video game; the units should look menacing and a little scary, with no gore.\n\n"
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
@@ -79,7 +80,7 @@ def main():
     if args.image and args.model == "nano-banana-2-1":
         args.model = "nano-banana-2-1-edit"
 
-    prompt = args.prompt_file.read_text().strip()
+    prompt = PG12_NOTE + args.prompt_file.read_text().strip()
     if args.id and not args.out and not args.name:
         out = ROOT / "artifacts/model-sheets" / "refs" / args.id
         # prompts are unit*.txt, the art they draw is refs/<id>/sheet*.jpg (unit-hard -> sheet-hard)

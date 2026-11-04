@@ -410,8 +410,8 @@ def live_eye_fuse():      # L18-1: the material ceiling reaches eye_stage.run (d
     return eye_run_kwargs()["fuse"], eye_run_kwargs("--eye-fuse", "0")["fuse"]
 
 
-def live_eye_project():   # L20-0: the projection switch reaches eye_stage.run (default off)
-    return eye_run_kwargs()["project"], eye_run_kwargs("--eye-project", "on")["project"]
+def live_eye_project():   # L20-2: the projection switch reaches eye_stage.run (default tight)
+    return eye_run_kwargs()["project"], eye_run_kwargs("--eye-project", "off")["project"]
 
 
 def live_eye_union_reduce():      # L18-2b: the union's reducer reaches eye_stage.run (default cvt since L19-0)

@@ -1,0 +1,4 @@
+# unit prompt for n02W (Harpy, Desert)
+# range=280 palette=`#C2B280` Areia Cozida | `#6F5C42` Tamareira Morta | `#FF9218` Chama de Poço
+# redesign: At 32 px, asymmetrical patched wings form a broken V around one raised canvas spar, much smaller than the Matriarch’s crowned span. Raw Canvas and Baked Sand dominate, with Well Pitch on straps, Tower Iron on the face veil, and one Well Flame theft rag tied to the oil jar. The wire veil, hanging jar, patched spar, and bullet-hole stitch are the four props, and the veil fully screens the face. Erratic wing beats and a swinging jar physically sell evasion without trails or glow. A pitch-streaked dust ring and dragging tie-down create the base contact read; she steals rail-tank oil from whichever castle currently owns the line and spills enough to reveal the route to the next bidder. Budget: approximately 500 tris, one atlas, no transparency.
+# Fill from template artifacts/model-sheets/draft2/prompts/00-template-unit.txt
