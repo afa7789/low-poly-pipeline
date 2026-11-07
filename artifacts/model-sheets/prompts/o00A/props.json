@@ -1,0 +1,25 @@
+[
+  {
+    "name": "collar",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.366,
+      0.549
+    ]
+  },
+  {
+    "name": "still-staff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.744,
+      1.115
+    ]
+  }
+]

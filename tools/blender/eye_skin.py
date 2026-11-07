@@ -512,6 +512,7 @@ def build(src, dsl, out, technique):
     for m in mats.values():
         old.data.materials.append(m)
     body, pieces = Body({g.name: g.index for g in old.vertex_groups}), []
+    body.opts = dsl.get("union_opts") or {}          # eye_union.apply: the mold dir and the joints mode (levers 1 and 3, 2026-11-05)
     for p in dsl["pieces"]:
         obj = EL.make_piece(p, mats[p["mat"]])
         pieces.append(piece_data(p, obj, names.index(p["mat"])))
@@ -527,6 +528,7 @@ def build(src, dsl, out, technique):
     done = apply_technique(technique, body, pieces, joints, height)
     info = {"technique": technique, "tris_pieces": before, "culled": culled, "tris": tris_of_bm(body.bm), "pieces": len(pieces), "joints": joints, "skins": done,
             "components": components(body.bm), "body_components": getattr(body, "union_components", None), "unions": getattr(body, "union_log", None), "height": round(height, 3),
+            "mold": getattr(body, "union_mold", None), "joints_mode": body.opts.get("joints", "off"),
             "fields": [{"slot": pc["slot"], "n": pc["planes"][0].tolist(), "d": pc["planes"][1].tolist()} for pc in pieces]}   # L18-3: eye_paint colours texels by the nearest piece
     body.bm.to_mesh(old.data)
     body.bm.free()

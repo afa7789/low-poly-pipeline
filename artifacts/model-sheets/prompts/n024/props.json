@@ -1,0 +1,70 @@
+[
+  {
+    "name": "horns",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.255,
+      0.382
+    ]
+  },
+  {
+    "name": "furnace",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.103,
+      0.154
+    ]
+  },
+  {
+    "name": "gold collar",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.217,
+      0.325
+    ]
+  },
+  {
+    "name": "gold belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.227,
+      0.34
+    ]
+  },
+  {
+    "name": "knee plate L",
+    "where": "anchor knee.L, on bone thigh.L",
+    "bones": [
+      "thigh.L",
+      "thigh.R"
+    ],
+    "extent": [
+      0.085,
+      0.127
+    ]
+  },
+  {
+    "name": "knee plate R",
+    "where": "anchor knee.R, on bone thigh.R",
+    "bones": [
+      "thigh.R",
+      "thigh.L"
+    ],
+    "extent": [
+      0.092,
+      0.138
+    ]
+  }
+]

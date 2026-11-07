@@ -1,0 +1,49 @@
+[
+  {
+    "name": "hook_crescents",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.251,
+      0.376
+    ]
+  },
+  {
+    "name": "blade.L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.179,
+      0.269
+    ]
+  },
+  {
+    "name": "blade.R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.197,
+      0.296
+    ]
+  },
+  {
+    "name": "bell_chain",
+    "where": "anchor wrist.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.058,
+      0.086
+    ]
+  }
+]

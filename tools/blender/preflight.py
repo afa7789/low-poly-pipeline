@@ -386,7 +386,7 @@ def family_checks(parts, boxes, height, m):
     rows = [("length", (max(b[1][2] for b in body) - min(b[0][2] for b in body)) / height, m["len"])] if body else []
     if wings and "wing" in m:
         rows.append(("wing span", (max(b[1][0] for b in wings) - min(b[0][0] for b in wings)) / height, 2 * m["wing"]["span"]))
-    bad = [k for k, got, want in rows if not FAMILY_BAND[0] <= got / want <= FAMILY_BAND[1]]
+    bad = [k for k, got, want in rows if want and not FAMILY_BAND[0] <= got / want <= FAMILY_BAND[1]]     # want 0: the family has no such measure (n00H wyrm)
     return [("family_place", not bad or not FAMILY_BLOCKING,
              ", ".join(f"{k} {got:.2f} H (sheet {want:.2f}, x{FAMILY_BAND[0]}-{FAMILY_BAND[1]})" + (" - OUT" if k in bad else "")
                        for k, got, want in rows))] if rows else []

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "rifle with bayonet",
+    "where": "anchor hand.R, on bone rider.forearm.L",
+    "bones": [
+      "rider.forearm.L",
+      "rider.forearm.R"
+    ],
+    "extent": [
+      0.933,
+      1.4
+    ]
+  },
+  {
+    "name": "round shield",
+    "where": "anchor arm.R, on bone rider.arm.R",
+    "bones": [
+      "rider.arm.R",
+      "rider.arm.L"
+    ],
+    "extent": [
+      0.27,
+      0.405
+    ]
+  }
+]

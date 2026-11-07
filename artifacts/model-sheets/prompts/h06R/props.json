@@ -1,0 +1,35 @@
+[
+  {
+    "name": "rotor",
+    "where": "anchor mast top, on bone prop",
+    "bones": [
+      "prop"
+    ],
+    "extent": [
+      1.66,
+      2.49
+    ]
+  },
+  {
+    "name": "gun",
+    "where": "anchor hand, on bone gondola",
+    "bones": [
+      "gondola"
+    ],
+    "extent": [
+      0.358,
+      0.538
+    ]
+  },
+  {
+    "name": "bomb",
+    "where": "anchor belly, on bone gondola",
+    "bones": [
+      "gondola"
+    ],
+    "extent": [
+      0.9,
+      1.351
+    ]
+  }
+]

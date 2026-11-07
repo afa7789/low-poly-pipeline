@@ -1,0 +1,60 @@
+[
+  {
+    "name": "ice visor",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.086,
+      0.128
+    ]
+  },
+  {
+    "name": "sieve crown",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.154,
+      0.231
+    ]
+  },
+  {
+    "name": "valve staff",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.596,
+      0.894
+    ]
+  },
+  {
+    "name": "valve wheel",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.087,
+      0.131
+    ]
+  },
+  {
+    "name": "lamp arm and lamp",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.175,
+      0.262
+    ]
+  }
+]

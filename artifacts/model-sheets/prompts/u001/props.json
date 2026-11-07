@@ -1,0 +1,24 @@
+[
+  {
+    "name": "resin_flask",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.103,
+      0.155
+    ]
+  },
+  {
+    "name": "drip",
+    "where": "anchor base, on bone base",
+    "bones": [
+      "base"
+    ],
+    "extent": [
+      0.048,
+      0.072
+    ]
+  }
+]

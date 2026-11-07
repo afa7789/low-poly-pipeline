@@ -1,0 +1,49 @@
+[
+  {
+    "name": "shoulder pad",
+    "where": "anchor shoulder.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.11,
+      0.165
+    ]
+  },
+  {
+    "name": "chest star core",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.099,
+      0.148
+    ]
+  },
+  {
+    "name": "lightning blade L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.335,
+      0.502
+    ]
+  },
+  {
+    "name": "lightning blade R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.34,
+      0.511
+    ]
+  }
+]

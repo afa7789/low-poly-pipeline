@@ -1,0 +1,36 @@
+[
+  {
+    "name": "drum-lid helm",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.341,
+      0.511
+    ]
+  },
+  {
+    "name": "hatch stanchion cudgel",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.524,
+      0.786
+    ]
+  },
+  {
+    "name": "net weight belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.315,
+      0.472
+    ]
+  }
+]

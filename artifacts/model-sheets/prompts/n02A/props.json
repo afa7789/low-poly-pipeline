@@ -1,0 +1,35 @@
+[
+  {
+    "name": "bark beak",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.095,
+      0.143
+    ]
+  },
+  {
+    "name": "sap drip",
+    "where": "anchor head, on bone jaw",
+    "bones": [
+      "jaw"
+    ],
+    "extent": [
+      0.067,
+      0.1
+    ]
+  },
+  {
+    "name": "chest plate",
+    "where": "anchor chest, on bone spine.2",
+    "bones": [
+      "spine.2"
+    ],
+    "extent": [
+      0.147,
+      0.221
+    ]
+  }
+]

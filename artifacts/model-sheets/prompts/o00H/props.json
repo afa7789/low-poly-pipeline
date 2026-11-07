@@ -1,0 +1,35 @@
+[
+  {
+    "name": "mortar tube",
+    "where": "anchor hull, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.316,
+      0.474
+    ]
+  },
+  {
+    "name": "boiler",
+    "where": "anchor hull, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.485,
+      0.728
+    ]
+  },
+  {
+    "name": "chimney",
+    "where": "anchor boiler top, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  }
+]

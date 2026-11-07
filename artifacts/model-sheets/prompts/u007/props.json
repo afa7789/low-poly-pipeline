@@ -1,0 +1,46 @@
+[
+  {
+    "name": "burlap mask",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.145,
+      0.218
+    ]
+  },
+  {
+    "name": "iron hatch",
+    "where": "anchor belly, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.126,
+      0.188
+    ]
+  },
+  {
+    "name": "chest hose",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.325,
+      0.488
+    ]
+  },
+  {
+    "name": "shoulder vent",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.136,
+      0.205
+    ]
+  }
+]

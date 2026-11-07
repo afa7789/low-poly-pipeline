@@ -1,0 +1,13 @@
+[
+  {
+    "name": "basalt ring base",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.514,
+      0.771
+    ]
+  }
+]

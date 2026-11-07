@@ -13,6 +13,10 @@ Per unit, in order, each stage idempotent (skipped when its outputs exist, with 
           from the parts the segmenter marked `prop` (name, bone, extent from box3d) when the unit has any.
   model   spec_pipeline.py with the v18-cvt recipe spelled out by flag (--eye on, fuse 12, union bone @ cvt, paint box,
           hull outline), --deterministic, --run <run-id>; race from the compendium, rig from RIG_OF / the card's words.
+--extra-units <json>: a list of {id, name, race, rig, kind: "unit", card, parent, figure} pseudo-units merged before the lookup (a
+multi-figure sheet split into one model per figure: e00E-a, hmtm-c). An extra unit brings its own refs/<id>/sheet.jpg (a split of the
+parent's), so the prompt and sheets stages count as done; its rig is the entry's; its `figure` line and the parent's facts are the
+segmenter's card (prompts/<id>/card.txt); spec_pipeline builds from sheet.jpg when the hard variants are missing.
 State in artifacts/model-sheets/runs/roster/<run-id>/status.json (per unit: stage, seconds, estimated cost, truncated error,
 paths), one log per unit in logs/<id>.log, the final markdown table in table.md. A failing unit never stops the others.
 The pure functions (unit state, stage plan, rig guess, props from parts, parsers, table, estimate) are tested in
@@ -38,7 +42,8 @@ SHEETS = ("sheet", "sheet-hard", "sheet-hard-clean", "sheet-props")        # ref
 REQUIRED, OPTIONAL = SHEETS[:2], SHEETS[2:]      # hard-clean: no A-pose for quadruped/wyrm/drake (22.L4-4a); props: body parts (§16)
 PROMPT_OF = {"sheet": "unit", "sheet-hard": "unit-hard", "sheet-hard-clean": "unit-hard-clean", "sheet-props": "unit-props"}
 STUB_MARK = "# Fill from template"                                          # unit_facts.emit_prompt writes this header
-SESSION_MODEL = "session:opus"
+SESSION_MODEL = "session:sonnet"      # prompts, parts and the per-view look (2026-11-05: weekly quota)
+ARTIST_MODEL = "session:opus"        # the eye artist keeps Opus: it writes the model
 USD_PER_SHEET = {"sheet": 0.046, "sheet-hard": 0.051, "sheet-hard-clean": 0.051, "sheet-props": 0.051}   # generate.py docstring
 USD_RTS = 3 * 0.051           # spec_pipeline.ensure_rts draws sheet-rts, sheet-hard-rts, sheet-hard-clean-rts (1K edits)
 # measured in PIPELINE 38 (mean of the samples): prompt 1 unit (n00L, 111-115 s), parts 2 (53, 72 s), model 2 (1744, 1514 s, whole
@@ -58,7 +63,9 @@ RIG_WORDS = (("spider", "spider"), ("quadruped", "quadruped"), ("wolf", "quadrup
              ("naga", "naga"), ("harpy", "harpy"), ("rider", "mounted"), ("mounted", "mounted"), ("tank", "vehicle"),
              ("cart", "vehicle"), ("wagon", "vehicle"), ("vehicle", "vehicle"))
 EYE_RECIPE = ["--eye", "on", "--eye-rounds", "3", "--eye-stop", "model", "--eye-fuse", "12", "--eye-union", "bone",
-              "--eye-union-reduce", "cvt", "--eye-paint", "box", "--outline", "hull"]        # runs/draft/hfoo/v18-cvt/leva18.json
+              "--eye-union-reduce", "cvt", "--eye-paint", "box", "--outline", "off",
+              "--depth", "--depth-model", "triposplat", "--part-masks", "sam2",
+              "--eye-mold", "masks", "--eye-joints", "smooth", "--eye-paint-sheet", "flat"]            # paint sheet off until the per-part leak is fixed (n01G)        # runs/draft/hfoo/v18-cvt/leva18.json; the three levers (2026-11-05)
 PROPS_SLACK = (0.8, 1.2)      # props.json extent bracket around the longest side of the segmenter's box3d, in H
 
 
@@ -99,10 +106,11 @@ def prompt_path(uid, base, prompts=PROMPTS):
     return None
 
 
-def unit_state(uid, run_id, refs=REFS, prompts=PROMPTS, draft=DRAFT):
-    """What the unit already has: prompts per sheet, sheets, parts.json / sheet.json / props.json, the run's model."""
-    have_prompt = {s: prompt_path(uid, PROMPT_OF[s], prompts) is not None for s in SHEETS}
-    have_sheet = {s: (refs / uid / f"{s}.jpg").exists() for s in SHEETS}
+def unit_state(uid, run_id, refs=REFS, prompts=PROMPTS, draft=DRAFT, extra=False):
+    """What the unit already has: prompts per sheet, sheets, parts.json / sheet.json / props.json, the run's model.
+    `extra`: a pseudo-unit with a given sheet.jpg: the prompts and the hard sheet count as present (nothing is drawn for it)."""
+    have_prompt = {s: extra or prompt_path(uid, PROMPT_OF[s], prompts) is not None for s in SHEETS}
+    have_sheet = {s: (refs / uid / f"{s}.jpg").exists() or (extra and s != "sheet") for s in SHEETS}
     run = draft / uid / run_id
     return {"prompts": have_prompt, "sheets": have_sheet,
             "parts": (refs / uid / "parts.json").exists(), "sheet_json": (refs / uid / "sheet.json").exists(),
@@ -372,7 +380,7 @@ def run_parts(u, rig, state, log):
 
 def model_command(u, rig, run_id):
     return [sys.executable, "tools/blender/spec_pipeline.py", "--id", u["id"], "--race", u["race"], "--name", u["name"], "--kind", "mass",
-            "--rig", rig, "--model", SESSION_MODEL, "--tag", "roster", "--run", run_id, "--deterministic", *EYE_RECIPE]
+            "--rig", rig, "--model", ARTIST_MODEL, "--tag", "roster", "--run", run_id, "--deterministic", *EYE_RECIPE]
 
 
 def run_model(u, rig, run_id, log):
@@ -568,14 +576,34 @@ class Status:
             self.path.write_text(json.dumps(self.doc, indent=1))
 
 
+def extra_units(path, comp):
+    """The --extra-units entries: card from the parent's roster entry when empty, prompts/<id>/card.txt from the figure line."""
+    parents = {u["id"]: u for u in roster(comp)}
+    out = []
+    for e in json.loads(pathlib.Path(path).read_text()):
+        parent = parents.get(e.get("parent") or "", {})
+        u = {"kind": "unit", "card": "", **e, "extra": True}
+        u["card"] = u["card"] or parent.get("card", "")
+        if e.get("figure"):
+            (PROMPTS / u["id"]).mkdir(parents=True, exist_ok=True)
+            (PROMPTS / u["id"] / "card.txt").write_text(e["figure"].strip() + "\n")
+        out.append(u)
+    return out
+
+
 def step(u, args, status):
     """All of one unit's planned stages, in order; a failure stops this unit only and is recorded."""
-    rig = rig_of(u["id"], u["name"] + " " + u["card"])
+    rig = u.get("rig") or rig_of(u["id"], u["name"] + " " + u["card"])
     entry = status.doc["units"].get(u["id"]) or new_entry(u, rig)
     entry["rig"] = rig
     log = ROSTER / args.run_id / "logs" / f"{u['id']}.log"
     log.touch()
-    state = unit_state(u["id"], args.run_id)
+    extra = bool(u.get("extra"))
+    if extra and not (REFS / u["id"] / "sheet.jpg").exists():
+        entry["stages"]["sheets"] = {"state": "failed", "error": f"extra unit: refs/{u['id']}/sheet.jpg is missing (split it from the parent)", "s": 0}
+        status.put(entry)
+        return entry
+    state = unit_state(u["id"], args.run_id, extra=extra)
     for stage in plan(state, args.stage, args.resume):
         t0 = time.perf_counter()
         try:
@@ -588,20 +616,20 @@ def step(u, args, status):
         entry["stages"][stage] = rec
         entry["total_s"] += rec["s"]
         entry["cost_usd"] += rec.get("cost_usd", 0.0)
-        entry["reached"] = reached(unit_state(u["id"], args.run_id))
+        entry["reached"] = reached(unit_state(u["id"], args.run_id, extra=extra))
         status.put(entry)
         print(f"{u['id']} {stage}: {rec['state']} {rec.get('error', '')} ({rec['s']} s)", file=sys.stderr, flush=True)
         if rec["state"] == "failed":
             break
-        state = unit_state(u["id"], args.run_id)
+        state = unit_state(u["id"], args.run_id, extra=extra)
     entry["reached"] = reached(state)
     status.put(entry)
     return entry
 
 
 def dry_run(units, args):
-    states = {u["id"]: unit_state(u["id"], args.run_id) for u in units}
-    rows = [{**new_entry(u, rig_of(u["id"], u["name"] + " " + u["card"])), "reached": reached(states[u["id"]]),
+    states = {u["id"]: unit_state(u["id"], args.run_id, extra=bool(u.get("extra"))) for u in units}
+    rows = [{**new_entry(u, u.get("rig") or rig_of(u["id"], u["name"] + " " + u["card"])), "reached": reached(states[u["id"]]),
              "stages": {s: {"state": "todo"} for s in plan(states[u["id"]], args.stage, args.resume)}} for u in units]
     print(table(rows))
     print()
@@ -620,10 +648,12 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="print the plan, the table of what exists and the estimate; run nothing")
     ap.add_argument("--stage", choices=(*STAGES, "all"), default="all", help="run up to this stage")
     ap.add_argument("--resume", action="store_true", help="skip a model run whose model.glb + review.md exist (the data stages always skip)")
+    ap.add_argument("--extra-units", default=None, help="JSON list of pseudo-units {id, name, race, rig, kind, card, parent, figure} merged before the lookup")
     args = ap.parse_args(argv)
     comp = json.loads(COMPENDIUM.read_text())
     want = [x for x in args.units.split(",") if x]
-    units = [u for u in roster(comp) if args.all_units or u["id"] in want]
+    extras = extra_units(args.extra_units, comp) if args.extra_units else []
+    units = [u for u in roster(comp) + extras if args.all_units or u["id"] in want]
     buildings = [u for u in roster(comp, "building") if args.all_buildings or u["id"] in want]
     missing = sorted(set(want) - {u["id"] for u in units + buildings})
     if missing:

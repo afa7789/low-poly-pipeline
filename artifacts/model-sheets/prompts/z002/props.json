@@ -1,0 +1,26 @@
+[
+  {
+    "name": "torch",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.359,
+      0.538
+    ]
+  },
+  {
+    "name": "flame",
+    "where": "anchor torch, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.09,
+      0.135
+    ]
+  }
+]

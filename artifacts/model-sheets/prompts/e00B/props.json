@@ -1,0 +1,26 @@
+[
+  {
+    "name": "hook crescent",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.191,
+      0.286
+    ]
+  },
+  {
+    "name": "blade",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.191,
+      0.286
+    ]
+  }
+]

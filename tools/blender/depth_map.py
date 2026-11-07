@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Monocular depth of the sheet's front and left panels (Depth Anything V2 small), opt-in `--depth` (PIPELINE 23.L5-4b).
+"""Depth of the sheet's front and left panels, opt-in `--depth` (PIPELINE 23.L5-4b): Depth Anything V2 small per panel, or
+(--depth-model triposplat, default since 2026-11-04) one TripoSplat splat of the front panel rendered orthographically front and left.
 
     python3.14 tools/blender/depth_map.py <sheet.jpg> <outdir>        # writes depth-front.png, depth-left.png
 
@@ -11,7 +12,9 @@ the integer depth_order parts.json would carry (relative to the torso).
 """
 import argparse
 import json
+import os
 import pathlib
+import subprocess
 import sys
 
 import numpy as np
@@ -23,6 +26,7 @@ import parts_fit  # noqa: E402
 import silhouette  # noqa: E402
 
 MODEL = "depth-anything/Depth-Anything-V2-Small-hf"
+SOURCES = ("da2", "triposplat")   # --depth-model: Depth Anything V2 small per panel, or one TripoSplat splat rendered front + left (neural_molds.py)
 LEVELS = 254            # canvas disparity is stored as an 8-bit label (0 = outside the figure)
 MIN_CALIB = 4           # parts needed to fit disparity -> z
 MIN_R = 0.7             # |correlation| with the triangulated landmarks' z under which the fitted map is not trusted to move a part (L12-8; was .3 against hand-boxed parts)
@@ -40,19 +44,91 @@ def estimator():
     return _pipe[0]
 
 
-def panel_disparity(sheet, fig):
+def source():
+    """The --depth model: spec_pipeline sets CF_DEPTH_MODEL from --depth-model (default triposplat)."""
+    return os.environ.get("CF_DEPTH_MODEL", "triposplat")
+
+
+def rescaled(full, fig):
+    """The figure's values between their 2nd and 98th percentile, 0..1; 0 outside the figure."""
+    lo, hi = np.percentile(full[fig], (2, 98))
+    return np.where(fig, np.clip((full - lo) / max(hi - lo, 1e-6), 0, 1), 0.0)
+
+
+def splat_renders(sheet):
+    """{front, left0, left180: nearness map (NaN off the splat)} of the TripoSplat splat of the front panel, run once and
+    cached in neural_dir(sheet) (splat.ply + depth-*.npy/png); the subprocess runs in the neural venv (neural_molds.py)."""
+    out = parts_fit.neural_dir(sheet)
+    if not (out / "depth-front.npy").exists():
+        import neural_molds
+        out.mkdir(parents=True, exist_ok=True)
+        crop, _ = parts_fit.panel_crop(sheet, silhouette.concept_panels(sheet)["front"])
+        crop.save(out / "front_crop.png")
+        argv, env = neural_molds.command("splat", out / "front_crop.png", out)
+        print(f"depth: triposplat on {out / 'front_crop.png'} (about 5 min)", flush=True)
+        neural_molds.run(argv, env)
+    return {k: np.load(out / f"depth-{k}.npy") for k in ("front", "left0", "left180")}
+
+
+def fitted(near, fig):
+    """(values on `fig`'s pixels, IoU): the splat render scaled uniformly so its height is the figure's (an orthographic render:
+    one scale for every view), feet on the figure's feet, slid sideways to the best silhouette IoU with the figure; every
+    figure pixel the splat misses is filled from its nearest covered pixel."""
+    from scipy import ndimage
+    ys, xs = np.nonzero(np.isfinite(near))
+    near = near[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    fy, fx = np.nonzero(fig)
+    y0, y1 = int(fy.min()), int(fy.max()) + 1
+    k = (y1 - y0) / near.shape[0]
+    size = (max(1, round(near.shape[1] * k)), y1 - y0)
+    cover = np.asarray(Image.fromarray(np.isfinite(near).astype(np.uint8) * 255).resize(size, Image.NEAREST)) > 127
+    vals = np.asarray(Image.fromarray(np.nan_to_num(near, nan=0).astype(np.float32)).resize(size, Image.NEAREST), np.float32)
+    H, W = fig.shape
+    pad = size[0] + W
+    canvas = np.zeros((H, W + 2 * pad), bool)
+    centre = int(fx.mean()) - int(np.nonzero(cover)[1].mean())
+    best = None
+    for x0 in range(centre - size[0] // 3, centre + size[0] // 3 + 1, 2):
+        c = canvas.copy()
+        c[y0:y1, pad + x0:pad + x0 + size[0]] = cover
+        c = c[:, pad:pad + W]
+        iou = float((c & fig).sum()) / max(int((c | fig).sum()), 1)
+        if best is None or iou > best[0]:
+            best = (iou, x0, c)
+    iou, x0, cov = best
+    full = np.zeros((H, W + 2 * pad), np.float32)
+    full[y0:y1, pad + x0:pad + x0 + size[0]] = vals
+    full = full[:, pad:pad + W]
+    idx = ndimage.distance_transform_edt(~cov, return_distances=False, return_indices=True)
+    return full[idx[0], idx[1]], iou
+
+
+def splat_disparity(sheet, fig, view):
+    """Disparity of the figure's pixels from the TripoSplat renders: front, or the profile whose silhouette fits the left panel."""
+    renders = splat_renders(sheet)
+    if view == "front":
+        full, iou = fitted(renders["front"], fig)
+        print(f"depth: triposplat front, silhouette IoU {iou:.3f}")
+    else:
+        got = {k: fitted(renders[k], fig) for k in ("left0", "left180")}
+        best = max(got, key=lambda k: got[k][1])
+        full, iou = got[best]
+        print(f"depth: triposplat {view} = {best}, silhouette IoU {iou:.3f} (other {min(g[1] for g in got.values()):.3f})")
+    return rescaled(full, fig)
+
+
+def panel_disparity(sheet, fig, view="front"):
     """Disparity (0..1, larger = nearer) of the figure's pixels in 768-square coordinates, from the sheet's
-    crop of that panel; 0 outside the figure. The figure is rescaled between its 2nd and 98th percentile."""
-    img = Image.open(sheet).convert("RGB")
-    sx, sy = img.width / fig.shape[1], img.height / fig.shape[0]
-    x0, y0, x1, y1 = parts_fit.panel_rect(fig)
-    crop = img.crop((round(x0 * sx), round(y0 * sy), round(x1 * sx), round(y1 * sy)))
+    crop of that panel (Depth Anything) or the TripoSplat splat's render of that view; 0 outside the figure.
+    The figure is rescaled between its 2nd and 98th percentile."""
+    if source() == "triposplat":
+        return splat_disparity(sheet, fig, view)
+    crop, (x0, y0, x1, y1) = parts_fit.panel_crop(sheet, fig)
     pred = np.asarray(estimator()(crop)["predicted_depth"].squeeze().float().cpu(), np.float32)
     small = np.asarray(Image.fromarray(pred).resize((x1 - x0, y1 - y0), Image.BILINEAR), np.float32)
     full = np.zeros(fig.shape, np.float32)
     full[y0:y1, x0:x1] = small
-    lo, hi = np.percentile(full[fig], (2, 98))
-    return np.where(fig, np.clip((full - lo) / max(hi - lo, 1e-6), 0, 1), 0.0)
+    return rescaled(full, fig)
 
 
 def disparity(sheet, views=parts_fit.PART_VIEWS):
@@ -60,7 +136,7 @@ def disparity(sheet, views=parts_fit.PART_VIEWS):
     out = {}
     for view, fig in silhouette.concept_panels(sheet).items():
         if view in views:
-            label = np.where(fig, np.round(panel_disparity(sheet, fig) * (LEVELS - 1)).astype(np.int32) + 1, 0)
+            label = np.where(fig, np.round(panel_disparity(sheet, fig, view) * (LEVELS - 1)).astype(np.int32) + 1, 0)
             canvas = silhouette.normalize(label)
             out[view] = np.where(canvas > 0, (canvas - 1) / (LEVELS - 1), -1.0)
     return out
@@ -159,7 +235,10 @@ def main():
     ap.add_argument("sheet", type=pathlib.Path)
     ap.add_argument("out", type=pathlib.Path)
     ap.add_argument("--landmarks", type=pathlib.Path, default=None, help="a parts.json: print the Pearson r of the disparity with its triangulated landmarks' z")
+    ap.add_argument("--model", choices=SOURCES, default=None, help="the depth source (default: $CF_DEPTH_MODEL or triposplat)")
     args = ap.parse_args()
+    if args.model:
+        os.environ["CF_DEPTH_MODEL"] = args.model
     if args.landmarks:
         print(json.dumps(landmark_calibration(args.sheet, json.loads(args.landmarks.read_text()))))
     args.out.mkdir(parents=True, exist_ok=True)

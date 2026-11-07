@@ -1,0 +1,57 @@
+[
+  {
+    "name": "cannon",
+    "where": "anchor hull, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.224,
+      0.336
+    ]
+  },
+  {
+    "name": "stack.L",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.229,
+      0.343
+    ]
+  },
+  {
+    "name": "house_plate",
+    "where": "anchor hull, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.344,
+      0.516
+    ]
+  },
+  {
+    "name": "ammo_crate.L",
+    "where": "anchor deck, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.224,
+      0.336
+    ]
+  },
+  {
+    "name": "front_spikes",
+    "where": "anchor hull front, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.344,
+      0.516
+    ]
+  }
+]

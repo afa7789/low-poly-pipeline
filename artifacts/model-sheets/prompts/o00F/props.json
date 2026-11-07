@@ -1,0 +1,70 @@
+[
+  {
+    "name": "patchwork mantle",
+    "where": "anchor shoulders, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.517,
+      0.775
+    ]
+  },
+  {
+    "name": "stovepipe",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.336,
+      0.504
+    ]
+  },
+  {
+    "name": "staff funnel-horn",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.73,
+      1.095
+    ]
+  },
+  {
+    "name": "ember",
+    "where": "anchor staff head, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.058,
+      0.087
+    ]
+  },
+  {
+    "name": "leather pouch",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.139,
+      0.208
+    ]
+  },
+  {
+    "name": "belt",
+    "where": "anchor waist, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.265,
+      0.397
+    ]
+  }
+]

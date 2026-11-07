@@ -1,0 +1,58 @@
+[
+  {
+    "name": "nail crown",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.145,
+      0.217
+    ]
+  },
+  {
+    "name": "scythe-staff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.836,
+      1.254
+    ]
+  },
+  {
+    "name": "root-wire triple coil",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.294,
+      0.442
+    ]
+  },
+  {
+    "name": "tally rod",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.201,
+      0.302
+    ]
+  },
+  {
+    "name": "belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.191,
+      0.287
+    ]
+  }
+]

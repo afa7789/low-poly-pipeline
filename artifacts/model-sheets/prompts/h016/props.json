@@ -1,0 +1,14 @@
+[
+  {
+    "name": "voltaic hammer",
+    "where": "anchor hand.L, on bone rider.forearm.L",
+    "bones": [
+      "rider.forearm.L",
+      "rider.forearm.R"
+    ],
+    "extent": [
+      0.233,
+      0.349
+    ]
+  }
+]

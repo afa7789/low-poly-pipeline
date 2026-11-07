@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Local viewer for model-sheet reference images.
+"""Local viewer for model-sheet reference images and the roster-v6 final models.
 
-    python3 serve.py [--host 127.0.0.1] [--port 8899]
+    python3 serve.py [--host 127.0.0.1] [--port 8899] [--render-missing]
 
 Scans artifacts/model-sheets/refs/, artifacts/reference/hive/{renders,mdx,icons},
 artifacts/model-sheets/prompts/ and artifacts/model-sheets/runs/draft/,
 merging unit metadata from data/compendium.json + wc3-model-map.json.
-No network, no deps, no build step, no caching (files change concurrently).
+The FINAL model per id comes from runs/roster/roster-v6/final-models.json and the
+5 pseudo-units (Twins, Mortar crew) from runs/roster/roster-v6/extra-units.json.
+No network, no deps, no build step, no caching across requests except an
+mtime-keyed cache of the per-run summary/silhouette JSON (files change concurrently).
+
+Final renders (front/left/back/top/bottom/wc3) live in
+runs/draft/<id>/<run>/views-final/ and are rendered with
+`blender -b -P tools/blender/render_unit.py -- <model.glb> <outdir>` when missing:
+lazily on first GET /final/<id>/<view>.png, or all at once with --render-missing.
 
 Review contract (POST /api/review, JSON body):
     {"id": "<unit id>", "verdict": "approved" | "rejected", "note": "<str>"}
@@ -23,6 +31,9 @@ import mimetypes
 import os
 import pathlib
 import re
+import shutil
+import subprocess
+import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
@@ -38,9 +49,19 @@ MDX = HIVE / "mdx"
 ICONS = HIVE / "icons"
 PROMPTS = ROOT / "artifacts/model-sheets/prompts"
 DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
+ROSTER = ROOT / "artifacts/model-sheets/runs/roster/roster-v6"
+FINAL_MODELS = ROSTER / "final-models.json"
+EXTRA_UNITS = ROSTER / "extra-units.json"
+RENDER_UNIT = ROOT / "tools/blender/render_unit.py"
+BLENDER = shutil.which("blender")
 INDEX = pathlib.Path(__file__).resolve().parent / "index.html"
 REVIEWS = pathlib.Path(__file__).resolve().parent / "reviews.json"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+FINAL_VIEWS = ("front", "left", "back", "top", "bottom", "wc3", "walkleft")
+IOU_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
+
+_RENDER_LOCK = threading.Lock()
+_JSON_CACHE = {}
 
 
 def load_reviews():
@@ -57,6 +78,24 @@ def _write_reviews(reviews):
     tmp = REVIEWS.with_name(REVIEWS.name + ".tmp")
     tmp.write_text(json.dumps(reviews, indent=2, sort_keys=True) + "\n")
     os.replace(tmp, REVIEWS)
+
+
+def cached_json(path):
+    """Parsed JSON of `path`, re-read when its mtime changes; None when missing/invalid."""
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        _JSON_CACHE.pop(path, None)
+        return None
+    hit = _JSON_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = None
+    _JSON_CACHE[path] = (mtime, data)
+    return data
 
 
 def _stage_num(dirname):
@@ -98,13 +137,41 @@ def load_unit_maps():
     return by_id, wc3
 
 
+def load_final_models():
+    """{id: resolved model.glb path} from final-models.json, only files under DRAFT."""
+    data = cached_json(FINAL_MODELS)
+    out = {}
+    if not isinstance(data, dict):
+        return out
+    base = DRAFT.resolve()
+    for uid, rel in data.items():
+        if not isinstance(uid, str) or not isinstance(rel, str):
+            continue
+        p = pathlib.Path(rel)
+        p = (p if p.is_absolute() else ROOT / p).resolve()
+        if p.is_relative_to(base) and p.is_file():
+            out[uid] = p
+    return out
+
+
+def load_extra_units():
+    """{id: {name, race, kind, parent}} for the pseudo-units (Twins, Mortar crew)."""
+    data = cached_json(EXTRA_UNITS)
+    out = {}
+    for e in data if isinstance(data, list) else []:
+        if isinstance(e, dict) and isinstance(e.get("id"), str):
+            out[e["id"]] = e
+    return out
+
+
 def lookup_kind(uid):
-    """Compendium kind, falling back to wc3-map kind (None when neither)."""
+    """Compendium kind, falling back to wc3-map kind, then extra-units (None when none)."""
     by_id, wc3 = load_unit_maps()
     entry = by_id.get(uid.lower())
     w = wc3.get(uid)
     w = w if isinstance(w, dict) else None
-    return (entry or {}).get("kind") or (w or {}).get("kind")
+    extra = load_extra_units().get(uid) or {}
+    return (entry or {}).get("kind") or (w or {}).get("kind") or extra.get("kind")
 
 
 def prompt_path(uid, kind):
@@ -126,13 +193,13 @@ def prompt_path(uid, kind):
     return None
 
 
-def glb_path(uid, kind):
-    """Resolved contract model.glb for uid's kind, or None.
-
-    units: runs/draft/<id>/roster-v4/model.glb,
-    buildings: runs/draft/<id>/roster-buildings-v2/model.glb;
-    null kind allows either (unit path first).
-    """
+def glb_path(uid, kind, finals=None):
+    """Resolved model.glb for uid: the roster-v6 FINAL model when listed, else the
+    older contract paths (units: roster-v4, buildings: roster-buildings-v2).
+    `finals` = load_final_models() when the caller already has it (one load per request)."""
+    final = (load_final_models() if finals is None else finals).get(uid)
+    if final is not None:
+        return final
     cands = []
     if kind != "building":
         cands.append(DRAFT / uid / "roster-v4" / "model.glb")
@@ -144,6 +211,93 @@ def glb_path(uid, kind):
         if r.is_relative_to(base) and r.is_file():
             return r
     return None
+
+
+def _view_scores(views):
+    """{view: iou} from a summary round's `views` block (floats only)."""
+    out = {}
+    for v in IOU_VIEWS:
+        d = (views or {}).get(v)
+        if isinstance(d, dict) and isinstance(d.get("iou"), (int, float)):
+            out[v] = round(float(d["iou"]), 3)
+    return out
+
+
+def final_info(glb):
+    """Per-unit summary of the FINAL run dir holding `glb` (eye summary + silhouette)."""
+    run_dir = glb.parent
+    summary = cached_json(run_dir / "eye" / "summary.json") or {}
+    rounds = summary.get("rounds") if isinstance(summary.get("rounds"), list) else []
+    final_round = summary.get("final_round")
+    if not isinstance(final_round, int) or not (0 <= final_round < len(rounds)):
+        final_round = len(rounds) - 1 if rounds else None
+    rnd = rounds[final_round] if final_round is not None else {}
+    parts = rnd.get("parts") if isinstance(rnd.get("parts"), list) else None
+    if parts and len(parts) == 2 and all(isinstance(x, int) for x in parts):
+        share = round(parts[0] / parts[1], 3) if parts[1] else None
+    else:
+        parts, share = None, None
+    skin = summary.get("skin") if isinstance(summary.get("skin"), dict) else {}
+    tris = skin.get("tris") if isinstance(skin.get("tris"), int) else rnd.get("tris")
+    sil = cached_json(run_dir / "silhouette.json") or {}
+    sil_iou = _view_scores({v: {"iou": x} for v, x in (sil.get("approved") or {}).items()}
+                           if isinstance(sil.get("approved"), dict) else {})
+    eye_views = (run_dir / "eye" / f"round-{final_round}" / "views").is_dir() \
+        if final_round is not None else False
+    views_final = run_dir / "views-final"
+    rendered = all((views_final / f"model-{v}.png").is_file() for v in FINAL_VIEWS[:6])
+    return {
+        "run": run_dir.name,
+        "dir": run_dir.relative_to(ROOT).as_posix(),
+        "tris": tris if isinstance(tris, int) else None,
+        "llm_calls": summary.get("llm_calls") if isinstance(summary.get("llm_calls"), int) else None,
+        "rounds": len(rounds),
+        "final_round": final_round,
+        "parts": parts,
+        "share": share,
+        "iou": sil_iou or _view_scores(rnd.get("views")),
+        "eye_iou": _view_scores(rnd.get("views")),
+        "tilts": summary.get("tilts") if isinstance(summary.get("tilts"), str) else None,
+        "seconds": summary.get("seconds"),
+        "eye_views": eye_views,
+        "rendered": rendered,
+        "compare": (run_dir / "compare.png").is_file(),
+        "review_md": (run_dir / "review.md").is_file(),
+    }
+
+
+def render_final(uid, glb, tilts=None):
+    """Render views-final/ for the FINAL glb with Blender (serialised; idempotent).
+    Returns the views-final dir, or None when Blender is missing or the render failed."""
+    out = glb.parent / "views-final"
+    with _RENDER_LOCK:
+        if all((out / f"model-{v}.png").is_file() for v in FINAL_VIEWS[:6]):
+            return out
+        if not BLENDER or not RENDER_UNIT.is_file():
+            return None
+        cmd = [BLENDER, "-b", "-P", str(RENDER_UNIT), "--", str(glb), str(out)]
+        if tilts:
+            cmd.append(f"tilt={tilts}")
+        print(f"render {uid} -> {out.relative_to(ROOT)}", flush=True)
+        try:
+            subprocess.run(cmd, cwd=ROOT, check=True, timeout=300,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"render {uid} FAILED: {e}", flush=True)
+            return None
+    return out if (out / "model-front.png").is_file() else None
+
+
+def render_missing():
+    """--render-missing: render views-final/ for every FINAL model lacking it."""
+    finals = load_final_models()
+    todo = [(uid, glb) for uid, glb in sorted(finals.items())
+            if not final_info(glb)["rendered"]]
+    print(f"render-missing: {len(todo)} of {len(finals)} models", flush=True)
+    for i, (uid, glb) in enumerate(todo, 1):
+        tilts = (cached_json(glb.parent / "eye" / "summary.json") or {}).get("tilts")
+        ok = render_final(uid, glb, tilts if isinstance(tilts, str) else None)
+        print(f"  [{i}/{len(todo)}] {uid} {'ok' if ok else 'FAILED'}", flush=True)
 
 
 def find_icon(filename):
@@ -163,7 +317,9 @@ def find_icon(filename):
 
 def units_payload():
     by_id, wc3 = load_unit_maps()
-    ids = set(wc3)
+    finals = load_final_models()
+    extras = load_extra_units()
+    ids = set(wc3) | set(finals) | set(extras)
     if REFS.is_dir():
         ids.update(f.name for f in REFS.iterdir() if f.is_dir())
     ours_by_id = scan_ours()
@@ -175,7 +331,8 @@ def units_payload():
     )
     units = []
     stats = {"total": 0, "render": 0, "mdx": 0, "ours": 0, "refs": 0,
-             "icons": 0, "glb": 0, "reviewed": 0, "approved": 0, "rejected": 0}
+             "icons": 0, "glb": 0, "final": 0, "v6": 0, "v6e": 0, "rendered": 0,
+             "reviewed": 0, "approved": 0, "rejected": 0}
     for uid in sorted(ids, key=str.lower):
         images = []
         folder = REFS / uid
@@ -187,37 +344,48 @@ def units_payload():
         w = wc3.get(uid)
         if not isinstance(w, dict):
             w = None
-        render = (RENDERS / f"{uid}.png").is_file()
+        extra = extras.get(uid) or {}
+        parent = extra.get("parent") if isinstance(extra.get("parent"), str) else None
+        render_id = uid if (RENDERS / f"{uid}.png").is_file() else \
+            (parent if parent and (RENDERS / f"{parent}.png").is_file() else None)
         mdx = (MDX / f"{uid}.mdx").is_file()
         ours = ours_by_id.get(uid, [])
         entry = by_id.get(uid.lower())
-        kind = (entry or {}).get("kind") or (w or {}).get("kind")
-        icon_name = f"{uid}.png"
-        icon = (ICONS / icon_name).is_file() or icon_name.lower() in icons_lower
+        kind = (entry or {}).get("kind") or (w or {}).get("kind") or extra.get("kind")
+        icon_id = None
+        for cand in (uid, parent):
+            if cand and ((ICONS / f"{cand}.png").is_file() or f"{cand}.png".lower() in icons_lower):
+                icon_id = cand
+                break
         prompt = prompt_path(uid, kind) is not None
-        gp = glb_path(uid, kind)
+        gp = glb_path(uid, kind, finals)
         glb = gp.relative_to(DRAFT.parent.parent).as_posix() if gp else None
+        final = final_info(finals[uid]) if uid in finals else None
         review = reviews.get(uid.lower())
         review = review if isinstance(review, dict) else None
         units.append({
             "id": uid,
-            "name": (entry or {}).get("name") or (w or {}).get("name") or uid,
-            "race": (entry or {}).get("race") or (w or {}).get("race"),
+            "name": (entry or {}).get("name") or (w or {}).get("name") or extra.get("name") or uid,
+            "race": (entry or {}).get("race") or (w or {}).get("race") or extra.get("race"),
             "tier": (entry or {}).get("tier"),
             "kind": kind,
+            "parent": parent,
             "images": images,
             "entry": entry,
             "wc3": w,
-            "render": render,
+            "render": render_id is not None,
+            "render_id": render_id,
             "mdx": mdx,
             "ours": ours,
-            "icon": icon,
+            "icon": icon_id is not None,
+            "icon_id": icon_id,
             "prompt": prompt,
             "glb": glb,
+            "final": final,
             "review": review,
         })
         stats["total"] += 1
-        if render:
+        if render_id:
             stats["render"] += 1
         if mdx:
             stats["mdx"] += 1
@@ -225,10 +393,15 @@ def units_payload():
             stats["ours"] += 1
         if images:
             stats["refs"] += 1
-        if icon:
+        if icon_id:
             stats["icons"] += 1
         if glb:
             stats["glb"] += 1
+        if final:
+            stats["final"] += 1
+            stats["v6e" if final["run"].endswith("e") else "v6"] += 1
+            if final["rendered"]:
+                stats["rendered"] += 1
         if review:
             stats["reviewed"] += 1
             if review.get("verdict") == "approved":
@@ -275,17 +448,17 @@ def export_markdown(data):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def line(u, tail=""):
-        race = u.get("race") or "\u2014"
-        kind = u.get("kind") or "\u2014"
+        race = u.get("race") or "—"
+        kind = u.get("kind") or "—"
         return f"- {u['id']} {u['name']} ({race}, {kind}){tail}"
 
-    out = [f"# Concept review export \u2014 {now}", "",
+    out = [f"# Concept review export — {now}", "",
            f"Approved ({data['counts']['approved']}):"]
     out += [line(u, f" [{u.get('ts') or ''}]") for u in data["approved"]]
     out += ["", f"Rejected ({data['counts']['rejected']}):"]
     for u in data["rejected"]:
         note = (u.get("note") or "").replace("\r", " ").replace("\n", " ")
-        out.append(line(u, f" \u2014 {note} [{u.get('ts') or ''}]"))
+        out.append(line(u, f" — {note} [{u.get('ts') or ''}]"))
     out += ["", f"Pending ({data['counts']['pending']}):"]
     out += [line(u) for u in data["pending"]]
     out.append("")
@@ -319,6 +492,49 @@ def safe_plain(base, filename, suffix):
     if not resolved.is_relative_to(base.resolve()) or not resolved.is_file():
         return None
     return resolved
+
+
+def plain_id(s):
+    """A unit id with no separators / traversal, else None."""
+    if not s or s in (".", "..") or "/" in s or "\\" in s or len(s) > 32:
+        return None
+    return s
+
+
+def final_view_path(uid, view, render):
+    """views-final/model-<view>.png of uid's FINAL run (lazily rendered when `render`),
+    or None."""
+    glb = load_final_models().get(uid)
+    if glb is None or view not in FINAL_VIEWS:
+        return None
+    out = glb.parent / "views-final"
+    p = out / f"model-{view}.png"
+    if not p.is_file() and render:
+        tilts = (cached_json(glb.parent / "eye" / "summary.json") or {}).get("tilts")
+        if render_final(uid, glb, tilts if isinstance(tilts, str) else None) is None:
+            return None
+    return p if p.is_file() else None
+
+
+def eye_view_path(uid, view):
+    """eye/round-<final>/views/model-<view>.png of uid's FINAL run, or None."""
+    glb = load_final_models().get(uid)
+    if glb is None or view not in FINAL_VIEWS:
+        return None
+    info = final_info(glb)
+    if info["final_round"] is None:
+        return None
+    p = glb.parent / "eye" / f"round-{info['final_round']}" / "views" / f"model-{view}.png"
+    return p if p.is_file() else None
+
+
+def run_file(uid, name):
+    """A plain file (compare.png / review.md) from uid's FINAL run dir, or None."""
+    glb = load_final_models().get(uid)
+    if glb is None:
+        return None
+    p = glb.parent / name
+    return p if p.is_file() else None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -380,6 +596,33 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(obj).encode()
         self._send(code, "application/json; charset=utf-8", body, head=False, no_store=True)
 
+    def _file_or_404(self, path, ctype, head):
+        if path is None:
+            self.send_error(404)
+            return
+        self._send(200, ctype, path.read_bytes(), head, no_store=True)
+
+    def _download(self, path, ctype, filename, head):
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(path.stat().st_size))
+        self.end_headers()
+        if not head:
+            self.wfile.write(path.read_bytes())
+
+    def _view_route(self, path, seg):
+        """(uid, view) for /<seg>/<id>/<view>.png, else None."""
+        parts = path.split("/")
+        if len(parts) != 4 or parts[1] != seg or not parts[3].endswith(".png"):
+            return None
+        uid = plain_id(unquote(parts[2]))
+        view = unquote(parts[3])[:-4].removeprefix("model-")
+        if uid is None or view not in FINAL_VIEWS:
+            return None
+        return uid, view
+
     def _handle(self, head):
         path = urlparse(self.path).path
         if path == "/":
@@ -394,37 +637,36 @@ class Handler(BaseHTTPRequestHandler):
             body = export_markdown(export_data()).encode()
             self._send(200, "text/markdown; charset=utf-8", body, head, no_store=True)
         elif path.startswith("/icon/"):
-            image = find_icon(unquote(path[len("/icon/"):]))
-            if image is None:
-                self.send_error(404)
-                return
-            self._send(200, "image/png", image.read_bytes(), head, no_store=True)
+            self._file_or_404(find_icon(unquote(path[len("/icon/"):])), "image/png", head)
         elif path.startswith("/prompt/"):
-            uid = unquote(path[len("/prompt/"):])
-            prompt = None
-            if uid and uid not in (".", "..") and "/" not in uid and "\\" not in uid:
-                prompt = prompt_path(uid, lookup_kind(uid))
-            if prompt is None:
-                self.send_error(404)
-                return
-            self._send(200, "text/plain; charset=utf-8", prompt.read_bytes(),
-                       head, no_store=True)
+            uid = plain_id(unquote(path[len("/prompt/"):]))
+            prompt = prompt_path(uid, lookup_kind(uid)) if uid else None
+            self._file_or_404(prompt, "text/plain; charset=utf-8", head)
         elif path.startswith("/glb/"):
-            uid = unquote(path[len("/glb/"):])
-            glb = None
-            if uid and uid not in (".", "..") and "/" not in uid and "\\" not in uid:
-                glb = glb_path(uid, lookup_kind(uid))
+            uid = plain_id(unquote(path[len("/glb/"):]))
+            glb = glb_path(uid, lookup_kind(uid)) if uid else None
             if glb is None:
                 self.send_error(404)
                 return
-            self.send_response(200)
-            self.send_header("Content-Type", "model/gltf-binary")
-            self.send_header("Content-Disposition", f'attachment; filename="{uid}.glb"')
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(glb.stat().st_size))
-            self.end_headers()
-            if not head:
-                self.wfile.write(glb.read_bytes())
+            self._download(glb, "model/gltf-binary", f"{uid}.glb", head)
+        elif path.startswith("/model/"):
+            # same bytes as /glb/ but inline (for the three.js tab)
+            uid = plain_id(unquote(path[len("/model/"):]))
+            glb = glb_path(uid, lookup_kind(uid)) if uid else None
+            self._file_or_404(glb, "model/gltf-binary", head)
+        elif path.startswith("/final/"):
+            r = self._view_route(path, "final")
+            self._file_or_404(final_view_path(*r, render=True) if r else None, "image/png", head)
+        elif path.startswith("/eye/"):
+            r = self._view_route(path, "eye")
+            self._file_or_404(eye_view_path(*r) if r else None, "image/png", head)
+        elif path.startswith("/compare/"):
+            uid = plain_id(unquote(path[len("/compare/"):]).removesuffix(".png"))
+            self._file_or_404(run_file(uid, "compare.png") if uid else None, "image/png", head)
+        elif path.startswith("/review/"):
+            uid = plain_id(unquote(path[len("/review/"):]).removesuffix(".md"))
+            self._file_or_404(run_file(uid, "review.md") if uid else None,
+                              "text/plain; charset=utf-8", head)
         elif path.startswith("/refs/"):
             image = safe_nested(path, REFS, "refs", IMAGE_EXTS)
             if image is None:
@@ -433,29 +675,16 @@ class Handler(BaseHTTPRequestHandler):
             ctype = mimetypes.guess_type(image.name)[0] or "application/octet-stream"
             self._send(200, ctype, image.read_bytes(), head)
         elif path.startswith("/ours/"):
-            image = safe_nested(path, OURS, "ours", {".png"})
-            if image is None:
-                self.send_error(404)
-                return
-            self._send(200, "image/png", image.read_bytes(), head, no_store=True)
+            self._file_or_404(safe_nested(path, OURS, "ours", {".png"}), "image/png", head)
         elif path.startswith("/render/"):
-            image = safe_plain(RENDERS, unquote(path[len("/render/"):]), ".png")
-            if image is None:
-                self.send_error(404)
-                return
-            self._send(200, "image/png", image.read_bytes(), head, no_store=True)
+            self._file_or_404(safe_plain(RENDERS, unquote(path[len("/render/"):]), ".png"),
+                              "image/png", head)
         elif path.startswith("/mdx/"):
             mdx = safe_plain(MDX, unquote(path[len("/mdx/"):]), ".mdx")
             if mdx is None:
                 self.send_error(404)
                 return
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Disposition", f'attachment; filename="{mdx.name}"')
-            self.send_header("Content-Length", str(mdx.stat().st_size))
-            self.end_headers()
-            if not head:
-                self.wfile.write(mdx.read_bytes())
+            self._download(mdx, "application/octet-stream", mdx.name, head)
         else:
             self.send_error(404)
 
@@ -478,13 +707,19 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8899)
+    ap.add_argument("--render-missing", action="store_true",
+                    help="render views-final/ for every FINAL model lacking it, then serve")
+    ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
+    if args.render_missing:
+        render_missing()
     url = f"http://{args.host}:{args.port}/"
-    print(f"Serving on {url}")
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
+    print(f"Serving on {url}" + ("" if BLENDER else "  (blender not found: no lazy renders)"))
+    if not args.no_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
     Server((args.host, args.port), Handler).serve_forever()
 
 

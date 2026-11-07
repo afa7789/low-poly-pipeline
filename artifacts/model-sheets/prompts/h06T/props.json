@@ -1,0 +1,35 @@
+[
+  {
+    "name": "klaxon",
+    "where": "anchor roof, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.377,
+      0.565
+    ]
+  },
+  {
+    "name": "stack_left",
+    "where": "anchor roof, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.244,
+      0.366
+    ]
+  },
+  {
+    "name": "orange_canister_left",
+    "where": "anchor roof, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.276,
+      0.414
+    ]
+  }
+]

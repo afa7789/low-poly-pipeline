@@ -1,0 +1,37 @@
+[
+  {
+    "name": "fan",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.23,
+      0.345
+    ]
+  },
+  {
+    "name": "kettle",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.166,
+      0.249
+    ]
+  },
+  {
+    "name": "mud puddle base",
+    "where": "anchor ground, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.483,
+      0.724
+    ]
+  }
+]

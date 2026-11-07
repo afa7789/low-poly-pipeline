@@ -1,0 +1,36 @@
+[
+  {
+    "name": "shovel-axe",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.436,
+      0.655
+    ]
+  },
+  {
+    "name": "burnt-wick lamp",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.112,
+      0.168
+    ]
+  },
+  {
+    "name": "oil horn",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.121,
+      0.182
+    ]
+  }
+]

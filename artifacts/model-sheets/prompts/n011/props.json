@@ -1,0 +1,37 @@
+[
+  {
+    "name": "harpoon-sieve",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.618,
+      0.927
+    ]
+  },
+  {
+    "name": "line coil",
+    "where": "anchor belt, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.215,
+      0.322
+    ]
+  },
+  {
+    "name": "service lamp",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.161,
+      0.242
+    ]
+  }
+]

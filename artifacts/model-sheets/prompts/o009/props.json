@@ -1,0 +1,25 @@
+[
+  {
+    "name": "long rifle with bayonet",
+    "where": "anchor hand.R, on bone rider.arm.R",
+    "bones": [
+      "rider.arm.R",
+      "rider.arm.L"
+    ],
+    "extent": [
+      0.517,
+      0.776
+    ]
+  },
+  {
+    "name": "feather plume",
+    "where": "anchor head, on bone rider.head",
+    "bones": [
+      "rider.head"
+    ],
+    "extent": [
+      0.076,
+      0.114
+    ]
+  }
+]

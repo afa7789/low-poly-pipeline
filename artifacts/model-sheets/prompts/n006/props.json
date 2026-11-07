@@ -1,0 +1,48 @@
+[
+  {
+    "name": "standard_sword",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.407,
+      0.611
+    ]
+  },
+  {
+    "name": "case_book",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.142,
+      0.213
+    ]
+  },
+  {
+    "name": "sample_flask",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.084,
+      0.126
+    ]
+  },
+  {
+    "name": "chest_id_plate",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.073,
+      0.109
+    ]
+  }
+]

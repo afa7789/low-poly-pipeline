@@ -1,0 +1,13 @@
+[
+  {
+    "name": "tail_valve",
+    "where": "anchor tail tip, on bone spine.6",
+    "bones": [
+      "spine.6"
+    ],
+    "extent": [
+      0.306,
+      0.459
+    ]
+  }
+]

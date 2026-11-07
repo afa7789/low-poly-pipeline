@@ -1,0 +1,24 @@
+[
+  {
+    "name": "moss hood",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.327,
+      0.491
+    ]
+  },
+  {
+    "name": "shoulder bark plate",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.506,
+      0.759
+    ]
+  }
+]

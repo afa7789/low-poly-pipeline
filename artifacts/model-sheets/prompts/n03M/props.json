@@ -1,0 +1,36 @@
+[
+  {
+    "name": "glaive",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.806,
+      1.209
+    ]
+  },
+  {
+    "name": "weight keg",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.208,
+      0.312
+    ]
+  },
+  {
+    "name": "jar vapor",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.152,
+      0.229
+    ]
+  }
+]

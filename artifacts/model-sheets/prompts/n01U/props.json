@@ -1,0 +1,35 @@
+[
+  {
+    "name": "headlamp",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.102,
+      0.153
+    ]
+  },
+  {
+    "name": "goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.203,
+      0.304
+    ]
+  },
+  {
+    "name": "wrench",
+    "where": "anchor hand.L, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.454,
+      0.681
+    ]
+  }
+]

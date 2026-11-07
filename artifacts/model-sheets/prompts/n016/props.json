@@ -1,0 +1,36 @@
+[
+  {
+    "name": "drill-key axe",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.442,
+      0.663
+    ]
+  },
+  {
+    "name": "chest harness lamp",
+    "where": "anchor chest, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.126,
+      0.188
+    ]
+  },
+  {
+    "name": "harness strap",
+    "where": "anchor chest, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.307,
+      0.461
+    ]
+  }
+]

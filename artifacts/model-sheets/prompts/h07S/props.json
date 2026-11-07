@@ -1,0 +1,24 @@
+[
+  {
+    "name": "spear rack with three spears",
+    "where": "anchor rail, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.254,
+      0.381
+    ]
+  },
+  {
+    "name": "cargo basket with kegs",
+    "where": "anchor under hull, on bone gondola",
+    "bones": [
+      "gondola"
+    ],
+    "extent": [
+      0.169,
+      0.254
+    ]
+  }
+]

@@ -181,10 +181,11 @@ def concept_cells(run, tmp):
     if not sheet:
         warn("no concept sheet found")
         return {}
+    from silhouette import deink_image
     from split_sheet import split
     cells = {}
     for name, path in split(sheet, tmp, "c", run["layout"]).items():
-        img = Image.open(path)
+        img = Image.open(deink_image(path, path))       # form-pilot: the concept's black lines are not compared
         cells[name] = fit(img)
     return cells
 

@@ -1,0 +1,48 @@
+[
+  {
+    "name": "breathing_tubes",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.252,
+      0.378
+    ]
+  },
+  {
+    "name": "valve_key_staff",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.536,
+      0.803
+    ]
+  },
+  {
+    "name": "ice_censer",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.174,
+      0.261
+    ]
+  },
+  {
+    "name": "drainage_plug_bag",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.33,
+      0.495
+    ]
+  }
+]

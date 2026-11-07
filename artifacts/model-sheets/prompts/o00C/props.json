@@ -1,0 +1,35 @@
+[
+  {
+    "name": "right glass spar",
+    "where": "anchor body, on bone wing1.upper",
+    "bones": [
+      "wing1.upper"
+    ],
+    "extent": [
+      0.769,
+      1.153
+    ]
+  },
+  {
+    "name": "left glass spar",
+    "where": "anchor body, on bone wing2.upper",
+    "bones": [
+      "wing2.upper"
+    ],
+    "extent": [
+      0.66,
+      0.989
+    ]
+  },
+  {
+    "name": "static filaments",
+    "where": "anchor back, on bone tail.1",
+    "bones": [
+      "tail.1"
+    ],
+    "extent": [
+      0.428,
+      0.643
+    ]
+  }
+]

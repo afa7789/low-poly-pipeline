@@ -1,0 +1,36 @@
+[
+  {
+    "name": "beak flame",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.076,
+      0.114
+    ]
+  },
+  {
+    "name": "valve bells",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.314,
+      0.47
+    ]
+  },
+  {
+    "name": "kodo skull staff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.847,
+      1.27
+    ]
+  }
+]

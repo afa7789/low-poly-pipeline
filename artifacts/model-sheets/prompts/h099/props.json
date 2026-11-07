@@ -1,0 +1,35 @@
+[
+  {
+    "name": "cannon",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.266,
+      0.399
+    ]
+  },
+  {
+    "name": "exhaust stack L",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.217,
+      0.325
+    ]
+  },
+  {
+    "name": "side drum L",
+    "where": "anchor hull flank, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.279,
+      0.418
+    ]
+  }
+]

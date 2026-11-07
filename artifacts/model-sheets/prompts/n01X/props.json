@@ -1,0 +1,13 @@
+[
+  {
+    "name": "heart furnace slit",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.099,
+      0.148
+    ]
+  }
+]

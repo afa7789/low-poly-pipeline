@@ -1,0 +1,13 @@
+[
+  {
+    "name": "broken sled harness",
+    "where": "anchor chest, on bone spine.1",
+    "bones": [
+      "spine.1"
+    ],
+    "extent": [
+      0.161,
+      0.242
+    ]
+  }
+]

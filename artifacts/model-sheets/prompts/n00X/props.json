@@ -1,0 +1,36 @@
+[
+  {
+    "name": "valve key",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.761,
+      1.142
+    ]
+  },
+  {
+    "name": "valve handwheel",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.134,
+      0.201
+    ]
+  },
+  {
+    "name": "gem badge",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.067,
+      0.101
+    ]
+  }
+]

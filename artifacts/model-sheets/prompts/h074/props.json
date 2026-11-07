@@ -1,0 +1,37 @@
+[
+  {
+    "name": "executioner sword",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.511,
+      0.766
+    ]
+  },
+  {
+    "name": "command ribbon",
+    "where": "anchor arm.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.121,
+      0.182
+    ]
+  },
+  {
+    "name": "ledger pouches/straps",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.141,
+      0.212
+    ]
+  }
+]

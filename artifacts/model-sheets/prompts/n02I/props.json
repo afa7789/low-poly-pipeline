@@ -1,0 +1,47 @@
+[
+  {
+    "name": "plate_pauldron",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.261,
+      0.391
+    ]
+  },
+  {
+    "name": "harpoon_frame",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.403,
+      0.605
+    ]
+  },
+  {
+    "name": "reload_crank",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.194,
+      0.291
+    ]
+  },
+  {
+    "name": "buoy_lamp",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.206,
+      0.31
+    ]
+  }
+]

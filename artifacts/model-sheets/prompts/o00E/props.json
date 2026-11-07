@@ -1,0 +1,35 @@
+[
+  {
+    "name": "static_crown",
+    "where": "anchor head, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.313,
+      0.469
+    ]
+  },
+  {
+    "name": "obelisk_keel_tip",
+    "where": "anchor body, on bone tail.1",
+    "bones": [
+      "tail.1"
+    ],
+    "extent": [
+      0.252,
+      0.378
+    ]
+  },
+  {
+    "name": "cloud_reservoir.L",
+    "where": "anchor back, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.277,
+      0.416
+    ]
+  }
+]

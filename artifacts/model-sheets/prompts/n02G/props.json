@@ -1,0 +1,47 @@
+[
+  {
+    "name": "net_coil",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.143,
+      0.215
+    ]
+  },
+  {
+    "name": "pitch_pot",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.081,
+      0.121
+    ]
+  },
+  {
+    "name": "belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.133,
+      0.199
+    ]
+  },
+  {
+    "name": "shovel_harpoon",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.421,
+      0.632
+    ]
+  }
+]

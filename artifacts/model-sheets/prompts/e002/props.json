@@ -1,0 +1,35 @@
+[
+  {
+    "name": "rotor_blade",
+    "where": "anchor mast, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.643,
+      0.964
+    ]
+  },
+  {
+    "name": "mast",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.125,
+      0.188
+    ]
+  },
+  {
+    "name": "crescent_horn.L",
+    "where": "anchor hull, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.185,
+      0.277
+    ]
+  }
+]

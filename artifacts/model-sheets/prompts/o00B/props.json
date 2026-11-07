@@ -1,0 +1,25 @@
+[
+  {
+    "name": "valve_spike_weapon",
+    "where": "anchor hand.R, on bone rider.forearm.R",
+    "bones": [
+      "rider.forearm.R",
+      "rider.forearm.L"
+    ],
+    "extent": [
+      0.256,
+      0.384
+    ]
+  },
+  {
+    "name": "chest_strap",
+    "where": "anchor chest, on bone spine.1",
+    "bones": [
+      "spine.1"
+    ],
+    "extent": [
+      0.444,
+      0.665
+    ]
+  }
+]

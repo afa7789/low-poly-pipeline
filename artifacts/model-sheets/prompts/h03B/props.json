@@ -1,0 +1,14 @@
+[
+  {
+    "name": "cleaver blade weapon",
+    "where": "anchor hand.R, on bone rider.forearm.R",
+    "bones": [
+      "rider.forearm.R",
+      "rider.forearm.L"
+    ],
+    "extent": [
+      0.152,
+      0.229
+    ]
+  }
+]

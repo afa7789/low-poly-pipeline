@@ -1,0 +1,25 @@
+[
+  {
+    "name": "helmet cape",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.47,
+      0.705
+    ]
+  },
+  {
+    "name": "boarding hook",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.484,
+      0.726
+    ]
+  }
+]

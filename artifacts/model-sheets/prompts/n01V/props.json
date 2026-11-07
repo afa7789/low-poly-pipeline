@@ -1,0 +1,81 @@
+[
+  {
+    "name": "goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.195,
+      0.292
+    ]
+  },
+  {
+    "name": "barrel",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.332,
+      0.498
+    ]
+  },
+  {
+    "name": "seal",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.099,
+      0.148
+    ]
+  },
+  {
+    "name": "fuse",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.144,
+      0.215
+    ]
+  },
+  {
+    "name": "back mantle",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.426,
+      0.639
+    ]
+  },
+  {
+    "name": "matches",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.179,
+      0.269
+    ]
+  },
+  {
+    "name": "lever detonator",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.233,
+      0.35
+    ]
+  }
+]

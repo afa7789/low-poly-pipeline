@@ -1,0 +1,36 @@
+[
+  {
+    "name": "arrow_fan_rack",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.314,
+      0.47
+    ]
+  },
+  {
+    "name": "great_bow",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.56,
+      0.84
+    ]
+  },
+  {
+    "name": "belt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.174,
+      0.262
+    ]
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "bow",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.811,
+      1.216
+    ]
+  },
+  {
+    "name": "brass telescope",
+    "where": "anchor bow, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.233,
+      0.349
+    ]
+  }
+]

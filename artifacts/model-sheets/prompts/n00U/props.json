@@ -1,0 +1,35 @@
+[
+  {
+    "name": "carapace plates",
+    "where": "anchor back, on bone abdomen",
+    "bones": [
+      "abdomen"
+    ],
+    "extent": [
+      0.75,
+      1.125
+    ]
+  },
+  {
+    "name": "lantern mushroom cap",
+    "where": "anchor back, on bone abdomen",
+    "bones": [
+      "abdomen"
+    ],
+    "extent": [
+      0.174,
+      0.261
+    ]
+  },
+  {
+    "name": "leg thorns",
+    "where": "anchor legs, on bone leg1.lower",
+    "bones": [
+      "leg1.lower"
+    ],
+    "extent": [
+      1.205,
+      1.808
+    ]
+  }
+]

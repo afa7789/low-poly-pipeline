@@ -1,0 +1,47 @@
+[
+  {
+    "name": "halo ring",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.24,
+      0.36
+    ]
+  },
+  {
+    "name": "sampling rod",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.588,
+      0.882
+    ]
+  },
+  {
+    "name": "pressure gauge",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.077,
+      0.115
+    ]
+  },
+  {
+    "name": "chemical charge",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.111,
+      0.166
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Chaos Twins: Smiley (id e00E-a) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a tall thin child-like figure in a tight soot-black hooded bodysuit, a dirty-ivory porcelain mask with closed happy eyes and one wide red smile, a flat grey ledger slab held flat against the chest in the left hand, the right arm hanging at the side, narrow legs and small wedge feet. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera. Panel 2, top middle: left profile view, seen exactly from the figure's left side, facing the left of the page. Panel 3, top right: back view. Panel 4, bottom left: top-down view from directly above. Panel 5, bottom right: bottom-up view from directly below.
+
+Empty-handed A-pose: both arms straight and held away from the body at about 30 degrees, legs straight and slightly apart, the ledger gone.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The hood and mask become a faceted egg of six to eight planes, the torso a tall narrow box, each arm and leg a square prism, the feet wedges. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (hooded head with mask, torso, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the flat ledger slab) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: soot black on the large masses, dirty ivory on the mask on the smaller masses, one warm accent (red on the smile only) somewhere on the body, one flat tone per facet. Face: a dirty-ivory porcelain mask with two closed happy eye marks and one wide flat red smile block, nothing else.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

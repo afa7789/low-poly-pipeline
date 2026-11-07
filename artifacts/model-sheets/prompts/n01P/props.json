@@ -1,0 +1,13 @@
+[
+  {
+    "name": "shoulder_plate.L",
+    "where": "anchor shoulder, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.212,
+      0.318
+    ]
+  }
+]

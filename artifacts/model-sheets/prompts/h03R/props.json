@@ -1,0 +1,24 @@
+[
+  {
+    "name": "quartz capacitor",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.152,
+      0.229
+    ]
+  },
+  {
+    "name": "grounding chain",
+    "where": "anchor belt, on bone base",
+    "bones": [
+      "base"
+    ],
+    "extent": [
+      0.332,
+      0.497
+    ]
+  }
+]

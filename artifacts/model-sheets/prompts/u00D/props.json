@@ -1,0 +1,59 @@
+[
+  {
+    "name": "glass visor skull face",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.116,
+      0.174
+    ]
+  },
+  {
+    "name": "brass tubing",
+    "where": "anchor head, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.173,
+      0.259
+    ]
+  },
+  {
+    "name": "rib radiator",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.157,
+      0.236
+    ]
+  },
+  {
+    "name": "injector cane",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.455,
+      0.682
+    ]
+  },
+  {
+    "name": "chained ledger",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.144,
+      0.216
+    ]
+  }
+]

@@ -1,0 +1,49 @@
+[
+  {
+    "name": "bow",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.594,
+      0.891
+    ]
+  },
+  {
+    "name": "brass ring sight",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.139,
+      0.208
+    ]
+  },
+  {
+    "name": "cord spool",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.072,
+      0.108
+    ]
+  },
+  {
+    "name": "thigh tablet",
+    "where": "anchor thigh, on bone thigh.R",
+    "bones": [
+      "thigh.R",
+      "thigh.L"
+    ],
+    "extent": [
+      0.108,
+      0.161
+    ]
+  }
+]

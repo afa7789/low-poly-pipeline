@@ -1,0 +1,13 @@
+[
+  {
+    "name": "cracked_pool",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.467,
+      0.7
+    ]
+  }
+]

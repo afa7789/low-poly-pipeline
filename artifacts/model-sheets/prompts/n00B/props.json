@@ -1,0 +1,58 @@
+[
+  {
+    "name": "mouth strap",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  },
+  {
+    "name": "tin chest can",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.076,
+      0.114
+    ]
+  },
+  {
+    "name": "rubber hose arc",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.206,
+      0.309
+    ]
+  },
+  {
+    "name": "resin pocket",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.103,
+      0.154
+    ]
+  },
+  {
+    "name": "broken-handled hoe",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.225,
+      0.337
+    ]
+  }
+]

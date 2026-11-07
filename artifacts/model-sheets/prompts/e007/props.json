@@ -1,0 +1,13 @@
+[
+  {
+    "name": "shoulder strap",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.2,
+      0.3
+    ]
+  }
+]

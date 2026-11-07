@@ -34,6 +34,7 @@ import eye_lib as EL  # noqa: E402
 import eye_paint  # noqa: E402
 import eye_project  # noqa: E402
 import eye_skin  # noqa: E402
+import eye_views  # noqa: E402
 import make_compare as MC  # noqa: E402
 import outline  # noqa: E402
 import preflight as PF  # noqa: E402
@@ -52,7 +53,7 @@ BOARDS = (("front", "left", "back"), ("top", "bottom", "rts"))
 FILE = {"rts": "wc3"}
 CLAY = "B4B4B4"
 SLOW = 1800             # seconds of one model call
-STAGES = ("artist", "critic", "judge", "blender_build", "measure", "boards", "union", "paint", "outline", "stretch", "clay")   # L18 timing.json
+STAGES = ("artist", "critic", "views", "judge", "blender_build", "measure", "boards", "union", "paint", "outline", "stretch", "clay")   # L18 timing.json
 
 
 def tick(summary, stage, seconds, calls=1):
@@ -214,6 +215,25 @@ def overlay_cell(path):
     return out
 
 
+def board_row(concept, work, stem, v, mirror=()):
+    """One row of a board: concept | model render | overlay of view v, labelled."""
+    row = MC.join([MC.fit(concept[v]) if v in concept else MC.empty_cell("no panel"), cell(work / "views" / f"{stem}-{FILE.get(v, v)}.png", v in mirror),
+                   overlay_cell(work / "sil" / f"overlay-{v}.png")])
+    ImageDraw.Draw(row).text((6, 4), v.upper() + (" (render mirrored: the unit's front is on the left)" if v in mirror else ""), fill=(20, 20, 20), font=MC.font(16))
+    return row
+
+
+def view_rows(concept, work, stem, label, out_dir, mirror=()):
+    """{view: png} of one titled row per view, what the per-view reviewer sees (eye_views.py)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = {}
+    for v in VIEWS:
+        row = board_row(concept, work, stem, v, mirror)
+        paths[v] = out_dir / f"view-{v}.png"
+        MC.stack([MC.titles(["concept", label, "overlay: red concept only, green model only"], row.width), row]).save(paths[v])
+    return paths
+
+
 def boards(concept, work, stem, label, out_dir, mirror=()):
     """Two PNGs (front/left/back, top/bottom/rts): one row per view, columns concept | model render | overlay. Their paths. `mirror`: views whose
     render is shown flipped (the left panel of a sheet that looks left: the rig's left render looks right, and the overlay is already flipped)."""
@@ -221,11 +241,7 @@ def boards(concept, work, stem, label, out_dir, mirror=()):
     for i, views in enumerate(BOARDS):
         rows = []
         for v in views:
-            r = FILE.get(v, v)
-            row = MC.join([MC.fit(concept[v]) if v in concept else MC.empty_cell("no panel"), cell(work / "views" / f"{stem}-{r}.png", v in mirror),
-                           overlay_cell(work / "sil" / f"overlay-{v}.png")])
-            ImageDraw.Draw(row).text((6, 4), v.upper() + (" (render mirrored: the unit's front is on the left)" if v in mirror else ""), fill=(20, 20, 20), font=MC.font(16))
-            rows.append(row)
+            rows.append(board_row(concept, work, stem, v, mirror))
         img = MC.stack([MC.titles(["concept", label, "overlay: red sheet only, green model only"], rows[0].width)] + rows)
         out_dir.mkdir(parents=True, exist_ok=True)
         paths.append(out_dir / f"board-{i + 1}.png")
@@ -369,8 +385,8 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
 
 
 def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull", fuse=0,
-        union_reduce="qem", project="off"):
-    """The stage. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
+        union_reduce="qem", project="off", views=None, mold="off", joints="off", paint_sheet="flat"):
+    """The stage. views: session:<model> of the per-view reviewer (eye_views.py) or None. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
     and goes on (a measurement run); "judge" also ends after STALLS stalled rounds, judged by judge(run_a, run_b) -> review_pair result."""
@@ -397,7 +413,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
-            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce, project))
+            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet))
         t0 = time.monotonic()
         base_dir = eye / "base"
         ev = measure(src, base_dir, sheet, unit["rig"])
@@ -417,6 +433,9 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             listed, note, images = critique(critic, unit, r, images, cur, listed, label, rd, summary, note, imgs_extra[:1])
             if listed is None:       # L16-2: the critic said stop
                 break
+            if views:                # before: each view alone (the previous round's "after" when there is one)
+                before = cur.get("after") or look_views(views, unit, concept, cur["work"], stem, label, rd / "before", mirrored, summary)
+                note += eye_views.note(before)
             prompt = make_prompt(unit, ctx, rig, r, images, cur["dsl"], cur["ev"], label, note)
             (rd / "prompt.md").write_text(prompt)
             (rd / "images.txt").write_text("\n".join(str(p) for _, p in images))
@@ -425,8 +444,11 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
             try:
                 reply = ask(prompt, [p for _, p in images], reply_checker(rig_names, ctx, r, seen))
                 doc_r = parse_reply(reply)
-                if doc_r.get("stop") is not True and EL.validate(doc_r, rig_names, ctx["box"], ctx["roles"], face=ctx.get("face", "eyes")):
+                if doc_r.get("stop") is not True and EL.validate(doc_r, rig_names, ctx["box"], ctx["roles"], face=ctx.get("face", "eyes"), soft=False):
                     raise Invalid("the resend is still invalid")
+                if doc_r.get("stop") is not True:
+                    for w in EL.join_errors(doc_r["pieces"]):             # soft rule still broken after the resend: build it, keep the note
+                        log(f"eye round {r}: built despite: {w[:120]}")
             except (Invalid, RuntimeError, ValueError) as err:
                 log(f"eye round {r}: no usable reply ({err}); the stage stops with the last model")
                 summary["rounds"].append({"round": r, "error": str(err)[:300], "llm_s": round(time.monotonic() - t0, 1)})
@@ -460,13 +482,25 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                                       "pieces": info["pieces"], "parts": ev["parts"], "views": ev["views"], "disaster": ev["disaster"], "resent": seen["failed"], "resend_why": seen["why"]})
             log(f"eye round {r}: {info['tris']} tris, {info['pieces']} pieces, parts {ev['parts'][0]}/{ev['parts'][1]}, llm {llm_s:.0f}s")
             stalls = judge_step(stop, judge, eye, r, src_run, cur["ev"], ev, stalls, summary)
-            cur, last_glb, label, note, stem = {"work": rd, "ev": ev, "dsl": doc_r, "face": ctx["face"]}, glb, f"round {r} model", "", glb.stem
+            after = look_views(views, unit, concept, rd, glb.stem, f"round {r} model", rd / "after", mirrored, summary) if views else None
+            if views:
+                summary.setdefault("views", []).append({"round": r, "before": eye_views.scores(before), "after": eye_views.scores(after)})
+            cur, last_glb, label, note, stem = {"work": rd, "ev": ev, "dsl": doc_r, "face": ctx["face"], "after": after}, glb, f"round {r} model", "", glb.stem
             r += 1
             if stalls >= STALLS or (r >= rounds and not (disaster_only(ev) and r < cap)):
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project)
+    return finish(summary, last_glb, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet)
+
+
+def look_views(views, unit, concept, work, stem, label, out_dir, mirrored, summary):
+    """eye_views.look on the rows of one model; its calls and seconds go to the summary."""
+    t0 = time.perf_counter()
+    looked = eye_views.look(views, unit, view_rows(concept, work, stem, label, out_dir, mirrored), label, out_dir)
+    summary["llm_calls"] += len(looked)
+    tick(summary, "views", time.perf_counter() - t0, len(looked))
+    return looked
 
 
 def critique(critic, unit, r, images, cur, listed, label, rd, summary, note, sheet_only):
@@ -541,9 +575,10 @@ def best_round(rounds):
     return max((r for r in rounds if "tris" in r), key=lambda r: (not r["disaster"], r["parts"][0], r["round"]))["round"]
 
 
-def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off"):
+def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off", mold="off", joints="off", paint_sheet="flat"):
     """The files of the stage: model.glb (the best built round, or the recorded one on a replay, outlined), clay.glb, anim stretch, summary.json, review.md.
-    fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs)."""
+    fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs).
+    mold / joints (levers 1 and 3, 2026-11-05) reach eye_union through the DSL's union_opts; paint_sheet (lever 2) picks the sheet eye_project projects."""
     if last_glb is None:
         summary["final_round"] = None
         (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -558,6 +593,9 @@ def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off
         if union == "off" and skin == "off":
             skin, summary["fuse"]["rebuilt"] = "off", True         # the pieces must be rebuilt with the fused palette: the skin build with no technique
             union = "fused"
+    import eye_mold
+    summary["mold"] = eye_mold.prepare(summary["unit"], mold, eye / "mold") if union not in ("off", "fused") else None
+    dsl = dict(dsl, union_opts={"mold": str(eye / "mold") if summary["mold"] else None, "joints": joints})
     clay = dict(dsl, colours={}, pieces=[dict(p, colour=CLAY) for p in dsl["pieces"]])
     t_fin = t0 = time.perf_counter()
     build(src, clay, out / "clay.glb")
@@ -572,7 +610,7 @@ def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off
     summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
     tick(summary, "paint", time.perf_counter() - t0, int(paint != "off"))
     t0 = time.perf_counter()
-    summary["project"] = eye_project.apply_stage(out / "model.glb", summary["unit"], project) if paint != "off" else {}       # L20-0: swaps the atlas the paint left
+    summary["project"] = eye_project.apply_stage(out / "model.glb", summary["unit"], project, paint_sheet) if paint != "off" else {}       # L20-0: swaps the atlas the paint left
     tick(summary, "project", time.perf_counter() - t0, int(project != "off"))
     t0 = time.perf_counter()
     shutil.copy(out / "model.glb", out / "model-body.glb")          # the body without the hull: render_wire.py draws its triangulation (leva18.wire)
@@ -634,9 +672,11 @@ def run_in_pipeline(args, src_run, ask):
         seed(src_run, args.out)
     critic = None if getattr(args, "eye_critic", "off") == "off" else session_ask("session:" + args.eye_critic)
     judge = (lambda a, b: judge_pair(a, b, args.id, args.model)) if args.eye_stop == "judge" else None
+    views = None if getattr(args, "eye_views", "off") == "off" else "session:" + args.eye_views
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
-               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"), project=getattr(args, "eye_project", "off"))
+               paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"), project=getattr(args, "eye_project", "off"), views=views,
+               mold=getattr(args, "eye_mold", "off"), joints=getattr(args, "eye_joints", "off"), paint_sheet=getattr(args, "eye_paint_sheet", "flat"))
 
 
 def from_run(args, ask):

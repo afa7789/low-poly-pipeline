@@ -1,0 +1,24 @@
+[
+  {
+    "name": "drum-lid muzzle plate",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.389,
+      0.583
+    ]
+  },
+  {
+    "name": "dorsal spikes",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.661,
+      0.991
+    ]
+  }
+]

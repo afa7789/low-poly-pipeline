@@ -1,0 +1,36 @@
+[
+  {
+    "name": "pavise shield",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.574,
+      0.861
+    ]
+  },
+  {
+    "name": "belt lantern",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.139,
+      0.209
+    ]
+  },
+  {
+    "name": "strap",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.278,
+      0.417
+    ]
+  }
+]

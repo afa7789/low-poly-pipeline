@@ -1,0 +1,26 @@
+[
+  {
+    "name": "cleaver.L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.186,
+      0.279
+    ]
+  },
+  {
+    "name": "cleaver.R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.186,
+      0.279
+    ]
+  }
+]

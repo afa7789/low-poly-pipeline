@@ -70,6 +70,66 @@ def foreground(path, size):
     return (np.abs(rgb - bg).sum(axis=2) > 30) & (alpha > 10)
 
 
+INK_MAX_PX = 6         # form-pilot: the measured contour line is never read wider than this at 768 px
+
+
+def ink_lines(dark, width=INK_MAX_PX):
+    """The thin part of a dark mask: the drawn lines, not a dark area (a maw, a black boot) which an opening of `width` keeps."""
+    from scipy.ndimage import binary_opening
+    return dark & ~binary_opening(dark, structure=np.ones((2 * width + 1, 2 * width + 1), bool))
+
+
+def ink_mask(path, size, mask):
+    """The concept's drawn black lines (luminance under INK, as the zones read them) inside `mask`; the dark areas are not lines."""
+    rgb = read_rgba(path, size)[..., :3]
+    return ink_lines(mask & (rgb.max(axis=2) <= INK * 255))
+
+
+def ink_width(ink):
+    """Width in px of the drawn line, from the distance transform of its pixels (a strip of width w has mean distance w/4); 0 when none."""
+    from scipy.ndimage import distance_transform_edt
+    if not ink.any():
+        return 0
+    return int(min(INK_MAX_PX, max(1, round(4 * float(distance_transform_edt(ink)[ink].mean())))))
+
+
+def deink_mask(mask, ink, width):
+    """form-pilot (author 2026-11-05): the figure's mask with its outer contour line stripped: the ink pixels within half the line's
+    width of the outside are not shape (the stroke is centred on the edge). The inner lines (facets) stay. A Framed panel keeps its box."""
+    from scipy.ndimage import binary_erosion
+    half = (width + 1) // 2
+    if not half:
+        return mask
+    base = np.asarray(mask).astype(bool)
+    out = base & ~(ink & ~binary_erosion(base, iterations=half))
+    if getattr(mask, "box", None) is not None:
+        out = out.view(type(mask))
+        out.box, out.props = mask.box, mask.props
+    return out
+
+
+def deink_panels(panels, path, size=768):
+    """({view: deinked panel}, line width px) of concept_panels / framed_panels output."""
+    ink = ink_mask(path, size, np.any(list(panels.values()), axis=0))
+    w = ink_width(ink)
+    return {v: deink_mask(m, ink, w) for v, m in panels.items()}, w
+
+
+def deink_image(src, dst):
+    """form-pilot: `src` (a concept panel png) with its black lines painted over by the nearest non-ink colour, saved to `dst` (the
+    picture the compare sheets and the judge see: the lines of the concept exist to read edges, the model carries none)."""
+    from PIL import Image
+    from scipy.ndimage import binary_dilation, distance_transform_edt
+    im = np.asarray(Image.open(src).convert("RGB")).copy()
+    scale = max(1, round(max(im.shape[:2]) / 768))
+    ink = binary_dilation(ink_lines(im.max(axis=2) <= INK * 255, INK_MAX_PX * scale), iterations=scale)     # plus the anti-aliased fringe
+    if ink.any() and not ink.all():
+        iy, ix = distance_transform_edt(ink, return_indices=True)[1]
+        im[ink] = im[iy[ink], ix[ink]]
+    Image.fromarray(im).save(dst)
+    return dst
+
+
 def rts_path(sheet):
     """The gameplay-camera concept drawn from this sheet by generate.py --image:
     refs/<id>/sheet.jpg -> sheet-rts.jpg, sheet-hard.jpg -> sheet-hard-rts.jpg."""
@@ -1100,6 +1160,8 @@ def wing_mask(left, line):
         body |= np.hypot(xx - x * h, yy - (1 - y) * h) <= TUBE * r * h + 2
     lab, n = ndimage.label(left & ~body)
     tops = [np.nonzero(lab == k)[0].min() for k in range(1, n + 1)]
+    if not tops:                              # the body's discs cover the whole side panel: no wing stands clear (n010 azure drake)
+        return np.zeros_like(left, dtype=bool)
     return lab == 1 + int(np.argmin(tops))
 
 
@@ -1107,6 +1169,8 @@ def wing_blob(left, line):
     """{"chord": [x0, x1], "top": x of the wing's highest pixel, "root": index of the nearest line point} of wing_mask."""
     h = left.shape[0]
     ys, xs = np.nonzero(wing_mask(left, line))
+    if not len(ys):
+        return {"chord": [0.0, 0.0], "top": 0.0, "root": 0}
     k = int(np.argmin(ys))
     near = [np.hypot(xs - x * h, ys - (1 - y) * h).min() for x, y, _ in line]
     return {"chord": [round(float(xs.min()) / h, 3), round(float(xs.max() + 1) / h, 3)], "top": round(float(xs[k] + 0.5) / h, 3),
@@ -2134,7 +2198,8 @@ def main():
                         "--", str(args.glb), str(renders)], check=True,
                        capture_output=True, text=True)
 
-    panels = framed_panels(args.sheet, layout=args.layout)
+    panels, ink_px = deink_panels(framed_panels(args.sheet, layout=args.layout), args.sheet)
+    print(f"concept contour line {ink_px} px at 768: half of it stripped from the sheet masks (form-pilot)")
     model = model_panels(renders, args.glb.stem)
     if args.tilts:
         from views import parse_tilts
@@ -2148,7 +2213,9 @@ def main():
     concept = oriented(panels, rotate)
     boxes = model_boxes(args.glb, model, panels, mirrors)
     if rts_path(args.sheet).exists():
-        concept["rts"] = normalize(foreground(rts_path(args.sheet), 768))
+        rts_fg = foreground(rts_path(args.sheet), 768)
+        rts_ink = ink_mask(rts_path(args.sheet), 768, rts_fg)
+        concept["rts"] = normalize(deink_mask(rts_fg, rts_ink, ink_width(rts_ink)))
     waived = write_sheet_report(args)    # views where the sheet contradicts itself: measured, not gated
     print(f"{'view':8} {'IoU':>6}  {'L1':>6}  {'32px':>5}  {'camera':>6}  {'spill':>5} {'bare':>5} {'cont':>5}  gate")
     report, bad, best_masks = {}, 0, {}

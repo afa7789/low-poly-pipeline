@@ -1,0 +1,38 @@
+[
+  {
+    "name": "valve pauldron",
+    "where": "anchor shoulder.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.179,
+      0.269
+    ]
+  },
+  {
+    "name": "hatch shield",
+    "where": "anchor forearm.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.26,
+      0.39
+    ]
+  },
+  {
+    "name": "gaff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.618,
+      0.927
+    ]
+  }
+]

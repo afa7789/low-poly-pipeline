@@ -1,0 +1,48 @@
+[
+  {
+    "name": "big wrench",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.197,
+      0.295
+    ]
+  },
+  {
+    "name": "spiked mace ball",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.197,
+      0.295
+    ]
+  },
+  {
+    "name": "backpack with spiked ball cages",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.289,
+      0.434
+    ]
+  },
+  {
+    "name": "crane arm with claws",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.6,
+      0.9
+    ]
+  }
+]

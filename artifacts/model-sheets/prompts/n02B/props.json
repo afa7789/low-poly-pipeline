@@ -1,0 +1,46 @@
+[
+  {
+    "name": "antler rack",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.396,
+      0.594
+    ]
+  },
+  {
+    "name": "red crest",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.124,
+      0.186
+    ]
+  },
+  {
+    "name": "ankle roots left",
+    "where": "anchor ankle, on bone leg1.lower",
+    "bones": [
+      "leg1.lower"
+    ],
+    "extent": [
+      0.09,
+      0.135
+    ]
+  },
+  {
+    "name": "ankle roots right",
+    "where": "anchor ankle, on bone leg2.lower",
+    "bones": [
+      "leg2.lower"
+    ],
+    "extent": [
+      0.131,
+      0.197
+    ]
+  }
+]

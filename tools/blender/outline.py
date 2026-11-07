@@ -137,6 +137,8 @@ def main():
     offset = next((float(a[7:]) for a in args if a.startswith("offset=")), OFFSET)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src)
+    for old in [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("outline")]:
+        bpy.data.objects.remove(old, do_unlink=True)        # a hull of an earlier body (the eye stage's input) would ghost the old silhouette
     bodies = [o for o in bpy.data.objects if o.type == "MESH" and not o.name.startswith(("outline", "face", "Icosphere"))]
     if len(bodies) != 1:
         print("outline: expected one body mesh, found", [o.name for o in bodies])

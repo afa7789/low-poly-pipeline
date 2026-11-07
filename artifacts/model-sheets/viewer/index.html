@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Model-sheet refs</title>
+<title>Model review</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -20,23 +20,25 @@ header {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px 14px;
   padding: 8px 14px;
   border-bottom: 1px solid #262a31;
   background: #191c21;
 }
 header h1 { margin: 0; font-size: 13px; font-weight: 600; color: #9aa3af; letter-spacing: .02em; }
-#search {
-  width: 280px;
+#search, header select {
   padding: 5px 10px;
   font: inherit;
+  font-size: 12px;
   color: inherit;
   background: #0f1115;
   border: 1px solid #2c313a;
   border-radius: 6px;
   outline: none;
 }
-#search:focus { border-color: #4a5568; }
+#search { width: 220px; }
+#search:focus, header select:focus { border-color: #4a5568; }
 #kind { display: flex; gap: 2px; padding: 2px; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; }
 #kind button {
   font: inherit;
@@ -50,17 +52,10 @@ header h1 { margin: 0; font-size: 13px; font-weight: 600; color: #9aa3af; letter
   cursor: pointer;
 }
 #kind button:hover { color: #d5d9df; }
-#kind button.active {
-  background: #232833;
-  color: #d5d9df;
-  border-left-color: #5b8def;
-}
+#kind button.active { background: #232833; color: #d5d9df; border-left-color: #5b8def; }
 #progress { font-size: 12px; color: #7d8590; }
-#progress .renders { color: #6fbf73; }
-#progress .mdx { color: #5b8def; }
-#progress .ours { color: #a78bfa; }
-#progress .icons { color: #7d8590; }
-#progress .glb { color: #c4b5fd; }
+#progress .final { color: #a78bfa; }
+#progress .rendered { color: #6fbf73; }
 #progress .rev-ok { color: #6fbf73; }
 #progress .rev-no { color: #e06c6c; }
 .export-link { font-size: 11px; color: #8ab0f0; text-decoration: none; white-space: nowrap; }
@@ -68,7 +63,7 @@ header h1 { margin: 0; font-size: 13px; font-weight: 600; color: #9aa3af; letter
 main { flex: 1; display: flex; min-height: 0; }
 #list {
   flex: none;
-  width: 240px;
+  width: 250px;
   overflow-y: auto;
   border-right: 1px solid #262a31;
   background: #171a1f;
@@ -89,7 +84,7 @@ main { flex: 1; display: flex; min-height: 0; }
 #list .row {
   display: block;
   width: 100%;
-  padding: 7px 12px;
+  padding: 6px 12px;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -102,35 +97,15 @@ main { flex: 1; display: flex; min-height: 0; }
 #list .row.active { background: #232833; border-left-color: #5b8def; }
 #list .row .name { display: block; }
 #list .row .name img { border-radius: 3px; margin-right: 6px; vertical-align: middle; }
-#list .row .meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 1px;
-  font-size: 11px;
-  color: #7d8590;
-}
+#list .row .meta { display: flex; align-items: center; gap: 6px; margin-top: 1px; font-size: 11px; color: #7d8590; }
 #list .row .uid { font-family: ui-monospace, Menlo, Consolas, monospace; }
-#list .row .dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-right: 6px;
-  border-radius: 50%;
-  vertical-align: middle;
-  background: #5a6270;
-}
-#list .row .dot.render { background: #6fbf73; }
-#list .row .dot.mdxonly { background: #d4a72c; }
-#list .row .tier {
-  padding: 0 5px;
-  border: 1px solid #3a4150;
-  border-radius: 4px;
-  line-height: 15px;
-}
+#list .row .run { padding: 0 5px; border: 1px solid #3a4150; border-radius: 4px; line-height: 15px; }
+#list .row .run.v6e { border-color: #5b4b8a; color: #c4b5fd; }
+#list .row .share { font-family: ui-monospace, Menlo, Consolas, monospace; }
 #list .row .rev-ok { color: #6fbf73; }
 #list .row .rev-no { color: #e06c6c; }
-#sheet { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; }
+#list .empty { padding: 14px 12px; color: #7d8590; font-size: 12px; }
+#sheet { flex: 1; min-width: 0; overflow-y: auto; padding: 12px 16px 16px; }
 #sheet figure { margin: 0 0 16px; }
 #sheet img {
   display: block;
@@ -146,25 +121,32 @@ main { flex: 1; display: flex; min-height: 0; }
   font-size: 11px;
   color: #7d8590;
 }
-.compare {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-  align-items: start;
+#sheet figcaption .iou { color: #b6bdc8; }
+#sheet figcaption .iou.bad { color: #e06c6c; }
+#sheet figcaption .iou.ok { color: #6fbf73; }
+.tabs { display: flex; gap: 2px; margin-bottom: 12px; padding: 2px; width: max-content; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; }
+.tabs button {
+  font: inherit; font-size: 12px; padding: 3px 12px; color: #9aa3af; background: transparent;
+  border: 0; border-radius: 4px; cursor: pointer;
 }
-.compare.c3 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
-/* #sheet figure (id) outranks `.compare figure` — scope it to keep cells flush */
-#sheet .compare figure { margin: 0; }
-.ours-select {
-  font: inherit;
-  font-size: 11px;
-  background: #0f1115;
-  color: #d5d9df;
-  border: 1px solid #2c313a;
-  border-radius: 4px;
-  margin-bottom: 6px;
-  width: 100%;
+.tabs button.active { background: #232833; color: #d5d9df; }
+.grid { display: grid; gap: 12px; margin-bottom: 16px; align-items: start; }
+.grid.c3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.grid.c6 { grid-template-columns: repeat(6, minmax(0,1fr)); }
+@media (max-width: 1100px) { .grid.c6 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+#sheet .grid figure { margin: 0; }
+.panel { position: relative; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 4px; background: #0f1115; cursor: zoom-in; }
+.panel img { position: absolute; width: 300%; max-width: none; height: auto; left: 0; top: 0; }
+.sheet-h { display: flex; align-items: center; gap: 12px; margin: 6px 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #7d8590; }
+.sheet-h label { font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
+#sheet .empty { color: #7d8590; }
+#viewer3d { position: relative; width: 100%; height: calc(100% - 44px); min-height: 420px; background: #a0a1a5; border-radius: 4px; overflow: hidden; }
+#viewer3d canvas { display: block; width: 100%; height: 100%; }
+#viewer3d .msg { position: absolute; left: 12px; top: 10px; font-size: 12px; color: #2a2d33; }
+#viewer3d .ctl { position: absolute; right: 10px; top: 8px; display: flex; gap: 6px; }
+#viewer3d .ctl button, #viewer3d .ctl select {
+  font: inherit; font-size: 11px; padding: 2px 8px; color: #d5d9df; background: rgba(20,22,26,.85);
+  border: 1px solid #2c313a; border-radius: 4px; cursor: pointer;
 }
 #divider {
   flex: none;
@@ -195,110 +177,49 @@ main { flex: 1; display: flex; min-height: 0; }
   color: #7d8590;
 }
 #card .badges { display: flex; flex-wrap: wrap; gap: 6px; }
-#card .badge {
-  padding: 1px 8px;
-  font-size: 12px;
-  border: 1px solid #3a4150;
-  border-radius: 999px;
-  color: #b6bdc8;
-}
-#card .badge.uid {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  color: #7d8590;
-}
+#card .badge { padding: 1px 8px; font-size: 12px; border: 1px solid #3a4150; border-radius: 999px; color: #b6bdc8; }
+#card .badge.uid { font-family: ui-monospace, Menlo, Consolas, monospace; color: #7d8590; }
+#card .badge.v6e { border-color: #5b4b8a; color: #c4b5fd; }
 #card .costs { display: flex; gap: 14px; margin-top: 12px; }
 #card .costs span { color: #b6bdc8; }
-#card .review {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #262a31;
-}
+#card .review { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #262a31; }
 #card .review > * { flex-basis: auto; }
 #card .review button {
-  font: inherit;
-  font-size: 12px;
-  padding: 3px 10px;
-  color: #b6bdc8;
-  background: #0f1115;
-  border: 1px solid #2c313a;
-  border-radius: 6px;
-  cursor: pointer;
+  font: inherit; font-size: 12px; padding: 3px 10px; color: #b6bdc8; background: #0f1115;
+  border: 1px solid #2c313a; border-radius: 6px; cursor: pointer;
 }
 #card .review button:hover { border-color: #4a5568; }
 #card .review button:disabled { opacity: .6; cursor: default; }
 #card .review button.ok.active { background: #1c3320; border-color: #3f7a45; color: #8fd18f; }
 #card .review button.no.active { background: #3a1e1e; border-color: #8a4040; color: #e08a8a; }
-#card .review .note {
-  flex-basis: 100%;
-  margin: 2px 0 0;
-  font-size: 12px;
-  white-space: pre-wrap;
-  color: #9aa1ab;
-}
+#card .review .note { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; white-space: pre-wrap; color: #9aa1ab; }
 #card .review .ts { flex-basis: 100%; font-size: 11px; color: #7d8590; }
 #card .review textarea {
-  flex-basis: 100%;
-  font: inherit;
-  font-size: 13px;
-  min-height: 56px;
-  resize: vertical;
-  padding: 6px 8px;
-  color: inherit;
-  background: #0f1115;
-  border: 1px solid #2c313a;
-  border-radius: 6px;
-  outline: none;
+  flex-basis: 100%; font: inherit; font-size: 13px; min-height: 56px; resize: vertical; padding: 6px 8px;
+  color: inherit; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; outline: none;
 }
 #card .review textarea:focus { border-color: #5b8def; }
 #card .review .err { flex-basis: 100%; margin: 0; font-size: 12px; color: #d08770; }
 #card .review .err.net { color: #7d8590; }
 #card .stats { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; }
 #card .stats .k { color: #7d8590; }
-#card .modelpath {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  word-break: break-all;
-  margin: 0 0 6px;
-  color: #b6bdc8;
-}
-#card .tooltip {
-  white-space: pre-wrap;
-  margin: 0;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: #c3c9d2;
-  background: #0f1115;
-  border: 1px solid #262a31;
-  border-radius: 6px;
-}
+#card .ious { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; text-align: center; }
+#card .ious .k { color: #7d8590; }
+#card .ious .bad { color: #e06c6c; }
+#card .ious .ok { color: #6fbf73; }
+#card .modelpath { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; margin: 0 0 6px; color: #b6bdc8; }
+#card .tooltip { white-space: pre-wrap; margin: 0; padding: 10px 12px; font-size: 13px; color: #c3c9d2; background: #0f1115; border: 1px solid #262a31; border-radius: 6px; }
 #card .related { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-#card .files { flex-direction: row; gap: 12px; margin-top: 6px; }
+#card .files { flex-direction: row; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
 #card .related button, #card .related a, #card .site a {
-  font: inherit;
-  font-size: 13px;
-  color: #8ab0f0;
-  background: none;
-  border: 0;
-  padding: 0;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
+  font: inherit; font-size: 13px; color: #8ab0f0; background: none; border: 0; padding: 0;
+  text-align: left; text-decoration: none; cursor: pointer;
 }
 #card .related button:hover, #card .related a:hover, #card .site a:hover { text-decoration: underline; }
 #card .site { margin-top: 18px; }
 #card .empty { color: #7d8590; }
-#overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, .88);
-  cursor: zoom-out;
-}
+#card img.print { display: block; width: 100%; height: auto; border-radius: 4px; background: #0f1115; cursor: zoom-in; }
+#overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.88); cursor: zoom-out; }
 #overlay[hidden] { display: none; }
 #overlay img { max-width: 95vw; max-height: 95vh; }
 #error { margin: 8px 0; color: #d08770; }
@@ -306,39 +227,76 @@ main { flex: 1; display: flex; min-height: 0; }
 </head>
 <body>
 <header>
-  <h1>Model-sheet refs</h1>
+  <h1>Model review</h1>
   <input id="search" type="search" placeholder="Search id / name / race" aria-label="Search units" autocomplete="off" spellcheck="false">
   <div id="kind" role="group" aria-label="Filter by kind">
     <button type="button" data-kind="unit">Units</button>
     <button type="button" data-kind="building">Buildings</button>
     <button type="button" data-kind="all">All</button>
   </div>
+  <select id="race" aria-label="Filter by race"><option value="">all races</option></select>
+  <select id="verdict" aria-label="Filter by verdict">
+    <option value="">all verdicts</option>
+    <option value="pending">pending</option>
+    <option value="approved">approved</option>
+    <option value="rejected">rejected</option>
+  </select>
+  <select id="run" aria-label="Filter by run">
+    <option value="">all runs</option>
+    <option value="roster-v6">v6</option>
+    <option value="roster-v6e">v6e</option>
+    <option value="final">has final</option>
+  </select>
+  <select id="sort" aria-label="Sort">
+    <option value="name">sort: race / name</option>
+    <option value="share">sort: parts share ↓</option>
+    <option value="share-asc">sort: parts share ↑</option>
+  </select>
   <span id="progress" aria-live="polite"></span>
-  <a class="export-link" href="/api/export" download="concept-review.json" title="Download approved/rejected/pending as JSON">&#x2B07; json</a>
-  <a class="export-link" href="/api/export.md" download="concept-review.md" title="Download approved/rejected/pending as Markdown for prompting">&#x2B07; md</a>
+  <a class="export-link" href="/api/export" download="model-review.json" title="Download approved/rejected/pending as JSON">&#x2B07; json</a>
+  <a class="export-link" href="/api/export.md" download="model-review.md" title="Download approved/rejected/pending as Markdown for prompting">&#x2B07; md</a>
 </header>
 <main>
   <aside id="list" aria-label="Units"></aside>
-  <section id="sheet" aria-label="Reference images"></section>
+  <section id="sheet" aria-label="Model views"></section>
   <div id="divider" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize panel"></div>
   <section id="card" aria-label="Unit details"></section>
 </main>
 <div id="overlay" hidden><img alt=""></div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
 const listEl = $("#list"), sheetEl = $("#sheet"), cardEl = $("#card"),
-      overlayEl = $("#overlay"), dividerEl = $("#divider"), searchEl = $("#search");
+      overlayEl = $("#overlay"), dividerEl = $("#divider"), searchEl = $("#search"),
+      raceEl = $("#race"), verdictEl = $("#verdict"), runEl = $("#run"), sortEl = $("#sort");
 
 let units = [];
 let visibleUnits = [];
 const byId = new Map();
 let current = null;
 let rejectEditorOpen = false;
+let sheetTab = localStorage.getItem("refs-viewer:tab") || "renders";
+let preUnion = false;
+const VIEWS = ["front", "left", "back", "top", "bottom", "rts"];
+const VIEW_FILE = { rts: "wc3" };
 
 const KIND_KEY = "refs-viewer:kind";
 let kindFilter = localStorage.getItem(KIND_KEY) || "unit";
 if (!["unit", "building", "all"].includes(kindFilter)) kindFilter = "unit";
+const persist = (el, key) => {
+  el.value = localStorage.getItem(key) || "";
+  el.addEventListener("change", () => { localStorage.setItem(key, el.value); renderList(); });
+};
+persist(raceEl, "refs-viewer:race");
+persist(verdictEl, "refs-viewer:verdict");
+persist(runEl, "refs-viewer:run");
+persist(sortEl, "refs-viewer:sort");
 
 const stripWc3 = (t) => t
   .replace(/\|c[0-9a-fA-F]{8}/g, "")
@@ -347,12 +305,19 @@ const stripWc3 = (t) => t
   .replace(/\n{3,}/g, "\n\n");
 
 const siteUrl = (id) => "https://castlefight.cfd/compendium/races/unit?id=" + encodeURIComponent(id);
-const renderUrl = (id) => "/render/" + encodeURIComponent(id) + ".png";
+const renderUrl = (u) => "/render/" + encodeURIComponent(u.render_id || u.id) + ".png";
+const iconUrl = (u) => "/icon/" + encodeURIComponent(u.icon_id || u.id) + ".png";
+const viewUrl = (u, v, pre) => "/" + (pre ? "eye" : "final") + "/" + encodeURIComponent(u.id) + "/model-" + (VIEW_FILE[v] || v) + ".png";
+const refsUrl = (u, f) => "/refs/" + encodeURIComponent(u.id) + "/" + encodeURIComponent(f);
+const verdictOf = (u) => (u.review && u.review.verdict) || "pending";
+const shareOf = (u) => (u.final && typeof u.final.share === "number") ? u.final.share : -1;
+const runShort = (run) => run ? run.replace(/^roster-/, "") : "";
+const pct = (x) => Math.round(x * 100) + "%";
+const iouCls = (x) => x >= 0.75 ? "iou ok" : (x < 0.6 ? "iou bad" : "iou");
 
-function modelState(u) {
-  if (u.render) return { cls: "render", title: "WC3 render ready" };
-  if (u.mdx) return { cls: "mdxonly", title: "mdx only" };
-  return { cls: "", title: "no model yet" };
+function zoom(src) {
+  overlayEl.querySelector("img").src = src;
+  overlayEl.hidden = false;
 }
 
 function renderStats(s) {
@@ -365,31 +330,71 @@ function renderStats(s) {
     sp.textContent = v;
     return sp;
   };
-  el.append("models: ", n(s.render, "renders"), " renders \u00b7 ",
-            n(s.mdx, "mdx"), " mdx \u00b7 ",
-            n(s.ours ?? 0, "ours"), " ours / ", String(s.total),
-            " \u00b7 ", String(s.refs), " with art",
-            " \u00b7 ", n(s.icons ?? 0, "icons"), " icons \u00b7 ",
-            n(s.glb ?? 0, "glb"), " glb");
+  el.append("final: ", n(s.final ?? 0, "final"), " (", String(s.v6 ?? 0), " v6 · ",
+            String(s.v6e ?? 0), " v6e) · ", n(s.rendered ?? 0, "rendered"), " rendered",
+            " · ", String(s.total), " ids · ", String(s.refs), " with art");
   const reviewed = s.reviewed ?? 0;
   if (reviewed) {
-    el.append(" \u00b7 ", n(s.approved ?? 0, "rev-ok"), " \u2713 ",
-              n(s.rejected ?? 0, "rev-no"), " \u2717");
+    el.append(" · ", n(s.approved ?? 0, "rev-ok"), " ✓ ",
+              n(s.rejected ?? 0, "rev-no"), " ✗ ",
+              String(s.total - reviewed), " pending");
   }
+}
+
+function fillRaces() {
+  const races = [...new Set(units.map((u) => u.race).filter(Boolean))].sort();
+  const keep = raceEl.value || localStorage.getItem("refs-viewer:race") || "";
+  raceEl.textContent = "";
+  const o = document.createElement("option");
+  o.value = "";
+  o.textContent = "all races";
+  raceEl.append(o);
+  for (const r of races) {
+    const op = document.createElement("option");
+    op.value = r;
+    op.textContent = r;
+    raceEl.append(op);
+  }
+  raceEl.value = races.includes(keep) ? keep : "";
+}
+
+function passes(u, q) {
+  if (kindFilter === "unit" && u.kind !== "unit") return false;
+  if (kindFilter === "building" && u.kind !== "building") return false;
+  if (raceEl.value && u.race !== raceEl.value) return false;
+  if (verdictEl.value && verdictOf(u) !== verdictEl.value) return false;
+  const run = runEl.value;
+  if (run === "final" && !u.final) return false;
+  if (run && run !== "final" && (!u.final || u.final.run !== run)) return false;
+  if (q && ![u.id, u.name, u.race].some((v) => (v || "").toLowerCase().includes(q))) return false;
+  return true;
+}
+
+function sortUnits(list) {
+  const byName = (a, b) =>
+    (a.race || "").localeCompare(b.race || "") ||
+    (a.name || "").localeCompare(b.name || "") ||
+    a.id.localeCompare(b.id);
+  if (sortEl.value === "share") return list.sort((a, b) => shareOf(b) - shareOf(a) || byName(a, b));
+  if (sortEl.value === "share-asc") {
+    return list.sort((a, b) => {
+      const sa = shareOf(a), sb = shareOf(b);
+      if (sa < 0 || sb < 0) return sb - sa;      /* no final: last */
+      return sa - sb || byName(a, b);
+    });
+  }
+  return list.sort(byName);
 }
 
 function renderList() {
   const q = searchEl.value.trim().toLowerCase();
   listEl.textContent = "";
-  visibleUnits = [];
+  visibleUnits = sortUnits(units.filter((u) => passes(u, q)));
+  const grouped = sortEl.value === "name";
   let lastRace;
-  for (const u of units) {
-    if (kindFilter === "unit" && u.kind !== "unit") continue;
-    if (kindFilter === "building" && u.kind !== "building") continue;
-    if (q && ![u.id, u.name, u.race].some((v) => (v || "").toLowerCase().includes(q))) continue;
-    visibleUnits.push(u);
+  for (const u of visibleUnits) {
     const race = u.race || "";
-    if (race !== lastRace) {
+    if (grouped && race !== lastRace) {
       const h = document.createElement("h2");
       h.className = "group";
       h.textContent = race || "—";
@@ -405,7 +410,7 @@ function renderList() {
     name.textContent = u.name;
     if (u.icon) {
       const ic = document.createElement("img");
-      ic.src = "/icon/" + encodeURIComponent(u.id) + ".png";
+      ic.src = iconUrl(u);
       ic.alt = "";
       ic.loading = "lazy";
       ic.width = 16;
@@ -415,31 +420,33 @@ function renderList() {
     }
     const meta = document.createElement("span");
     meta.className = "meta";
-    const st = modelState(u);
-    const dot = document.createElement("span");
-    dot.className = "dot " + st.cls;
-    dot.title = st.title;
-    meta.append(dot);
     const uid = document.createElement("span");
     uid.className = "uid";
     uid.textContent = u.id;
     meta.append(uid);
-    if (u.tier) {
-      const tier = document.createElement("span");
-      tier.className = "tier";
-      tier.textContent = u.tier;
-      tier.title = "Tier";
-      meta.append(tier);
+    if (u.final) {
+      const run = document.createElement("span");
+      run.className = "run " + runShort(u.final.run);
+      run.textContent = runShort(u.final.run);
+      run.title = u.final.run;
+      meta.append(run);
+      if (u.final.parts) {
+        const sh = document.createElement("span");
+        sh.className = "share";
+        sh.textContent = u.final.parts[0] + "/" + u.final.parts[1];
+        sh.title = "parts matched (share " + pct(u.final.share) + ")";
+        meta.append(sh);
+      }
     }
     if (u.review) {
       const approved = u.review.verdict === "approved";
       const m = document.createElement("span");
       m.className = approved ? "rev-ok" : "rev-no";
-      m.textContent = approved ? "\u2713" : "\u2717";
+      m.textContent = approved ? "✓" : "✗";
       m.title = approved ? "Approved" : (u.review.note || "Rejected");
       meta.append(m);
     }
-    if (u.race) {
+    if (!grouped && u.race) {
       const r = document.createElement("span");
       r.textContent = u.race;
       meta.append(r);
@@ -448,102 +455,262 @@ function renderList() {
     btn.addEventListener("click", () => select(u));
     listEl.append(btn);
   }
-}
-
-function pickOursFile(files) {
-  if (files.includes("model-front.png")) return "model-front.png";
-  if (files.includes("model-wc3.png")) return "model-wc3.png";
-  return files[0];
-}
-
-function defaultOursIndex(ours) {
-  for (let i = ours.length - 1; i >= 0; i--) {
-    if (!ours[i].name.toLowerCase().includes("invalid")) return i;
+  if (!visibleUnits.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No units match the filters.";
+    listEl.append(p);
   }
-  return ours.length - 1;
 }
 
-function makeOursFigure(u) {
-  const ours = u.ours;
+function makeFigure(src, alt, caption, extra) {
   const fig = document.createElement("figure");
-  const idx = defaultOursIndex(ours);
   const img = document.createElement("img");
   img.loading = "lazy";
+  img.src = src;
+  img.alt = alt;
+  img.addEventListener("click", () => zoom(img.src));
+  img.onerror = () => { img.alt = "missing"; img.style.minHeight = "80px"; };
   const cap = document.createElement("figcaption");
-  const apply = (i) => {
-    const v = ours[i];
-    img.src = "/ours/" + encodeURIComponent(v.name) + "/" +
-              encodeURIComponent(pickOursFile(v.files));
-    img.alt = u.id + " ours " + v.name;
-    cap.textContent = "ours \u2014 " + v.name;
-  };
-  apply(idx);
-  img.addEventListener("click", () => {
-    overlayEl.querySelector("img").src = img.src;
-    overlayEl.hidden = false;
-  });
-  if (ours.length > 1) {
-    const sel = document.createElement("select");
-    sel.className = "ours-select";
-    sel.setAttribute("aria-label", "Ours version");
-    for (let i = 0; i < ours.length; i++) {
-      const o = document.createElement("option");
-      o.value = String(i);
-      o.textContent = ours[i].name;
-      sel.append(o);
-    }
-    sel.value = String(idx);
-    sel.addEventListener("change", () => apply(Number(sel.value)));
-    fig.append(sel);
-  }
+  cap.textContent = caption;
+  if (extra) cap.append(" ", extra);
   fig.append(img, cap);
   return fig;
 }
 
-function renderSheet(u) {
-  sheetEl.textContent = "";
-  const makeFigure = (src, alt, caption) => {
-    const fig = document.createElement("figure");
-    const img = document.createElement("img");
-    img.loading = "lazy";
-    img.src = src;
-    img.alt = alt;
-    img.addEventListener("click", () => {
-      overlayEl.querySelector("img").src = img.src;
-      overlayEl.hidden = false;
+/* Concept front panel: the sheet is a 3+2 grid, front = top-left third (CSS crop). */
+function conceptPanel(u, sheet) {
+  const fig = document.createElement("figure");
+  const box = document.createElement("div");
+  box.className = "panel";
+  const img = document.createElement("img");
+  img.src = refsUrl(u, sheet);
+  img.alt = u.id + " concept front";
+  img.loading = "lazy";
+  box.append(img);
+  box.addEventListener("click", () => zoom(img.src));
+  const cap = document.createElement("figcaption");
+  cap.textContent = "concept front — " + sheet;
+  fig.append(box, cap);
+  return fig;
+}
+
+function renderTabs() {
+  const tabs = document.createElement("div");
+  tabs.className = "tabs";
+  for (const [k, label] of [["renders", "Renders"], ["3d", "Model 3D"], ["concept", "Concept sheets"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.className = k === sheetTab ? "active" : "";
+    b.addEventListener("click", () => {
+      sheetTab = k;
+      localStorage.setItem("refs-viewer:tab", k);
+      if (current) renderSheet(current);
     });
-    const cap = document.createElement("figcaption");
-    cap.textContent = caption;
-    fig.append(img, cap);
-    return fig;
-  };
-  const refsUrl = (f) => "/refs/" + encodeURIComponent(u.id) + "/" + encodeURIComponent(f);
+    tabs.append(b);
+  }
+  return tabs;
+}
 
-  const primary = u.images.includes("sheet.jpg") ? "sheet.jpg" : u.images[0];
-  const ours = (u.ours && u.ours.length) ? u.ours : null;
-  const cells = [];
-  if (u.render) cells.push("wc3");
-  if (ours) cells.push("ours");
-  if (primary) cells.push("concept");
+function renderRenders(u) {
+  const f = u.final;
+  const sheet = u.images.includes("sheet.jpg") ? "sheet.jpg" : u.images.find((x) => x.startsWith("sheet")) || u.images[0];
+  const top = document.createElement("div");
+  top.className = "grid c3";
+  if (sheet) top.append(conceptPanel(u, sheet));
+  if (f) top.append(makeFigure(viewUrl(u, "front", preUnion), u.id + " final front", (preUnion ? "pre-union" : "final") + " front — " + f.run));
+  if (u.render) top.append(makeFigure(renderUrl(u), u.id + " wc3 print", "wc3 print" + (u.render_id && u.render_id !== u.id ? " (" + u.render_id + ")" : "")));
+  if (top.childNodes.length) sheetEl.append(top);
 
-  if (cells.length > 1) {
-    const box = document.createElement("div");
-    box.className = "compare" + (cells.length === 3 ? " c3" : "");
-    for (const c of cells) {
-      if (c === "wc3") box.append(makeFigure(renderUrl(u.id), u.id + " wc3 render", "wc3 model"));
-      else if (c === "ours") box.append(makeOursFigure(u));
-      else box.append(makeFigure(refsUrl(primary), u.id + " " + primary, primary));
+  if (!f) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No roster-v6 final model for this id.";
+    sheetEl.append(p);
+    return;
+  }
+  const h = document.createElement("div");
+  h.className = "sheet-h";
+  h.append(f.run + " — " + (preUnion ? "pre-union views (eye round " + f.final_round + ")" : "final renders (views-final)"));
+  const lab = document.createElement("label");
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = preUnion;
+  cb.disabled = !f.eye_views;
+  cb.addEventListener("change", () => { preUnion = cb.checked; renderSheet(u); });
+  lab.append(cb, " pre-union (eye)");
+  h.append(lab);
+  if (!f.rendered && !preUnion) {
+    const note = document.createElement("span");
+    note.textContent = "rendering with Blender on first load (~3 s)…";
+    h.append(note);
+  }
+  sheetEl.append(h);
+  const grid = document.createElement("div");
+  grid.className = "grid c6";
+  for (const v of VIEWS) {
+    const iou = f.iou && f.iou[v];
+    let extra = null;
+    if (typeof iou === "number") {
+      extra = document.createElement("span");
+      extra.className = iouCls(iou);
+      extra.textContent = "IoU " + iou.toFixed(2);
     }
-    sheetEl.append(box);
-  } else if (cells.length === 1) {
-    if (cells[0] === "wc3") sheetEl.append(makeFigure(renderUrl(u.id), u.id + " wc3 render", "wc3 render"));
-    else if (cells[0] === "ours") sheetEl.append(makeOursFigure(u));
-    else sheetEl.append(makeFigure(refsUrl(primary), u.id + " " + primary, primary));
+    grid.append(makeFigure(viewUrl(u, v, preUnion), u.id + " " + v, v, extra));
   }
-  for (const f of u.images) {
-    if (f === primary) continue;
-    sheetEl.append(makeFigure(refsUrl(f), u.id + " " + f, f));
+  sheetEl.append(grid);
+  if (f.compare) sheetEl.append(makeFigure("/compare/" + encodeURIComponent(u.id) + ".png", u.id + " compare", "compare.png — " + f.run));
+}
+
+function renderConcept(u) {
+  if (!u.images.length) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "No concept sheets under refs/" + u.id + "/.";
+    sheetEl.append(p);
+    return;
   }
+  const order = (f) => f === "sheet.jpg" ? 0 : (f.startsWith("sheet") ? 1 : 2);
+  for (const f of [...u.images].sort((a, b) => order(a) - order(b) || a.localeCompare(b))) {
+    sheetEl.append(makeFigure(refsUrl(u, f), u.id + " " + f, f));
+  }
+}
+
+let three = null;          /* { THREE, GLTFLoader, OrbitControls } once loaded */
+let threeFail = null;
+let viewerState = null;    /* { renderer, scene, camera, controls, mixer, clock, raf, box } */
+
+async function loadThree() {
+  if (three || threeFail) return;
+  try {
+    const [THREE, { GLTFLoader }, { OrbitControls }] = await Promise.all([
+      import("three"),
+      import("three/addons/loaders/GLTFLoader.js"),
+      import("three/addons/controls/OrbitControls.js"),
+    ]);
+    three = { THREE, GLTFLoader, OrbitControls };
+  } catch (e) {
+    threeFail = e;
+  }
+}
+
+function stopViewer() {
+  if (!viewerState) return;
+  cancelAnimationFrame(viewerState.raf);
+  viewerState.controls.dispose();
+  viewerState.renderer.dispose();
+  viewerState = null;
+}
+
+function render3d(u) {
+  const box = document.createElement("div");
+  box.id = "viewer3d";
+  const msg = document.createElement("div");
+  msg.className = "msg";
+  box.append(msg);
+  sheetEl.append(box);
+  if (!u.glb) {
+    msg.textContent = "No model.glb for this id.";
+    return;
+  }
+  msg.textContent = "loading three.js…";
+  const uid = u.id;
+  loadThree().then(() => {
+    if (!current || current.id !== uid || sheetTab !== "3d") return;
+    if (!three) {
+      msg.textContent = "three.js could not load from the CDN (offline?) — use the Renders tab.";
+      return;
+    }
+    const { THREE, GLTFLoader, OrbitControls } = three;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(box.clientWidth, box.clientHeight);
+    renderer.setClearColor(0xa0a1a5);
+    box.append(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(2, 4, 3);
+    scene.add(sun);
+    const camera = new THREE.PerspectiveCamera(35, box.clientWidth / box.clientHeight, 0.01, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    const clock = new THREE.Clock();
+    let mixer = null;
+    const state = { renderer, scene, camera, controls, clock, raf: 0 };
+    viewerState = state;
+    const loop = () => {
+      state.raf = requestAnimationFrame(loop);
+      if (mixer) mixer.update(clock.getDelta());
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    loop();
+    const ctl = document.createElement("div");
+    ctl.className = "ctl";
+    box.append(ctl);
+    msg.textContent = "loading model…";
+    new GLTFLoader().load("/model/" + encodeURIComponent(uid), (gltf) => {
+      scene.add(gltf.scene);
+      const bb = new THREE.Box3().setFromObject(gltf.scene);
+      const size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const r = Math.max(size.x, size.y, size.z);
+      camera.position.set(c.x + r * 1.4, c.y + r * 1.1, c.z + r * 1.6);
+      controls.target.copy(c);
+      camera.near = r / 100;
+      camera.far = r * 50;
+      camera.updateProjectionMatrix();
+      const grid = new THREE.GridHelper(r * 2, 10, 0x6b6e75, 0x8a8d94);
+      grid.position.set(c.x, bb.min.y, c.z);
+      scene.add(grid);
+      msg.textContent = uid + " — drag to orbit, wheel to zoom";
+      if (gltf.animations.length) {
+        mixer = new THREE.AnimationMixer(gltf.scene);
+        const sel = document.createElement("select");
+        const none = document.createElement("option");
+        none.value = "";
+        none.textContent = "rest";
+        sel.append(none);
+        for (const a of gltf.animations) {
+          const o = document.createElement("option");
+          o.value = a.name;
+          o.textContent = a.name;
+          sel.append(o);
+        }
+        sel.addEventListener("change", () => {
+          mixer.stopAllAction();
+          const a = gltf.animations.find((x) => x.name === sel.value);
+          if (a) mixer.clipAction(a).reset().play();
+        });
+        ctl.append(sel);
+      }
+      const wire = document.createElement("button");
+      wire.type = "button";
+      wire.textContent = "wire";
+      let on = false;
+      wire.addEventListener("click", () => {
+        on = !on;
+        gltf.scene.traverse((o) => { if (o.isMesh) o.material.wireframe = on; });
+      });
+      ctl.append(wire);
+    }, undefined, (e) => { msg.textContent = "model failed to load: " + (e && e.message || e); });
+    const ro = new ResizeObserver(() => {
+      if (viewerState !== state) { ro.disconnect(); return; }
+      renderer.setSize(box.clientWidth, box.clientHeight);
+      camera.aspect = box.clientWidth / box.clientHeight;
+      camera.updateProjectionMatrix();
+    });
+    ro.observe(box);
+  });
+}
+
+function renderSheet(u) {
+  stopViewer();
+  sheetEl.textContent = "";
+  sheetEl.append(renderTabs());
+  if (sheetTab === "3d") render3d(u);
+  else if (sheetTab === "concept") renderConcept(u);
+  else renderRenders(u);
 }
 
 function statRow(grid, k, v) {
@@ -600,7 +767,7 @@ function renderReviewBar(u) {
     bar.classList.add("review-editor");
     const ta = document.createElement("textarea");
     ta.rows = 3;
-    ta.placeholder = "What's wrong with this concept?";
+    ta.placeholder = "What's wrong with this model?";
     ta.setAttribute("aria-label", "Rejection note");
     if (u.review && u.review.verdict === "rejected") ta.value = u.review.note || "";
     const err = document.createElement("p");
@@ -620,7 +787,7 @@ function renderReviewBar(u) {
         savedReview(u, review);
       } catch (e) {
         save.disabled = cancel.disabled = false;
-        err.textContent = e.network ? "Couldn't reach serve.py \u2014 is it running?" : e.message;
+        err.textContent = e.network ? "Couldn't reach serve.py — is it running?" : e.message;
         err.className = "err" + (e.network ? " net" : "");
         err.hidden = false;
       }
@@ -638,11 +805,11 @@ function renderReviewBar(u) {
   const ok = document.createElement("button");
   ok.type = "button";
   ok.className = "ok" + (review && review.verdict === "approved" ? " active" : "");
-  ok.textContent = "\u2705 Approve";
+  ok.textContent = "✅ Approve";
   const no = document.createElement("button");
   no.type = "button";
   no.className = "no" + (review && review.verdict === "rejected" ? " active" : "");
-  no.textContent = "\u274c Reject";
+  no.textContent = "❌ Reject";
   bar.append(ok, no);
   if (review && review.verdict === "rejected" && review.note) {
     const p = document.createElement("p");
@@ -681,6 +848,64 @@ function renderReviewBar(u) {
   return bar;
 }
 
+function renderFinalSection(u) {
+  const f = u.final;
+  cardEl.append(Object.assign(document.createElement("h3"), { textContent: "Final model" }));
+  if (!f) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "Not in roster-v6 final-models.json.";
+    cardEl.append(p);
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.className = "stats";
+  statRow(grid, "Run", f.run + " (round " + f.final_round + " of " + f.rounds + ")");
+  statRow(grid, "Parts", f.parts ? f.parts[0] + "/" + f.parts[1] + " (" + pct(f.share) + ")" : null);
+  statRow(grid, "Tris", f.tris);
+  statRow(grid, "Claude calls", f.llm_calls);
+  statRow(grid, "Time", typeof f.seconds === "number" ? Math.round(f.seconds / 60) + " min" : null);
+  statRow(grid, "Tilts", f.tilts);
+  cardEl.append(grid);
+  if (f.iou && Object.keys(f.iou).length) {
+    const ious = document.createElement("div");
+    ious.className = "ious";
+    for (const v of VIEWS) {
+      const k = document.createElement("span");
+      k.className = "k";
+      k.textContent = v;
+      ious.append(k);
+    }
+    for (const v of VIEWS) {
+      const x = f.iou[v];
+      const s = document.createElement("span");
+      s.className = typeof x === "number" ? iouCls(x).replace("iou", "").trim() : "k";
+      s.textContent = typeof x === "number" ? x.toFixed(2) : "—";
+      ious.append(s);
+    }
+    cardEl.append(ious);
+  }
+  const files = document.createElement("div");
+  files.className = "related files";
+  const link = (href, text, download) => {
+    const a = document.createElement("a");
+    a.href = href;
+    a.textContent = text;
+    if (download) a.setAttribute("download", "");
+    else { a.target = "_blank"; a.rel = "noopener"; }
+    files.append(a);
+  };
+  if (u.glb) link("/glb/" + encodeURIComponent(u.id), "model.glb", true);
+  if (f.review_md) link("/review/" + encodeURIComponent(u.id) + ".md", "review.md");
+  if (f.compare) link("/compare/" + encodeURIComponent(u.id) + ".png", "compare.png");
+  if (u.prompt) link("/prompt/" + encodeURIComponent(u.id), "prompt");
+  cardEl.append(files);
+  const mp = document.createElement("p");
+  mp.className = "modelpath";
+  mp.textContent = f.dir;
+  cardEl.append(mp);
+}
+
 function renderCard(u) {
   cardEl.textContent = "";
   const entry = u.entry;
@@ -691,7 +916,7 @@ function renderCard(u) {
   title.append(h);
   if (u.icon) {
     const ic = document.createElement("img");
-    ic.src = "/icon/" + encodeURIComponent(u.id) + ".png";
+    ic.src = iconUrl(u);
     ic.alt = "";
     ic.width = 44;
     ic.height = 44;
@@ -712,24 +937,26 @@ function renderCard(u) {
   if (u.tier) badge("Tier " + u.tier);
   if (entry && entry.buildingType) badge("Building (" + entry.buildingType + ")");
   else if (u.kind) badge(u.kind);
+  if (u.final) badge(runShort(u.final.run), runShort(u.final.run));
   badge(u.id, "uid");
+  if (u.parent) badge("part of " + u.parent, "uid");
   cardEl.append(badges);
 
   const reviewBar = renderReviewBar(u);
   cardEl.append(reviewBar);
   if (rejectEditorOpen) reviewBar.querySelector("textarea")?.focus();
 
+  renderFinalSection(u);
+
   cardEl.append(Object.assign(document.createElement("h3"), { textContent: "WC3 model" }));
   const w = u.wc3;
   if (u.render) {
     const img = document.createElement("img");
-    img.src = renderUrl(u.id);
+    img.className = "print";
+    img.src = renderUrl(u);
     img.alt = u.id + " wc3 render";
     img.loading = "lazy";
-    img.addEventListener("click", () => {
-      overlayEl.querySelector("img").src = img.src;
-      overlayEl.hidden = false;
-    });
+    img.addEventListener("click", () => zoom(img.src));
     cardEl.append(img);
   }
   if (!w) {
@@ -746,9 +973,9 @@ function renderCard(u) {
     }
     const wb = document.createElement("div");
     wb.className = "badges";
-    const wbadge = (text, cls) => {
+    const wbadge = (text) => {
       const b = document.createElement("span");
-      b.className = "badge" + (cls ? " " + cls : "");
+      b.className = "badge";
       b.textContent = text;
       wb.append(b);
     };
@@ -767,32 +994,21 @@ function renderCard(u) {
     }
   }
 
-  if (u.prompt || u.glb) {
-    const files = document.createElement("div");
-    files.className = "related files";
-    if (u.prompt) {
-      const a = document.createElement("a");
-      a.href = "/prompt/" + encodeURIComponent(u.id);
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = "prompt";
-      files.append(a);
-    }
-    if (u.glb) {
-      const a = document.createElement("a");
-      a.href = "/glb/" + encodeURIComponent(u.id);
-      a.setAttribute("download", "");
-      a.textContent = "model.glb";
-      files.append(a);
-    }
-    cardEl.append(files);
-  }
-
   if (!entry) {
     const p = document.createElement("p");
     p.className = "empty";
-    p.textContent = "No compendium entry for this id.";
+    p.textContent = u.parent ? "Pseudo-unit: see " + u.parent + " in the compendium." : "No compendium entry for this id.";
     cardEl.append(p);
+    if (u.parent && byId.get(u.parent.toLowerCase())) {
+      const wrap = document.createElement("div");
+      wrap.className = "related";
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Parent: " + byId.get(u.parent.toLowerCase()).name;
+      b.addEventListener("click", () => select(byId.get(u.parent.toLowerCase())));
+      wrap.append(b);
+      cardEl.append(wrap);
+    }
     return;
   }
 
@@ -851,10 +1067,18 @@ function renderCard(u) {
     ["Produces", entry.produces?.id],
     ["Upgrades to", entry.upgradesTo?.id],
   ].filter(([, id]) => id !== null && id !== undefined && id !== "");
-  if (rel.length) {
+  const kids = units.filter((x) => x.parent === u.id);
+  if (rel.length || kids.length) {
     cardEl.append(Object.assign(document.createElement("h3"), { textContent: "Related" }));
     const wrap = document.createElement("div");
     wrap.className = "related";
+    for (const k of kids) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Part: " + k.name + " (" + k.id + ")";
+      b.addEventListener("click", () => select(k));
+      wrap.append(b);
+    }
     for (const [label, id] of rel) {
       const target = byId.get(String(id).toLowerCase());
       if (target) {
@@ -896,6 +1120,14 @@ function select(u) {
   listEl.querySelector(".row.active")?.scrollIntoView({ block: "nearest" });
 }
 
+function ingest(data) {
+  units = data.units || [];
+  byId.clear();
+  for (const u of units) byId.set(u.id.toLowerCase(), u);
+  renderStats(data.stats);
+  fillRaces();
+}
+
 async function load() {
   let data;
   try {
@@ -910,20 +1142,14 @@ async function load() {
     sheetEl.append(p);
     return;
   }
-  units = data.units || [];
-  renderStats(data.stats);
+  ingest(data);
   if (!units.length) {
     const p = document.createElement("p");
     p.id = "error";
-    p.textContent = "No reference images found under artifacts/model-sheets/refs/.";
+    p.textContent = "No units found.";
     sheetEl.append(p);
     return;
   }
-  units.sort((a, b) =>
-    (a.race || "").localeCompare(b.race || "") ||
-    (a.name || "").localeCompare(b.name || "") ||
-    a.id.localeCompare(b.id));
-  for (const u of units) byId.set(u.id.toLowerCase(), u);
   renderList();
   select(byId.get(decodeURIComponent(location.hash.slice(1)).toLowerCase()) || visibleUnits[0] || units[0]);
   setInterval(refresh, 5000);
@@ -934,33 +1160,24 @@ async function refresh() {
     const res = await fetch("/api/units");
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
-    renderStats(data.stats);
     const next = data.units || [];
-    next.sort((a, b) =>
-      (a.race || "").localeCompare(b.race || "") ||
-      (a.name || "").localeCompare(b.name || "") ||
-      a.id.localeCompare(b.id));
     const cur = current ? next.find((u) => u.id === current.id) : null;
     const changed = !cur || JSON.stringify(cur) !== JSON.stringify(current);
-    units = next;
-    byId.clear();
-    for (const u of units) byId.set(u.id.toLowerCase(), u);
+    ingest(data);
     if (!changed) return;
     current = cur || null;
     const keepScroll = (el) => [el.scrollTop, el.scrollLeft];
     const ls = keepScroll(listEl), ss = keepScroll(sheetEl), cs = keepScroll(cardEl);
     renderList();
     listEl.scrollTop = ls[0]; listEl.scrollLeft = ls[1];
-    /* Reject-note editor open: never rebuild the card (would destroy the
-       typed note) — stats/list still update; card resets on explicit select. */
+    /* Reject-note editor open or 3D tab live: never rebuild the sheet/card
+       (would destroy the typed note / the WebGL scene). */
     if (current && !rejectEditorOpen) {
-      renderSheet(current);
+      if (sheetTab !== "3d") renderSheet(current);
       renderCard(current);
       sheetEl.scrollTop = ss[0]; sheetEl.scrollLeft = ss[1];
       cardEl.scrollTop = cs[0]; cardEl.scrollLeft = cs[1];
     }
-    sheetEl.scrollTop = ss[0]; sheetEl.scrollLeft = ss[1];
-    cardEl.scrollTop = cs[0]; cardEl.scrollLeft = cs[1];
   } catch {
     /* transient poll failure — keep current view */
   }
@@ -989,9 +1206,11 @@ overlayEl.addEventListener("click", () => { overlayEl.hidden = true; });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { overlayEl.hidden = true; return; }
   if (!overlayEl.hidden) return;
-  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   const t = e.target;
-  if (t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  if (t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+  if (e.key === "a" && current && !rejectEditorOpen) { cardEl.querySelector(".review button.ok")?.click(); return; }
+  if (e.key === "r" && current && !rejectEditorOpen) { cardEl.querySelector(".review button.no")?.click(); return; }
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   if (!visibleUnits.length) return;
   e.preventDefault();
   let idx = visibleUnits.indexOf(current);

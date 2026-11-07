@@ -1,0 +1,13 @@
+[
+  {
+    "name": "dorsal plates",
+    "where": "anchor back, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.388,
+      0.582
+    ]
+  }
+]

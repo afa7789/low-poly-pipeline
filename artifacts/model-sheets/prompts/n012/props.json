@@ -1,0 +1,71 @@
+[
+  {
+    "name": "claws.L",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.108,
+      0.162
+    ]
+  },
+  {
+    "name": "claws.R",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.134,
+      0.202
+    ]
+  },
+  {
+    "name": "half-lamp",
+    "where": "anchor hand.R, on bone thigh.R",
+    "bones": [
+      "thigh.R",
+      "thigh.L"
+    ],
+    "extent": [
+      0.152,
+      0.228
+    ]
+  },
+  {
+    "name": "pipe wrench",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.143,
+      0.215
+    ]
+  },
+  {
+    "name": "hook",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.121,
+      0.181
+    ]
+  },
+  {
+    "name": "tool bundle",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.116,
+      0.175
+    ]
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "name": "pistol",
+    "where": "anchor hand.R, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.193,
+      0.289
+    ]
+  },
+  {
+    "name": "propeller_pod",
+    "where": "anchor wing.R, on bone prop",
+    "bones": [
+      "prop"
+    ],
+    "extent": [
+      0.246,
+      0.369
+    ]
+  }
+]

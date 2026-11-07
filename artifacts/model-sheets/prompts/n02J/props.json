@@ -1,0 +1,48 @@
+[
+  {
+    "name": "searchlight lens",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.08,
+      0.121
+    ]
+  },
+  {
+    "name": "barrel.L",
+    "where": "anchor back, on bone barrel.L",
+    "bones": [
+      "barrel.L",
+      "barrel.R"
+    ],
+    "extent": [
+      0.398,
+      0.597
+    ]
+  },
+  {
+    "name": "barrel.R",
+    "where": "anchor back, on bone barrel.R",
+    "bones": [
+      "barrel.R",
+      "barrel.L"
+    ],
+    "extent": [
+      0.376,
+      0.564
+    ]
+  },
+  {
+    "name": "ammo drum L",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.14,
+      0.21
+    ]
+  }
+]

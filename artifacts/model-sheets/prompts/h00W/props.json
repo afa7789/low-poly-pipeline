@@ -1,0 +1,58 @@
+[
+  {
+    "name": "glass pressure bell",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.159,
+      0.238
+    ]
+  },
+  {
+    "name": "manometer",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.049,
+      0.073
+    ]
+  },
+  {
+    "name": "armillary sphere",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.115,
+      0.173
+    ]
+  },
+  {
+    "name": "fire flask bandolier",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.154,
+      0.23
+    ]
+  },
+  {
+    "name": "chained patent block",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.106,
+      0.159
+    ]
+  }
+]

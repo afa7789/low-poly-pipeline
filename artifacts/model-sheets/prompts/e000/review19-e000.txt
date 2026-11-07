@@ -1,0 +1,20 @@
+Edit the attached model sheet: change only the colours, and add a few small studs and rings on the wing frame. Keep everything else exactly as it is: the five-panel layout (front, left profile, back on the top row; top-down and bottom-up on the bottom row), the grey background, the slim lizard body, the SMALL head, the four limbs with bat-like wing arms, the curly tail, the pose, the proportions, the props, the size and position of every figure, and the flat coarse blockout style with no text.
+
+Recolour the same way in all five views (front, left profile, back, top-down and bottom-up). The figure must stay the same character with matching colours in every panel.
+
+1. Body (head, neck, torso, legs, tail): flat teal to green scales. Use teal on the back, head and upper tail, and a clearly different, brighter green on the limbs and the curl of the tail. The belly, chest and throat are one flat pale cream-green shape. It shows in the front and bottom-up views, as a thin strip along the tail underside in the profile view, and not on the back or top-down views. Remove the dusk-violet body colour completely.
+
+2. Wings (the wing arms and the membrane between the fingers), in big flat shapes of several clearly different colours:
+- a dark purple edge band along the outer rim and the finger bones;
+- a wide magenta band inside the edge;
+- a wide orange band inside the magenta;
+- a sky-blue patch on the membrane next to the body;
+- a few big white spots on the membrane;
+- one white crescent mark on each wing.
+The undersides of the wings in the bottom-up view use the same bands. In the top-down view both wings are fully visible with the same colour layout, mirrored left to right.
+
+3. Eyes: small flat amethyst purple accents, one on each eye, and nothing else purple on the head. Keep the eyes cute and awake, not sad.
+
+4. Punk touch: add 3 to 4 large, simple steel-grey studs or rings on the bone frame of each wing arm. Do not add any other hardware, tank, backpack or prop.
+
+Style: flat solid colours only, with no gradients, no shading, no gloss, no cast shadows, no texture, and no black outline. Separate the colour shapes by their colour differences only, with hard edges. The figure should read as cute but punk, bright and lively, and still be readable at 32x32 pixels. The page still contains only the five drawings, with no text, no labels and no frame lines.

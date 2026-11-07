@@ -1,0 +1,37 @@
+[
+  {
+    "name": "cauldron",
+    "where": "anchor back, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.358,
+      0.537
+    ]
+  },
+  {
+    "name": "staff",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.578,
+      0.867
+    ]
+  },
+  {
+    "name": "brazier",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.148,
+      0.221
+    ]
+  }
+]

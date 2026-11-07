@@ -1,0 +1,25 @@
+[
+  {
+    "name": "bell cap",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.141,
+      0.212
+    ]
+  },
+  {
+    "name": "sword",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.328,
+      0.491
+    ]
+  }
+]

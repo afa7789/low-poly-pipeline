@@ -1,0 +1,37 @@
+[
+  {
+    "name": "saw disc R",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.297,
+      0.446
+    ]
+  },
+  {
+    "name": "saw disc L",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.297,
+      0.446
+    ]
+  },
+  {
+    "name": "exhaust pipe",
+    "where": "anchor back, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.219,
+      0.329
+    ]
+  }
+]

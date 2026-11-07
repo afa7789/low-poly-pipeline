@@ -1,0 +1,46 @@
+[
+  {
+    "name": "lantern cap L",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.078,
+      0.116
+    ]
+  },
+  {
+    "name": "suspended roots ring",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.321,
+      0.482
+    ]
+  },
+  {
+    "name": "sap veil",
+    "where": "anchor base, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.214,
+      0.322
+    ]
+  },
+  {
+    "name": "ground moss ring",
+    "where": "anchor ground, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.362,
+      0.543
+    ]
+  }
+]

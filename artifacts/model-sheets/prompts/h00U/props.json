@@ -1,0 +1,37 @@
+[
+  {
+    "name": "numbered hoop board",
+    "where": "anchor forearm.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.251,
+      0.377
+    ]
+  },
+  {
+    "name": "three-vane throwing frame",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.499,
+      0.748
+    ]
+  },
+  {
+    "name": "smoked reagent bottle",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.079,
+      0.119
+    ]
+  }
+]

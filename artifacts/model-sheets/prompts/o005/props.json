@@ -1,0 +1,49 @@
+[
+  {
+    "name": "banner",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.385,
+      0.578
+    ]
+  },
+  {
+    "name": "banner_pole",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.491,
+      0.736
+    ]
+  },
+  {
+    "name": "axe_haft",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.315,
+      0.473
+    ]
+  },
+  {
+    "name": "bandolier",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.244,
+      0.366
+    ]
+  }
+]

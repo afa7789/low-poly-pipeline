@@ -2253,7 +2253,7 @@ def build_parser():
                          "that layout forced (compact: 2 px ramp slots, 16 px decals, shelf-packed POT image; legacy: "
                          "256 px cells, PIPELINE 27.T1); shared = the race's 128 px atlas, "
                          "tone columns + decal cells, ink as a row only (shared_atlas.py, PIPELINE 27.T3)")
-    ap.add_argument("--outline", choices=("hull", "ink", "off", "both"), default="hull",
+    ap.add_argument("--outline", choices=("hull", "ink", "off", "both"), default="off",      # off since 2026-11-05: the concept's black lines only guide the facets
                     help="stage 2 (default hull; off = no contour): hull = the contour of every silhouette, an inverted black copy of the body as a second mesh (outline.py, PIPELINE 33.L15-3); "
                          "--eye on --eye-paint on: ink = only the line painted in the texture (no hull mesh), both = line + hull (PIPELINE 35.L17-3); ink alone is no contour without the paint")
     ap.add_argument("--face", choices=("decal", "off"), default="off",
@@ -2311,8 +2311,15 @@ def build_parser():
                     help="the fit also uses refs/<id>/parts.json: each part inside its 2D mask, depth order as a hard "
                          "constraint (PIPELINE 23.L5-4; neutral on the silhouettes, opt-in)")
     ap.add_argument("--depth", action="store_true",
-                    help="the fit starts from Depth Anything V2 small's z and occlusion order (depth_map.py, needs "
+                    help="the fit starts from --depth-model's z and occlusion order (depth_map.py, needs "
                          "parts.json, implies --fit-parts; PIPELINE 23.L5-4b)")
+    ap.add_argument("--depth-model", choices=("da2", "triposplat"), default="triposplat",
+                    help="--depth: the depth source - da2 = Depth Anything V2 small per panel; triposplat = one TripoSplat splat of the "
+                         "front panel rendered orthographically front and left, an invisible mold cached in refs/<id>/neural/ "
+                         "(neural_molds.py, author 2026-11-04)")
+    ap.add_argument("--part-masks", choices=("box", "sam2"), default="sam2",
+                    help="--fit-parts: each part's 2D mask - box = parts.json box2d x colour zone; sam2 = SAM2 with the box2d as box "
+                         "prompt, cached in refs/<id>/neural/sam2/ (neural_molds.py, author 2026-11-04)")
     ap.add_argument("--parts", type=pathlib.Path, default=None,
                     help="a parts.json other than refs/<id>/parts.json for the fit (implies --fit-parts)")
     ap.add_argument("--depth-source", choices=("tri", "none"), default="none",
@@ -2434,12 +2441,26 @@ def build_parser():
     ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="cvt",
                     help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b; default since 37.L19-0: "
                          "always under the 700 budget, 2x faster; a cluster too thin for the CVT falls to the QEM, and to its own pieces when the QEM overshoots)")
+    ap.add_argument("--eye-mold", choices=("off", "splat", "masks"), default="masks",
+                    help="--eye-union: the body pieces fill out sideways toward the concept's hull before the union (eye_mold.py, author 2026-11-05, lever 1): masks = "
+                         "the SAM2 body part masks of refs/<id>/neural united per view (default: n02S front IoU .70 -> .74, left .66 -> .70 on the same DSL); splat = the "
+                         "TripoSplat depth renders (front and left covers plus their near surfaces; its profile is thin: +.03 / +.01); a vertex moves at most 0.08 of the "
+                         "height and never inward, props untouched; off = the pieces as the eye left them")
+    ap.add_argument("--eye-joints", choices=("off", "smooth"), default="smooth",
+                    help="--eye-union: smooth = a limb's union also holds a stub of the trunk piece it touches (and the trunk one of the limb), cut to a sphere "
+                         "round the contact and blended wider (eye_union.joint_stubs, author 2026-11-05, lever 3): a fillet at the shoulder, hip, neck, tail root; "
+                         "the groups stay separate, the budget holds")
+    ap.add_argument("--eye-paint-sheet", choices=("flat", "paint"), default="paint",
+                    help="--eye-project: paint = project refs/<id>/sheet-paint.jpg (generate.py's painted variant of the sheet: drawn surface detail, no outline; "
+                         "the gate opened for it, accents still protected) when it exists, else sheet.jpg (author 2026-11-05, lever 2); flat = sheet.jpg")
     ap.add_argument("--eye-fuse", type=int, default=12, metavar="N",
                     help="--eye on: fuse the near colours of the final DSL (OKLab, same class) down to at most N materials before the union and the paint (eye_fuse.py, 36.L18-1); "
                          "0 = off; default 12 since 37.L19-0")
     ap.add_argument("--eye-critic", default="off", metavar="MODEL[@EFFORT]",
                     help="--eye: a Claude model (claude -p --model, '@max' = --effort max) that finds the defects of each round; the stage's model only fixes "
                          "them (eye_critic.py, PIPELINE 34.L16-2); off = one model looks and fixes")
+    ap.add_argument("--eye-views", default="sonnet", metavar="MODEL[@EFFORT]",
+                    help="--eye: a Claude model that judges each view ALONE before and after every round (eye_views.py, author 2026-11-04); off = no per-view look")
     ap.add_argument("--eye-fixer", default=None, metavar="MODEL", help="--eye-critic: the Claude model that applies the defects (default: --model)")
     ap.add_argument("--eye-rounds", type=int, default=3, metavar="N", help="--eye on: rounds of look and redo (1-9; a disaster adds rounds up to 4 or N)")
     ap.add_argument("--eye-stop", choices=("judge", "model", "never"), default="model",
@@ -2495,6 +2516,7 @@ def main():
     overrides.apply()          # ablation_matrix.py only (CF_OVERRIDES); nothing without it
     os.environ["CF_FLIP_SIDE"] = str(int(args.flip_side or os.environ.get("CF_FLIP_SIDE") == "1"))   # the tools read it (silhouette.FLIP_SIDE)
     os.environ["CF_FRAME"] = args.frame or os.environ.get("CF_FRAME", "bbox")
+    os.environ["CF_DEPTH_MODEL"], os.environ["CF_PART_MASKS"] = args.depth_model, args.part_masks   # depth_map / parts_fit read them (neural molds, 2026-11-04)
     import silhouette
     silhouette.FRAME = os.environ["CF_FRAME"]      # read at import: deform, verts and inscribe imported it before this line ran (L15-1)
     if args.variants < 1:

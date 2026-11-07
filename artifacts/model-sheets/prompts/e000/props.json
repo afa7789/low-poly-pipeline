@@ -1,0 +1,24 @@
+[
+  {
+    "name": "crescent fin",
+    "where": "anchor wing, on bone wing1.lower",
+    "bones": [
+      "wing1.lower"
+    ],
+    "extent": [
+      0.065,
+      0.098
+    ]
+  },
+  {
+    "name": "glass shard",
+    "where": "anchor chest, on bone wing1.lower",
+    "bones": [
+      "wing1.lower"
+    ],
+    "extent": [
+      0.071,
+      0.106
+    ]
+  }
+]

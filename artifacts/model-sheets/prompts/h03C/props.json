@@ -1,0 +1,70 @@
+[
+  {
+    "name": "vertical_standard",
+    "where": "anchor back, on bone rider.spine",
+    "bones": [
+      "rider.spine"
+    ],
+    "extent": [
+      0.284,
+      0.425
+    ]
+  },
+  {
+    "name": "cavalry_sword",
+    "where": "anchor hand.R, on bone rider.forearm.R",
+    "bones": [
+      "rider.forearm.R",
+      "rider.forearm.L"
+    ],
+    "extent": [
+      0.24,
+      0.36
+    ]
+  },
+  {
+    "name": "command_baton",
+    "where": "anchor hand.L, on bone rider.forearm.L",
+    "bones": [
+      "rider.forearm.L",
+      "rider.forearm.R"
+    ],
+    "extent": [
+      0.047,
+      0.07
+    ]
+  },
+  {
+    "name": "roster_ribbon",
+    "where": "anchor belt, on bone rider.spine",
+    "bones": [
+      "rider.spine"
+    ],
+    "extent": [
+      0.12,
+      0.181
+    ]
+  },
+  {
+    "name": "bandolier_strap",
+    "where": "anchor chest, on bone rider.spine",
+    "bones": [
+      "rider.spine"
+    ],
+    "extent": [
+      0.194,
+      0.29
+    ]
+  },
+  {
+    "name": "neck_strap_rein",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.232,
+      0.349
+    ]
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "waist rope",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.261,
+      0.392
+    ]
+  }
+]

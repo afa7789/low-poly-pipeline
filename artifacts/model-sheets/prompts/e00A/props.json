@@ -1,0 +1,13 @@
+[
+  {
+    "name": "belt plate",
+    "where": "anchor belt, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.081,
+      0.121
+    ]
+  }
+]

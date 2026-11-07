@@ -1,0 +1,24 @@
+[
+  {
+    "name": "penetrator_dart",
+    "where": "anchor rail, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      1.041,
+      1.562
+    ]
+  },
+  {
+    "name": "axle_spikes",
+    "where": "anchor axle, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      1.099,
+      1.649
+    ]
+  }
+]

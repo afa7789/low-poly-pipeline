@@ -17,7 +17,9 @@ from the camera it sits in the front view (`depth_order`, 0 = torso, positive = 
 Everything is optional: without a parts.json the callers behave as before.
 """
 import json
+import os
 import pathlib
+import subprocess
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -33,6 +35,7 @@ BONE_MISS = 0.15        # association cost (in H) of a part on another bone fami
 ZONE_BONUS = 0.05       # ... bonus of the part whose colour zone is the spec part's material zone
 ASSOC_REACH = 0.10      # a spec part farther than this (H) from every box3d belongs to no part
 MAX_LABELS = 254        # the visible-part canvas is 8-bit
+MASK_SOURCES = ("box", "sam2")      # --part-masks: box2d x colour zone, or SAM2 with the box2d as box prompt (neural_molds.py)
 
 
 def load(sheet, path=None):
@@ -108,6 +111,76 @@ def part_mask(fig, box):
     return silhouette.normalize(np.where(fig, inside + 1, 0)) == 2
 
 
+def neural_dir(sheet):
+    """refs/<id>/neural/ (refs/<id>/neural/<stem>/ for a sheet other than sheet.jpg): the cached neural molds."""
+    sheet = pathlib.Path(sheet)
+    return sheet.parent / "neural" if sheet.stem == "sheet" else sheet.parent / "neural" / sheet.stem
+
+
+def panel_crop(sheet, fig):
+    """The sheet's full-resolution crop of a panel (split_sheet box + margin) and its rect in `fig` pixels."""
+    img = Image.open(sheet).convert("RGB")
+    sx, sy = img.width / fig.shape[1], img.height / fig.shape[0]
+    x0, y0, x1, y1 = panel_rect(fig)
+    return img.crop((round(x0 * sx), round(y0 * sy), round(x1 * sx), round(y1 * sy))), (x0, y0, x1, y1)
+
+
+def mask_source():
+    """--part-masks: spec_pipeline sets CF_PART_MASKS (default sam2)."""
+    return os.environ.get("CF_PART_MASKS", "sam2")
+
+
+def sam_files(parts_doc):
+    """[(part index, file stem)]: the part's name, suffixed when two parts share it."""
+    seen, out = {}, []
+    for k, p in enumerate(parts_doc["parts"]):
+        n = p.get("name") or f"part{k}"
+        seen[n] = seen.get(n, 0) + 1
+        out.append((k, n if seen[n] == 1 else f"{n}-{seen[n]}"))
+    return out
+
+
+def sam_masks(sheet, parts_doc, figs):
+    """{(parts.json index, view): normalized canvas mask}: SAM2 (box prompt = the part's box2d) per part and panel, run once in
+    the neural venv and cached in neural_dir(sheet)/sam2/<view>/<part>.png + parts-sam.json (rerun when a box2d changes)."""
+    import neural_molds
+    out = neural_dir(sheet)
+    meta_path, root = out / "parts-sam.json", out / "sam2"
+    names = sam_files(parts_doc)
+    boxes = {v: {n: parts_doc["parts"][k]["box2d"][v] for k, n in names if parts_doc["parts"][k].get("box2d", {}).get(v)}
+             for v in figs}
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+    if meta.get("boxes") != boxes:
+        root.mkdir(parents=True, exist_ok=True)
+        job, rects = {"views": {}}, {}
+        for v, fig in figs.items():
+            crop, rect = panel_crop(sheet, fig)
+            rects[v] = [int(c) for c in rect]
+            crop.save(out / f"{v}_crop.png")
+            w, h = crop.size
+            job["views"][v] = {"crop": str(out / f"{v}_crop.png"),
+                               "boxes": {n: [b[0] * w, (1 - b[3]) * h, b[2] * w, (1 - b[1]) * h] for n, b in boxes[v].items()}}
+        (out / "sam2-job.json").write_text(json.dumps(job, indent=1))
+        argv, env = neural_molds.command("sam2", out / "sam2-job.json", root)
+        neural_molds.run(argv, env)
+        meta = {"sheet": pathlib.Path(sheet).name, "boxes": boxes, "rects": rects,
+                "scores": json.loads((root / "scores.json").read_text())}
+        meta_path.write_text(json.dumps(meta, indent=1))
+    got = {}
+    for k, n in names:
+        for v, fig in figs.items():
+            f = root / v / f"{n.replace('/', '_')}.png"
+            if n not in boxes.get(v, {}) or not f.exists():
+                continue
+            x0, y0, x1, y1 = meta["rects"][v]
+            inside = np.zeros(fig.shape, bool)
+            inside[y0:y1, x0:x1] = np.asarray(Image.open(f).convert("L").resize((x1 - x0, y1 - y0), Image.NEAREST)) > 127
+            m = silhouette.normalize(np.where(fig, inside + 1, 0)) == 2
+            if m.any():
+                got[k, v] = m
+    return got
+
+
 class PartTerms:
     """The fit's view of parts.json: masks per (spec part, view), the front depth pairs, the term."""
 
@@ -119,17 +192,24 @@ class PartTerms:
         self.assoc = associate(spec_parts, centres, parts_doc, height, zones.zone_of, zone_idx)
         self.pairs = front_pairs(parts_doc, self.assoc)
         figs = {v: p for v, p in silhouette.concept_panels(sheet).items() if v in PART_VIEWS}
-        self.masks = {}
+        sam = sam_masks(sheet, parts_doc, figs) if mask_source() == "sam2" else {}
+        self.masks, self.mask_src = {}, {}
         for i, a in enumerate(self.assoc):
             part = parts_doc["parts"][a] if a is not None else {}
             for v, box in part.get("box2d", {}).items():
                 if v in figs and v in zones.labels:
-                    m = part_mask(figs[v], box)
-                    z = zone_idx.get(part.get("zone"))
-                    m = m & (zones.labels[v] == z) if z else m
+                    m = sam.get((a, v))
+                    if m is None:            # no SAM2 mask (--part-masks box, or SAM2 found nothing in the box): box2d x colour zone
+                        m = part_mask(figs[v], box)
+                        z = zone_idx.get(part.get("zone"))
+                        m = m & (zones.labels[v] == z) if z else m
                     if m.any():
                         self.masks[i, v] = m
+                        self.mask_src[i, v] = "sam2" if (a, v) in sam else "box"
         self.views = sorted({v for _, v in self.masks})
+        n_sam = sum(s == "sam2" for s in self.mask_src.values())
+        print(f"part masks: {mask_source()}: {n_sam}/{len(self.masks)} spec-part masks from SAM2"
+              + (f" ({neural_dir(sheet) / 'sam2'})" if sam else ""), flush=True)
 
     def visible(self, view, hulls, polygons):
         """Label canvas (part index + 1, 0 empty) of the model's view in the proxy's layout (`polygons`: pixel

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "chain",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.139,
+      0.209
+    ]
+  },
+  {
+    "name": "stone weight",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  }
+]

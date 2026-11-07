@@ -17,6 +17,8 @@ UNIT: {{name}} ({{race}}, {{role}}). Rig: {{rig}}. {{unit_note}}
   - box:     {"op":"box","size":[sx,sy,sz],"at":[x,y,z],"rot":[rx,ry,rz],"top":[tx,ty] (scales the top face: a wedge),"shift":[dx,dy] (slides it)}
   - tube:    {"op":"tube","r0":R_bottom,"r1":R_top,"length":L,"at":[x,y,z] (its centre),"rot":[rx,ry,rz],"sides":8,"scale":[sx,sy,sz]} (an n-gon frustum, axis = local z)
   - between: {"op":"between","a":[x,y,z],"b":[x,y,z],"r0":R_at_a,"r1":R_at_b,"sides":8} (the same tube from point a to point b: limbs, props, tails, legs)
+  - capsule: {"op":"capsule","a":[x,y,z],"b":[x,y,z],"r0":R_at_a,"r1":R_at_b,"seg":6,"rings":5} (a ROUNDED tube from a to b: half-balls at both ends and a band between;
+    rings is odd, 3, 5 or 7; seg is 4-12; 6x5 = 48 triangles, 6x3 = 24, 4x3 = 16, 8x5 = 64. The organic primitive: a barrel body, a thigh, an upper arm, a neck, a muzzle, a tail, a belly)
   Every piece also has "name", "mat" (a material name), "bone" (one of the rig bones listed below) and "role" (one of: head, face, torso, pelvis, arm, hand, leg,
   foot, wing, tail, prop, other). Optional "colour":"RRGGBB" on a piece, and the top-level "colours":{"<mat>":"RRGGBB"} gives each material its colour.
 - Budget: at most {{budget}} triangles AND at most {{max_pieces}} pieces in total (merge small things: one box for a group of fingers, one tube for a row of teeth).
@@ -34,11 +36,17 @@ UNIT: {{name}} ({{race}}, {{role}}). Rig: {{rig}}. {{unit_note}}
 1. Colour: every part of the concept has its own colour; sample it from the sheet (do not reuse one skin colour for coat, trousers, boots, gloves). One material
    per distinct colour; a part that is dark on the concept stays dark. Flat colours, no gradients.
 2. {{face_rule}}
-3. Belly is not a box: a round belly is a flattened/stretched ball, a barrel torso is a tapered tube with scale, a flaring coat hem is a tube whose r0 > r1.
+3. NOTHING ALIVE IS A BOX. Flesh, fur, muscle and cloth have no flat faces and no right angles: a body is a capsule along the spine (a quadruped's barrel: one
+- WINGS ARE ARMS, NOT SIGNS ON POSTS: a bat, drake, harpy or faerie wing is a chain of capsules (upper arm from the shoulder, forearm, two or three finger spars fanning out) on the wing bones, and the membrane is thin box plates filling the gaps BETWEEN those spars and down to the flank. The upper arm root sinks into the torso. Never one plate hanging from a single stick; never a wing floating beside the body. Feathers and fans attach along the arm pieces, each touching the previous.
+   capsule from the chest to the hips, a ball for the chest, a ball for the rump), a belly is a flattened/stretched ball, a head is a scaled ball with a
+   capsule muzzle, a thigh / upper arm / shin / forearm is a capsule (thick end at the joint), a neck and a tail are capsules, a flaring coat hem is a tube
+   whose r0 > r1. Pieces of the same mass must OVERLAP deeply (a third of their radius) so the joint reads as one continuous form, not as two parts touching.
+   A box is ONLY for a thing that is flat and made (a plate, a buckle, a blade, a crate, a shovel head, a strap); a box with "top" is a wedge for a drawn facet.
+   A model made of boxes and straight tubes reads as a crate with legs: that is the main defect of the previous builds, and the first thing to avoid.
    Do not invent plates, helmets or armour that the sheet does not show; do build the ones it shows (shoulder pads, belts, straps) as thin boxes/tubes on the right bone.
 4. Props go where the sheet puts them, on the correct side of the body AND in front of or behind it as the LEFT panel shows (a club raised in front of the body is at
    negative y; a backpack tank is at positive y). A held prop is attached to the hand's bone and sits in the hand. Check the left/side panel for the depth, not only the front.
-5. Legs and arms are tubes with a visible joint (use two `between` tubes, thigh to knee and knee to foot) not a tent or a wedge. A fan of thin legs (spider, insect) is
+5. Legs and arms are two capsules with a visible joint (thigh to knee and knee to foot, the knee inside both) not a tent or a wedge; a stiff man-made shaft (a pike, a gun) is a `between` tube. A fan of thin legs (spider, insect) is
    one thin tube pair per leg, knees high, feet apart, with gaps between them; take each leg's root and direction from the rig bones listed below.
 6. Pose: copy the pose of the concept (a raised arm is raised) but keep each piece on the bone that really moves it.
 7. Contradicting panels: if two panels of the sheet disagree about a detail (which side a sash hangs on), choose by the panels that agree with the others and say so in "why".

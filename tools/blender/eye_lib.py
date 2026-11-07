@@ -11,10 +11,12 @@ the viewer's right in the front view, -y forward, z up):
     {"colours": {"coat": "3A3A3F", ...}, "keep": ["head"], "why": "...",
      "pieces": [{"op": "ball|box|tube|between", "name": "...", "mat": "coat", "bone": "spine", "role": "torso", ...}]}
 
-    ball     r, at, [scale 3, seg 5-12 (8), rings 3-8 (6)]
+    ball     r, at, [scale 3, seg 4-12 (8), rings 3-8 (6)]
     box      size 3, at, [rot 3 (deg), top 2 (the top face's scale: a wedge), shift 2 (it slides x, y)]
     tube     r0, r1, length, at, [rot 3, sides 3-12 (8), scale 3]       an n-gon frustum along local z
     between  a, b, r0, r1, [sides, scale]                              the same tube from point a to point b
+    capsule  a, b, r0, r1, [seg 4-12 (6), rings 3-7 odd (5), scale]   form-pilot: a rounded tube from a to b (half-balls of r0 at a, r1
+                                                                       at b, a frustum between): limbs, bellies, muzzles, tails, necks
 
 `keep`: bones whose faces of the input mesh stay (default none: every piece is new). validate() is the deterministic check that runs
 before Blender (bones exist, points inside the sheet's box, triangles under the budget, a piece for every role the sheet has).
@@ -32,8 +34,10 @@ MARGIN = 0.20           # share of the sheet box's size a point may lie outside 
 ROLES = ("head", "face", "torso", "pelvis", "arm", "hand", "leg", "foot", "wing", "tail", "prop", "other")
 NEED_ROLES = ("head", "hand", "foot", "prop")        # a sheet that has such a part needs a piece with this role
 FACE_PIECE = ("eye", "pupil", "iris", "nose", "nostril", "mouth", "lip", "teeth", "tooth", "fang", "tusk", "brow", "eyebrow")   # L18-0: refused when the face is "none"
-REQUIRED = {"ball": ("r", "at"), "box": ("size", "at"), "tube": ("r0", "r1", "length", "at"), "between": ("a", "b", "r0", "r1")}
-OPTIONAL = {"ball": ("scale", "seg", "rings"), "box": ("rot", "top", "shift"), "tube": ("rot", "sides", "scale"), "between": ("sides", "scale")}
+REQUIRED = {"ball": ("r", "at"), "box": ("size", "at"), "tube": ("r0", "r1", "length", "at"), "between": ("a", "b", "r0", "r1"), "capsule": ("a", "b", "r0", "r1")}
+OPTIONAL = {"ball": ("scale", "seg", "rings"), "box": ("rot", "top", "shift"), "tube": ("rot", "sides", "scale"), "between": ("sides", "scale"),
+            "capsule": ("seg", "rings", "scale")}
+CAPSULE = {"seg": 6, "rings": 5}     # form-pilot defaults: 2*6*4 = 48 triangles, the price of a ball with a band
 VEC = {"at": 3, "a": 3, "b": 3, "size": 3, "rot": 3, "scale": 3, "top": 2, "shift": 2}
 HEX = set("0123456789abcdefABCDEF")
 
@@ -46,13 +50,15 @@ def tris_of(p):
     """Triangles of one piece as Blender builds it (checked against the GLB in the tests)."""
     if p["op"] == "ball":
         return 2 * p.get("seg", 8) * (p.get("rings", 6) - 1)
+    if p["op"] == "capsule":
+        return 2 * p.get("seg", CAPSULE["seg"]) * (p.get("rings", CAPSULE["rings"]) - 1)
     if p["op"] == "box":
         return 12
     return 4 * p.get("sides", 8) - 4
 
 
 def points_of(p):
-    return [p["a"], p["b"]] if p["op"] == "between" else [p["at"]]
+    return [p["a"], p["b"]] if p["op"] in ("between", "capsule") else [p["at"]]
 
 
 def piece_errors(i, p):
@@ -69,9 +75,11 @@ def piece_errors(i, p):
     for k in ("r", "r0", "r1", "length"):
         if k in p and not (isinstance(p[k], (int, float)) and p[k] >= 0.005):
             out.append(f"{tag}: '{k}' must be a number >= 0.005")
-    for k, lo, hi in (("sides", 3, 12), ("seg", 5, 12), ("rings", 3, 8)):
+    for k, lo, hi in (("sides", 3, 12), ("seg", 4, 12), ("rings", 3, 8)):      # form-pilot: seg 4 allowed (n02S asked a 4-seg capsule hand twice and lost its round 1)
         if k in p and not (isinstance(p[k], int) and lo <= p[k] <= hi):
             out.append(f"{tag}: '{k}' must be an integer {lo}-{hi}")
+    if p.get("op") == "capsule" and isinstance(p.get("rings"), int) and p["rings"] not in (3, 5, 7):
+        out.append(f"{tag}: a capsule's 'rings' must be 3, 5 or 7 (odd: the band sits between two rows of vertices)")
     if p.get("role", "other") not in ROLES:
         out.append(f"{tag}: role must be one of {list(ROLES)}")
     if "colour" in p and not hex_ok(p["colour"]):
@@ -90,7 +98,7 @@ def face_piece(p):
     return any(w.startswith(FACE_PIECE) for w in words)
 
 
-def validate(dsl, bones, box, need_roles=(), budget=BUDGET, face="eyes"):
+def validate(dsl, bones, box, need_roles=(), budget=BUDGET, face="eyes", soft=True):
     """Reasons (one string each) the DSL cannot be built, [] when it can. `bones`: names of the rig; `box`: ((lo xyz), (hi xyz))
     in the Blender frame, or None; `need_roles`: roles of the sheet's parts (NEED_ROLES are enforced); `face`: preflight.face_kind,
     "none" refuses eye / nose / mouth pieces (L18-0: the concept's face is plain; a plain face surface with role face may stay)."""
@@ -119,7 +127,130 @@ def validate(dsl, bones, box, need_roles=(), budget=BUDGET, face="eyes"):
         out.append(f"{tris} triangles, over the budget of {budget}: fewer pieces or fewer sides")
     have = {p["role"] for p in dsl["pieces"]}
     out += [f"no piece with role '{r}', and the sheet has one" for r in NEED_ROLES if r in need_roles and r not in have]
+    if soft:                                  # the join rules ask for one resend; a reply that still breaks them is built anyway (eye_stage)
+        out += join_errors(dsl["pieces"])
     return out + face_errors(dsl["pieces"], face)
+
+
+def join_errors(pieces):
+    """The soft rules: a body piece touching nothing, a limb whose root is not inside what it grows from."""
+    out = [f"piece {i} ({name}) floats: no body piece touches it (nearest {near}, gap {gap} m): overlap it into its joint (shoulder, hip, neck) by at least its radius"
+           for i, name, near, gap in floating(pieces)]
+    out += [f"piece {i} ({name}): a limb must start INSIDE the piece it grows from (its point a or b inside the torso, pelvis, shoulder ball or the "
+            f"previous limb piece), not beside it: sink the root in by at least half its radius" for i, name in loose_roots(pieces)]
+    return out
+
+
+BODY_ROLES = ("head", "face", "torso", "pelvis", "arm", "hand", "leg", "foot", "wing", "tail")
+
+
+def blob_of(p):
+    """A loose capsule (segment a-b, radius) around a piece, generous: a piece is only called floating when even this misses every other."""
+    if p["op"] in ("between", "capsule"):
+        return p["a"], p["b"], max(p["r0"], p["r1"])
+    if p["op"] == "ball":
+        return p["at"], p["at"], p["r"] * max(p.get("scale", [1, 1, 1]))
+    if p["op"] == "box":
+        return p["at"], p["at"], 0.5 * sorted(p["size"])[1]          # the middle side: a thin plate's blob is not its long edge
+    return p["at"], p["at"], max(p["r0"], p["r1"], 0.5 * p["length"]) * max(p.get("scale", [1, 1, 1]))
+
+
+def seg_gap(x, y):
+    """Distance between two segments (a, b, r): negative when the blobs overlap."""
+    import numpy as np
+    a0, b0, r0 = (np.array(x[0], float), np.array(x[1], float), x[2])
+    a1, b1, r1 = (np.array(y[0], float), np.array(y[1], float), y[2])
+    ts = np.linspace(0, 1, 17)
+    best = min(np.linalg.norm(a0 + t * (b0 - a0) - (a1 + u * (b1 - a1))) for t in ts for u in ts)
+    return best - r0 - r1
+
+
+def floating(pieces):
+    """Body pieces joined to nothing: (index, name, nearest name, gap m), by a union-find over pairwise overlaps of the blobs."""
+    body = [(i, p) for i, p in enumerate(pieces) if p.get("role") in BODY_ROLES]
+    if len(body) < 2:
+        return []
+    blobs = {i: blob_of(p) for i, p in body}
+    parent = {i: i for i, _ in body}
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    nearest = {}
+    for n, (i, _) in enumerate(body):
+        for j, _ in body[n + 1:]:
+            g = seg_gap(blobs[i], blobs[j])
+            if g <= 0:                                  # touching is joined here; the joints' depth is loose_roots' job (ears on a skull need no sinking)
+                parent[find(i)] = find(j)
+            for k, m in ((i, j), (j, i)):
+                if k not in nearest or g < nearest[k][1]:
+                    nearest[k] = (m, g)
+    groups = {}
+    for i, _ in body:
+        groups.setdefault(find(i), []).append(i)
+    main = max(groups.values(), key=lambda g: sum(tris_of(pieces[i]) for i in g))
+    out = []
+    for g in groups.values():
+        if g is main:
+            continue
+        i, j, gap = min(((i, j, seg_gap(blobs[i], blobs[j])) for i in g for j in main), key=lambda x: x[2])
+        out.append((i, pieces[i]["name"], pieces[j]["name"], round(float(gap), 3)))       # one line per island: its piece nearest the body
+    return out
+
+
+LIMB_ROLES = ("arm", "leg", "wing", "tail")
+ROOT_BONE = __import__("re").compile(r"^(rider\.)?(arm\.[LR]|thigh\.[LR]|leg\d\.upper|leg\d|wing\d(\.upper)?|tail\.1|neck\.1)$")   # first bone of a limb chain
+
+
+ROOT_DEPTH = 0.25       # a limb's root sits inside its parent piece by this share of the limb's radius (the union erodes a tangent joint)
+
+
+def point_in_blob(q, blob, depth=0.0):
+    import numpy as np
+    a, b, r = np.array(blob[0], float), np.array(blob[1], float), blob[2]
+    d = b - a
+    t = 0.0 if not d.any() else float(np.clip(np.dot(np.array(q, float) - a, d) / np.dot(d, d), 0, 1))
+    return np.linalg.norm(np.array(q, float) - (a + t * d)) <= r - depth
+
+
+def point_in_piece(q, p, depth=0.0):
+    """Point q inside piece p by `depth`: a box by its axis-aligned half sizes (rotation ignored), a ball by its scaled ellipsoid, the rest by blob_of."""
+    import numpy as np
+    q = np.array(q, float)
+    if p["op"] == "box":
+        return bool((np.abs(q - np.array(p["at"], float)) <= np.array(p["size"], float) / 2 - depth).all())
+    if p["op"] == "ball":
+        sc = np.array(p.get("scale", [1, 1, 1]), float) * p["r"]
+        return bool(np.linalg.norm((q - np.array(p["at"], float)) / np.maximum(sc, 1e-6)) <= 1 - depth / max(sc.max(), 1e-6))
+    return point_in_blob(q, blob_of(p), depth)
+
+
+def loose_roots(pieces):
+    """Limb pieces whose root (point a) is not inside any other body piece: (index, name). A limb must grow out of the body or of the limb
+    piece before it, or the per-bone union leaves a notch at the joint (n02S form-pilot2: the upper arm started 2 cm outside the chest)."""
+    body = [(i, p) for i, p in enumerate(pieces) if p.get("role") in BODY_ROLES]
+    limbs = [(i, p) for i, p in body if p.get("role") in LIMB_ROLES and p["op"] in ("between", "capsule")]   # plates and balls: floating() (touch) covers them
+    trunk = [(i, p) for i, p in body if (i, p) not in limbs]
+
+    def touches(p, others):
+        a, b, r = blob_of(p)
+        deep = ROOT_DEPTH * (r if p["op"] in ("box", "ball") else max(p["r0"], p["r1"]))
+        ends = (p["a"], p["b"]) if p["op"] in ("between", "capsule") else (p["at"],)
+        return any(point_in_piece(e, q, deep) for e in ends for j, q in others)
+    rooted = {i for i, p in limbs if touches(p, trunk)}           # grows out of the trunk
+    grew = True
+    while grew:                                                   # or out of a rooted limb piece (upper arm -> forearm)
+        grew = False
+        for i, p in limbs:
+            if i not in rooted and touches(p, [(j, q) for j, q in limbs if j in rooted]):
+                rooted.add(i)
+                grew = True
+    loose = [(i, p["name"]) for i, p in limbs if i not in rooted]
+    core = [(i, p) for i, p in body if p.get("role") in ("torso", "pelvis")]       # the shoulder and hip joints: a limb's first piece sinks into the trunk itself
+    loose += [(i, p["name"]) for i, p in limbs if ROOT_BONE.match(p["bone"]) and (i, p["name"]) not in loose and not touches(p, core)]
+    return loose
 
 
 def face_errors(pieces, face):
@@ -136,6 +267,21 @@ def srgb(hexv):
     return tuple((c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4) for c in rgb) + (1.0,)
 
 
+def capsule_verts(bm, p):
+    """form-pilot: a unit uv-sphere's vertices pulled apart along z into the half-balls of a capsule: the rows above the
+    equator (odd `rings`: no row sits on it) become the end at b with radius r1, the rows below the end at a with r0; the
+    quads of the gap become the frustum band between them. Returns the length of the piece (|b - a|)."""
+    import bmesh
+    from mathutils import Vector
+    a, b = Vector(p["a"]), Vector(p["b"])
+    length = max((b - a).length, 1e-6)
+    bmesh.ops.create_uvsphere(bm, u_segments=p.get("seg", CAPSULE["seg"]), v_segments=p.get("rings", CAPSULE["rings"]), radius=1.0)
+    for v in bm.verts:
+        r = p["r1"] if v.co.z > 0 else p["r0"]
+        v.co = Vector((v.co.x * r, v.co.y * r, v.co.z * r + (length / 2 if v.co.z > 0 else -length / 2)))
+    return length
+
+
 def make_piece(p, material):
     """The linked Blender object of one piece; `material` is its bpy material."""
     import bmesh
@@ -145,6 +291,10 @@ def make_piece(p, material):
     op, at, rot, scale = p["op"], p.get("at", (0, 0, 0)), p.get("rot", (0, 0, 0)), p.get("scale", (1, 1, 1))
     if op == "ball":
         bmesh.ops.create_uvsphere(bm, u_segments=p.get("seg", 8), v_segments=p.get("rings", 6), radius=p["r"])
+    elif op == "capsule":
+        capsule_verts(bm, p)
+        a, d = Vector(p["a"]), Vector(p["b"]) - Vector(p["a"])
+        at = (a + Vector(p["b"])) / 2
     elif op == "box":
         bmesh.ops.create_cube(bm, size=1.0)
         top, shift = p.get("top", (1, 1)), p.get("shift", (0, 0))
@@ -166,7 +316,7 @@ def make_piece(p, material):
     obj = bpy.data.objects.new(p["name"], me)
     bpy.context.collection.objects.link(obj)
     obj.location = Vector(at)
-    obj.rotation_euler = d.to_track_quat("Z", "Y").to_euler() if op == "between" else tuple(math.radians(r) for r in rot)
+    obj.rotation_euler = d.to_track_quat("Z", "Y").to_euler() if op in ("between", "capsule") else tuple(math.radians(r) for r in rot)
     obj.scale = scale
     me.materials.append(material)
     return obj

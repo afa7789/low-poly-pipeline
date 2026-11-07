@@ -1,0 +1,37 @@
+[
+  {
+    "name": "root staff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.68,
+      1.02
+    ]
+  },
+  {
+    "name": "lantern mushroom",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.112,
+      0.168
+    ]
+  },
+  {
+    "name": "bound-well marker pouch",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.116,
+      0.175
+    ]
+  }
+]

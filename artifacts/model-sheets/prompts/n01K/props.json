@@ -1,0 +1,47 @@
+[
+  {
+    "name": "chest flask",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.166,
+      0.248
+    ]
+  },
+  {
+    "name": "breather straw",
+    "where": "anchor head, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.126,
+      0.188
+    ]
+  },
+  {
+    "name": "hose arc",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.21,
+      0.315
+    ]
+  },
+  {
+    "name": "rusty rake",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.663,
+      0.994
+    ]
+  }
+]

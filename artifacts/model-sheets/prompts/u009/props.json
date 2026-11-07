@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Corpse Scepter",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.842,
+      1.263
+    ]
+  }
+]

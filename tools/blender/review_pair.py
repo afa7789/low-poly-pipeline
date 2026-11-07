@@ -88,8 +88,10 @@ def run_tilt(run):
 def sheet_panels(unit, kind, work, name="sheet"):
     """{front, rts} panels of a concept sheet of the unit (sheet = approved, sheet-hard = the build one)."""
     import split_sheet
+    from silhouette import deink_image
     sheet = ROOT / "artifacts/model-sheets/refs" / unit / f"{name}.jpg"
-    return split_sheet.split(sheet, work / name, name, layout_of(kind))
+    panels = split_sheet.split(sheet, work / name, name, layout_of(kind))
+    return {v: deink_image(p, p) for v, p in panels.items()} if name == "sheet" else panels      # form-pilot: the judge sees no contour line; the hard sheet keeps its facets
 
 
 def crop_figure(path, out):

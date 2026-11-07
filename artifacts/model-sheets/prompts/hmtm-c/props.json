@@ -1,0 +1,35 @@
+[
+  {
+    "name": "muzzle brass band",
+    "where": "anchor tube muzzle, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.446,
+      0.67
+    ]
+  },
+  {
+    "name": "mid brass band",
+    "where": "anchor tube middle, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.462,
+      0.693
+    ]
+  },
+  {
+    "name": "trunnion",
+    "where": "anchor stand, on bone hull",
+    "bones": [
+      "hull"
+    ],
+    "extent": [
+      0.653,
+      0.979
+    ]
+  }
+]

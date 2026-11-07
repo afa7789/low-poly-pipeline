@@ -1,0 +1,36 @@
+[
+  {
+    "name": "rifle with bayonet",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.703,
+      1.054
+    ]
+  },
+  {
+    "name": "bandolier",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.237,
+      0.355
+    ]
+  },
+  {
+    "name": "belt with buckle",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.225,
+      0.338
+    ]
+  }
+]

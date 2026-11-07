@@ -590,17 +590,18 @@ def read_parts(where, unit):
     return fields, np.array([rgb[p["mat"]] for p in dsl["pieces"]], float), [p["name"] for p in dsl["pieces"]], identity
 
 
-def apply(glb, unit, mode="on", k=K, soft=False, gate=None, parts=None):
-    """The sheet of `unit` on the atlas of `glb` in place. atlas.png (alpha = used texels) + atlas-procedural.png, atlas-noline.png, lead.png, project.json beside it. The info."""
+def apply(glb, unit, mode="on", k=K, soft=False, gate=None, parts=None, sheet="sheet.jpg"):
+    """The sheet of `unit` (refs/<unit>/<sheet>) on the atlas of `glb` in place. atlas.png (alpha = used texels) + atlas-procedural.png, atlas-noline.png, lead.png, project.json beside it. The info."""
     import io
     from PIL import Image
     glb = pathlib.Path(glb)
     where = glb.parent
     pos, tri, uv, png = read_model(glb)
     doc = json.loads((REFS / unit / "sheet.json").read_text()) if (REFS / unit / "sheet.json").exists() else {}
-    panels = sheet_panels(REFS / unit / "sheet.jpg", doc)
+    panels = sheet_panels(REFS / unit / sheet, doc)
     atlas = np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))
     img, used, lead, info = project(pos, tri, uv, atlas, panels, mode, k, soft, gate, parts and (*read_parts(where, unit), *parts))
+    info["sheet"] = sheet
     swap_atlas(glb, png_bytes(img))
     Image.fromarray(atlas).save(where / "atlas-procedural.png")
     Image.fromarray(np.dstack([img, np.where(used, 255, 0).astype(np.uint8)])).save(where / "atlas.png")
@@ -611,16 +612,27 @@ def apply(glb, unit, mode="on", k=K, soft=False, gate=None, parts=None):
     return info
 
 
-def apply_stage(glb, unit, project_mode):
+PAINT_SHEETS = ("flat", "paint")    # lever 2 (author 2026-11-05): paint = refs/<id>/sheet-paint.jpg (generate.py's painted variant: surface detail, no outline) when it exists
+PAINT_GATE, PAINT_PARTS = (0.06, 0.3), (0.05, 0.12, 0.35)   # the tight gate and part filter opened for a sheet with drawn detail (strokes, seams, rust: wider L and a, b per piece)
+
+
+def sheet_of(unit, paint_sheet):
+    """The sheet eye_project projects: sheet-paint.jpg with --eye-paint-sheet paint when the unit has one, else sheet.jpg."""
+    return "sheet-paint.jpg" if paint_sheet == "paint" and (REFS / unit / "sheet-paint.jpg").exists() else "sheet.jpg"
+
+
+def apply_stage(glb, unit, project_mode, paint_sheet="flat"):
     """The one call of eye_stage.finish: {} when off, or when tight has no piece fields or no sheet (a gate never stops the pipeline)."""
+    sheet = sheet_of(unit, paint_sheet)
     if project_mode == "tight":
-        if not ((pathlib.Path(glb).parent / "fields.json").exists() and (REFS / unit / "sheet.jpg").exists()):
+        if not ((pathlib.Path(glb).parent / "fields.json").exists() and (REFS / unit / sheet).exists()):
             return {}
+        painted = sheet != "sheet.jpg"
         try:
-            return apply(glb, unit, "flat", gate=TIGHT_GATE, parts=TIGHT_PARTS)
+            return apply(glb, unit, "on" if painted else "flat", gate=PAINT_GATE if painted else TIGHT_GATE, parts=PAINT_PARTS if painted else TIGHT_PARTS, sheet=sheet)
         except ValueError as err:                  # a panel that registers nowhere: the procedural paint stays, the unit is still produced
             return {"error": str(err)[:200]}
-    return apply(glb, unit, project_mode) if project_mode in MODES else {}
+    return apply(glb, unit, project_mode, sheet=sheet) if project_mode in MODES else {}
 
 
 def run_variant(unit, src, tag, mode, k=K, soft=False, gate=None, parts=None):

@@ -1,0 +1,59 @@
+[
+  {
+    "name": "muzzle",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.135,
+      0.202
+    ]
+  },
+  {
+    "name": "plate fan",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.471,
+      0.707
+    ]
+  },
+  {
+    "name": "pipe collar",
+    "where": "anchor neck, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.183,
+      0.275
+    ]
+  },
+  {
+    "name": "restraint chain",
+    "where": "anchor wrist.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.206,
+      0.309
+    ]
+  },
+  {
+    "name": "wrist cuff",
+    "where": "anchor wrist.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.111,
+      0.167
+    ]
+  }
+]

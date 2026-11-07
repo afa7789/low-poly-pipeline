@@ -208,11 +208,14 @@ def card_text(unit, props_json=None):
     try:
         sys.path.insert(0, str(ROOT / "artifacts/model-sheets"))
         import unit_facts
-        facts = unit_facts.facts(unit)
+        facts = unit_facts.facts(unit) or unit_facts.facts(unit.split("-")[0])      # e00E-a: a figure split from e00E's sheet
     except (ImportError, OSError, KeyError, ValueError):
         facts = None
     if facts:
         lines += [f"{facts['name']} ({facts['race']}, tier {facts['tier']}): {facts['redesign']}"]
+    card = PROMPTS / unit / "card.txt"          # roster_batch --extra-units: which figure of the parent's sheet this unit is
+    if card.exists():
+        lines += [card.read_text().strip()]
     path = props_json or PROMPTS / unit / "props.json"
     if pathlib.Path(path).exists():
         lines += [f"Prop: {p['name']} - {p['where']}" for p in json.loads(pathlib.Path(path).read_text())]

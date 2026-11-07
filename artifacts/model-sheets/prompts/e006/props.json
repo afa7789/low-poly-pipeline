@@ -1,0 +1,14 @@
+[
+  {
+    "name": "spear",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.82,
+      1.23
+    ]
+  }
+]

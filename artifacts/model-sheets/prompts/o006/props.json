@@ -1,0 +1,37 @@
+[
+  {
+    "name": "lid shield raised",
+    "where": "anchor hand.L, on bone rider.arm.L",
+    "bones": [
+      "rider.arm.L",
+      "rider.arm.R"
+    ],
+    "extent": [
+      0.254,
+      0.381
+    ]
+  },
+  {
+    "name": "lid-dart",
+    "where": "anchor hand.R, on bone rider.arm.R",
+    "bones": [
+      "rider.arm.R",
+      "rider.arm.L"
+    ],
+    "extent": [
+      0.098,
+      0.147
+    ]
+  },
+  {
+    "name": "cook-brazier",
+    "where": "anchor belt, on bone spine.1",
+    "bones": [
+      "spine.1"
+    ],
+    "extent": [
+      0.169,
+      0.254
+    ]
+  }
+]
