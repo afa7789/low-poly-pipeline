@@ -671,11 +671,18 @@ def rig(unit_id, spec=None, force=False):
     return f"rigged {len(doc['extras']['cf_rig']['map'])} bones"
 
 
+def project_own():
+    """Units whose model is ours (license project-own in data/models.tsv): they come rigged."""
+    rows = (ROOT / "data/models.tsv").read_text().splitlines()
+    cols = rows[0].split("\t")
+    return {r.split("\t")[0] for r in rows[1:] if r.split("\t")[cols.index("license")] == "project-own"}
+
+
 def main():
     if not ASSETS.exists():
         print("rig_static: no assets/models (run make assets); skipped")
         return
-    ids = [a for a in sys.argv[1:] if not a.startswith("--")] or sorted(RIGS)
+    ids = [a for a in sys.argv[1:] if not a.startswith("--")] or sorted(set(RIGS) - project_own())
     for unit_id in ids:
         if "--list" in sys.argv[1:]:
             family = family_of(unit_id, RIGS[unit_id])
