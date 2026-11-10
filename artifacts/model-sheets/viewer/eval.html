@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avaliação humana</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: #14161a; color: #d5d9df; }
+header { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 1px solid #262a31; background: #191c21; }
+header h1 { margin: 0; font-size: 13px; font-weight: 600; color: #9aa3af; }
+header .sp { flex: 1; }
+#progress { font-variant-numeric: tabular-nums; color: #9aa3af; }
+main { padding: 16px; max-width: 1500px; margin: 0 auto; }
+.unit { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+.unit small { color: #9aa3af; font-weight: 400; margin-left: 8px; }
+.row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 12px; align-items: start; }
+.col { background: #191c21; border: 1px solid #262a31; border-radius: 8px; padding: 10px; }
+.col h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #9aa3af; text-transform: uppercase; letter-spacing: .04em; }
+.imgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.imgs figure { margin: 0; flex: 1 1 180px; text-align: center; }
+.imgs img { width: 100%; max-width: 360px; background: #cccccc; border-radius: 4px; image-rendering: auto; }
+.imgs figcaption { font-size: 11px; color: #9aa3af; margin-top: 2px; }
+.qs { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.q { background: #191c21; border: 1px solid #262a31; border-radius: 8px; padding: 10px; }
+.q.active { border-color: #5b8def; }
+.q p { margin: 0 0 8px; }
+.q p b { color: #fff; }
+.scale { display: flex; gap: 6px; }
+.scale button { flex: 1; padding: 10px 0; font: inherit; font-size: 16px; color: inherit; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; cursor: pointer; }
+.scale button:hover { border-color: #5b8def; }
+.scale button.on { background: #2b55b8; border-color: #5b8def; color: #fff; }
+.legend { display: flex; justify-content: space-between; font-size: 11px; color: #70788a; margin-top: 4px; }
+.bottom { margin-top: 12px; display: flex; gap: 12px; align-items: center; }
+textarea { flex: 1; min-height: 44px; font: inherit; font-size: 13px; color: inherit; background: #0f1115; border: 1px solid #2c313a; border-radius: 6px; padding: 6px 8px; resize: vertical; }
+#next { padding: 10px 22px; font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: #2b55b8; border: 1px solid #5b8def; border-radius: 6px; cursor: pointer; }
+#next:disabled { opacity: .4; cursor: default; }
+.hint { font-size: 12px; color: #70788a; margin-top: 8px; }
+#done { text-align: center; padding: 60px 0; font-size: 18px; }
+#done a { color: #8fb3ff; }
+@media (max-width: 900px) { .row, .qs { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Avaliação humana — modelos roster-v6</h1>
+  <span class="sp"></span>
+  <span id="progress"></span>
+  <a href="/api/eval/export" style="color:#8fb3ff;font-size:12px">export</a>
+</header>
+<main>
+  <div id="card" hidden>
+    <p class="unit"><span id="uname"></span><small id="umeta"></small></p>
+    <div class="row">
+      <div class="col"><h2>Nosso modelo</h2>
+        <div class="imgs">
+          <figure><img id="m-front" alt="modelo frente"><figcaption>frente</figcaption></figure>
+          <figure><img id="m-left" alt="modelo esquerda"><figcaption>esquerda</figcaption></figure>
+          <figure><img id="m-wc3" alt="modelo câmara RTS"><figcaption>câmara do jogo</figcaption></figure>
+        </div>
+      </div>
+      <div class="col"><h2>Concept aprovado (frente)</h2>
+        <div class="imgs"><figure><img id="c-front" alt="concept frente"></figure></div>
+      </div>
+      <div class="col"><h2>Original WC3</h2>
+        <div class="imgs">
+          <figure><img id="w-print" alt="print WC3"><figcaption>print</figcaption></figure>
+          <figure style="flex:0 0 96px"><img id="w-icon" alt="ícone WC3" style="width:96px"><figcaption>ícone</figcaption></figure>
+        </div>
+      </div>
+    </div>
+    <div class="qs">
+      <div class="q" data-q="q1"><p><b>Q1.</b> Parece a unidade de WC3? <small>(modelo vs print)</small></p><div class="scale"></div><div class="legend"><span>1 nada</span><span>5 claramente</span></div></div>
+      <div class="q" data-q="q2"><p><b>Q2.</b> É fiel ao concept? <small>(modelo vs concept)</small></p><div class="scale"></div><div class="legend"><span>1 nada</span><span>5 claramente</span></div></div>
+      <div class="q" data-q="q3"><p><b>Q3.</b> Usaria no jogo como está (alfa)?</p><div class="scale"></div><div class="legend"><span>1 nunca</span><span>5 sim</span></div></div>
+    </div>
+    <div class="bottom">
+      <textarea id="note" placeholder="nota livre (opcional)"></textarea>
+      <button id="next" disabled>Guardar e seguinte ⏎</button>
+    </div>
+    <p class="hint">Teclas 1–5 respondem à pergunta activa (azul) e passam à seguinte; Enter guarda. A ordem das unidades é aleatória; a pontuação do computador nunca é mostrada.</p>
+  </div>
+  <div id="done" hidden>Concluído: <span id="dn"></span> unidades.<br><a href="/api/eval/export">exportar respostas (JSON)</a> · <a href="#" id="again">nova sessão</a></div>
+</main>
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  let session = null;
+  try { session = localStorage.getItem('eval-session'); } catch (e) {}
+  if (!session) {
+    session = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
+    try { localStorage.setItem('eval-session', session); } catch (e) {}
+  }
+  let units = [], answered = new Set(), order = [], cur = null, active = 0;
+  const answers = { q1: 0, q2: 0, q3: 0 };
+  const QS = ['q1', 'q2', 'q3'];
+
+  // deterministic shuffle from the session string so a reload keeps the same order
+  function shuffle(arr, seedStr) {
+    let h = 2166136261;
+    for (const c of seedStr) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+    const rnd = () => { h ^= h << 13; h >>>= 0; h ^= h >> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  function buildScales() {
+    document.querySelectorAll('.q').forEach((q) => {
+      const s = q.querySelector('.scale');
+      for (let v = 1; v <= 5; v++) {
+        const b = document.createElement('button');
+        b.textContent = v;
+        b.onclick = () => set(q.dataset.q, v);
+        s.appendChild(b);
+      }
+    });
+  }
+
+  function set(q, v) {
+    answers[q] = v;
+    const idx = QS.indexOf(q);
+    if (idx === active && active < 2) active++;
+    paint();
+  }
+
+  function paint() {
+    document.querySelectorAll('.q').forEach((q, i) => {
+      q.classList.toggle('active', i === active);
+      q.querySelectorAll('.scale button').forEach((b, j) => b.classList.toggle('on', answers[q.dataset.q] === j + 1));
+    });
+    $('#next').disabled = !(answers.q1 && answers.q2 && answers.q3);
+    $('#progress').textContent = `${answered.size}/${units.length}`;
+  }
+
+  function show() {
+    const todo = order.filter((u) => !answered.has(u.id));
+    if (!todo.length) {
+      $('#card').hidden = true; $('#done').hidden = false; $('#dn').textContent = answered.size;
+      paint();
+      return;
+    }
+    cur = todo[0];
+    answers.q1 = answers.q2 = answers.q3 = 0; active = 0; $('#note').value = '';
+    $('#uname').textContent = cur.name;
+    $('#umeta').textContent = `${cur.id} · ${cur.race} · ${cur.rig}`;
+    $('#m-front').src = `/final/${cur.id}/front.png`;
+    $('#m-left').src = `/final/${cur.id}/left.png`;
+    $('#m-wc3').src = `/final/${cur.id}/wc3.png`;
+    $('#c-front').src = `/eval/concept/${cur.id}.png`;
+    $('#w-print').src = `/render/${cur.id}.png`;
+    $('#w-icon').src = `/icon/${cur.id}.png`;
+    $('#card').hidden = false; $('#done').hidden = true;
+    paint();
+    window.scrollTo(0, 0);
+  }
+
+  async function save() {
+    if ($('#next').disabled) return;
+    const body = { session, id: cur.id, q1: answers.q1, q2: answers.q2, q3: answers.q3, note: $('#note').value };
+    const r = await fetch('/api/eval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) { alert('erro ao guardar: ' + (await r.text())); return; }
+    answered.add(cur.id);
+    show();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target === $('#note') && e.key !== 'Enter') return;
+    if (e.key >= '1' && e.key <= '5' && cur) { e.preventDefault(); set(QS[active], +e.key); }
+    else if (e.key === 'Enter' && !e.shiftKey && cur) { e.preventDefault(); save(); }
+  });
+  $('#next').onclick = save;
+  $('#again').onclick = (e) => { e.preventDefault(); try { localStorage.removeItem('eval-session'); } catch (x) {} location.reload(); };
+
+  buildScales();
+  fetch(`/api/eval?session=${encodeURIComponent(session)}`).then((r) => r.json()).then((d) => {
+    units = d.units; answered = new Set(d.answered || []);
+    order = shuffle(units, session);
+    show();
+  });
+})();
+</script>
+</body>
+</html>

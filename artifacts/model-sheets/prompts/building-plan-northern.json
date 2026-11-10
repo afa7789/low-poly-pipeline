@@ -1,0 +1,107 @@
+{
+ "motif": "Every building is banded with riveted dark-iron ribs and carries one small \u00c2mbar de Nevasca lamp glowing in the snow, with a snow-loaded lean-to cap.",
+ "buildings": [
+  {
+   "id": "h03I",
+   "archetype": "ring or hollow crown",
+   "colour": "blue-black rusted iron",
+   "why": "Narrow truss topped by a landing ring. The ring is the read, not a tower."
+  },
+  {
+   "id": "h047",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "pale frost-green fungus",
+   "why": "Three caps on a tripod with an upturned tube give a clear cluster of peaks."
+  },
+  {
+   "id": "h03S",
+   "archetype": "long low shed",
+   "colour": "dirty white snow-loaded ice masonry",
+   "why": "A long hall with a derrick spine. The derrick is the only vertical."
+  },
+  {
+   "id": "h043",
+   "archetype": "sunken pit with a rim",
+   "colour": "deep sapphire crystal",
+   "why": "Same archetype as Ice Claws. The spiral teeth grow inside a well cage, now taller and twisted."
+  },
+  {
+   "id": "h048",
+   "archetype": "tilted leaning mass",
+   "colour": "weathered brass",
+   "why": "The race's one diagonal tube on a rail truck."
+  },
+  {
+   "id": "h03W",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "smoky grey-blue glacier ice",
+   "why": "Snowy Rocks chain grown to an irregular pyramid with a straight industrial cut."
+  },
+  {
+   "id": "h03L",
+   "archetype": "tilted leaning mass",
+   "colour": "weathered brass",
+   "why": "Frost Launcher chain: two parallel diagonal tubes, so a wider and heavier lean."
+  },
+  {
+   "id": "h03T",
+   "archetype": "sunken pit with a rim",
+   "colour": "deep sapphire crystal",
+   "why": "Three ice teeth in an open well cage, ringed by a snow cone, read as a pit with a rim."
+  },
+  {
+   "id": "h03K",
+   "archetype": "wide squat dome",
+   "colour": "dirty off-white snow",
+   "why": "A labor dormitory dome with ribs and a chimney."
+  },
+  {
+   "id": "h03J",
+   "archetype": "wide squat dome",
+   "colour": "oxblood red painted panels",
+   "why": "Same dome chain, repainted, with a scrap totem as the single vertical."
+  },
+  {
+   "id": "h04F",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "bleached bone yellow-white",
+   "why": "Snowy Rocks chain: the outcrop with a whalebone arch, a middle step toward the Glacier."
+  },
+  {
+   "id": "h03Q",
+   "archetype": "tall tower",
+   "colour": "rust-orange iron",
+   "why": "An A-frame firing tower with a downward drill point. It is the only true tall tower."
+  },
+  {
+   "id": "h03U",
+   "archetype": "round silo or drum",
+   "colour": "grey-white snow blocks",
+   "why": "A crooked block drum with a stovepipe. The Troll Hut keeps the dome archetype."
+  },
+  {
+   "id": "h06L",
+   "archetype": "round silo or drum",
+   "colour": "dark steel-blue riveted shell",
+   "why": "Igloo chain grown into a taller, stiffer armored drum with a still shed attached."
+  },
+  {
+   "id": "h07W",
+   "archetype": "spread-winged low star",
+   "colour": "translucent turquoise ice",
+   "why": "A fan of ice fractures spreading from a pipe forms a low star."
+  },
+  {
+   "id": "h049",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "dull grey stone",
+   "why": "Base of the chain: a low pile of stones, the most discreet building. It grows into the Glacier."
+  },
+  {
+   "id": "h03O",
+   "archetype": "bridge-like span on legs",
+   "colour": "deep verdigris green copper",
+   "why": "Three bottles carry a manifold across their tops like a span on legs, with the gauge face on it."
+  }
+ ]
+}

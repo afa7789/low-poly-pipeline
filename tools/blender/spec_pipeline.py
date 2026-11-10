@@ -2435,9 +2435,24 @@ def build_parser():
     ap.add_argument("--eye-paint", choices=("off", "on", "box"), default="box",
                     help="--eye on: UV atlas 256 px painted procedurally (gradient, brush noise, occlusion, 12 colours, ink line) over the flat-colour pieces (eye_paint.py, PIPELINE 35.L17-3); "
                          "box = one chart per welded component and axis, large islands for the united mesh (36.L18-3; default since 37.L19-0); on = grown islands; off = flat colours")
+    ap.add_argument("--eye-ink", choices=("off", "on"), default="off",
+                    help="--eye-paint: on = the ink line between the pieces and the edge highlight baked into the atlas (L17-3); off (default, author 2026-11-09): "
+                         "flat colour per piece like the pre-union eye renders, the occlusion and the accents kept")
+    ap.add_argument("--eye-atlas", choices=("islands", "palette"), default="islands",     # islands again 2026-11-09: the author wants texel paint, only the ink off
+                    help="--eye-paint: palette (default, author 2026-11-09) = a swatch atlas, one 8 px cell per (piece colour x occlusion in 3 steps), at most "
+                         "materials x 3 swatches in a 64 px PNG, every triangle's UVs at the centre of its cell, NEAREST sampler; islands = the 256 px texel atlas of L17-3")
+    ap.add_argument("--eye-atlas-size", choices=("64", "128", "256", "auto"), default="64",
+                    help="--eye-atlas islands: the atlas side in px (author 2026-11-09: 128 default, 256 was 20-27 KB a unit); auto = the smallest multiple of 16 that holds "
+                         "the islands at 128 texels over the model's height. After the projection eye_atlas.py shares the flat islands and repacks the rest into the smallest "
+                         "square that fits, as an indexed PNG")
+    ap.add_argument("--eye-atlas-detail", choices=("off", "on"), default="on",
+                    help="--eye-atlas islands: on (author 2026-11-09) = the bake at 4x --eye-atlas-size and eye_atlas gives every island its own density: the body at the size's, "
+                         "islands with an accent detail (eyes, buckle, flame) or a busy pattern (wing stripes, belts) at 2-4x, the body palette merged to 12 colours, "
+                         "the atlas the smallest multiple of 16 up to 96 px; off = one density")
     ap.add_argument("--eye-project", choices=("off", "on", "tight"), default="tight",
                     help="--eye on, with a painted atlas: the concept sheet delit and projected on the atlas from its five panels and the left mirrored (eye_project.py, PIPELINE 39.L20-0); "
-                         "texels no view sees keep the procedural paint; tight (default by the author, L20-2): flat, with the colour gate and the per-piece filter, accents kept")
+                         "texels no view sees keep the procedural paint; tight (default by the author, L20-2): flat, with the colour gate and the per-piece filter, accents kept; "
+                         "skipped with --eye-atlas palette (a swatch atlas has no texels to project on)")
     ap.add_argument("--eye-union-reduce", choices=("qem", "cvt"), default="cvt",
                     help="--eye-union: the reducer from the union's grid to the budget: guarded QEM (retopo.reduce) or curvature-guided CVT (retopo.cvt, 36.L18-2b; default since 37.L19-0: "
                          "always under the 700 budget, 2x faster; a cluster too thin for the CVT falls to the QEM, and to its own pieces when the QEM overshoots)")

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "satchel",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.116,
+      0.175
+    ]
+  },
+  {
+    "name": "satchel_strap",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.256,
+      0.383
+    ]
+  },
+  {
+    "name": "lantern",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.116,
+      0.175
+    ]
+  },
+  {
+    "name": "pole_wrench",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.807,
+      1.21
+    ]
+  }
+]

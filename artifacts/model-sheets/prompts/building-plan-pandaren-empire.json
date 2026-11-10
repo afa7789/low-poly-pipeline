@@ -1,0 +1,83 @@
+{
+ "motif": "A cracked-glaze, upturned eave band trimmed in Laca Imperial pink (#E84D8E), set over a knee-deep oil-mud base on every building.",
+ "buildings": [
+  {
+   "id": "n03D",
+   "archetype": "long low shed",
+   "colour": "pale dry-bamboo straw yellow",
+   "why": "Low timber hall open across the whole front. The long, flat roofline is its silhouette."
+  },
+  {
+   "id": "n03F",
+   "archetype": "round silo or drum",
+   "colour": "honey-brown staved oak",
+   "why": "A standing barrel with a basket roof. It reads as a plain drum."
+  },
+  {
+   "id": "h07V",
+   "archetype": "tall tower",
+   "colour": "dark gunmetal iron grey with green-patina copper seams",
+   "why": "Tall stack with a glass orb on top. It is the tallest thin shape in the race."
+  },
+  {
+   "id": "n03Q",
+   "archetype": "pierced arch or gate",
+   "colour": "bleached off-white canvas and pale timber",
+   "why": "A timber arch with the balloon hanging in it. The hole through the middle is the silhouette."
+  },
+  {
+   "id": "n03K",
+   "archetype": "round silo or drum",
+   "colour": "weathered driftwood grey boards",
+   "why": "Brew Hut chain keeps the drum. The slumped second floor and leaning counter widen and tilt the top. Grey separates it from the oak original and from its neighbours."
+  },
+  {
+   "id": "n03L",
+   "archetype": "ring or hollow crown",
+   "colour": "glossy jade green glaze",
+   "why": "A cracked jar with the crack as the door. The broken rim gives a hollow crown."
+  },
+  {
+   "id": "n03N",
+   "archetype": "bridge-like span on legs",
+   "colour": "rust terracotta red with dull zinc",
+   "why": "A crooked zinc roof on posts over an open bench. It reads as a span on legs."
+  },
+  {
+   "id": "h07P",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "lacquer coral pink",
+   "why": "A keg stalk with a canvas platform box on top. It differs from the red Workshop beside it."
+  },
+  {
+   "id": "n03S",
+   "archetype": "long low shed",
+   "colour": "ochre tarpaulin canvas with a black chimney",
+   "why": "Dojo chain, shorter and wider, closed by tarps. The furnace chimney through the roof marks the upgrade."
+  },
+  {
+   "id": "n03P",
+   "archetype": "round silo or drum",
+   "colour": "slate-grey kegs with chipped glazed eaves",
+   "why": "Tavern chain grows the drum into a circular stack of kegs under a pagoda. It is the tallest, widest drum in the race."
+  },
+  {
+   "id": "n03H",
+   "archetype": "wide squat dome",
+   "colour": "patched coppery brass over soot-dark brick",
+   "why": "A squat still house with a copper alembic dome. Its warm metal tone is unlike the neighbouring greys and greens."
+  },
+  {
+   "id": "h07R",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "pale living-bamboo green with a canvas kite",
+   "why": "A mast, a kite and a lightning rod make a cluster of thin peaks. The green is lighter than the Jade Shrine's."
+  },
+  {
+   "id": "h07T",
+   "archetype": "stacked crates or terraces",
+   "colour": "deep crimson lacquer with china-white showcase panels",
+   "why": "A pawnshop of piled goods with a showcase front and a smoking furnace behind. Stepped, stacked blocks set it apart from the other halls."
+  }
+ ]
+}

@@ -1,0 +1,107 @@
+{
+ "motif": "One glowing Seiva Clara (#8ECC2D) lantern-mushroom cap on each building, set against a sweet-rust plate trim. The cap is the race's single repeated shape.",
+ "buildings": [
+  {
+   "id": "h02C",
+   "archetype": "round silo or drum",
+   "colour": "charred umber bark",
+   "why": "The blind guardian is a closed trunk drum with its arms folded across the front, so it reads as a solid cylinder."
+  },
+  {
+   "id": "h01J",
+   "archetype": "wide squat dome",
+   "colour": "living-tree mossy green",
+   "why": "Chain of Growth, Life and Eternity. Eternity is the biggest dome, with a moss mantle and a ring of roots around it."
+  },
+  {
+   "id": "h02A",
+   "archetype": "tilted leaning mass",
+   "colour": "wind-bleached silver-grey driftwood",
+   "why": "The crown is permanently bent downwind, so the whole building leans."
+  },
+  {
+   "id": "h013",
+   "archetype": "wide squat dome",
+   "colour": "living-tree mossy green",
+   "why": "First link of the Growth chain: a cut stool with one cap, which grows into the dome."
+  },
+  {
+   "id": "h024",
+   "archetype": "long low shed",
+   "colour": "bone white",
+   "why": "Chain of Slumber and Hibernation. Hibernation is the same low den mouth, larger and taller, with half-open rust doors."
+  },
+  {
+   "id": "h01H",
+   "archetype": "wide squat dome",
+   "colour": "living-tree mossy green",
+   "why": "The grown-back closed crown under dense moss is a bigger dome, and the root-tube is a small side feature."
+  },
+  {
+   "id": "h023",
+   "archetype": "long low shed",
+   "colour": "bone white",
+   "why": "A hollow den trunk with a low, wide dark mouth."
+  },
+  {
+   "id": "h02D",
+   "archetype": "stacked crates or terraces",
+   "colour": "amber resin and brass",
+   "why": "Ranks of shelves with lantern caps and sap flasks stack up as terraces inside the tree."
+  },
+  {
+   "id": "n02D",
+   "archetype": "tall tower",
+   "colour": "dark rust-red iron",
+   "why": "It is the race's only tower, so it is the tallest vertical piece. The iron body is fortified."
+  },
+  {
+   "id": "h027",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "coral pink bark",
+   "why": "A branch platform sits on a split master trunk, with the root-tube running down the stalk."
+  },
+  {
+   "id": "h071",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "ochre stitched cloth",
+   "why": "Chain of Furbolg Hut, Enigma and Abode. Enigma's tent peak and watch mast form the peak cluster."
+  },
+  {
+   "id": "h012",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "faded indigo cloth",
+   "why": "The chapel version of the hut, with a root mast beside the roof peak."
+  },
+  {
+   "id": "h00Y",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "ochre stitched cloth",
+   "why": "The base cabin is a small tent peak and a door pole. Its colour differs from its neighbours in the build order."
+  },
+  {
+   "id": "h028",
+   "archetype": "pierced arch or gate",
+   "colour": "rust-stained slate grey-blue stone",
+   "why": "Roots pass clear through the split block, which leaves a hole that reads as a gate."
+  },
+  {
+   "id": "h002",
+   "archetype": "sunken pit with a rim",
+   "colour": "translucent crystal green",
+   "why": "Chain of Spider Egg Clutch, Nest and Hatchery. Cocoons half buried in mud begin the pit, and the Nest makes it a trench."
+  },
+  {
+   "id": "h00R",
+   "archetype": "sunken pit with a rim",
+   "colour": "ivory cream",
+   "why": "The hatchery is a master cocoon split open inside the pit rim, in a lighter colour than its neighbours."
+  },
+  {
+   "id": "h00Q",
+   "archetype": "sunken pit with a rim",
+   "colour": "translucent crystal green",
+   "why": "The nest is a root pit with a web between the rims and two caps marking the mouth."
+  }
+ ]
+}

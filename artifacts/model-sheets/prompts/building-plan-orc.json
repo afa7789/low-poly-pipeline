@@ -1,0 +1,137 @@
+{
+ "motif": "A single Brasa-orange ember glow leaking from a dark soot-black mouth or vent, with a crooked lashed drill-pipe stack above it. Every building has one glowing opening and one crooked pipe.",
+ "buildings": [
+  {
+   "id": "h02U",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "weathered tan hide",
+   "why": "Fighters' Hall chain. It adds a hide loft with its own furnace stack, so it is the middle step."
+  },
+  {
+   "id": "o000",
+   "archetype": "tall tower",
+   "colour": "black iron",
+   "why": "Derrick-mast trellis with a crooked diagonal. It is the race's one pure tall tower."
+  },
+  {
+   "id": "h07Q",
+   "archetype": "wide squat dome",
+   "colour": "dried-blood red cloth",
+   "why": "Shamanic Tent chain. The upturned-cauldron belly is a round dome, and the dark mouth is the door."
+  },
+  {
+   "id": "h02R",
+   "archetype": "ring or hollow crown",
+   "colour": "bone white",
+   "why": "Skull-hung pipe mast ending in a brazier ring. The hollow crown keeps it apart from the tower and the spired totems."
+  },
+  {
+   "id": "h036",
+   "archetype": "pierced arch or gate",
+   "colour": "charred dark wood",
+   "why": "Kodo Farm chain. A boiler-lid roof-plate on tall posts over the pen is a taller, open gate, and the drum-tower adds height."
+  },
+  {
+   "id": "h07Z",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "brass",
+   "why": "Legendary Totem chain. The bellows post grows from the three-mask mast, with spokes of pipe."
+  },
+  {
+   "id": "h02P",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "orange painted panels",
+   "why": "A high falconry platform over a pipe mast. The fire-basket makes it the race's tall burning mark."
+  },
+  {
+   "id": "h029",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "weathered tan hide",
+   "why": "Fighters' Hall chain base. A crooked layered hide roof with a central vent; the chain grows upward by tiers."
+  },
+  {
+   "id": "h06D",
+   "archetype": "stacked crates or terraces",
+   "colour": "living green brush and moss",
+   "why": "Troll Hut chain, which keeps its stacked-barrel build. The well-mouth pit and bark-and-net roof sit low in the stack."
+  },
+  {
+   "id": "h07Y",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "copper red",
+   "why": "Legendary Totem chain. A drum base and cauldron with a steam plume form a short peak cluster."
+  },
+  {
+   "id": "h06I",
+   "archetype": "wide squat dome",
+   "colour": "dull olive tentcloth",
+   "why": "Shamanic Tent chain. Captured-cloth walls under one wide dented stovepipe horn."
+  },
+  {
+   "id": "h02K",
+   "archetype": "pierced arch or gate",
+   "colour": "charred black timber",
+   "why": "The burnt derrick arch over the pen is the gate, with stakes and drums in the corners."
+  },
+  {
+   "id": "h02O",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "pale bone",
+   "why": "A bare pipe mast with three empty sockets and three masks on hooks. It reads as three peaks waiting to be chosen."
+  },
+  {
+   "id": "h035",
+   "archetype": "pierced arch or gate",
+   "colour": "rust-red iron plate",
+   "why": "Kodo Farm chain. A reinforced fence with torn standards, split by the broken conduit trough."
+  },
+  {
+   "id": "h02I",
+   "archetype": "long low shed",
+   "colour": "raw pale timber",
+   "why": "An open dismantling shed with a derrick traction wheel as a side crane."
+  },
+  {
+   "id": "h02N",
+   "archetype": "tilted leaning mass",
+   "colour": "tarry black oil rock",
+   "why": "A melted, twisted zigzag of pipe leans from the rock into a mouth."
+  },
+  {
+   "id": "h02B",
+   "archetype": "wide squat dome",
+   "colour": "ochre yellow hide",
+   "why": "The lowest, widest rib-lattice tent of the race. The brazier shows through the mouth."
+  },
+  {
+   "id": "h092",
+   "archetype": "pierced arch or gate",
+   "colour": "slate-grey nailed plate",
+   "why": "Kodo Farm chain. One hunched, asymmetric quilt arcs over the whole pen, in contrast to h036's open roof-plate."
+  },
+  {
+   "id": "h07X",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "pale ice blue",
+   "why": "Legendary Totem chain. A lopsided drum and horn shell cluster over a pressure coil, with steam rings."
+  },
+  {
+   "id": "h031",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "deep red painted panels with ivory tusks",
+   "why": "Fighters' Hall chain. It is the largest tiered hall, with a jaw-gate of tusks and a heart-forge."
+  },
+  {
+   "id": "h05E",
+   "archetype": "stacked crates or terraces",
+   "colour": "grey weathered planks",
+   "why": "Troll Hut chain. The hut straddles the killed pump, and the well-head breaks through the floor as the porch."
+  },
+  {
+   "id": "h02H",
+   "archetype": "stacked crates or terraces",
+   "colour": "burnt-orange drums",
+   "why": "A chimney of piled burned-out barrels, with fire glowing in the skull mouth at the base."
+  }
+ ]
+}

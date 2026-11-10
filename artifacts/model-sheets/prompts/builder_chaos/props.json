@@ -1,0 +1,26 @@
+[
+  {
+    "name": "furnace_rake",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.577,
+      0.866
+    ]
+  },
+  {
+    "name": "valve_wheel",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.076,
+      0.114
+    ]
+  }
+]

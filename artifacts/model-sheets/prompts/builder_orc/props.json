@@ -1,0 +1,25 @@
+[
+  {
+    "name": "axe-shovel",
+    "where": "anchor hand.R, on bone arm.R",
+    "bones": [
+      "arm.R",
+      "arm.L"
+    ],
+    "extent": [
+      0.554,
+      0.83
+    ]
+  },
+  {
+    "name": "ember bucket",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  }
+]

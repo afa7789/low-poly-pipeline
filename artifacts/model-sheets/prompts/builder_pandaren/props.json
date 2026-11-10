@@ -1,0 +1,24 @@
+[
+  {
+    "name": "iron barrel hoop",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.274,
+      0.41
+    ]
+  },
+  {
+    "name": "stove with flame",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.175,
+      0.262
+    ]
+  }
+]

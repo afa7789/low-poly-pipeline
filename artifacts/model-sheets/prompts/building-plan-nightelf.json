@@ -1,0 +1,95 @@
+{
+ "motif": "A silvered hollow crescent (Prata Oxidada) cut or hung into every roofline or crown, with one small Ametista de V\u00e9spera glass lens seated in its hollow; the crescent is the trim, the lens is the only saturated accent.",
+ "buildings": [
+  {
+   "id": "h03E",
+   "archetype": "long low shed",
+   "colour": "weathered ochre canvas over grey spoil",
+   "why": "Chain top of Hunter's Hall, so it keeps the long low shed and grows it into a dug-in den under a spoil-heap roof, with one banner pole. Ochre canvas is shared with the chain."
+  },
+  {
+   "id": "h073",
+   "archetype": "tall tower",
+   "colour": "oxidised silver-grey iron",
+   "why": "A railway signal mast is the tallest thin vertical in the race, and the dish and lantern make a clear top. Grey iron stands apart from the ochre neighbour."
+  },
+  {
+   "id": "h00B",
+   "archetype": "sunken pit with a rim",
+   "colour": "wet dark basalt paving",
+   "why": "A settling basin cut into the ground reads as a hole, and the iridescent oil is the only bright spot. The dark stone contrasts with the iron before it."
+  },
+  {
+   "id": "h07L",
+   "archetype": "tilted leaning mass",
+   "colour": "tarred brown-black plank",
+   "why": "Keeps the chain's leaning mass and grows it into three misaligned crate-board floors that lean off-axis, with shuttered ports instead of windows."
+  },
+  {
+   "id": "h07M",
+   "archetype": "tilted leaning mass",
+   "colour": "bone-white dead wood with oiled canvas hood",
+   "why": "A lean-to against a dead tree is a single sloped mass. The bone-white tree crown separates it from the dark Guild next to it."
+  },
+  {
+   "id": "h00S",
+   "archetype": "long low shed",
+   "colour": "ochre tarpaulin on pale timber",
+   "why": "Base of the chain, a wide low shed with a two-pitch tarpaulin roof. Ochre sits beside bone-white and rust, so it separates from both."
+  },
+  {
+   "id": "h07D",
+   "archetype": "ring or hollow crown",
+   "colour": "rust-red chained iron on pale slab",
+   "why": "Chain top of the Moon Shrine: the ring of the shrine's plates grows into a slab with a central post and chained machinery. Rust red separates it from the plum shrine."
+  },
+  {
+   "id": "h088",
+   "archetype": "ring or hollow crown",
+   "colour": "deep plum painted steel (V\u00e9spera)",
+   "why": "A split drum laid on its side and ringed by tilted plates forms a hollow crown. The V\u00e9spera plum body ties it to the race palette."
+  },
+  {
+   "id": "h011",
+   "archetype": "wide squat dome",
+   "colour": "clay-brown earth berm with galvanised sheet",
+   "why": "A half-buried semicircular berm is a low dome, and the leaning derrick is a small spike on top of it. Earth brown differs from plum."
+  },
+  {
+   "id": "h07H",
+   "archetype": "stacked crates or terraces",
+   "colour": "pale limestone kerb slabs",
+   "why": "A monolith made of stacked kerb slabs reads as terraces, with a silver spiral inlay. Pale stone is the lightest body in the race."
+  },
+  {
+   "id": "h07O",
+   "archetype": "pierced arch or gate",
+   "colour": "charred charcoal-black timber",
+   "why": "The exposed rib beams and the one standing wall form openings you can see through. Black char sits beside pale limestone."
+  },
+  {
+   "id": "h03D",
+   "archetype": "long low shed",
+   "colour": "ochre canvas with silver balcony",
+   "why": "Keeps the Hunter's Hall shed and grows it with a continuous upper gallery on silver crescents. Ochre canvas follows the chain, and it is next to black char, not ochre."
+  },
+  {
+   "id": "h07N",
+   "archetype": "pierced arch or gate",
+   "colour": "burnt brick red",
+   "why": "Chain top of the Pillaged Hut: a single standing gable with a crescent-shaped hole that you can see through is a bigger pierced arch. Brick red separates it from the charcoal hut and the ochre hall."
+  },
+  {
+   "id": "h08P",
+   "archetype": "round silo or drum",
+   "colour": "pale silvered birch wood with clear glass jars",
+   "why": "A round bank of stumps and full condenser jars forms a drum of glass, and the filled jars show the stacks. Pale birch is a different hue from brick red."
+  },
+  {
+   "id": "h07I",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "oil-black iron with ice-blue glass",
+   "why": "The cracked derrick bit and its two or three shards make a jagged crown of peaks. Oil black differs from pale birch, and the amethyst lens sits in its crown."
+  }
+ ]
+}

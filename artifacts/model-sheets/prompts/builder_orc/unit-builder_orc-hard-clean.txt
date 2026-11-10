@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Orc Orc Builder (id builder_orc) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a hulking hunched orc with a bare soot-dark chest, a thick rust-banded hide yoke and hide belt, a stitched leather cap, two big upward tusks, two small ember eye points, tribal-rust bands on both arms, and two thick bowed legs with bare feet. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the hunched orc with arms held slightly away from the body, empty open mitts, the yoke, belt, cap, tusks and ember eye points, the rust arm bands and the two bowed bare-footed legs.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the forward hunch with the head thrust ahead of the shoulders, the tusk and cap in profile, the arms angled slightly out with empty mitts, the bare hip and the bowed legs with bare feet.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the broad soot-dark hunched back crossed by the yoke, the cap, the rust arm bands, the belt, bare back with nothing carried, and the two bowed legs with bare heels.
+
+Panel 4, bottom left: top-down view from directly above: the cap on the hunched head, the wide yoke-covered shoulders, both arms angled slightly out, and the two feet.
+
+Panel 5, bottom right: bottom-up view from directly below: the underside of the jaw with the two tusks, the belly under the belt, the arms angled out and the two bare flat soles of the feet.
+
+Neutral static standing A-pose on two thick bowed legs with a forward hunch, arms angled slightly away from the body with empty open hands, the same pose in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The head is a blocky wedge with a flat brow plane, a square jaw and two prism tusks; the cap is a flat-topped hexagonal cap; the chest is a broad trapezoid slab, the shoulders flat-sided blocks, the arms and the thick bowed legs hexagonal prisms, the feet flat wedge blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (head and cap, hunched torso, two arms, two bowed legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the axe-shovel with its hide banner scrap, the ember bucket on its strap) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: soot black (#1A1716) on the large masses, tribal rust (#7E3420) on the smaller masses, one warm accent (tribal ember #FF5E12) somewhere on the body, one flat tone per facet. Face: a heavy brow under the stitched leather cap, a blunt jaw, two big tusks and two small ember eye points.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

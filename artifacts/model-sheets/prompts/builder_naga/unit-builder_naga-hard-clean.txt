@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Naga Naga Builder (id builder_naga) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a hunched fish-man with a wide flat lipless mouth and two big round turquoise side-set eyes, an abyssal-pitch black waxed slicker, a broad verdigris-bronze fin on each forearm, and two bent legs with wide webbed feet. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the bare fish head with the wide flat mouth and two turquoise side eyes, the black slicker, both arms hanging slightly away from the body in an A-pose with the forearm fins and empty hands, two bent legs with wide webbed feet.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the forward hunch, the bare fish head thrust forward, the forearm fin on the empty arm, two bent legs with wide webbed feet pointing forward.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bare rounded back of the black slicker, the bare back of the head, both forearm fins and both bent legs with wide webbed feet.
+
+Panel 4, bottom left: top-down view from directly above: the bare head, the hunched black shoulders with a bare back, the two arms with fins angled slightly out, the two wide webbed feet at the front and rear.
+
+Panel 5, bottom right: bottom-up view from directly below: the underside of the hunched black slicker, the two wide webbed foot soles, the two forearm fins.
+
+Neutral static A-pose, hunched forward on two bent legs with the wide webbed feet planted level and ready to walk, both arms hanging slightly out from the body with empty open hands, forearm fins at the same angle in every view, no expression. Squared-on orthographic projection, no perspective, no foreshortening.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The fish head is a blunt wedge with a flat wide mouth slab and two flat octagonal eyes, the slicker is a hunched block of a few large planes, the forearm fins are flat triangular slabs, the feet are flat wide wedges. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (fish head, hunched slicker torso, two arms with fins, two bent legs with webbed feet) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (dive helmet, siphon-hook pole, rope net) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: abyssal pitch black on the large masses, verdigris bronze on the smaller masses, one warm accent (valve turquoise) somewhere on the body, one flat tone per facet. Face: a fish face — a wide flat lipless mouth and two big round turquoise side-set eyes, no nose, no brow, no expression.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

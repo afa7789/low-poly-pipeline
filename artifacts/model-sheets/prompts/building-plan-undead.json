@@ -1,0 +1,101 @@
+{
+ "motif": "Ecto-Verde glowing exhaust grille: every building has at least one slit vent or grille that glows green and breathes a vapor plume. Riveted bone-white rib trim runs along the roofline.",
+ "buildings": [
+  {
+   "id": "h01Q",
+   "archetype": "tall tower",
+   "colour": "soot-black brick",
+   "why": "Tallest in the race: four chimneys on a scaffolded nave. Dark body, green grilles."
+  },
+  {
+   "id": "h01N",
+   "archetype": "stacked crates or terraces",
+   "colour": "cold slate-grey stone",
+   "why": "Stepped stone crypt with a black canvas awning. The Graveyard upgrade grows it into rows of terraced headstones."
+  },
+  {
+   "id": "h00A",
+   "archetype": "sunken pit with a rim",
+   "colour": "rust-red clay",
+   "why": "A slot cut into the clay with a rim, a swing-crane and an iron hatch. Reads as a hole, with ecto rising from the bottom."
+  },
+  {
+   "id": "h03M",
+   "archetype": "tilted leaning mass",
+   "colour": "faded straw-yellow weathered timber",
+   "why": "The collapsed silo's lean is the 32px read. It keeps the Cart chain's leaning archetype, braced with timber."
+  },
+  {
+   "id": "h01S",
+   "archetype": "pierced arch or gate",
+   "colour": "bone white",
+   "why": "Ribs become dock arches with a gantry crane and a hanging vertebra. The gate-like openings are the second-biggest read in the race."
+  },
+  {
+   "id": "h054",
+   "archetype": "stacked crates or terraces",
+   "colour": "pale slate-grey stone with numbered metal tags",
+   "why": "The Crypt chain grows into tiered rows of file-drawer headstones. The chapel office sits on top."
+  },
+  {
+   "id": "h01L",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "black iron with resin seep",
+   "why": "The extraction tower holds the elevator cage out askew on a stalk. Constant vapor at the mouth."
+  },
+  {
+   "id": "h055",
+   "archetype": "ring or hollow crown",
+   "colour": "pale grey stone with ecto-green glass",
+   "why": "A crown of vent stacks around a master chimney with two side towers. The upgrade changes contour, not scale. Chain archetype is the hollow crown."
+  },
+  {
+   "id": "h01R",
+   "archetype": "tilted leaning mass",
+   "colour": "straw-yellow wood and rotten hay",
+   "why": "A limping cart with an overflowing cage tilts to one side. This starts the leaning chain that continues to Farm and Granary."
+  },
+  {
+   "id": "h01P",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "blue-grey steel frame",
+   "why": "Skulls stacked like cannonballs form a pyramid on a steel frame, with a hook crane on top."
+  },
+  {
+   "id": "h056",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "brass and amber resin",
+   "why": "The furnace grows the pyramid with a ramp and a riveted jig. Brass and amber distinguish it from the Pile next to it."
+  },
+  {
+   "id": "h01T",
+   "archetype": "long low shed",
+   "colour": "blood-red painted brick",
+   "why": "The industrial butcher is a long shed with a hook rail through the facade, a low chimney and a resin vat."
+  },
+  {
+   "id": "h04Z",
+   "archetype": "tilted leaning mass",
+   "colour": "dull straw-yellow thatch over grey timber",
+   "why": "A rural house with a dumped thatch roof sags to one side. It keeps the Cart chain's lean, and the scarecrow post adds a vertical accent."
+  },
+  {
+   "id": "h01K",
+   "archetype": "ring or hollow crown",
+   "colour": "bone white",
+   "why": "A chapel whose exposed bone framing forms a ribbed open crown. Skull drawers line the walls."
+  },
+  {
+   "id": "h04B",
+   "archetype": "ring or hollow crown",
+   "colour": "grey stone with bone-pale mortar",
+   "why": "A low two-body hall with curved exhaust pipes at the sides forms an open crown. Stays low and bipartite per UND-07."
+  },
+  {
+   "id": "h01O",
+   "archetype": "round silo or drum",
+   "colour": "kiln-orange brick with an iron spiral stair",
+   "why": "A vertical brick furnace drum with a horizontal throw mouth, not a needle chimney."
+  }
+ ]
+}

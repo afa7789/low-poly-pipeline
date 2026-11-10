@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nightelf Night Elf Builder (id builder_nightelf) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a slim tall hooded elf with the hood up, the face in shadow with two small amethyst eye points and two long pointed ears at the hood sides, a short vesper-purple cloak with oxidised-silver trim, soft wrapped boots on two long legs. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the slim hooded elf in an A-pose, arms angled slightly out from the body with empty open hands, two long legs, the face in shadow with two amethyst eye points, the pointed ears at the hood sides.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the hood peak and one pointed ear, the short cloak hanging behind, the arm angled slightly out and empty, both legs standing together.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the hood back, the short silver-trimmed cloak over the bare back, both arms angled out and empty, both legs and soft boots visible.
+
+Panel 4, bottom left: top-down view from directly above: the hood peak, the two shoulders under the cloak, both arms angled out and empty, the two boots at the bottom edge.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the cloak hem, the two soft boot soles, the underside of the hood, both hands empty.
+
+Neutral static A-pose, standing level on two legs, arms slightly away from the body, hands empty, the same in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The hood is a faceted pyramid-like prism with a flat front opening, the cloak a few flat angled panels, the boots wedge blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (hood head, cloak torso, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the moon-wrench pole, the unlit lantern, the blueprint satchel with its chest strap) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: vesper purple (#3B3550) on the large masses, oxidised silver (#8B939B) on the smaller masses, one warm accent (#B14DE6, amethyst) somewhere on the body, one flat tone per facet. Face: hood up with the face in shadow, only two small amethyst eye points and two long pointed ears at the hood sides, no mouth, no other features.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

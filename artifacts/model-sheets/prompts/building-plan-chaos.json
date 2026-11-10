@@ -1,0 +1,95 @@
+{
+ "motif": "A Sangue-Vivo red stripe: a single glowing red valve-cross/gauge slit set on a Preto-Fuligem soot-black trim band with riveted iron edges, repeated on every roof or crown. Pipes and a short stack appear on each building.",
+ "buildings": [
+  {
+   "id": "h01C",
+   "archetype": "long low shed",
+   "colour": "oxidised verdigris-green brass",
+   "why": "Low cast-iron counter slab, a desk with a needle. The valve-cross is the only vertical."
+  },
+  {
+   "id": "h01D",
+   "archetype": "wide squat dome",
+   "colour": "gunmetal blue-grey riveted iron",
+   "why": "Riveted dome shell over arches with a stack-cross, a wide block with a needle."
+  },
+  {
+   "id": "h007",
+   "archetype": "sunken pit with a rim",
+   "colour": "charred black with an ember-orange slit",
+   "why": "Half-buried furnace arch with its throat pointing up like a tar crater, a black half-moon."
+  },
+  {
+   "id": "h009",
+   "archetype": "round silo or drum",
+   "colour": "burnished copper",
+   "why": "Horizontal pressure cylinder on skids with one axial stack. The dirty-glass egg hatch is the only transparency."
+  },
+  {
+   "id": "h01M",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "pale limestone grey",
+   "why": "Squat square press block with a stub stack. It is stepped so it reads as a solid block and stays incompatible with L2 and L3. The card demands a different contour per level, so the Eraser levels each get their own archetype instead of one chain archetype."
+  },
+  {
+   "id": "h01W",
+   "archetype": "pierced arch or gate",
+   "colour": "oxblood red painted panels",
+   "why": "Two upright columns with a spanning beam, a hole in the middle, clearly different from the L1 square."
+  },
+  {
+   "id": "h01X",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "bone-white",
+   "why": "Three press heads on a crown ring with a tall thin central mast, the tallest and thinnest of the three levels."
+  },
+  {
+   "id": "h025",
+   "archetype": "tall tower",
+   "colour": "rust-orange iron lattice",
+   "why": "Derrick with a wheel crown over an open blood-oil basin. It is the tallest in the race and a landmark."
+  },
+  {
+   "id": "h03G",
+   "archetype": "wide squat dome",
+   "colour": "gunmetal blue-grey with a red standard",
+   "why": "The Citadel chain keeps its dome archetype and grows a second dome, a mast and a balcony, so it reads as an upgrade at distance. It borders h025 and h026, which are other colours."
+  },
+  {
+   "id": "h026",
+   "archetype": "bridge-like span on legs",
+   "colour": "mustard-yellow painted panels",
+   "why": "The gantry crane over a double crate is a span on legs. I am treating this as the card-given growth of the Lesser Cage chain, which starts as stacked crates, so the chain archetype is not strictly kept here."
+  },
+  {
+   "id": "h01I",
+   "archetype": "stacked crates or terraces",
+   "colour": "brick-red rail-yard paint",
+   "why": "Riveted freight crate with slats and a hook, a block with crossbars. It is the chain base, so the later cage buildings grow from it."
+  },
+  {
+   "id": "h05I",
+   "archetype": "tilted leaning mass",
+   "colour": "ash-pale plaster and bare pipe",
+   "why": "Diagonally broken refinery with exposed pipes and a governor stack on top."
+  },
+  {
+   "id": "h06O",
+   "archetype": "stacked crates or terraces",
+   "colour": "sage-green painted walls",
+   "why": "The garden house, wall and testing yard are laid out in orthogonal terraces, which matches the cage chain it upgrades. The green keeps it apart from the neighbouring ash ruin and the ice-blue shrine."
+  },
+  {
+   "id": "h01E",
+   "archetype": "ring or hollow crown",
+   "colour": "ice-blue enamel",
+   "why": "The giant dial is a ring over a slab, with a hammer hanging in the portal and a needle."
+  },
+  {
+   "id": "h01F",
+   "archetype": "spread-winged low star",
+   "colour": "black basalt with iron bands",
+   "why": "A cone with relief pipes splaying out radially at the base like wings. It reads as a cone in a cage and differs from the ice-blue shrine next to it."
+  }
+ ]
+}

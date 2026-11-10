@@ -1,0 +1,47 @@
+[
+  {
+    "name": "goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.148,
+      0.222
+    ]
+  },
+  {
+    "name": "wick_lamp",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.161,
+      0.242
+    ]
+  },
+  {
+    "name": "mattock_pick",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.579,
+      0.868
+    ]
+  },
+  {
+    "name": "clay_jar",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.184,
+      0.275
+    ]
+  }
+]

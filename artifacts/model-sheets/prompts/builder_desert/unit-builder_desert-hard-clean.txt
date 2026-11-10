@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Desert Desert Builder (id builder_desert) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a short hunched kobold with a big snout-head, two round goggles, a leather helmet band, dead-palm brown rags and canvas, two short bent legs with big bare clawed feet. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the hunched kobold with a bare rat-like snout, two round goggles, the bare leather helmet band, both arms hanging slightly out in an A-pose with empty hands, two short bent legs and big clawed feet.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the hunched back, the bare snout pointing ahead, the empty arms angled slightly away from the body, the two bent legs and clawed feet.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the dead-palm rag cloak over the hunched back, the bare helmet band, empty arms in the A-pose, the bare belt, two bent legs and clawed feet.
+
+Panel 4, bottom left: top-down view from directly above: the bare helmet, the hunched shoulders, both empty arms angled out, the snout and big clawed feet poking out in front.
+
+Panel 5, bottom right: bottom-up view from directly below: the underside of the hunched body, the two bent legs with the flat undersides of the big bare clawed feet, the empty arms angled out.
+
+Neutral static pose, standing hunched forward on two short bent legs, feet flat on the ground, arms angled slightly out from the torso in an A-pose with open empty hands, the same in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The head is a faceted wedge block with a boxy snout, the hunched torso a tilted prism, the arms and bent legs square prisms, the clawed feet flat wedge slabs with three blunt claw blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (head, hunched torso, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (turban-mask, wick lamp, mattock, oil jar) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: baked sand (#C2B280) on the large masses, dead palm brown (#6F5C42) on the smaller masses, one warm accent (well flame orange, #FF9218) somewhere on the body, one flat tone per facet. Face: bare rat-like kobold snout, two round goggles, a plain leather helmet band with no lamp.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

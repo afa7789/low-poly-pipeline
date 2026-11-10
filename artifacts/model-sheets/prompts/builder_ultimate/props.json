@@ -1,0 +1,37 @@
+[
+  {
+    "name": "toolbelt",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.181,
+      0.272
+    ]
+  },
+  {
+    "name": "iron staff",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.815,
+      1.223
+    ]
+  },
+  {
+    "name": "lantern cage with brass gauge",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.188,
+      0.282
+    ]
+  }
+]

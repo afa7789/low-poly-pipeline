@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 """L17-3: the eye stage's flat-colour pieces painted by hand, procedurally (PIPELINE 35.L17-3).
 
-    blender -b -P tools/blender/eye_paint.py -- <in.glb> <out.glb>        # + <out dir>/atlas.png (RGBA, alpha = the texels the model samples)
-    eye_paint.apply(glb)                                                  # python side: --eye-paint on, in place, before outline.apply
+    blender -b -P tools/blender/eye_paint.py -- <in.glb> <out.glb> [grow|box] [on|off] [islands|palette] [64|128|256|auto]
+                                                                          # + <out dir>/atlas.png (RGBA, alpha = the texels the model samples)
+    eye_paint.apply(glb, charts, ink=False, atlas="islands", size="128")  # python side: --eye-paint on, in place, before outline.apply
     python3.14 tools/blender/eye_paint.py run --id n005 --from v16-r3 --tag v17-paint-hull [--outline hull|ink|both]
     python3.14 tools/blender/eye_paint.py stats <run dir>...              # hive_sheet.texture_stats of each run's atlas.png
     python3.14 tools/blender/eye_paint.py sheet <unit>                    # history/2026-10-30-l17-paint/<unit>.png
 
 Works on the final GLB (one mesh, a primitive per material; a united mesh from L17-2 is the same shape): the triangles are grown into
 islands (neighbours across a smooth edge, normal within 60 degrees of the seed, so a planar projection cannot fold), each island is flattened
-on its seed's plane and the islands are shelf-packed into ONE 256 px atlas. Every texel is a point of the surface, so the painting is a
-function of position and has no seam: material colour x a vertical gradient (+-.05) x low-frequency brush noise x the light baked at +-.06 x
-ambient occlusion (BVH rays, in Blender). The result is quantised to 12 colours (k-means) so it reads as paint, then the ink line is
-drawn: the edges with a dihedral over 40 degrees and the borders between materials, 1-2 texels wide, in the material colour x .35 (not black).
-No model, no image from anywhere: noise, gradients and strokes only.
+on its seed's plane and the islands are shelf-packed into ONE square atlas (--eye-atlas-size: 64, 128 (default), 256 px, or auto = the
+smallest multiple of 16 that holds the islands at AUTO_DENSITY texels over the model's height). Every texel is a point of the surface, so
+the painting is a function of position and has no seam: the material colour x its ambient occlusion (BVH rays, in Blender) quantised to
+AO_STEPS (light / mid / dark), so the atlas holds at most materials x 3 tones (author 2026-11-09: the 570 colours of the soft occlusion
+became 36). With --eye-ink on the ink line is drawn: the edges with a dihedral over 40 degrees and the borders between materials, 1-2 texels
+wide, in the material colour x .35 (not black). No model, no image from anywhere. The PNG is indexed (PLTE, 4 or 8 bits a texel) when
+the atlas has at most 256 colours; eye_atlas.py then shares the flat islands and repacks the rest into the smallest atlas.
+
+Author 2026-11-09: no lines between the pieces (--eye-ink off, the default: no ink texels, no edge highlight). --eye-atlas palette is the
+swatch atlas: every triangle takes its piece's colour x its occlusion in 3 steps, at most materials x 3 swatches of 8 px cells in a 64 px
+PNG (the Bob-omb practice: flat swatches, nothing drawn), the three UVs of a triangle at the centre of its cell, the glTF sampler NEAREST.
+--eye-atlas islands (the default again, the author wants texel paint) keeps the texel atlas above.
 """
 import json
 import pathlib
@@ -27,22 +35,31 @@ import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-SIZE = 256                  # the atlas, px (the WC3 median: 256 px textures)
+SIZE = 128                  # the atlas, px, --eye-atlas-size (author 2026-11-09: 256 was the WC3 median and 20-27 KB a unit)
+SIZES = ("64", "128", "256", "auto")
+AUTO_DENSITY = 128          # auto: texels over the model's height (1 texel = 1/128 of the height), the atlas the smallest multiple of 16 that fits
+AUTO_SIZES = range(32, 1025, 16)
 PAD = 0                     # texels around every island (the rectangle has one texel of slack: islands never touch)
 SHARP = np.cos(np.radians(40))      # dihedral over 40 degrees = a drawn edge
 GROW = np.cos(np.radians(60))       # an island's normals stay within 60 degrees of its seed
 INK_D = 0.75                # a texel centre within this of an edge is ink (a 1-2 texel line)
-INK_MIN = 12                # an edge shorter than this many texels is not drawn: it would be all ink
+INK_MIN = 12 / 256          # an edge shorter than this share of the atlas side (12 texels at 256) is not drawn: it would be all ink
 EDGE_LIGHT = 1.25           # the texel row inside the line: the material colour x 1.6, the hand-painted edge highlight
 INK_DARK = 0.35             # ink = material colour x .35
-COLOURS = 12                # the hand-painted palette of a model
+COLOURS = 12                # the hand-painted palette of a model (eye_fuse's ceiling): the atlas holds at most COLOURS x len(AO_STEPS) tones
 CHARTS = ("grow", "box")    # L18-3: grow = islands grown over smooth edges (L17-3, ~300 on a model of pieces); box = one chart per welded component and
                             # axis direction of the normal (6 at most per component: the united mesh of L18-2 gets a few large islands)
 AXES = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], float)
-GRADIENT, BRUSH, LIGHT_GAIN, AO_GAIN = 0.16, 0.08, 0.18, 0.55   # +-.08 over the height, +-.06 noise, +-.09 light, up to -55 % in a crevice
+ATLASES = ("islands", "palette")    # islands = the texel atlas above; palette = one 8 px swatch per (piece colour, occlusion step), author 2026-11-09
+CELL, PALETTE_SIZE = 8, 64          # the swatch cell and the smallest palette atlas (64 px = 64 swatches; grows by whole cells when a model needs more)
+AO_STEPS = ((0.3, 1.0), (0.65, 0.8), (1.01, 0.6))   # (occlusion below, colour multiplier): light, mid, dark (a united body is bimodal: open faces
+                                                    # near 0, buried faces near 1; the band between is the crevices, cut in the middle)
+AO_CAP = {"face": 0, "head": 1}     # author 2026-11-09 (dark blotches on the gnoll's face): the highest occlusion step of a piece by its DSL role: a face piece
+                                    # (eyes, mask, muzzle) stays light, a head piece reaches mid at most; every other role reaches dark
+DETAIL = 4                  # --eye-atlas-detail on: the bake at DETAIL x the atlas size; eye_atlas then gives every island its own density (the base is 1/DETAIL
+                            # of the bake, an island with an accent detail or a busy pattern keeps up to the bake's) and packs the result
+NEAREST = 9728                      # glTF sampler filter
 LIFT = 20.0                 # 0..255 per unit of the multiplier's departure from 1: light and shadow do not vanish on a dark colour
-LUMA = np.array([0.299, 0.587, 0.114])
-LIGHT = np.array([-0.4, -0.5, 0.77]) / np.linalg.norm([-0.4, -0.5, 0.77])    # up, front (-Y) and left of the model
 
 
 # ---------------------------------------------------------------- islands
@@ -139,32 +156,49 @@ def flatten(pos, tri, nrm, isl, chart_n=None):
     return flat, size
 
 
-def shelf(px):
-    """Origins (K, 2) of the rectangles `px` (K, 2) on shelves of the atlas, tallest first; None when they do not fit."""
+def shelf(px, size=SIZE):
+    """Origins (K, 2) of the rectangles `px` (K, 2) on shelves of a `size` px atlas, tallest first; None when they do not fit."""
     org, x, y, row = np.zeros_like(px), 0, 0, 0
     for i in np.argsort(-px[:, 1], kind="stable"):
         w, h = px[i]
-        if x + w > SIZE:
+        if x + w > size:
             x, y, row = 0, y + row, 0
-        if y + h > SIZE or w > SIZE:
+        if y + h > size or w > size:
             return None
         org[i] = (x, y)
         x, row = x + w, max(row, h)
     return org
 
 
-def fit(size):
-    """(scale texels per unit, origins): the largest scale whose islands, each with PAD texels around, shelf-pack into the atlas."""
-    lo, hi, best = 0.0, SIZE / max(size.max(), 1e-9), None
+def rects(size, scale):
+    """(K, 2) texel rectangles of the islands `size` (K, 2) world units at `scale` texels a unit, PAD around and one texel of slack."""
+    return np.ceil(size * scale).astype(int) + 1 + 2 * PAD
+
+
+def fit(size, atlas=SIZE):
+    """(scale texels per unit, origins): the largest scale whose islands, each with PAD texels around, shelf-pack into an `atlas` px atlas."""
+    lo, hi, best = 0.0, atlas / max(size.max(), 1e-9), None
     for _ in range(24):
         mid = (lo + hi) / 2
-        org = shelf(np.ceil(size * mid).astype(int) + 1 + 2 * PAD)
+        org = shelf(rects(size, mid), atlas)
         lo, hi, best = (mid, hi, (mid, org)) if org is not None else (lo, mid, best)
     return best
 
 
-def unwrap(pos, tri, mat, charts="grow"):
-    """(uv (T, 3, 2) in 0..1 with v up, tri2, sharp, nrm, island id (T,), scale): the islands of the mesh packed in one atlas."""
+def fit_auto(size, height):
+    """(scale, origins, atlas px): AUTO_DENSITY texels over the model's height, the smallest atlas of AUTO_SIZES that packs the islands at that
+    scale (the largest one, at the scale that fits it, when none does)."""
+    scale = AUTO_DENSITY / max(height, 1e-9)
+    for atlas in AUTO_SIZES:
+        org = shelf(rects(size, scale), atlas)
+        if org is not None:
+            return scale, org, atlas
+    return (*fit(size, AUTO_SIZES[-1]), AUTO_SIZES[-1])
+
+
+def unwrap(pos, tri, mat, charts="grow", size=SIZE):
+    """(uv (T, 3, 2) in 0..1 with v up, tri2, sharp, nrm, island id (T,), scale, atlas px): the islands of the mesh packed in one atlas of
+    `size` px (None: auto, see fit_auto)."""
     nrm = normals(pos, tri)[0]
     tri2, slot = shared_edges(weld(pos)[tri])
     sharp = sharp_edges(tri2, nrm, mat)
@@ -172,19 +206,19 @@ def unwrap(pos, tri, mat, charts="grow"):
         isl, chart_n = islands_box(tri2, nrm)
     else:
         isl, chart_n = islands(tri2, sharp, nrm), None
-    flat, size = flatten(pos, tri, nrm, isl, chart_n)
-    scale, org = fit(size)
-    px = (org[isl][:, None, :] + PAD + flat * scale) / SIZE
-    return px, (tri2, slot), sharp, nrm, isl, scale
+    flat, extent = flatten(pos, tri, nrm, isl, chart_n)
+    scale, org, size = fit_auto(extent, np.ptp(pos[:, 2])) if size is None else (*fit(extent, size), size)
+    px = (org[isl][:, None, :] + PAD + flat * scale) / size
+    return px, (tri2, slot), sharp, nrm, isl, scale, size
 
 
 # ---------------------------------------------------------------- texels
-def rasterize(uv, pos, tri, nrm):
-    """(mask (S, S), P (S, S, 3), N (S, S, 3), T (S, S)): the surface point of every texel the UV triangles cover; a triangle too small to
-    cover a texel centre takes the texel of its centroid."""
-    mask, P, N, T = np.zeros((SIZE, SIZE), bool), np.zeros((SIZE, SIZE, 3)), np.zeros((SIZE, SIZE, 3)), np.full((SIZE, SIZE), -1)
+def rasterize(uv, pos, tri, nrm, size=SIZE):
+    """(mask (S, S), P (S, S, 3), N (S, S, 3), T (S, S)): the surface point of every texel of a `size` px atlas the UV triangles cover; a
+    triangle too small to cover a texel centre takes the texel of its centroid."""
+    mask, P, N, T = np.zeros((size, size), bool), np.zeros((size, size, 3)), np.zeros((size, size, 3)), np.full((size, size), -1)
     for t in range(len(tri)):
-        q = uv[t] * SIZE
+        q = uv[t] * size
         lo, hi = np.floor(q.min(0)).astype(int), np.ceil(q.max(0)).astype(int)
         ys, xs = np.mgrid[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1]
         w = bary(q, xs + 0.5, ys + 0.5)
@@ -192,7 +226,7 @@ def rasterize(uv, pos, tri, nrm):
         if not ok.any():
             xs, ys, ok, w = np.array([[int(q[:, 0].mean())]]), np.array([[int(q[:, 1].mean())]]), np.ones((1, 1), bool), np.full((3, 1, 1), 1 / 3)
         x, y = xs[ok], ys[ok]
-        keep = (x >= 0) & (x < SIZE) & (y >= 0) & (y < SIZE)
+        keep = (x >= 0) & (x < size) & (y >= 0) & (y < size)
         x, y = x[keep], y[keep]
         mask[y, x], T[y, x], N[y, x] = True, t, nrm[t]
         P[y, x] = (w[:, ok][:, keep].T[:, :, None] * pos[tri[t]][None]).sum(1)
@@ -207,39 +241,6 @@ def bary(q, px, py):
     w1 = ((px - q[0, 0]) * (q[2, 1] - q[0, 1]) - (py - q[0, 1]) * (q[2, 0] - q[0, 0])) / d
     w2 = ((q[1, 0] - q[0, 0]) * (py - q[0, 1]) - (q[1, 1] - q[0, 1]) * (px - q[0, 0])) / d
     return np.stack([1 - w1 - w2, w1, w2])
-
-
-def lattice(ix, iy, iz):
-    """Pseudo random 0..1 at the integer lattice points (the hash of three large primes)."""
-    h = (ix * 73856093 ^ iy * 19349663 ^ iz * 83492791) & 0xFFFF
-    return h / 65535.0
-
-
-def value_noise(p):
-    """(n,) smooth value noise 0..1 at the points p (n, 3)."""
-    i, f = np.floor(p).astype(np.int64), p - np.floor(p)
-    f = f * f * (3 - 2 * f)
-    out = 0.0
-    for dx in (0, 1):
-        for dy in (0, 1):
-            for dz in (0, 1):
-                w = (f[:, 0] if dx else 1 - f[:, 0]) * (f[:, 1] if dy else 1 - f[:, 1]) * (f[:, 2] if dz else 1 - f[:, 2])
-                out = out + w * lattice(i[:, 0] + dx, i[:, 1] + dy, i[:, 2] + dz)
-    return out
-
-
-def brush(p, height):
-    """(n,) -1..1: three octaves of low-frequency noise, the brush's unevenness."""
-    q = p / height
-    return sum(a * (2 * value_noise(q * f) - 1) for a, f in ((0.5, 5.0), (0.3, 11.0), (0.2, 23.0)))
-
-
-def shade(P, N, base, occ, lo, height):
-    """(n, 3) painted colours 0..255 of the surface points P with normals N, material colours `base` (n, 3) and occlusion `occ` (n,) 0..1."""
-    gradient = 1 + GRADIENT * ((P[:, 2] - lo) / height - 0.5)
-    light = 1 + LIGHT_GAIN * (np.clip(N @ LIGHT, 0, 1) - 0.5)
-    mult = (gradient * light * (1 + BRUSH * brush(P, height)) * (1 - AO_GAIN * occ))[:, None]
-    return np.clip(base * mult + LIFT * (mult - 1), 0, 255)      # the lift: a dark paint still has a light and a shadow
 
 
 def kmeans(px, k, iters=10):
@@ -275,12 +276,13 @@ def ink_texels(uv, tri2, slot, sharp, tri_col, inside):
     """(ink (S, S), colour (S, S, 3)): the texels of `inside` within INK_D of a drawn edge, on the first triangle's side (the other face keeps its
     paint: a line on both would be half of a small island), in the colour of the triangle x .35; the row beside it, which is no ink, x 1.6 (the
     edge highlight). The ink mask is the dark line only."""
-    ink, col = np.zeros((SIZE, SIZE), bool), np.zeros((SIZE, SIZE, 3))
+    size = inside.shape[0]
+    ink, col = np.zeros((size, size), bool), np.zeros((size, size, 3))
     for t, s in zip(tri2[sharp][:, 0], slot[sharp][:, 0]):
-        a, b = uv[t, s] * SIZE, uv[t, (s + 1) % 3] * SIZE
-        if np.linalg.norm(b - a) < INK_MIN:
+        a, b = uv[t, s] * size, uv[t, (s + 1) % 3] * size
+        if np.linalg.norm(b - a) < INK_MIN * size:
             continue
-        lo, hi = np.floor(np.minimum(a, b) - 2).astype(int).clip(0, SIZE - 1), np.ceil(np.maximum(a, b) + 2).astype(int).clip(0, SIZE - 1)
+        lo, hi = np.floor(np.minimum(a, b) - 2).astype(int).clip(0, size - 1), np.ceil(np.maximum(a, b) + 2).astype(int).clip(0, size - 1)
         ys, xs = np.mgrid[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1]
         p = np.stack([xs + 0.5, ys + 0.5], axis=-1) - a
         ab = b - a
@@ -303,29 +305,6 @@ def dilate(img, mask, iters=2):
             img[take], grown = src[take], grown | take
         mask = grown
     return img, mask
-
-
-def keep_colour(shaded, base, mid):
-    """`shaded` (n, 3) with every material's texels rescaled (0.7-1.5) so their mean luma is the material's own: the painting moves tones around
-    the colour of the concept and does not darken it."""
-    out = shaded.copy()
-    for m in np.unique(mid):
-        sel = mid == m
-        out[sel] = np.clip(shaded[sel] * np.clip(base[sel][0] @ LUMA / max(shaded[sel].mean(0) @ LUMA, 1e-6), 0.7, 1.5), 0, 255)
-    return out
-
-
-def quantize(px, mid):
-    """px (n, 3) cut to a hand-painted palette: each material gets its own 1-4 tones (k-means in sqrt space, the tone = the mean of its texels),
-    in proportion to its share, so a small accent keeps its colour and does not melt into the big ones. About COLOURS tones in all."""
-    out = px.copy()
-    for m in np.unique(mid):
-        sel = np.flatnonzero(mid == m)
-        k = int(np.clip(round(len(sel) / len(px) * COLOURS * 1.5), 1, min(4, len(sel))))
-        sq = np.sqrt(px[sel] / 255)
-        label = nearest(sq, kmeans(sq, k))
-        out[sel] = np.array([px[sel][label == c].mean(0) if (label == c).any() else 0 for c in range(k)])[label]
-    return out
 
 
 def nearest_piece(P, fields):
@@ -354,22 +333,50 @@ def border_ink(mask, mid, isl_map):
     return out
 
 
-def bake(pos, tri, mat, colours, occlusion=None, charts="grow", fields=None):
+def bake(pos, tri, mat, colours, occlusion=None, charts="grow", fields=None, ink=True, size=SIZE, caps=None):
     """The painted model. pos (V, 3) world positions, tri (T, 3), mat (T,) material index, colours (M, 3) sRGB 0..255 per material, occlusion(P, N) -> (n,)
-    0..1 or None, charts: CHARTS, fields: eye_skin's piece fields (texel material by the nearest piece) or None (by triangle).
+    0..1 or None, charts: CHARTS, fields: eye_skin's piece fields (texel material by the nearest piece) or None (by triangle); ink False = no line
+    and no edge highlight (author 2026-11-09): the flat tones, the occlusion and the accents stay. size: the atlas px, None = auto (fit_auto).
+    Every texel = its material's colour x its occlusion step (AO_STEPS: at most materials x 3 tones, author 2026-11-09); caps (P,) the highest step
+    of every piece of `fields` (AO_CAP by role) or None.
     (uv (T, 3, 2) 0..1 v up, img (S, S, 3) uint8, used (S, S) bool, info with islands and texels per island, median)."""
-    uv, (tri2, slot), sharp, nrm, isl, scale = unwrap(pos, tri, mat, charts)
+    uv, (tri2, slot), sharp, nrm, isl, scale, size = unwrap(pos, tri, mat, charts, size)
     n_isl = int(isl.max()) + 1
-    mask, P, N, T = rasterize(uv, pos, tri, nrm)
+    mask, P, N, T = rasterize(uv, pos, tri, nrm, size)
     base = np.asarray(colours, float)[mat]
-    height = max(pos[:, 2].max() - pos[:, 2].min(), 1e-6)
     occ = occlusion(P[mask], N[mask]) if occlusion else np.zeros(mask.sum())
-    mid = np.full((SIZE, SIZE), -1)
-    mid[mask] = texel_slots(P[mask], fields) if fields else mat[T[mask]]
+    which = nearest_piece(P[mask], fields) if fields else None
+    mid = np.full((size, size), -1)
+    mid[mask] = np.array([f["slot"] for f in fields])[which] if fields else mat[T[mask]]
     tex_base = np.asarray(colours, float)[np.clip(mid, 0, None)]
-    img = np.zeros((SIZE, SIZE, 3))
-    img[mask] = shade(P[mask], N[mask], tex_base[mask], occ, pos[:, 2].min(), height)
-    img[mask] = quantize(keep_colour(img[mask], tex_base[mask], mid[mask]), mid[mask])
+    step = ao_step(occ)
+    if fields and caps is not None:
+        step = np.minimum(step, np.asarray(caps)[which])
+    img = np.zeros((size, size, 3))
+    img[mask] = swatch_colour(tex_base[mask], step)
+    lines = ink_lines(img, uv, pos, tri, mat, base, tex_base, mask, mid, isl, T, tri2, slot, sharp, nrm, fields) if ink else np.zeros((size, size), bool)
+    img, used = dilate(img, mask, 1)
+    img[~used] = img[used].mean(0)
+    per_island = np.bincount(isl[T[mask]], minlength=n_isl)
+    claimed = np.zeros((size, size), int)
+    for q in uv * size:                                     # texels two triangles both cover: the leak of an overlapping chart (0 by construction)
+        lo, hi = np.floor(q.min(0)).astype(int).clip(0, size - 1), np.ceil(q.max(0)).astype(int).clip(0, size - 1)
+        ys, xs = np.mgrid[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1]
+        w = bary(q, xs + 0.5, ys + 0.5)
+        if w is not None:
+            inside = (w > 1e-6).all(0)
+            claimed[ys[inside], xs[inside]] += 1
+    info = {"islands": int(n_isl), "scale": round(float(scale), 2), "size": int(size), "texels_per_height": round(float(scale * np.ptp(pos[:, 2])), 1),
+            "ink": round(float(lines.sum() / mask.sum()), 3), "charts": charts, "atlas": "islands", "tris": int(len(tri)), "texels": int(mask.sum()),
+            "coverage": round(float(mask.mean()), 3), "colours": int(len(np.unique(np.clip(img, 0, 255).astype(np.uint8).reshape(-1, 3), axis=0))),
+            "texels_per_island_median": float(np.median(per_island)), "texels_per_island_min": int(per_island.min()),
+            "islands_micro": int((per_island <= 4).sum()), "overlap_texels": int((claimed > 1).sum())}
+    return uv, np.clip(img, 0, 255).astype(np.uint8), mask, info
+
+
+def ink_lines(img, uv, pos, tri, mat, base, tex_base, mask, mid, isl, T, tri2, slot, sharp, nrm, fields):
+    """The ink of L17-3 drawn into `img` in place: the lines along the drawn edges (and the edge highlight beside them), plus the material
+    border per texel on a united mesh. The mask of the dark line."""
     edges = drawn_edges(pos, tri, tri2, slot, sharp, nrm, mat)
     if fields:
         edges &= mat[tri2[:, 0]] == mat[tri2[:, 1]]          # the material border is drawn per texel below, not along the triangles
@@ -377,40 +384,133 @@ def bake(pos, tri, mat, colours, occlusion=None, charts="grow", fields=None):
     touched = painted.any(axis=-1)
     img[touched] = painted[touched]
     if fields:
-        isl_map = np.full((SIZE, SIZE), -1)
+        isl_map = np.full(mask.shape, -1)
         isl_map[mask] = isl[T[mask]]
         line = border_ink(mask, mid, isl_map)
         img[line] = tex_base[line] * INK_DARK
         ink |= line
-    img, used = dilate(img, mask, 1)
-    img[~used] = img[used].mean(0)
-    per_island = np.bincount(isl[T[mask]], minlength=n_isl)
-    claimed = np.zeros((SIZE, SIZE), int)
-    for q in uv * SIZE:                                     # texels two triangles both cover: the leak of an overlapping chart (0 by construction)
-        lo, hi = np.floor(q.min(0)).astype(int).clip(0, SIZE - 1), np.ceil(q.max(0)).astype(int).clip(0, SIZE - 1)
-        ys, xs = np.mgrid[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1]
-        w = bary(q, xs + 0.5, ys + 0.5)
-        if w is not None:
-            inside = (w > 1e-6).all(0)
-            claimed[ys[inside], xs[inside]] += 1
-    info = {"islands": int(n_isl), "scale": round(float(scale), 2), "ink": round(float(ink.sum() / mask.sum()), 3), "charts": charts,
-            "tris": int(len(tri)), "texels": int(mask.sum()), "texels_per_island_median": float(np.median(per_island)), "texels_per_island_min": int(per_island.min()),
-            "overlap_texels": int((claimed > 1).sum())}
-    return uv, np.clip(img, 0, 255).astype(np.uint8), mask, info
+    return ink
+
+
+# ---------------------------------------------------------------- palette atlas (author 2026-11-09)
+def triangle_occlusion(pos, tri, nrm, occlusion):
+    """(T,) mean occlusion 0..1 of every triangle: four surface points (the centroid and the midpoints between it and the corners), or 0 without `occlusion`."""
+    if occlusion is None:
+        return np.zeros(len(tri))
+    corners = pos[tri]                                  # (T, 3, 3)
+    centre = corners.mean(1)
+    pts = np.concatenate([centre, *((centre + corners[:, k]) / 2 for k in range(3))])
+    occ = occlusion(pts, np.tile(nrm, (4, 1)))
+    return occ.reshape(4, -1).mean(0)
+
+
+def ao_step(occ):
+    """(n,) 0 light, 1 mid, 2 dark: the occlusion quantised to AO_STEPS."""
+    return np.searchsorted([t for t, _ in AO_STEPS[:-1]], occ, side="right")
+
+
+def swatch_colour(base, step):
+    """(n, 3) the piece colour `base` under the occlusion step, LIFT keeping a shadow on dark paint."""
+    mult = np.array([m for _, m in AO_STEPS])[step][:, None]
+    return np.clip(base * mult + LIFT * (mult - 1), 0, 255)
+
+
+def bake_palette(pos, tri, mat, colours, occlusion=None, fields=None):
+    """The swatch atlas: every triangle = one cell of its (piece colour, occlusion step), the three UVs at the cell's centre, no texel of the surface.
+    fields: the triangle's piece by its centroid's nearest field (a united mesh), else its material. Same return as bake: uv (T, 3, 2) v up,
+    img (S, S, 3) uint8, used (S, S) bool, info."""
+    nrm = normals(pos, tri)[0]
+    centroid = pos[tri].mean(1)
+    slot = texel_slots(centroid, fields) if fields else mat
+    step = ao_step(triangle_occlusion(pos, tri, nrm, occlusion))
+    key, idx = np.unique(slot * 3 + step, return_inverse=True)
+    idx = idx.reshape(-1)
+    cols = max(PALETTE_SIZE // CELL, int(np.ceil(np.sqrt(len(key)))))
+    size = cols * CELL
+    tones = swatch_colour(np.asarray(colours, float)[key // 3], key % 3)
+    img, used = np.zeros((size, size, 3)), np.zeros((size, size), bool)
+    img[:] = tones.mean(0)                              # the empty cells: not black
+    for k, tone in enumerate(tones):
+        x, y = (k % cols) * CELL, (k // cols) * CELL
+        img[y:y + CELL, x:x + CELL], used[y:y + CELL, x:x + CELL] = tone, True
+    centre = (np.stack([idx % cols, idx // cols], axis=1) * CELL + CELL / 2) / size     # the cell's centre: 4 texels from any border
+    uv = np.repeat(centre[:, None, :], 3, axis=1)
+    info = {"atlas": "palette", "swatches": int(len(key)), "size": int(size), "materials": int(len(np.unique(slot))), "tris": int(len(tri)),
+            "steps": np.bincount(step, minlength=3).tolist(), "ink": 0.0, "fields": fields is not None}
+    return uv, np.clip(img, 0, 255).astype(np.uint8), used, info
+
+
+def read_glb(path):
+    """(json, bin) of a .glb (hive_sheet.read_glb, here without its imports: this runs inside Blender too)."""
+    d = pathlib.Path(path).read_bytes()
+    n = struct.unpack_from("<I", d, 12)[0]
+    m = struct.unpack_from("<I", d, 20 + n)[0]
+    return json.loads(d[20:20 + n]), d[28 + n:28 + n + m]
+
+
+def write_glb(path, j, blob):
+    head = json.dumps(j, separators=(",", ":")).encode()
+    head += b" " * ((-len(head)) % 4)
+    blob += b"\0" * ((-len(blob)) % 4)
+    pathlib.Path(path).write_bytes(b"glTF" + struct.pack("<II", 2, 28 + len(head) + len(blob)) + struct.pack("<I", len(head)) + b"JSON" + head
+                                   + struct.pack("<I", len(blob)) + b"BIN\0" + blob)
+
+
+def set_nearest(glb):
+    """Every sampler of `glb` NEAREST / NEAREST, no mipmaps: a swatch cell is sampled whole (raylib ignores the sampler and already filters POINT)."""
+    j, blob = read_glb(glb)
+    j["samplers"] = [{"magFilter": NEAREST, "minFilter": NEAREST} for _ in (j.get("samplers") or [{}])]
+    for t in j.get("textures", []):
+        t["sampler"] = 0
+    write_glb(glb, j, blob)
+
+
+def atlas_bytes(glb):
+    """Bytes of the first image embedded in `glb` (0 without one)."""
+    j, _ = read_glb(glb)
+    return int(j["bufferViews"][j["images"][0]["bufferView"]]["byteLength"]) if j.get("images") else 0
 
 
 # ---------------------------------------------------------------- png
-def write_png(path, arr):
-    """An (h, w, 3|4) uint8 array as a PNG, top row last in memory = the file's bottom row (v up), no dependency."""
-    arr = np.ascontiguousarray(arr[::-1])
-    h, w, c = arr.shape
-    raw = b"".join(b"\x00" + arr[y].tobytes() for y in range(h))
+def png_chunk(kind, data):
+    body = kind + data
+    return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
 
-    def chunk(kind, data):
-        body = kind + data
-        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
-    pathlib.Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6 if c == 4 else 2, 0, 0, 0))
-                                   + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+def png_indexed(arr):
+    """(PLTE bytes, (h, w) indices, bit depth 4 or 8) of an (h, w, 3) uint8 array with at most 256 colours; None over that."""
+    pal, idx = np.unique(arr.reshape(-1, 3), axis=0, return_inverse=True)
+    if len(pal) > 256:
+        return None
+    return pal.astype(np.uint8).tobytes(), idx.reshape(arr.shape[:2]).astype(np.uint8), 4 if len(pal) <= 16 else 8
+
+
+def png_rows(idx, depth):
+    """The filter-0 scanlines of (h, w) indices at `depth` bits: two texels a byte at 4 bits (an odd row padded)."""
+    if depth == 4:
+        if idx.shape[1] % 2:
+            idx = np.pad(idx, ((0, 0), (0, 1)))
+        idx = idx[:, 0::2] * 16 + idx[:, 1::2]
+    return b"".join(b"\x00" + row.astype(np.uint8).tobytes() for row in idx)
+
+
+def png_bytes(arr):
+    """An (h, w, 3|4) uint8 array as PNG bytes, row 0 first, zlib 9, no dependency: colour type 3 (PLTE, 4 or 8 bits a texel) when an RGB array has at
+    most 256 colours (author 2026-11-09: the indexed atlas), else type 2 (RGB) or 6 (RGBA)."""
+    arr = np.ascontiguousarray(arr)
+    h, w, c = arr.shape
+    indexed = png_indexed(arr) if c == 3 else None
+    if indexed:
+        plte, idx, depth = indexed
+        head, raw, extra = struct.pack(">IIBBBBB", w, h, depth, 3, 0, 0, 0), png_rows(idx, depth), png_chunk(b"PLTE", plte)
+    else:
+        head, raw, extra = struct.pack(">IIBBBBB", w, h, 8, 6 if c == 4 else 2, 0, 0, 0), b"".join(b"\x00" + arr[y].tobytes() for y in range(h)), b""
+    return b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", head) + extra + png_chunk(b"IDAT", zlib.compress(raw, 9)) + png_chunk(b"IEND", b"")
+
+
+def write_png(path, arr):
+    """png_bytes of `arr` to `path`, top row last in memory = the file's bottom row (v up)."""
+    pathlib.Path(path).write_bytes(png_bytes(arr[::-1]))
 
 
 # ---------------------------------------------------------------- Blender
@@ -466,8 +566,8 @@ def read_mesh(body):
     return pos, tri.reshape(-1, 3), loops.reshape(-1, 3), mat, np.array(colours)
 
 
-def paint_mesh(bpy, body, uv, loops, png):
-    """UV layer from the baked triangles; every polygon on one material with the atlas."""
+def paint_mesh(bpy, body, uv, loops, png, nearest=False):
+    """UV layer from the baked triangles; every polygon on one material with the atlas. nearest: point filter (exported as a NEAREST sampler)."""
     mesh = body.data
     layer = mesh.uv_layers[0] if mesh.uv_layers else mesh.uv_layers.new(name="UVMap")
     arr = np.zeros((len(mesh.loops), 2))
@@ -479,6 +579,8 @@ def paint_mesh(bpy, body, uv, loops, png):
     mat.use_nodes = True
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
     tex.image = bpy.data.images.load(str(png))
+    if nearest:
+        tex.interpolation = "Closest"
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.9
@@ -490,7 +592,7 @@ def paint_mesh(bpy, body, uv, loops, png):
 def main():
     import bpy
     src, out, *rest = sys.argv[sys.argv.index("--") + 1:]
-    charts = rest[0] if rest else "grow"
+    charts, ink, atlas, size, detail = (rest + ["grow", "on", "islands", str(SIZE), "off"][len(rest):])[:5]
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=src)
     body = body_of(bpy)
@@ -501,13 +603,21 @@ def main():
     height = max(pos[:, 2].max() - pos[:, 2].min(), 1e-6)
     where = pathlib.Path(out).parent
     fields = read_fields(where / "fields.json", [slot.material.name if slot.material else "" for slot in body.material_slots])
-    uv, img, used, info = bake(pos, tri, mat, colours, ambient(pos, tri, height), charts, fields)
+    if atlas == "palette":
+        uv, img, used, info = bake_palette(pos, tri, mat, colours, ambient(pos, tri, height), fields)
+    else:
+        px = None if size == "auto" else int(size) * (DETAIL if detail == "on" else 1)
+        uv, img, used, info = bake(pos, tri, mat, colours, ambient(pos, tri, height), charts, fields, ink=ink != "off", size=px, caps=read_caps(where / "eye/fused.dsl.json", fields))
     info["fields"] = fields is not None
+    info["detail"] = detail == "on"
     write_png(where / "atlas-rgb.png", img)
     write_png(where / "atlas.png", np.dstack([img, np.where(used, 255, 0).astype(np.uint8)]))
-    paint_mesh(bpy, body, uv, loops, where / "atlas-rgb.png")
+    paint_mesh(bpy, body, uv, loops, where / "atlas-rgb.png", nearest=atlas == "palette")
     bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_yup=True, export_animations=True,
                               export_animation_mode="ACTIONS", export_apply=False, export_skins=True, export_morph=False)
+    if atlas == "palette":
+        set_nearest(out)
+    info["atlas_bytes"] = atlas_bytes(out)
     print("eye_paint:", json.dumps(info))
 
 
@@ -524,13 +634,26 @@ def read_fields(path, slot_names):
     return [dict(f, slot=remap[f["slot"]]) for f in doc["pieces"]]
 
 
+def read_caps(path, fields):
+    """(P,) the highest occlusion step of every piece of `fields` by its role in the fused DSL beside the model (AO_CAP; the fields and the DSL list the pieces
+    in one order); None without the file, without fields or when the counts differ."""
+    if fields is None or not pathlib.Path(path).exists():
+        return None
+    pieces = json.loads(pathlib.Path(path).read_text()).get("pieces", [])
+    if len(pieces) != len(fields):
+        return None
+    return np.array([AO_CAP.get(p.get("role"), len(AO_STEPS) - 1) for p in pieces])
+
+
 # ---------------------------------------------------------------- python side
-def apply(glb, charts="grow"):
-    """Paint `glb` in place (a Blender round trip); atlas.png lands beside it. The bake's info, {} when the file did not come out."""
+def apply(glb, charts="grow", ink=True, atlas="islands", size=str(SIZE), detail=False):
+    """Paint `glb` in place (a Blender round trip); atlas.png lands beside it. ink False: no line, no edge highlight; atlas: ATLASES; size: SIZES;
+    detail: the bake at DETAIL x `size` (eye_atlas resamples the islands). The bake's info, {} when the file did not come out."""
     glb = pathlib.Path(glb)
     tmp = glb.with_name(f"{glb.stem}-paint.glb")
     tmp.unlink(missing_ok=True)
-    done = subprocess.run(["nice", "-n", "10", "blender", "-b", "-P", str(HERE / "eye_paint.py"), "--", str(glb), str(tmp), charts], capture_output=True, text=True)
+    done = subprocess.run(["nice", "-n", "10", "blender", "-b", "-P", str(HERE / "eye_paint.py"), "--", str(glb), str(tmp), charts, "on" if ink else "off", atlas, str(size),
+                           "on" if detail else "off"], capture_output=True, text=True)
     (glb.parent / "atlas-rgb.png").unlink(missing_ok=True)
     line = next((ln for ln in done.stdout.splitlines() if ln.startswith("eye_paint: {")), None)
     if tmp.exists() and line:
@@ -539,9 +662,10 @@ def apply(glb, charts="grow"):
     return {}
 
 
-def apply_stage(glb, paint):
-    """The one call of eye_stage.finish: {} when paint is off; "on" = grown islands (L17-3), "box" = box charts per component (L18-3)."""
-    return apply(glb, "box" if paint == "box" else "grow") if paint in ("on", "box") else {}
+def apply_stage(glb, paint, ink="off", atlas="islands", size=str(SIZE), detail="off"):
+    """The one call of eye_stage.finish: {} when paint is off; "on" = grown islands (L17-3), "box" = box charts per component (L18-3).
+    ink / atlas / size / detail: --eye-ink, --eye-atlas, --eye-atlas-size, --eye-atlas-detail (author 2026-11-09; charts, size and detail only matter to the islands atlas)."""
+    return apply(glb, "box" if paint == "box" else "grow", ink=ink == "on", atlas=atlas, size=size, detail=detail == "on") if paint in ("on", "box") else {}
 
 
 def run_battery(args):

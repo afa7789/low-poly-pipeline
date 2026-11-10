@@ -1,0 +1,131 @@
+{
+ "motif": "One glowing Fogo Dourado (gold-orange) seam splitting each body along a vertical or diagonal crack, with a notch/void cut into the silhouette. Stratified stone layers form the body, so the race reads as a fractured, layered geology.",
+ "buildings": [
+  {
+   "id": "h046",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "charcoal black iron",
+   "why": "Altar chain is a ziggurat: low split slab at h045, wider V-fissure with a crown here, then the tall stratigraphic stack at h04E."
+  },
+  {
+   "id": "h045",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "burnt orange terracotta",
+   "why": "Base of the Altar chain: a low, flat stepped slab with an orange tear. Colour differs from its neighbours."
+  },
+  {
+   "id": "h05Z",
+   "archetype": "pierced arch or gate",
+   "colour": "grey-green shale slate",
+   "why": "Two open shale slabs make a low V gate. The chain's h06F (low arch) and h06E (angled sling) both grow from this."
+  },
+  {
+   "id": "h076",
+   "archetype": "tilted leaning mass",
+   "colour": "bone white",
+   "why": "A fulgurite rod raked about 30 degrees on a wide pedestal. The tilt is the identifier, and the pale body contrasts with the dark towers around it."
+  },
+  {
+   "id": "h061",
+   "archetype": "stacked crates or terraces",
+   "colour": "warm clay brown",
+   "why": "A low, thick fist of three compressed strata holding a boulder, the opposite of the Discharge needle."
+  },
+  {
+   "id": "h06F",
+   "archetype": "pierced arch or gate",
+   "colour": "teal-blue aquifer ice",
+   "why": "Seam-collapse arch with falling shale and water. It keeps the Books chain's arch and the water gives it a cold colour."
+  },
+  {
+   "id": "h03Y",
+   "archetype": "sunken pit with a rim",
+   "colour": "smoked black glass",
+   "why": "A broken annular basin with dark water behind smoked glass. It is the Water Spring chain's pit, grown."
+  },
+  {
+   "id": "h041",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "ochre sandstone",
+   "why": "Rock Pile chain: the cairn's three blocks grow into two tall stratum walls forming a V ravine. Ochre separates it from the brown cairn."
+  },
+  {
+   "id": "h063",
+   "archetype": "spread-winged low star",
+   "colour": "silver-grey stone",
+   "why": "A radial ring around a broken obelisk with cracks reaching every sector, which reads as a flat star."
+  },
+  {
+   "id": "h062",
+   "archetype": "long low shed",
+   "colour": "polished brass",
+   "why": "A horizontal nerve between two slabs with a quartz capacitor. Brass is the dieselpunk accent hue."
+  },
+  {
+   "id": "h06E",
+   "archetype": "pierced arch or gate",
+   "colour": "coral rust red",
+   "why": "Two shale slabs as a diagonal sling, an angled variant of the Books chain's gate. Hot debris colour distinguishes it from h05Z and h06F."
+  },
+  {
+   "id": "h04C",
+   "archetype": "ring or hollow crown",
+   "colour": "ash grey",
+   "why": "Trapped Gale chain is a ring: the horseshoe closes at h04A, becomes a crescent arch here, and ruptures at h04D."
+  },
+  {
+   "id": "h060",
+   "archetype": "tall tower",
+   "colour": "cyan quartz crystal",
+   "why": "A simple vertical obelisk cracked into four plates around a void. The Arco El\u00e9trico cyan makes it distinct."
+  },
+  {
+   "id": "h042",
+   "archetype": "round silo or drum",
+   "colour": "dark charcoal iron",
+   "why": "A short, thick column on a compressed charcoal base, split into a Y fork. The drum body keeps it distinct from the tower and the tilted rod."
+  },
+  {
+   "id": "h044",
+   "archetype": "round silo or drum",
+   "colour": "pale bone",
+   "why": "The drum grows five fanned needles, wider rather than taller. The bone colour shows the upgrade against the charcoal base."
+  },
+  {
+   "id": "h040",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "clay brown",
+   "why": "A low cairn of three blocks, the heaviest and simplest form in the race, with an orange crack and the wedge void."
+  },
+  {
+   "id": "h03Z",
+   "archetype": "sunken pit with a rim",
+   "colour": "pale ice blue",
+   "why": "Three overlapping broken basins around a mirrored void form a low crown. It is the Water Spring chain's pit at its largest."
+  },
+  {
+   "id": "h04E",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "banded ochre and rust strata",
+   "why": "A very tall stack of displaced slabs around a void with a broken halo. It grows the Altar ziggurat into the race's top landmark."
+  },
+  {
+   "id": "h04A",
+   "archetype": "ring or hollow crown",
+   "colour": "basalt black",
+   "why": "A low basalt horseshoe almost fully closed over an ash pocket: a ring with a tiny gap, with the dart slot cut into the mouth."
+  },
+  {
+   "id": "h03X",
+   "archetype": "sunken pit with a rim",
+   "colour": "moss green with dark water",
+   "why": "A low basalt depression with one blade of dark water. Moss green is a living hue that stands apart from the stone around it."
+  },
+  {
+   "id": "h04D",
+   "archetype": "ring or hollow crown",
+   "colour": "fossil bone-white ash",
+   "why": "The ruptured end of the Gale chain: a split obelisk with two crescent plates as fossil wings around an opening. It is the ring's final, broken state."
+  }
+ ]
+}

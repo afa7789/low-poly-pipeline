@@ -23,6 +23,11 @@ Review contract (POST /api/review, JSON body):
 Export (GET /api/export -> JSON, GET /api/export.md -> Markdown):
     approved / rejected / pending partitions of the unit list, for handing
     review results to the next generation batch.
+
+Human evaluation (GET /eval, the 30-unit sample of eval/sample-30.json, one unit at a time,
+random order, keys 1-5): POST /api/eval {"session": "YYYYMMDD-HHMMSS", "id", "q1", "q2", "q3": 1-5,
+"note"} appends to eval/human-<session>.json; GET /api/eval?session=... lists the sample and the
+answered ids; GET /api/eval/export merges every human-*.json. The computer score is never served.
 """
 import argparse
 import datetime
@@ -36,7 +41,7 @@ import subprocess
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 REFS = ROOT / "artifacts/model-sheets/refs"
@@ -55,7 +60,11 @@ EXTRA_UNITS = ROSTER / "extra-units.json"
 RENDER_UNIT = ROOT / "tools/blender/render_unit.py"
 BLENDER = shutil.which("blender")
 INDEX = pathlib.Path(__file__).resolve().parent / "index.html"
+EVAL_PAGE = pathlib.Path(__file__).resolve().parent / "eval.html"
 REVIEWS = pathlib.Path(__file__).resolve().parent / "reviews.json"
+EVAL = ROOT / "artifacts/model-sheets/eval"
+EVAL_SAMPLE = EVAL / "sample-30.json"
+EVAL_QUESTIONS = ("q1", "q2", "q3")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 FINAL_VIEWS = ("front", "left", "back", "top", "bottom", "wc3", "walkleft")
 IOU_VIEWS = ("front", "left", "back", "top", "bottom", "rts")
@@ -465,6 +474,76 @@ def export_markdown(data):
     return "\n".join(out)
 
 
+def eval_units():
+    """The 30-unit evaluation sample (id, name, race, rig, run); [] when missing."""
+    data = cached_json(EVAL_SAMPLE) or {}
+    units = data.get("units") if isinstance(data, dict) else None
+    return [u for u in units if isinstance(u, dict) and isinstance(u.get("id"), str)] if units else []
+
+
+def eval_session_file(session):
+    """eval/human-<session>.json for a plain session token, else None."""
+    if not isinstance(session, str) or not re.fullmatch(r"[0-9]{8}-[0-9]{6}", session):
+        return None
+    return EVAL / f"human-{session}.json"
+
+
+def eval_load(path):
+    data = cached_json(path) if path.is_file() else None
+    data = data if isinstance(data, dict) else {}
+    data.setdefault("session", path.stem.removeprefix("human-"))
+    data.setdefault("answers", [])
+    return data
+
+
+def eval_record(payload):
+    """Validate one POST /api/eval body -> (answer dict, file) or (error str, None)."""
+    f = eval_session_file(payload.get("session"))
+    if f is None:
+        return "invalid session", None
+    uid = payload.get("id")
+    if not isinstance(uid, str) or uid not in {u["id"] for u in eval_units()}:
+        return "unknown id", None
+    scores = {}
+    for q in EVAL_QUESTIONS:
+        v = payload.get(q)
+        if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 5:
+            return f"{q} must be an int 1-5", None
+        scores[q] = v
+    note = payload.get("note")
+    note = note.strip() if isinstance(note, str) else ""
+    if len(note) > 2000:
+        return "note too long", None
+    return {"id": uid, **scores, "note": note,
+            "ts": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}, f
+
+
+def eval_save(answer, f):
+    """Append-safe: re-read the session file, replace the unit's answer (or append), write atomically."""
+    with _RENDER_LOCK:
+        data = eval_load(f)
+        data["answers"] = [a for a in data["answers"] if a.get("id") != answer["id"]] + [answer]
+        EVAL.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_name(f.name + ".tmp")
+        tmp.write_text(json.dumps(data, indent=1) + "\n")
+        os.replace(tmp, f)
+    return len(data["answers"])
+
+
+def eval_export():
+    """Every eval/human-*.json merged: one row per (session, unit) with the unit's metadata."""
+    meta = {u["id"]: u for u in eval_units()}
+    rows, files = [], []
+    for f in sorted(EVAL.glob("human-*.json")) if EVAL.is_dir() else []:
+        data = eval_load(f)
+        files.append(f.name)
+        for a in data["answers"]:
+            if isinstance(a, dict) and a.get("id") in meta:
+                rows.append({"session": data["session"], **meta[a["id"]], **{k: a.get(k) for k in (*EVAL_QUESTIONS, "note", "ts")}})
+    return {"generated": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "sample": len(meta), "files": files, "answers": rows}
+
+
 def safe_nested(path, root, seg, suffixes):
     """Serve root/<plainseg>/<file> — both segments plain (no separators / traversal)."""
     parts = path.split("/")
@@ -545,7 +624,8 @@ class Handler(BaseHTTPRequestHandler):
         self._handle(head=True)
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/review":
+        route = urlparse(self.path).path
+        if route not in ("/api/review", "/api/eval"):
             self.send_error(404)
             return
         try:
@@ -557,6 +637,19 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._json(400, {"error": "invalid JSON"})
             return
+        if route == "/api/eval":
+            self._post_eval(payload)
+        else:
+            self._post_review(payload)
+
+    def _post_eval(self, payload):
+        answer, f = eval_record(payload)
+        if f is None:
+            self._json(400, {"error": answer})
+            return
+        self._json(200, {"saved": answer, "file": f.name, "answered": eval_save(answer, f)})
+
+    def _post_review(self, payload):
         uid = payload.get("id")
         if not isinstance(uid, str) or not uid or len(uid) > 32:
             self._json(400, {"error": "invalid id"})
@@ -636,6 +729,21 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/export.md":
             body = export_markdown(export_data()).encode()
             self._send(200, "text/markdown; charset=utf-8", body, head, no_store=True)
+        elif path == "/eval":
+            self._send(200, "text/html; charset=utf-8", EVAL_PAGE.read_bytes(), head)
+        elif path == "/api/eval":
+            session = parse_qs(urlparse(self.path).query).get("session", [None])[0]
+            f = eval_session_file(session)
+            answered = [a.get("id") for a in eval_load(f)["answers"]] if f and f.is_file() else []
+            body = json.dumps({"units": eval_units(), "answered": answered}).encode()
+            self._send(200, "application/json; charset=utf-8", body, head, no_store=True)
+        elif path == "/api/eval/export":
+            body = json.dumps(eval_export(), indent=1).encode()
+            self._send(200, "application/json; charset=utf-8", body, head, no_store=True)
+        elif path.startswith("/eval/concept/"):
+            uid = plain_id(unquote(path[len("/eval/concept/"):]).removesuffix(".png"))
+            p = (EVAL / "stimuli" / uid / "concept-front.png") if uid else None
+            self._file_or_404(p if p and p.is_file() else None, "image/png", head)
         elif path.startswith("/icon/"):
             self._file_or_404(find_icon(unquote(path[len("/icon/"):])), "image/png", head)
         elif path.startswith("/prompt/"):

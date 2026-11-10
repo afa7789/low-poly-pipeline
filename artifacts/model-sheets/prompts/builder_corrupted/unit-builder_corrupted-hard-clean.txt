@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Corrupted Corrupted Builder (id builder_corrupted) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure hovers in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: the hooded bark cowl with two small necromancer-green eye points in its dark hollow, the split rotten-bark torso with black sap drips, two bark arms, and below the waist the trailing root veil hovering a clear gap above the ground, with no legs and no feet. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the hooded bark cowl with two green eye points in its hollow, the split bark torso with black sap, both empty bark hands hanging slightly away from the body, and the root veil hovering with a clear gap of empty background under it.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the cowl pointing forward with the hollow and one green eye point, the upright torso, the near arm empty and slightly away from the body, and the root veil trailing back and down with the clear gap above the ground line.
+
+Panel 3, top right: back view of the same figure, as if drifting away from the camera: the closed back of the cowl with no eyes, the split bark back with black sap, both empty arms, and the root veil hanging with the same clear gap under it.
+
+Panel 4, bottom left: top-down view from directly above: the cowl on top of the shoulders, both empty arms angled slightly out, and the root veil spreading out around the body.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the root veil with its root slabs spreading from the centre, and both arms empty.
+
+Neutral hover A-pose: the body upright and level, floating with a visible gap between the root veil and the ground, both arms hanging slightly away from the body at the same angle in every view, both hands empty, no legs.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The cowl becomes a faceted hood of a few flat planes with a hexagonal dark hollow, the torso a split faceted block, the arms square prisms, and the root veil a short stack of flat angular root slabs ending in blunt straight cuts. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (cowl, torso, two arms, root veil) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the root-hook crook and the black-sap lantern) are deliberately absent: the hands are empty and nothing hangs from them, so the torso and both arms are unbroken, and the unit has no legs to begin with. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: putrid bark olive-brown (#4A4B2E) on the large masses, black sap (#17130F) on the smaller masses, one warm accent (necromancer green, #39FF14) somewhere on the body, one flat tone per facet. Face: none at all — only two small necromancer-green eye points inside the dark hollow of the cowl, no mouth, no nose.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

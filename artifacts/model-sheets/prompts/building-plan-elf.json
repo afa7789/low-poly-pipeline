@@ -1,0 +1,83 @@
+{
+ "motif": "Measurement made physical: every building carries a graduated scale (tick-marked bands or a brass rule line) plus one small turquoise gauge-light accent, and no flame anywhere. Only h014 has a closed ring; all other arcs and rings are open or segmented.",
+ "buildings": [
+  {
+   "id": "h014",
+   "archetype": "ring or hollow crown",
+   "colour": "pale cream limestone base with a bronze shaft",
+   "why": "The one closed graduated ring on top is the hole in the silhouette. No other building has a closed ring."
+  },
+  {
+   "id": "h08X",
+   "archetype": "long low shed",
+   "colour": "honey-yellow sawn timber",
+   "why": "A straight slatted shed with an open lattice porch is the longest and lowest mass in the race."
+  },
+  {
+   "id": "h08Y",
+   "archetype": "long low shed",
+   "colour": "smoked dark-brown timber",
+   "why": "It keeps the chain's shed archetype and grows by one storey, a gable and a vane. The shade is darker than h08X because neighbours must not share a colour. The card asked for no recolor, so this is a deliberate departure."
+  },
+  {
+   "id": "h00V",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "deep ink-teal painted panels",
+   "why": "The glass fume cupboard juts out as a box on a stalk from the two-bay hall. The turquoise vent glow sits inside it."
+  },
+  {
+   "id": "h00Z",
+   "archetype": "round silo or drum",
+   "colour": "dusty coral-pink brick",
+   "why": "A corner drum with a clock face and a pulsing roof tank. Coral is the warm outlier of the race."
+  },
+  {
+   "id": "h06Y",
+   "archetype": "pierced arch or gate",
+   "colour": "bright yellow brass",
+   "why": "Two brass posts hold an open, segmented landing arc, which reads as a gate. The arc is open so it never competes with h014's closed ring."
+  },
+  {
+   "id": "h059",
+   "archetype": "bridge-like span on legs",
+   "colour": "ivory bone-white columns with a gold urn",
+   "why": "The open pavilion of slender columns under a flat span is the only openwork building. Gold is its single declared exception."
+  },
+  {
+   "id": "h00T",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "slate iron-grey",
+   "why": "The stepped gable and guild body form a stepped mass. The sword monument and turquoise yard flag are the accents."
+  },
+  {
+   "id": "h03F",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "verdigris green patinated copper",
+   "why": "It grows the h00T stepped mass with a low copper dome, a colonnade and twin crossed swords. The patina separates it from the grey base."
+  },
+  {
+   "id": "h070",
+   "archetype": "spread-winged low star",
+   "colour": "dull ochre brass with ink-teal trim",
+   "why": "An open gantry shed with the proof rail and painted scale radiating across the yard gives a low, spread-wing footprint."
+  },
+  {
+   "id": "h005",
+   "archetype": "tall tower",
+   "colour": "lime-pearl pale green-white stone",
+   "why": "A squat, shoulder-broad stepped column with a full-height glass slit. It is thicker than the Nightelf spires."
+  },
+  {
+   "id": "h09X",
+   "archetype": "stacked crates or terraces",
+   "colour": "sky-blue painted panels",
+   "why": "A two-storey tiered institute with a gnomon yard and a vent in place of a spire. The blue panels are the Academy blue."
+  },
+  {
+   "id": "h00X",
+   "archetype": "stacked crates or terraces",
+   "colour": "dark ink-teal shaft with a pale glass beacon and brass armillary",
+   "why": "It stacks the school's terraces into a tall turned shaft with a lit dome and an open, turning armillary. Its colour differs from h09X, and the open rings keep h014's ring unique."
+  }
+ ]
+}

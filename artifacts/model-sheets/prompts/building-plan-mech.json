@@ -1,0 +1,125 @@
+{
+ "motif": "A glowing Chama-Piloto yellow (#FFE600) furnace slit set low in every body, with one riveted Ferro de Caldeira smoke pipe (stub, tall or tripled) and a Lat\u00e3o de Po\u00e7o brass band. The slit and the pipe are the race signature. The body colours below vary by building.",
+ "buildings": [
+  {
+   "id": "h05J",
+   "archetype": "long low shed",
+   "colour": "tan oiled canvas",
+   "why": "Flat box with a mast and diagonal cable. Bomber Factory grows the same shed."
+  },
+  {
+   "id": "h09P",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "dark grey masonry stone",
+   "why": "Heavy stepped bunker with a stub pipe. It grows the Gun Smith's low terraced mass into a wider, heavier-roofed one."
+  },
+  {
+   "id": "h09I",
+   "archetype": "bridge-like span on legs",
+   "colour": "rust-red painted panels",
+   "why": "Tank chain span, shown as a gantry crane over the bay. The sawtooth roof and hook arm are the additions."
+  },
+  {
+   "id": "h06J",
+   "archetype": "round silo or drum",
+   "colour": "teal verdigris copper",
+   "why": "Barrel dynamo with a dome and a cable tail. Red Shield grows the same drum."
+  },
+  {
+   "id": "h09L",
+   "archetype": "long low shed",
+   "colour": "bone-white canvas",
+   "why": "Same shed family as the Aircraft Factory, but longer, with an open end wall and two masts. Its colour is paler than the parent's tan."
+  },
+  {
+   "id": "h05M",
+   "archetype": "sunken pit with a rim",
+   "colour": "soot-black charred earth",
+   "why": "Half-buried mound with a hatch lid and one vent. The Rocket Lab keeps the pit and adds a lean."
+  },
+  {
+   "id": "h05L",
+   "archetype": "tall tower",
+   "colour": "polished brass",
+   "why": "The race's only lattice column, topped with a bulb cluster. It is the only tall tower."
+  },
+  {
+   "id": "h05V",
+   "archetype": "wide squat dome",
+   "colour": "fired red-brown brick",
+   "why": "Wide foundry hump with a glowing crucible mouth and one off-centre pipe. The Precious Golem Factory grows from it."
+  },
+  {
+   "id": "h05T",
+   "archetype": "stacked crates or terraces",
+   "colour": "sooty black iron",
+   "why": "Open shed with a rack wall of torch tubes, built as low stacked terraces. The Arsenal is the stepped, closed upgrade."
+  },
+  {
+   "id": "h09B",
+   "archetype": "bridge-like span on legs",
+   "colour": "olive-drab painted panels",
+   "why": "Widest box in the tank family, with a gantry straddling the hull and a rail tail. It keeps the tank chain's span."
+  },
+  {
+   "id": "h05U",
+   "archetype": "ring or hollow crown",
+   "colour": "raw pale timber",
+   "why": "The exposed toothed saw wheel is a ring. The Protection Center grows the ring into a crown."
+  },
+  {
+   "id": "h09J",
+   "archetype": "bridge-like span on legs",
+   "colour": "hazard ochre yellow-brown paint",
+   "why": "Thin tank-chain span with a funnel hopper on one shoulder. It is the narrowest profile in the family."
+  },
+  {
+   "id": "h09T",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "slate grey stone",
+   "why": "Three staggered stacks and a side column make the three-peak skyline. It is the largest mass in the race."
+  },
+  {
+   "id": "h097",
+   "archetype": "wide squat dome",
+   "colour": "gilded gold brass",
+   "why": "It keeps the Golem Factory's foundry base. Twin stacks and a headframe wheel rise from it, so the contour changes from wide and low to narrow and tall. It does not duplicate the Energy Tower: it is a dome base with a twin-spire crown."
+  },
+  {
+   "id": "h06Z",
+   "archetype": "ring or hollow crown",
+   "colour": "deep forest-green painted iron",
+   "why": "The Lumber Mill's ring is grown into a fortified crown. It has a balcony ring and a roof lamp."
+  },
+  {
+   "id": "h05R",
+   "archetype": "round silo or drum",
+   "colour": "blood-orange copper",
+   "why": "A fatter version of the Blue Shield drum, with side coil banks and a crank arm. Its colour is clearly different from the blue."
+  },
+  {
+   "id": "h077",
+   "archetype": "sunken pit with a rim",
+   "colour": "whitewashed plaster",
+   "why": "The Demolition Lab's pit, with a crooked shed leaning above it on a diagonal launch rail. It is the only lopsided roof."
+  },
+  {
+   "id": "h09H",
+   "archetype": "bridge-like span on legs",
+   "colour": "gunmetal blue-grey",
+   "why": "Heavy bay with a comb of brass tubes bolted on one side. It keeps the tank chain's span and grows the outline."
+  },
+  {
+   "id": "h069",
+   "archetype": "tilted leaning mass",
+   "colour": "mottled rust-brown scrap",
+   "why": "The race's only asymmetric junk-mound footprint, with one brazier vent."
+  },
+  {
+   "id": "h05X",
+   "archetype": "bridge-like span on legs",
+   "colour": "pale concrete grey",
+   "why": "The plain flat-roofed box with a ramp and a rail tail. It is the root of the tank chain, and every upgrade reads as an addition to it."
+  }
+ ]
+}

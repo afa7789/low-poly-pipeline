@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Human Human Builder (id builder_human) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: the staff-olive greatcoat, the puttees over boots, the canvas satchel at the hip, the gas mask on the chest, the compact square-shouldered build, with the head bare (short dark hair, bearded face) because the helmet is a prop. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: bare-headed bearded man in the olive greatcoat, both arms angled slightly away from the body with empty open mitts, the gas mask on the chest, the satchel at the hip, two legs in puttees and boots.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: bare head with a flat beard block, the near arm angled slightly forward and empty, the gas mask on the chest, the satchel at the hip, boots and puttees.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bare back of the head, the broad olive coat back with nothing on it, the satchel at the hip, both arms angled out and empty, both boots.
+
+Panel 4, bottom left: top-down view from directly above: the bare head, the two shoulders, both arms angled out and empty, the satchel at the hip, the boot toes below.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat soles of two boots set apart, the underside of the coat hem, the satchel at the hip, the chin.
+
+Neutral static empty-handed A-pose, standing level on both feet shoulder-width apart, arms angled slightly away from the body, same pose in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The head becomes a faceted block, the coat a boxy prism with a flat hem, the shoulders square slabs, the legs and puttees four-sided prisms, the boots wedge blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (head, torso, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the entrenching shovel, the Brodie helmet, the belt lantern, the insignia-blue armband) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: staff olive (#4D5D53) on the large masses, rifle steel (#454A50) on the smaller masses, one accent (insignia blue, #2E52E8) somewhere on the body, one flat tone per facet. Face: a stern bearded human face, bare head with short dark hair block, two dark eye blocks, a flat dark beard block, no expression.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Chaos Ultimate Builder (id builder_ultimate) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a tall upright hooded biped, a head and a half taller than a race builder, with a deep hood hiding the face, two short ember-red horn tips and two small amber eye points, a long dark iron grey patchwork greatcoat with olive, bark, bone, verdigris, lacquer and soot patches, wide sleeves and two heavy boots under the coat hem. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the hood with two horn tips and two amber eye points, the patchwork coat, wide sleeves with empty hands held slightly out from the body, two heavy boots.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the hood jutting forward with one horn tip, the straight hanging coat, the empty arm slightly out from the body, both boots level.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the hood back with both horn tips, the full coat patchwork down the back, both sleeves, both boots under the hem.
+
+Panel 4, bottom left: top-down view from directly above: the hood with two horn tips, broad shoulders and wide sleeves held slightly out, the patchwork coat spreading below.
+
+Panel 5, bottom right: bottom-up view from directly below: the underside of the coat hem, the two boot soles side by side, the underside of the hood.
+
+Neutral upright standing A-pose on two legs, arms angled slightly out from the body with empty open hands, body level, the same in every view, no action pose.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The hood is a faceted wedge with a flat front opening, the coat a tall faceted trapezoid with flat patch planes, the sleeves boxy prisms, the boots chunky blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (hood, coat torso, two sleeves, two legs in boots) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the wide toolbelt with its tool tokens and the tall iron staff with the lantern-gauge) are deliberately absent: the hands are empty and the waist and coat are bare of belt and tokens, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: dark iron grey (#2A2A2E) on the large masses, olive (#4D5D53), bark (#4A3B2C), bone (#D8D0BC), verdigris (#4E8C86), lacquer (#E84D8E), soot (#15110F) and ember-red horn tips on the smaller masses, one warm accent (amber #FFB224) somewhere on the body (the two eye points), one flat tone per facet. Face: hidden in the deep hood shadow — only two small amber eye points, a sliver of ember-red jaw and two horn tips.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

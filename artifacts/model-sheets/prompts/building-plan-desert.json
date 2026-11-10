@@ -1,0 +1,101 @@
+{
+ "motif": "One thin derrick mast on every building, topped with a single glowing Chama de Po\u00e7o orange flame lamp. The orange appears only at that tip and nowhere on the body.",
+ "buildings": [
+  {
+   "id": "h07E",
+   "archetype": "tall tower",
+   "colour": "weathered dead-palm timber brown",
+   "why": "The tripod and tall harpoon rail make the tallest, thinnest outline of the race."
+  },
+  {
+   "id": "h079",
+   "archetype": "sunken pit with a rim",
+   "colour": "chalky salt white",
+   "why": "The card sinks the whole rim into dirty sand. The pale pan reads as a bright hole."
+  },
+  {
+   "id": "n02O",
+   "archetype": "pierced arch or gate",
+   "colour": "ochre sandstone tan",
+   "why": "The wide cave mouth under a chimney is the arch, grown from the Ogre Den with tank drums for a base."
+  },
+  {
+   "id": "n02N",
+   "archetype": "wide squat dome",
+   "colour": "soot-patched rust-red canvas",
+   "why": "It keeps the Gnoll Tent's low dome and adds a tall flare chimney. The red separates it from the cream tent next to it."
+  },
+  {
+   "id": "n02P",
+   "archetype": "wide squat dome",
+   "colour": "bleached cream canvas",
+   "why": "The broad canvas shelter is a low dome wrapped around a tripod."
+  },
+  {
+   "id": "n02Q",
+   "archetype": "ring or hollow crown",
+   "colour": "dull iron-wire grey",
+   "why": "The low hanging ring of wire and sticks is the crown shape. The Harpy chain keeps it and grows it."
+  },
+  {
+   "id": "n02R",
+   "archetype": "long low shed",
+   "colour": "smoked bottle-green glass",
+   "why": "The long, low Sandkin Burrow shape widens into a broad rupture. The upright glass fan sits on top, in green to set it apart."
+  },
+  {
+   "id": "n031",
+   "archetype": "ring or hollow crown",
+   "colour": "bone-white canvas wings",
+   "why": "The Harpy Nest chain ends in a large inclined ring nest. Pale wings set it apart from the green burrow before it."
+  },
+  {
+   "id": "n03B",
+   "archetype": "ring or hollow crown",
+   "colour": "gunmetal wire grey",
+   "why": "The narrow wire bowl is a deeper ring on a tall pole. Grey separates it from the bone-white matriarch nest."
+  },
+  {
+   "id": "n033",
+   "archetype": "pierced arch or gate",
+   "colour": "ochre sandstone tan",
+   "why": "The excavation cave under a drill-pipe lintel is the base arch of the Ogre chain."
+  },
+  {
+   "id": "n036",
+   "archetype": "spread-winged low star",
+   "colour": "rusted barbed-wire red-brown",
+   "why": "The low pen spreads in several directions around one pump post."
+  },
+  {
+   "id": "n037",
+   "archetype": "spread-winged low star",
+   "colour": "blackened blue-steel coils",
+   "why": "Stacked coils make the star arms taller and broader around a crooked reel mast. The steel blue separates it from the rust-red yard."
+  },
+  {
+   "id": "h07A",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "verdigris copper teal",
+   "why": "The thorny still has several spiked pipes under one tall exhaust pipe. Teal is the race's single cool, bright hue."
+  },
+  {
+   "id": "n038",
+   "archetype": "round silo or drum",
+   "colour": "glossy pitch black",
+   "why": "Round shell-eggs and a sump form drum shapes. Black pitch stands out against the teal still."
+  },
+  {
+   "id": "n039",
+   "archetype": "long low shed",
+   "colour": "dune-yellow ochre sand",
+   "why": "The long, low dune hollow under a short windsock mast is the base shed shape."
+  },
+  {
+   "id": "n03A",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "cold concrete grey-white",
+   "why": "The buried manifold and rail spur step up in tiers to one vent stack. Concrete is the only grey-white mass, set against yellow sand."
+  }
+ ]
+}

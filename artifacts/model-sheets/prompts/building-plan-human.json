@@ -1,0 +1,113 @@
+{
+ "motif": "A band of Azul de Ins\u00edgnia stencilled trim running around every building's eave or rim, topped by one flame in a glass lantern. Roofs are flat or single-pitch, with no domes of glass or glow.",
+ "buildings": [
+  {
+   "id": "h001",
+   "archetype": "tilted leaning mass",
+   "colour": "gunmetal dark iron grey",
+   "why": "The 45\u00b0 barrel is the only upward diagonal in the race, so the leaning mass is unique at 40 px."
+  },
+  {
+   "id": "h000",
+   "archetype": "long low shed",
+   "colour": "olive green painted panels",
+   "why": "Horizontal creeping shed with a short stack. It contrasts with the vertical Chapel and Shrine."
+  },
+  {
+   "id": "h037",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "off-white weathered plaster",
+   "why": "Nave roof, bell tower and beam cross make a small cluster of peaks. It is a light body next to the dark Artillery and Barracks."
+  },
+  {
+   "id": "h038",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "insignia blue painted steel",
+   "why": "Chapel chain keeps its archetype and grows: double nave and two towers become a wider two-peak cluster, with off-white standards on the blue."
+  },
+  {
+   "id": "h010",
+   "archetype": "bridge-like span on legs",
+   "colour": "umber timber",
+   "why": "The siren horn sits on a timber trestle, so the span on legs reads clearly and avoids Mech's lattice."
+  },
+  {
+   "id": "h015",
+   "archetype": "cantilevered box on a stalk",
+   "colour": "olive canvas green",
+   "why": "A perch box on a tower stalk with a canvas roof. The takeoff ramp is a side tell."
+  },
+  {
+   "id": "h05D",
+   "archetype": "sunken pit with a rim",
+   "colour": "soot-black charred sandbag",
+   "why": "Sniper Nest chain: the proof range grows the pit into a deep, rimmed backstop. Blackened sandbags give a dark body."
+  },
+  {
+   "id": "h05G",
+   "archetype": "tall tower",
+   "colour": "polished brass yellow",
+   "why": "The steel obelisk is the race's one needle. Brass plating makes it a bright vertical."
+  },
+  {
+   "id": "h00K",
+   "archetype": "round silo or drum",
+   "colour": "copper rust red",
+   "why": "The distilling shed with a copper still and condenser coil reads as a fat drum, in a copper body."
+  },
+  {
+   "id": "h072",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "pale bone-grey stone",
+   "why": "Church upgrade keeps the chain archetype: a low, wide L-pulpit with the censer column and flanking spires. The stone is bone-grey."
+  },
+  {
+   "id": "h0A1",
+   "archetype": "sunken pit with a rim",
+   "colour": "olive canvas drab",
+   "why": "Sniper Nest chain: the stepped sandbag bench still sits in a rimmed pit, with a thin pennant mast. Canvas olive keeps the race palette."
+  },
+  {
+   "id": "h003",
+   "archetype": "sunken pit with a rim",
+   "colour": "mud-brown umber timber",
+   "why": "The humblest base of its chain, a platform sunk in the mud with a sandbag rim. It is the pit that its upgrades grow."
+  },
+  {
+   "id": "h039",
+   "archetype": "long low shed",
+   "colour": "raw concrete grey",
+   "why": "Barracks upgrade inherits the shed mass and grows it, with two short square towers and a steel gate. Concrete grey separates it from the olive Barracks."
+  },
+  {
+   "id": "h082",
+   "archetype": "pierced arch or gate",
+   "colour": "insignia blue panels",
+   "why": "Tiny Watch Tower chain: the cube with the fanned barrel cradle adds an opening to the open frame. Blue panels contrast with the grey Stronghold."
+  },
+  {
+   "id": "h081",
+   "archetype": "pierced arch or gate",
+   "colour": "dark steel lattice grey",
+   "why": "A perforated lattice trapezoid with an open lattice window. It is the only lattice in the race."
+  },
+  {
+   "id": "h07U",
+   "archetype": "wide squat dome",
+   "colour": "brass bronze",
+   "why": "A buxom urn dome with a pipe on a concrete base. The pale steam column is the tell."
+  },
+  {
+   "id": "h006",
+   "archetype": "stacked crates or terraces",
+   "colour": "bone-white poured concrete",
+   "why": "Two stacked blocks with a brim on top. Bone-white concrete sets it apart from the brass Vessel next to it."
+  },
+  {
+   "id": "h004",
+   "archetype": "spread-winged low star",
+   "colour": "oxidised rust-brown riveted steel",
+   "why": "A shed with wing sheds around a central chimney and cart door. It is the only low star, and its rust brown differs from the Watch Tower."
+  }
+ ]
+}

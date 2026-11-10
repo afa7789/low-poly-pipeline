@@ -1,0 +1,14 @@
+[
+  {
+    "name": "lantern",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.246,
+      0.369
+    ]
+  }
+]

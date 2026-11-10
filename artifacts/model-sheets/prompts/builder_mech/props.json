@@ -1,0 +1,25 @@
+[
+  {
+    "name": "shoulder stack",
+    "where": "anchor left shoulder, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.112,
+      0.168
+    ]
+  },
+  {
+    "name": "rivet hammer",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.386,
+      0.579
+    ]
+  }
+]

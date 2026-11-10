@@ -1,0 +1,95 @@
+{
+ "motif": "A single round Verde-Necromante (#39FF14) resin wound, like an eye or valve, glowing at the heart of every building. It is rimmed in Seiva Negra black and set in split, cracked trunk-wood.",
+ "buildings": [
+  {
+   "id": "h04V",
+   "archetype": "tall tower",
+   "colour": "mossy olive bark",
+   "why": "Trunk-tower base of the Ancient chain. Its Casca P\u00fatrida olive reads as living tree."
+  },
+  {
+   "id": "h09Y",
+   "archetype": "tall tower",
+   "colour": "blackened tar-wood",
+   "why": "Same tall tower grown into a wide antler crown around the circular resin wound. Black separates it from its neighbours."
+  },
+  {
+   "id": "h04W",
+   "archetype": "tall tower",
+   "colour": "mossy olive bark",
+   "why": "Mid-chain tower, taller and with more branches. It returns to the chain's olive and is not adjacent to h04V."
+  },
+  {
+   "id": "n01J",
+   "archetype": "round silo or drum",
+   "colour": "bone-white ash grey",
+   "why": "The card gives no shape, so a squat bark-wrapped drum fills the gap. Pale bone makes it stand out."
+  },
+  {
+   "id": "h04U",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "weathered grey stone",
+   "why": "The kneeling figure plus its split back-snag gives a two-to-three-peak cluster. Stone and wood blend, with the chest cavity glowing."
+  },
+  {
+   "id": "h04T",
+   "archetype": "ring or hollow crown",
+   "colour": "rust-red coral",
+   "why": "The rib of branches around the resin diaphragm forms a hollow crown. Red-coral is the warm accent."
+  },
+  {
+   "id": "h04S",
+   "archetype": "long low shed",
+   "colour": "dark wet brown timber",
+   "why": "The split fallen trunk forms a low den, with one dead snag as the only vertical."
+  },
+  {
+   "id": "h04R",
+   "archetype": "sunken pit with a rim",
+   "colour": "pale clay yellow",
+   "why": "A half-submerged root bulb sits in a pit rim. Pale clay contrasts with the dark neighbours."
+  },
+  {
+   "id": "h04Q",
+   "archetype": "pierced arch or gate",
+   "colour": "tarnished verdigris brass",
+   "why": "One low bent root arch over two pods is the gate silhouette. Brass-green is a distinct metal hue."
+  },
+  {
+   "id": "h04P",
+   "archetype": "pierced arch or gate",
+   "colour": "dark iron grey",
+   "why": "The same arch grown into two tall pylons around the bladder. Iron differs from the brass of its predecessor."
+  },
+  {
+   "id": "h04O",
+   "archetype": "tilted leaning mass",
+   "colour": "bone-white ash grey",
+   "why": "The crooked perch above the collapsed nest leans hard. Pale bone sets it apart from the neighbouring iron."
+  },
+  {
+   "id": "h04N",
+   "archetype": "wide squat dome",
+   "colour": "bruised plum",
+   "why": "Chain of Void Portal. The tall double husk grows from a dome base into a wide shell around the basin. Plum is a new hue."
+  },
+  {
+   "id": "h04M",
+   "archetype": "tilted leaning mass",
+   "colour": "bone-white ash grey",
+   "why": "Chain of Nether Ancient. The two crossed downturned crescents lean harder around the high trunk. It returns to the chain's bone colour."
+  },
+  {
+   "id": "h04L",
+   "archetype": "wide squat dome",
+   "colour": "bruised plum",
+   "why": "The low round basin under a root arch is a squat dome. It keeps the chain's plum."
+  },
+  {
+   "id": "h04K",
+   "archetype": "stacked crates or terraces",
+   "colour": "rust-red coral",
+   "why": "The rack of charge pods above the basin stacks into terraces, with one spike on top. The warm red echoes h04T but they are far apart in build order."
+  }
+ ]
+}

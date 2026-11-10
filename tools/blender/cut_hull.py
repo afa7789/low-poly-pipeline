@@ -168,6 +168,8 @@ def hull_cut(hull, box):
 
 def top_view(panels, boxes, extent):
     """The top panel, turned head down when top_flipped says it is drawn head up."""
+    if "top" not in panels:                       # a sheet whose top panel the splitter did not find (h01N): no top view to cut by
+        return None
     return panels["top"][::-1] if top_flipped(panels["top"], boxes, extent) else panels["top"]
 
 

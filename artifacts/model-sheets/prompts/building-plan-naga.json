@@ -1,0 +1,95 @@
+{
+ "motif": "A glowing Turquesa de V\u00e1lvula (#1CC8B4) valve handwheel or gauge-eye, a spoked ring, set high on every building, with black Breu Abissal oil-weep streaks running down the body from it. The race trim is riveted naval plate.",
+ "buildings": [
+  {
+   "id": "h00I",
+   "archetype": "stepped pyramid or ziggurat",
+   "colour": "salmon-pink coral concrete with dark plate seams",
+   "why": "The card gives a stepped pyramid. Its apex handwheel is the biggest motif mark in the race."
+  },
+  {
+   "id": "h00G",
+   "archetype": "spired cluster of two or three peaks",
+   "colour": "bone-white limestone",
+   "why": "Three dead-coral spires frame the hanging bell over the ossuary base. The result is a jagged pale cluster, not a tower."
+  },
+  {
+   "id": "h05F",
+   "archetype": "tilted leaning mass",
+   "colour": "oil-black iron with a glossy sheen",
+   "why": "It keeps the Swamp Well chain archetype and grows it. Three S-curved hoses lean outward around a central drill-bit obelisk."
+  },
+  {
+   "id": "h020",
+   "archetype": "wide squat dome",
+   "colour": "rust-orange corrugated plate",
+   "why": "The card gives a half-dome turtle shell sunk in slime, so the silhouette is a low, wide hump."
+  },
+  {
+   "id": "h022",
+   "archetype": "wide squat dome",
+   "colour": "weathered wreck-timber brown",
+   "why": "It keeps the chain's dome and grows it into a fused hull with a keel stair and a palisade deck. The brown timber also separates it from the village."
+  },
+  {
+   "id": "h021",
+   "archetype": "wide squat dome",
+   "colour": "dull tin silver-grey",
+   "why": "It keeps the chain's dome and grows it with three stacked huts on stilts and a sail awning. The leaning tin tower reads as a bumpy dome."
+  },
+  {
+   "id": "h01Z",
+   "archetype": "sunken pit with a rim",
+   "colour": "dark volcanic basalt charcoal",
+   "why": "The cracked basin is mostly below ground. A rim with a gramophone-conch over the spout marks it at 40 px."
+  },
+  {
+   "id": "h00M",
+   "archetype": "spread-winged low star",
+   "colour": "pearly lilac mother-of-pearl",
+   "why": "The open tridacna fans out as wings, and the holding pen at the foot widens the footprint. It reads as a flat star."
+  },
+  {
+   "id": "h01B",
+   "archetype": "ring or hollow crown",
+   "colour": "copper verdigris green",
+   "why": "The circular tank with a coral rim shows a dark hollow centre. The dock portal notch adds to the ring shape."
+  },
+  {
+   "id": "h032",
+   "archetype": "round silo or drum",
+   "colour": "deep oxblood-red plate",
+   "why": "It keeps the Spawning Grounds drum and grows it with a truncated pyramid crown. The darker plate makes it read as an upgrade."
+  },
+  {
+   "id": "h00F",
+   "archetype": "round silo or drum",
+   "colour": "slate-blue riveted iron",
+   "why": "The circular slab with a hatch is a low drum with a dark vapour hole on top."
+  },
+  {
+   "id": "h00J",
+   "archetype": "tilted leaning mass",
+   "colour": "moss-green slime-stained stone",
+   "why": "The beam pump and crooked pipe tilt over the well mouth. This is the base the Lernaean Fountain grows from."
+  },
+  {
+   "id": "h080",
+   "archetype": "pierced arch or gate",
+   "colour": "sea-glass turquoise crystal",
+   "why": "It keeps the Temple of Snakes gate and grows it into a taller conch portal on anchor legs with a launch beam reaching out."
+  },
+  {
+   "id": "h01Y",
+   "archetype": "pierced arch or gate",
+   "colour": "brass yellow-gold",
+   "why": "The open portico on anchor pillars is a hanging porch with a clear see-through gap."
+  },
+  {
+   "id": "h00N",
+   "archetype": "tall tower",
+   "colour": "deep rust-red with dead-coral streaks",
+   "why": "The upright pipe elbow with a figurehead is the tallest and narrowest shape in the race."
+  }
+ ]
+}

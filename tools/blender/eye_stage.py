@@ -31,6 +31,7 @@ sys.path.insert(0, str(HERE))
 import eye_critic  # noqa: E402
 import eye_fuse  # noqa: E402
 import eye_lib as EL  # noqa: E402
+import eye_atlas  # noqa: E402
 import eye_paint  # noqa: E402
 import eye_project  # noqa: E402
 import eye_skin  # noqa: E402
@@ -385,8 +386,10 @@ def judge_step(stop, judge, eye, r, src_run, prev_ev, ev, stalls, summary):
 
 
 def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="off", critic=None, stop="model", judge=None, union="off", paint="off", contour="hull", fuse=0,
-        union_reduce="qem", project="off", views=None, mold="off", joints="off", paint_sheet="flat"):
+        union_reduce="qem", project="off", views=None, mold="off", joints="off", paint_sheet="flat", ink="off", atlas="islands", atlas_size=str(eye_paint.SIZE), atlas_detail="off"):
     """The stage. views: session:<model> of the per-view reviewer (eye_views.py) or None. unit: {id, name, race, role, rig}; src_run: dir with model.glb (+ silhouette.json); out: the new run dir; ask(prompt, images, check) -> reply.
+    ink / atlas / atlas_size / atlas_detail: --eye-ink, --eye-atlas, --eye-atlas-size, --eye-atlas-detail of the paint (author 2026-11-09: no lines, a small indexed texel atlas,
+    the detail islands denser than the body).
     critic: ask-like callable of the L16-2 critic (eye_critic.py) or None. skin: --eye-skin technique applied after the last round (L16-4); union: --eye-union (L17-2), instead of the skin.
     Writes out/eye/..., out/model.glb, out/clay.glb; returns the summary dict. stop: "model" ends on the model's {"stop": true}; "never" records it
     and goes on (a measurement run); "judge" also ends after STALLS stalled rounds, judged by judge(run_a, run_b) -> review_pair result."""
@@ -413,7 +416,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
     with tempfile.TemporaryDirectory() as tmp:
         concept = concept_panels(sheet, rotate, tmp)
         if replay:
-            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet))
+            return replayed(summary, src, src_run, eye, out, rotate, (skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet, ink, atlas, atlas_size, atlas_detail))
         t0 = time.monotonic()
         base_dir = eye / "base"
         ev = measure(src, base_dir, sheet, unit["rig"])
@@ -491,7 +494,7 @@ def run(unit, src_run, out, ask, rounds=ROUNDS, replay=False, log=print, skin="o
                 break
         audit(critic, unit, concept, mirrored, cur, listed, label, stem, eye, summary, sheet)
     summary["seconds"] = round(time.monotonic() - t_all, 1)
-    return finish(summary, last_glb, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet)
+    return finish(summary, last_glb, src, out, eye, skin, union, paint, contour, fuse, union_reduce, project, mold, joints, paint_sheet, ink, atlas, atlas_size)
 
 
 def look_views(views, unit, concept, work, stem, label, out_dir, mirrored, summary):
@@ -575,10 +578,14 @@ def best_round(rounds):
     return max((r for r in rounds if "tris" in r), key=lambda r: (not r["disaster"], r["parts"][0], r["round"]))["round"]
 
 
-def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off", mold="off", joints="off", paint_sheet="flat"):
+def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off", contour="hull", fuse=0, union_reduce="qem", project="off", mold="off", joints="off", paint_sheet="flat",
+           ink="off", atlas="islands", atlas_size=str(eye_paint.SIZE), atlas_detail="off"):
     """The files of the stage: model.glb (the best built round, or the recorded one on a replay, outlined), clay.glb, anim stretch, summary.json, review.md.
     fuse > 0 (L18-1): the DSL's near colours fused to at most `fuse` materials before the union / skin and the paint (the rounds keep theirs).
-    mold / joints (levers 1 and 3, 2026-11-05) reach eye_union through the DSL's union_opts; paint_sheet (lever 2) picks the sheet eye_project projects."""
+    mold / joints (levers 1 and 3, 2026-11-05) reach eye_union through the DSL's union_opts; paint_sheet (lever 2) picks the sheet eye_project projects.
+    ink / atlas / atlas_size (author 2026-11-09): the paint's line switch, atlas kind and size; the palette atlas has no texels, so the projection and the
+    compaction (eye_atlas: flat islands shared, the rest repacked into the smallest indexed PNG) are skipped on it. atlas_detail on (author 2026-11-09): the bake at
+    eye_paint.DETAIL x the size and eye_atlas gives the accent / busy islands up to the bake's density, the body 1/DETAIL of it."""
     if last_glb is None:
         summary["final_round"] = None
         (eye / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -607,11 +614,15 @@ def finish(summary, last_glb, src, out, eye, skin="off", union="off", paint="off
     summary["skin"] = eye_skin.apply_stage(src, dsl, out, technique, always=union == "fused")
     tick(summary, "union", time.perf_counter() - t0, int(union != "off" or skin != "off"))
     t0 = time.perf_counter()
-    summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint)      # L17-3: before the contour, which adds a mesh
+    summary["paint"] = eye_paint.apply_stage(out / "model.glb", paint, ink, atlas, atlas_size, atlas_detail)      # L17-3: before the contour, which adds a mesh
     tick(summary, "paint", time.perf_counter() - t0, int(paint != "off"))
     t0 = time.perf_counter()
-    summary["project"] = eye_project.apply_stage(out / "model.glb", summary["unit"], project, paint_sheet) if paint != "off" else {}       # L20-0: swaps the atlas the paint left
+    texels = paint != "off" and atlas != "palette"                     # the swatch atlas has no texels to project on
+    summary["project"] = eye_project.apply_stage(out / "model.glb", summary["unit"], project, paint_sheet) if texels else {}       # L20-0: swaps the atlas the paint left
     tick(summary, "project", time.perf_counter() - t0, int(project != "off"))
+    t0 = time.perf_counter()
+    summary["atlas"] = eye_atlas.apply_stage(out / "model.glb", summary["unit"], eye_paint.DETAIL if atlas_detail == "on" else 1) if texels and summary["paint"] else {}
+    tick(summary, "atlas", time.perf_counter() - t0, int(texels))
     t0 = time.perf_counter()
     shutil.copy(out / "model.glb", out / "model-body.glb")          # the body without the hull: render_wire.py draws its triangulation (leva18.wire)
     summary["outline"] = contour in ("hull", "both") and outline.apply(out / "model.glb", hull=True)
@@ -676,7 +687,9 @@ def run_in_pipeline(args, src_run, ask):
     return run(unit_of(args, spec), src_run, args.out, ask, rounds=min(max(args.eye_rounds, 1), MAX_ROUNDS), replay=args.eye == "replay",
                skin=args.eye_skin, union=args.eye_union, critic=critic, stop=args.eye_stop, judge=judge,
                paint=args.eye_paint, contour=args.outline, fuse=getattr(args, "eye_fuse", 12), union_reduce=getattr(args, "eye_union_reduce", "cvt"), project=getattr(args, "eye_project", "off"), views=views,
-               mold=getattr(args, "eye_mold", "off"), joints=getattr(args, "eye_joints", "off"), paint_sheet=getattr(args, "eye_paint_sheet", "flat"))
+               mold=getattr(args, "eye_mold", "off"), joints=getattr(args, "eye_joints", "off"), paint_sheet=getattr(args, "eye_paint_sheet", "flat"),
+               ink=getattr(args, "eye_ink", "off"), atlas=getattr(args, "eye_atlas", "islands"), atlas_size=getattr(args, "eye_atlas_size", str(eye_paint.SIZE)),
+               atlas_detail=getattr(args, "eye_atlas_detail", "off"))
 
 
 def from_run(args, ask):

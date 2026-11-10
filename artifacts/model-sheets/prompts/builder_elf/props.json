@@ -1,0 +1,36 @@
+[
+  {
+    "name": "goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.1,
+      0.15
+    ]
+  },
+  {
+    "name": "brass staff",
+    "where": "anchor hand.L, on bone arm.L",
+    "bones": [
+      "arm.L",
+      "arm.R"
+    ],
+    "extent": [
+      0.829,
+      1.243
+    ]
+  },
+  {
+    "name": "clasped book",
+    "where": "anchor belt, on bone pelvis",
+    "bones": [
+      "pelvis"
+    ],
+    "extent": [
+      0.177,
+      0.265
+    ]
+  }
+]

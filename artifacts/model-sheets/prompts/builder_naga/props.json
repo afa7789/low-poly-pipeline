@@ -1,0 +1,37 @@
+[
+  {
+    "name": "net coil",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.337,
+      0.506
+    ]
+  },
+  {
+    "name": "hooked pipe pole",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.806,
+      1.209
+    ]
+  },
+  {
+    "name": "valve wheel",
+    "where": "anchor pole, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.094,
+      0.141
+    ]
+  }
+]

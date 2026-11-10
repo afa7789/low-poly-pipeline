@@ -383,19 +383,19 @@ def disagreement(colours, weights, names):
     return dict(sorted(out.items(), key=lambda kv: -kv[1]["texels"]))
 
 
-def edge_samples(uv, tri2, slot):
-    """(a, b): atlas texels (E, 2) (x, y) one texel inside each triangle at the midpoint of the shared edges; the two sides of a seam, wherever the charts put them."""
+def edge_samples(uv, tri2, slot, size):
+    """(a, b): texels (E, 2) (x, y) of a `size` px atlas one texel inside each triangle at the midpoint of the shared edges; the two sides of a seam, wherever the charts put them."""
     def side(t, s):
-        mid = (uv[t, s] + uv[t, (s + 1) % 3]) / 2 * eye_paint.SIZE
-        to = uv[t].mean(1) * eye_paint.SIZE - mid
-        return (mid + to / np.maximum(np.linalg.norm(to, axis=1, keepdims=True), 1e-9)).astype(int).clip(0, eye_paint.SIZE - 1)
+        mid = (uv[t, s] + uv[t, (s + 1) % 3]) / 2 * size
+        to = uv[t].mean(1) * size - mid
+        return (mid + to / np.maximum(np.linalg.norm(to, axis=1, keepdims=True), 1e-9)).astype(int).clip(0, size - 1)
     return side(tri2[:, 0], slot[:, 0]), side(tri2[:, 1], slot[:, 1])
 
 
 def seams(img, lead, used, uv, pos, tri, names):
     """Across the mesh edges: OKLab distance (×100) between the two sides, for edges whose sides are led by one view and by two. Per pair of views also the mean height."""
     tri2, slot = eye_paint.shared_edges(eye_paint.weld(pos)[tri])
-    a, b = edge_samples(uv, tri2, slot)
+    a, b = edge_samples(uv, tri2, slot, used.shape[0])
     ok = used[a[:, 1], a[:, 0]] & used[b[:, 1], b[:, 0]]
     a, b, tri2, slot = a[ok], b[ok], tri2[ok], slot[ok]
     la, lb = lead[a[:, 1], a[:, 0]], lead[b[:, 1], b[:, 0]]
@@ -488,11 +488,18 @@ def accents(colours, areas, identity):
     return (chroma >= ACC_C) & ((chroma >= ACC_REL * base) | named)
 
 
-def part_filter(mixed, cov, piece, colours, names, ab_max, l_max, share):
+def ao_steps(own, base):
+    """(n,) the occlusion step (eye_paint.AO_STEPS) of every texel of the quantised procedural atlas: the swatch of its piece's colour `base` (n, 3) nearest its colour `own` (n, 3)."""
+    swatches = np.stack([eye_paint.swatch_colour(base, np.full(len(base), k)) for k in range(len(eye_paint.AO_STEPS))], axis=1)       # (n, 3 steps, rgb)
+    return np.argmin(((swatches - own[:, None, :]) ** 2).sum(-1), axis=1)
+
+
+def part_filter(mixed, cov, piece, colours, names, ab_max, l_max, share, step=None):
     """L20-2: the colour a piece takes from the sheet, one per piece. mixed (n, 3) sRGB projected, cov (n,) covered, piece (n,) the piece of every texel,
     colours (P, 3) sRGB the DSL gives the pieces, names (P,). A piece is painted when its dominant colour is near its DSL colour (OWN_AB, OWN_L) and `share` of its
-    covered texels are within the tolerance of it: those texels keep their projection, every other texel of the piece (refused, uncovered) takes the dominant
-    colour. Any other piece keeps the procedural paint whole. (colours (n, 3), painted (n,), per-piece report)."""
+    covered texels are within the tolerance of it: every texel of the piece takes the dominant colour x its occlusion step `step` (n,) (author 2026-11-09:
+    the atlas stays at most pieces x 3 tones; without `step` the texels within the tolerance keep their projection, the others take the dominant colour).
+    Any other piece keeps the procedural paint whole. (colours (n, 3), painted (n,), per-piece report)."""
     out, painted, report = mixed.copy(), np.zeros(len(mixed), bool), []
     for p in np.unique(piece):
         mine = piece == p
@@ -504,7 +511,9 @@ def part_filter(mixed, cov, piece, colours, names, ab_max, l_max, share):
         uniform = bool(gate_keep(dom, colours[p], OWN_AB, OWN_L) and near.sum() / seen.sum() >= share)
         report.append({"piece": int(p), "name": names[p], "texels": int(mine.sum()), "covered": int(seen.sum()), "kept": int(near.sum()),
                        "dominant": [int(x) for x in dom.round()], "dsl": [int(x) for x in colours[p]], "painted": uniform})
-        if uniform:
+        if uniform and step is not None:
+            out[mine], painted[mine] = eye_paint.swatch_colour(np.tile(dom, (int(mine.sum()), 1)), step[mine]), True
+        elif uniform:
             out[mine & ~near], painted[mine] = dom, True
     return out, painted, report
 
@@ -531,7 +540,7 @@ def project(pos, tri, uv, atlas, panels, mode="on", k=K, soft=False, gate=None, 
     soft: the weight's cosine from interpolated normals (the cut-off stays on the triangle's own normal). gate: (ab_max, l_max), see gate_keep: a refused texel keeps `atlas`.
     parts: (fields, colours, names, identity, ab_max, l_max, share), see part_filter and accents (an accent piece is never touched: no gate, no projection) (L20-2): after the gate, a texel takes its piece's dominant colour or keeps `atlas`."""
     nrm = eye_paint.normals(pos, tri)[0]
-    used, P, N, T = eye_paint.rasterize(uv, pos, tri, nrm)
+    used, P, N, T = eye_paint.rasterize(uv, pos, tri, nrm, atlas.shape[0])
     smooth = soft_normals(pos, tri, T[used], P[used]) if soft else None
     height = max(np.ptp(pos[:, 2]), 1e-6)
     lit, palette = delight(panels)
@@ -556,7 +565,7 @@ def project(pos, tri, uv, atlas, panels, mode="on", k=K, soft=False, gate=None, 
         refused, cov = int(cov.sum() - accepted.sum()), accepted
     report = []
     if parts:
-        mixed, cov, report = part_filter(mixed, cov, piece, *parts[1:3], *parts[4:])
+        mixed, cov, report = part_filter(mixed, cov, piece, *parts[1:3], *parts[4:], step=ao_steps(atlas[used].astype(float), parts[1][piece]))
         report = {"accent": [parts[2][i] for i in np.nonzero(accent)[0]], "pieces": report}
     img = atlas.astype(float).copy()
     img[np.nonzero(used)[0][cov], np.nonzero(used)[1][cov]] = mixed[cov]

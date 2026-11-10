@@ -13,10 +13,11 @@ Per unit, in order, each stage idempotent (skipped when its outputs exist, with 
           from the parts the segmenter marked `prop` (name, bone, extent from box3d) when the unit has any.
   model   spec_pipeline.py with the v18-cvt recipe spelled out by flag (--eye on, fuse 12, union bone @ cvt, paint box,
           hull outline), --deterministic, --run <run-id>; race from the compendium, rig from RIG_OF / the card's words.
---extra-units <json>: a list of {id, name, race, rig, kind: "unit", card, parent, figure} pseudo-units merged before the lookup (a
-multi-figure sheet split into one model per figure: e00E-a, hmtm-c). An extra unit brings its own refs/<id>/sheet.jpg (a split of the
-parent's), so the prompt and sheets stages count as done; its rig is the entry's; its `figure` line and the parent's facts are the
-segmenter's card (prompts/<id>/card.txt); spec_pipeline builds from sheet.jpg when the hard variants are missing.
+--extra-units <json>: a list of {id, name, race, rig, kind: "unit", card, parent?, figure?, facts?} pseudo-units merged before the lookup.
+With `parent` (a multi-figure sheet split into one model per figure: e00E-a, hmtm-c) the entry brings its own refs/<id>/sheet.jpg (a split
+of the parent's), so the prompt and sheets stages count as done; its rig is the entry's; its `figure` line and the parent's facts are the
+segmenter's card (prompts/<id>/card.txt); spec_pipeline builds from sheet.jpg when the hard variants are missing. Without `parent` (a unit
+outside the compendium: the builders) the whole chain runs from the entry's `card` (+ `facts`, the FACTS block of the prompt brief).
 State in artifacts/model-sheets/runs/roster/<run-id>/status.json (per unit: stage, seconds, estimated cost, truncated error,
 paths), one log per unit in logs/<id>.log, the final markdown table in table.md. A failing unit never stops the others.
 The pure functions (unit state, stage plan, rig guess, props from parts, parsers, table, estimate) are tested in
@@ -318,7 +319,8 @@ def run_prompt(u, rig, log):
     subprocess.run([sys.executable, str(MSHEETS / "unit_facts.py"), "--emit-prompt", u["id"]], capture_output=True, text=True, cwd=MSHEETS)
     templates = {k: (PROMPTS / f"00-template-{k}.txt").read_text() for k in ("unit", "unit-hard", "unit-hard-clean", "props")}
     example = (PROMPTS / "00-example-unit.txt").read_text()
-    got = claude_json(prompt_fill_brief({**u, "facts": facts.stdout}, rig, templates, example), PROMPT_SCHEMA, log)
+    (PROMPTS / u["id"]).mkdir(parents=True, exist_ok=True)
+    got = claude_json(prompt_fill_brief({**u, "facts": u.get("facts") or facts.stdout}, rig, templates, example), PROMPT_SCHEMA, log)
     written = []
     for key, suffix in (("unit", ""), ("unit_hard", "-hard"), ("unit_hard_clean", "-hard-clean"), ("unit_props", "-props")):
         if got.get(key) and prompt_path(u["id"], "unit" + suffix) is None:
@@ -444,7 +446,7 @@ def cost_of(text):
     return sum(float(x) for x in re.findall(r"cost=([0-9.]+)", text))
 
 
-def building_brief(u, facts, card, chain, template, example):
+def building_brief(u, facts, card, chain, template, example, race_set=""):
     return (f"You write image prompts for the model-sheet pipeline of a dieselpunk dark-fantasy low-poly RTS. Fill the placeholders of the "
             f"building template below for {u['id']} ({u['race']} {u['name']}). {ref_rule(u['id'])}Return each field as plain text that reads naturally inside "
             f"the template sentence it replaces.\n"
@@ -457,8 +459,61 @@ def building_brief(u, facts, card, chain, template, example):
             f"- tier, family, cue, sib, cmp: rank in its chain ('base' / 'second tier' / 'top'), the family name, the silhouette event that marks "
             f"the NEXT tier, the sibling or neighbour building to compare with, and how this block differs. A building with no chain: tier "
             f"'only tier', family its own name, cue = a plausible bigger-version event, sib = another building of the race.\n"
-            f"Never mention eyes or faces unless the card gives the building one. Do not add figures, units or text.\n\n"
+            f"Never mention eyes or faces unless the card gives the building one. Do not add figures, units or text.\n"
+            f"READ AT A DISTANCE (the author's rule): on the battlefield a building is a 40 px blob. Every building of a race must be told apart by SILHOUETTE "
+            f"and BODY COLOUR, while sharing ONE race motif. Below is the race's whole building set with the archetype and body colour already assigned to each; "
+            f"this building is marked >>. Use its assigned archetype as the mass (sil) and its assigned colour as c0; keep the race motif as c1 or as a repeated "
+            f"shape; never a plain riveted metal box unless that is the assigned archetype.\n{race_set}\n\n"
             f"FACTS\n{facts}\n\nCARD\n{card}\n\nCHAIN\n{chain}\n\nTEMPLATE\n{template}\n\nEXAMPLE of a finished building prompt (other building):\n{example}\n")
+
+
+ARCHETYPES = ("tall tower", "long low shed", "wide squat dome", "stepped pyramid or ziggurat", "tilted leaning mass", "ring or hollow crown",
+              "pierced arch or gate", "spired cluster of two or three peaks", "cantilevered box on a stalk", "sunken pit with a rim",
+              "round silo or drum", "spread-winged low star", "bridge-like span on legs", "stacked crates or terraces")
+PLAN_SCHEMA = {"type": "object", "required": ["motif", "buildings"],
+               "properties": {"motif": {"type": "string"},
+                              "buildings": {"type": "array", "items": {"type": "object", "required": ["id", "archetype", "colour"],
+                                                                       "properties": {k: {"type": "string"} for k in ("id", "archetype", "colour", "why")}}}}}
+
+
+def race_building_plan(race, comp, log):
+    """One Claude call per race: {id: {archetype, colour}} over the race's whole building set, so silhouettes and body colours differ at 40 px while
+    one motif is shared (author 2026-11-09). Cached in prompts/building-plan-<race>.json; chains share an archetype and grow it."""
+    sys.path.insert(0, str(MSHEETS))
+    import unit_facts
+    key = re.sub(r"[^a-z0-9]+", "-", race.lower()).strip("-")
+    cache = PROMPTS / f"building-plan-{key}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    idx = {e["id"]: e for r in comp["races"] for e in r["entries"]}
+    rows = [e for r in comp["races"] if r["name"] == race for e in r["entries"] if e.get("kind") == "building"]
+    lines = []
+    for e in rows:
+        card = (unit_facts.card_section(e["id"])[2] or "")
+        m = re.search(r"Redesign[^:]*:?\s*(.+?)(?:\.|$)", card)
+        pred = idx.get(e.get("predecessorId") or "")
+        lines.append(f"- {e['id']} {e['name']} | tier chain: {'upgrade of ' + pred['name'] if pred else 'base'} | card: {(m.group(1) if m else card[:160]).strip()}")
+    palette = " | ".join(unit_facts.palette_row(race)) or "see art bible"
+    brief = (f"You plan the buildings of the {race} race of a dieselpunk dark-fantasy RTS so that each one is told apart at 40 px by SILHOUETTE and BODY COLOUR, "
+             f"while all share ONE race motif. Race palette: {palette}.\n"
+             f"Rules: assign every building one archetype from this list, spreading them so no two base buildings of the race share one (upgrades of one chain "
+             f"keep the chain's archetype and grow it): {', '.join(ARCHETYPES)}. Assign every building a body colour in plain English words, at least 5 clearly "
+             f"different hues across the race (wood, stone, bone, ice, coral, crystal, living tree, cloth, brass, iron, painted panels: whatever the card and the race "
+             f"allow), never the same colour for two neighbours in the build order. Pick one motif the whole race repeats (a shape, a trim colour, a roof style). "
+             f"Keep the card's redesign where it already gives a shape or material. Return JSON: motif, buildings [{{id, archetype, colour, why}}].\n\nBUILDINGS\n"
+             + "\n".join(lines))
+    plan = claude_json(brief, PLAN_SCHEMA, log)
+    cache.write_text(json.dumps(plan, indent=1) + "\n")
+    return plan
+
+
+def race_set_text(u, plan):
+    """The race's plan as lines, the current building marked >>."""
+    out = [f"race motif: {plan.get('motif', '')}"]
+    for row in plan.get("buildings", []):
+        mark = ">> " if row["id"] == u["id"] else "   "
+        out.append(f"{mark}{row['id']}: {row['archetype']}; body colour {row['colour']}")
+    return "\n".join(out)
 
 
 def run_building_prompt(u, comp, log):
@@ -472,7 +527,8 @@ def run_building_prompt(u, comp, log):
     succ = [x["name"] for x in idx.values() if x.get("predecessorId") == u["id"]]
     chain = f"previous tier: {pred['name'] if pred else 'none'}; next tier: {', '.join(succ) or 'none'}; trains/relates to: {e.get('relatedName')}"
     template = BUILDING_TEMPLATE.read_text()
-    got = claude_json(building_brief(u, facts, card, chain, template, (PROMPTS / "00-example-building.txt").read_text()), BUILDING_SCHEMA, log)
+    plan = race_building_plan(u["race"], comp, log)
+    got = claude_json(building_brief(u, facts, card, chain, template, (PROMPTS / "00-example-building.txt").read_text(), race_set_text(u, plan)), BUILDING_SCHEMA, log)
     template = template.replace("Every panel holds exactly one building", LAYOUT_SENTENCE + "Every panel holds exactly one building", 1)
     text = template.format(race=u["race"], name=u["name"], uid=u["id"], **{k: got[k].strip() for k in BUILDING_FIELDS})
     if "{" in text or not got["panels"].strip():
@@ -514,15 +570,22 @@ def run_building_sheet(u, log):
     return {"paths": [f"artifacts/model-sheets/refs/{u['id']}/sheet.jpg"], "cost_usd": usd, "gateway_cost": gw, "layout_ok": ok, "draws": tries}      # nominal price; the gateway prints another number (0.0034 for 0.046)
 
 
+BUILDING_RECIPE = ["--eye", "on", "--eye-rounds", "1", "--eye-stop", "model", "--eye-fuse", "12", "--eye-union", "bone",
+                   "--eye-union-reduce", "cvt", "--eye-paint", "box", "--outline", "off",
+                   "--part-masks", "sam2", "--eye-mold", "masks", "--eye-joints", "off", "--eye-views", "off", "--eye-paint-sheet", "flat"]
+# a building is static: no limbs, no pose, no joints; 2 eye rounds, SAM2 masks + mass mold keep the silhouette, no TripoSplat (the GPU lock
+# was the roster's bottleneck: 5 min serialised per unit) and no per-view reviewer (measured gain ~0 on units) -> ~10 min, 6 jobs fit (2026-11-09)
+
+
 def building_command(u, run_id):
     return [sys.executable, "tools/blender/spec_pipeline.py", "--id", u["id"], "--race", u["race"], "--name", u["name"], "--kind", "building",
-            "--model", SESSION_MODEL, "--tag", "roster", "--run", run_id, "--deterministic", *EYE_RECIPE, "--eye-project", "tight"]
+            "--model", ARTIST_MODEL, "--tag", "roster", "--run", run_id, "--deterministic", *BUILDING_RECIPE, "--eye-project", "tight", "--no-rts"]
 
 
 def run_building_model(u, run_id, log):
     """spec_pipeline --kind building with the eye recipe; exit 1/2 with a model on disk is a CHECK row (note kept), not an error."""
     run = DRAFT / u["id"] / run_id
-    rts_new = not (REFS / u["id"] / "sheet-rts.jpg").exists()
+    rts_new = 0                 # one image per building (author 2026-11-09): --no-rts, the judge measures the five sheet views only
     try:
         out, note = shell(building_command(u, run_id), log), ""
     except RuntimeError as err:
@@ -582,7 +645,7 @@ def extra_units(path, comp):
     out = []
     for e in json.loads(pathlib.Path(path).read_text()):
         parent = parents.get(e.get("parent") or "", {})
-        u = {"kind": "unit", "card": "", **e, "extra": True}
+        u = {"kind": "unit", "card": "", **e, "extra": bool(e.get("parent"))}      # no parent: drawn from its card, like a roster unit
         u["card"] = u["card"] or parent.get("card", "")
         if e.get("figure"):
             (PROMPTS / u["id"]).mkdir(parents=True, exist_ok=True)
