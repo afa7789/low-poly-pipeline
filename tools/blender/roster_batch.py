@@ -716,8 +716,8 @@ def main(argv=None):
     comp = json.loads(COMPENDIUM.read_text())
     want = [x for x in args.units.split(",") if x]
     extras = extra_units(args.extra_units, comp) if args.extra_units else []
-    units = [u for u in roster(comp) + extras if args.all_units or u["id"] in want]
-    buildings = [u for u in roster(comp, "building") if args.all_buildings or u["id"] in want]
+    units = [u for u in roster(comp) + [e for e in extras if e["kind"] == "unit"] if args.all_units or u["id"] in want]
+    buildings = [u for u in roster(comp, "building") + [e for e in extras if e["kind"] == "building"] if args.all_buildings or u["id"] in want]
     missing = sorted(set(want) - {u["id"] for u in units + buildings})
     if missing:
         sys.exit(f"not units of the compendium: {', '.join(missing)}")

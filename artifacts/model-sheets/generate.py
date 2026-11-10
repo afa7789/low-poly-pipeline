@@ -52,9 +52,11 @@ def api_key():
     sys.exit("no PPQ_API_KEY in the environment and no opencode.json to read it from")
 
 
-def build_payload(model, prompt, image, resolution, aspect):
+def build_payload(model, prompt, image, resolution, aspect, quality=None):
     payload = {"model": model, "prompt": prompt, "aspect_ratio": aspect,
                "resolution": resolution, "n": 1}
+    if quality:
+        payload["quality"] = quality      # gpt-image-2.5: "low" is $0.0097, the default "auto" $0.087 (2026-11-10)
     if image:
         small = subprocess.run(["magick", str(image), "-resize", "1024x1024", "-quality", "88",
                                 "jpg:-"], check=True, capture_output=True).stdout
@@ -66,9 +68,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("prompt_file", type=pathlib.Path)
     ap.add_argument("--id", default=None, help="unit id; switches default output to refs/<id>/")
-    ap.add_argument("--model", default="nano-banana-2-1")
+    ap.add_argument("--model", default=os.environ.get("CF_IMAGE_MODEL", "nano-banana-2-1"),
+                    help="env CF_IMAGE_MODEL overrides the default (roster of 2026-11-10: gpt-image-2.5-sunburst)")
     ap.add_argument("--resolution", default="2K")
     ap.add_argument("--aspect", default="1:1")
+    ap.add_argument("--quality", default=os.environ.get("CF_IMAGE_QUALITY") or None,
+                    help="gateway quality variant (gpt-image-2.5: low = $0.0097, auto = $0.087); env CF_IMAGE_QUALITY")
     ap.add_argument("--out", type=pathlib.Path, default=None, help="output directory")
     ap.add_argument("--name", default=None, help="output stem (default: prompt file stem)")
     ap.add_argument("--image", type=pathlib.Path, default=None,
@@ -91,7 +96,7 @@ def main():
         stem = args.name or args.prompt_file.stem
     dest = out / f"{stem}.jpg"
 
-    payload = build_payload(args.model, prompt, args.image, args.resolution, args.aspect)
+    payload = build_payload(args.model, prompt, args.image, args.resolution, args.aspect, args.quality)
     if args.dry_run:
         shown = {**payload, "prompt": f"<{len(prompt)} chars>"}
         if "image_url" in shown:

@@ -189,8 +189,7 @@
   "race": "Chaos",
   "base": "ewsp",
   "mdl": "no_model.mdl",
-  "source": "author",
-  "note": "two villager kids: see e00E-a, e00E-b"
+  "source": "none"
  },
  "h04V": {
   "name": "Ancient of Battle",
@@ -845,8 +844,8 @@
   "kind": "unit",
   "race": "Elemental",
   "base": "ugho",
-  "mdl": "Units\\Creeps\\HeroFlameLord\\HeroFlameLord",
-  "source": "author"
+  "mdl": "no_model.mdl",
+  "source": "none"
  },
  "h03R": {
   "name": "Greater Elemental Of Lightning",
@@ -3163,11 +3162,187 @@
  "e00E-a": {
   "name": "Twins (kid 1)",
   "mdl": "units\\critters\\VillagerKid\\VillagerKid",
-  "source": "author"
+  "source": "ok"
  },
  "e00E-b": {
   "name": "Twins (kid 2)",
   "mdl": "units\\critters\\VillagerKid1\\VillagerKid1",
-  "source": "author"
+  "source": "ok"
+ },
+ "n01Q": {
+  "name": "Hydra",
+  "kind": "unit",
+  "race": null,
+  "base": "nahy",
+  "mdl": "Units\\Creeps\\Hydra\\Hydra",
+  "source": "ok"
+ },
+ "n01R": {
+  "name": "Lesser Hydra",
+  "kind": "unit",
+  "race": null,
+  "base": "nahy",
+  "mdl": "Units\\Creeps\\Hydra\\Hydra",
+  "source": "ok"
+ },
+ "h01V": {
+  "name": "Lesser Vampire",
+  "kind": "unit",
+  "race": null,
+  "base": "hfoo",
+  "mdl": "units\\undead\\HeroDreadLord\\HeroDreadLord.mdl",
+  "source": "ok"
+ },
+ "u004": {
+  "name": "Ghoul",
+  "kind": "unit",
+  "race": null,
+  "base": "ugho",
+  "mdl": "units\\undead\\Ghoul\\Ghoul",
+  "source": "ok"
+ },
+ "u008": {
+  "name": "Greater Ghoul",
+  "kind": "unit",
+  "race": null,
+  "base": "ugho",
+  "mdl": "units\\undead\\Ghoul\\Ghoul",
+  "source": "ok"
+ },
+ "u00E": {
+  "name": "Lich Ghoul",
+  "kind": "unit",
+  "race": null,
+  "base": "ugho",
+  "mdl": "units\\undead\\Ghoul\\Ghoul",
+  "source": "ok"
+ },
+ "e00D": {
+  "name": "Treant",
+  "kind": "unit",
+  "race": null,
+  "base": "efon",
+  "mdl": "units\\nightelf\\Ent\\Ent",
+  "source": "ok"
+ },
+ "n03V": {
+  "name": "Long Range Catapult",
+  "kind": "unit",
+  "race": null,
+  "base": "hmtt",
+  "mdl": "Units\\CatapultWC1.mdx",
+  "source": "ok"
+ },
+ "n00W": {
+  "name": "Summoned Lobster",
+  "kind": "unit",
+  "race": null,
+  "base": "nltc",
+  "mdl": "Units\\Creeps\\Lobstrokkblue\\Lobstrokkblue",
+  "source": "ok"
+ },
+ "n01C": {
+  "name": "Raised Tentacle",
+  "kind": "unit",
+  "race": null,
+  "base": "nfgt",
+  "mdl": "Units\\Creeps\\ForgottenOne\\ForgottenOneTent",
+  "source": "ok"
+ },
+ "n01S": {
+  "name": "Mutation",
+  "kind": "unit",
+  "race": null,
+  "base": "nslm",
+  "mdl": "units\\creeps\\SludgeMonster\\SludgeMonster",
+  "source": "ok"
+ },
+ "e00S": {
+  "name": "e00S",
+  "kind": "unit",
+  "race": null,
+  "base": "e00S",
+  "mdl": null,
+  "source": "none"
+ },
+ "n00T": {
+  "name": "Forest Spider",
+  "kind": "unit",
+  "race": null,
+  "base": "nspg",
+  "mdl": "units\\creeps\\SpiderGreen\\SpiderGreen",
+  "source": "ok"
+ },
+ "u002": {
+  "name": "Skeleton Warrior",
+  "kind": "unit",
+  "race": null,
+  "base": "uske",
+  "mdl": "units\\undead\\Skeleton\\Skeleton",
+  "source": "ok"
+ },
+ "n00D": {
+  "name": "Skeleton Archer",
+  "kind": "unit",
+  "race": null,
+  "base": "nsca",
+  "mdl": "units\\creeps\\SkeletonArcher\\SkeletonArcher",
+  "source": "ok"
+ },
+ "u00A": {
+  "name": "Skeletal Mage",
+  "kind": "unit",
+  "race": null,
+  "base": "uskm",
+  "mdl": "units\\undead\\SkeletonMage\\SkeletonMage",
+  "source": "ok"
+ },
+ "n00C": {
+  "name": "Skeletal Hero",
+  "kind": "unit",
+  "race": null,
+  "base": "nsko",
+  "mdl": "units\\creeps\\SkeletonOrc\\SkeletonOrc",
+  "source": "ok"
+ },
+ "u00B": {
+  "name": "Greater Skeleton Warrior",
+  "kind": "unit",
+  "race": null,
+  "base": "uske",
+  "mdl": "units\\undead\\Skeleton\\Skeleton",
+  "source": "ok"
+ },
+ "n01L": {
+  "name": "Greater Skeleton Archer",
+  "kind": "unit",
+  "race": null,
+  "base": "nsca",
+  "mdl": "Units\\Creeps\\BurningArcher\\BurningArcher.mdl",
+  "source": "ok"
+ },
+ "u003": {
+  "name": "Greater Skeletal Mage",
+  "kind": "unit",
+  "race": null,
+  "base": "uskm",
+  "mdl": "units\\undead\\SkeletonMage\\SkeletonMage",
+  "source": "ok"
+ },
+ "n01M": {
+  "name": "Skeletal General",
+  "kind": "unit",
+  "race": null,
+  "base": "nsko",
+  "mdl": "units\\creeps\\SkeletonOrc\\SkeletonOrc",
+  "source": "ok"
+ },
+ "h008": {
+  "name": "Treasure Box",
+  "kind": "unit",
+  "race": null,
+  "base": "hbla",
+  "mdl": "buildings\\other\\MagicVault\\MagicVault.mdl",
+  "source": "ok"
  }
 }

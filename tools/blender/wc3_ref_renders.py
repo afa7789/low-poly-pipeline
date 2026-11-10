@@ -126,12 +126,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("map")
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--ids", default="", help="comma-separated ids outside the compendium (summons, perks) to add, from war3map.w3u")
     args = ap.parse_args()
     W._table()
     mpq = W.Map(args.map)
     w3u, skin = parse_w3u(), skin_files()
     comp = json.loads((ROOT / "data/compendium.json").read_text())
-    rows = {}
+    rows = json.loads(OUT.read_text()) if OUT.exists() else {}
+    for uid in filter(None, args.ids.split(",")):
+        base, mods = w3u.get(uid, (uid, {}))
+        rows[uid] = {"name": mods.get("unam") or uid, "kind": "unit", "race": None, "base": base,
+                     "mdl": mods.get("umdl") or skin.get(base), "source": "none"}
     for race in comp["races"]:
         for e in race["entries"]:
             if e.get("kind") not in ("unit", "building"):

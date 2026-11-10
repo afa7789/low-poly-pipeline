@@ -24,6 +24,9 @@ RES = 1024              # depth render size (square)
 MIN_OPACITY = 0.2
 
 
+NEURAL_TIMEOUT_S = 1200     # one TripoSplat/SAM2 job never needs more than ~5 min; past this it is hung
+
+
 def run(argv, env, tries=2):
     """The neural subprocess under one machine-wide lock (NEURAL/gpu.lock): two MPS jobs at once blew the command buffer (n01D,
     roster-v6); a failed run is retried once after the lock is held again."""
@@ -32,12 +35,17 @@ def run(argv, env, tries=2):
     NEURAL.mkdir(parents=True, exist_ok=True)
     with open(NEURAL / "gpu.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        done = None
         for i in range(tries):
-            done = subprocess.run(argv, env=env)
+            try:
+                done = subprocess.run(argv, env=env, timeout=NEURAL_TIMEOUT_S)
+            except subprocess.TimeoutExpired:      # an MPS job that hangs at 0 % CPU held the lock for 1 h (u002, roster-v7-extra, 2026-11-10)
+                print(f"neural: no exit after {NEURAL_TIMEOUT_S} s, killed, " + ("retrying" if i + 1 < tries else "giving up"), flush=True)
+                continue
             if done.returncode == 0:
                 return
             print(f"neural: exit {done.returncode}, " + ("retrying" if i + 1 < tries else "giving up"), flush=True)
-        raise subprocess.CalledProcessError(done.returncode, argv)
+        raise subprocess.CalledProcessError(done.returncode if done is not None else -9, argv)
 
 
 def command(*args):
