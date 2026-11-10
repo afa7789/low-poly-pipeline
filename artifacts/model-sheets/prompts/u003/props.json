@@ -1,0 +1,14 @@
+[
+  {
+    "name": "tesla fork",
+    "where": "anchor hand.L, on bone forearm.L",
+    "bones": [
+      "forearm.L",
+      "forearm.R"
+    ],
+    "extent": [
+      0.578,
+      0.867
+    ]
+  }
+]

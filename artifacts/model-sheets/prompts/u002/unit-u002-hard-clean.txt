@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Undead Skeleton Warrior (id u002) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a thin raw-bone skeleton with a skull, narrow rib cage, two thin arms and two thin bone legs, torn mask-leather greatcoat rags over the ribs, two ecto-green dots in the eye sockets. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the bare skull with two ecto-green eye dots, the rib cage under the torn mask-leather coat rags, both empty arms angled slightly out from the body, two thin bone legs.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the bare skull in profile, the rib cage and coat rags hanging to the thighs, the empty arm angled slightly out, two thin bone legs in a loose stance.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the back of the bare skull, the spine and ribs showing through the torn coat rags, both empty arms angled slightly out, two thin bone legs.
+
+Panel 4, bottom left: top-down view from directly above: the bare skull crown in the centre, narrow bone shoulders under the coat rags, both empty arms angled out, the feet just peeking out below.
+
+Panel 5, bottom right: bottom-up view from directly below: the underside of the jaw and ribs under the coat rags, two thin bone legs with flat bone feet, both empty arms angled out.
+
+Neutral static A-pose, standing level on two thin bone legs in a loose stance, both arms angled slightly down and away from the body with empty open hands, the same angle in every view, no expression. Squared-on orthographic projection, no perspective, no foreshortening.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The skull is a faceted box-like block with a flat jaw wedge, the rib cage a tapered prism, the coat rags a few flat angular panels, the limbs square-section prisms. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (skull, rib cage, coat rags, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (one spiked wooden trench club, one small bent sheet-metal shield, one dented steel trench helmet) are deliberately absent: the hands are empty, the left forearm and the skull are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: raw bone (#D8D0BC) on the large masses, mask-leather brown (#6E4A34) on the smaller masses, one warm accent (ecto green #0B8055) somewhere on the body, one flat tone per facet. Face: bare skull with two ecto-green dots in the eye sockets, no other glow.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

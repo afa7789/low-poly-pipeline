@@ -1,0 +1,24 @@
+[
+  {
+    "name": "moss.L",
+    "where": "anchor shoulder.L, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.207,
+      0.311
+    ]
+  },
+  {
+    "name": "sap_knot",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.121,
+      0.181
+    ]
+  }
+]

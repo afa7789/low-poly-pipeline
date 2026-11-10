@@ -1,0 +1,20 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough three-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — a Nature Forest Spider (id n00T) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them.
+
+Panel 1, top left: front view facing the camera: the small bark head at the front with a cluster of eight sap green eye dots, four jointed legs splayed out on each side, the body carried just above the ground.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the small round head at the front, the larger bark abdomen with its moss stripes behind it, the legs bent at the joints and planted along the body, the two sap green spinnerets glowing at the rear tip.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bark abdomen with its mossy-green stripes in the middle, all eight legs showing on both sides, the two sap green spinnerets at the bottom rear of the abdomen.
+
+Panel 4, top-down view from directly above: the small head, the oval striped abdomen, the two sap green spinnerets at the rear and the eight legs radiating out in four pairs.
+
+Panel 5, bottom-up view from directly below: the flat bark underside of the body, the eight leg undersides in four pairs, the eye cluster at the front and the two sap green spinnerets at the rear.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same props in the same places, same pixel height, same ground line. Neutral static pose, all eight legs splayed evenly around the body at the same angle in every view, body level and carried just above the ground, no expression. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks — head, torso, two arms, two legs — with hard edges and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nature Forest Spider: a small eight-legged spider with a living-bark body, a small head and a rounded abdomen with mossy-green stripes, eight thin jointed legs, all visible; props kept to their largest, crudest shape: two clear-sap spinnerets at the rear of the abdomen, body parts and not held items. Colour is a suggestion, not a rule — the figure reads roughly as living-bark brown, with moss green on the smaller masses and one warm accent (clear sap green) somewhere on the body; the same palette need not be forced across the race, and colour must never be carried by detail. Face: none at all — only a cluster of eight small clear sap green eye dots on the front of the head.
+
+Weapon match: this unit attacks at range by shooting webs from its two glowing spinnerets; the spinnerets are body parts, not held weapons, and there is no firearm, bow or launcher.
+Rank in its chain: this is the base body of the Nature spider family. The silhouette event that marks the upgrade — a much larger segmented body on long thorned root legs with two branch-thick chelicerae — belongs to the higher tier and does not appear here. Compared with n01N, this body is the simpler one: lower mass, fewer silhouette events, no extra limbs, heads or props.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

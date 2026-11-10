@@ -1,0 +1,25 @@
+[
+  {
+    "name": "bandolier",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.161,
+      0.242
+    ]
+  },
+  {
+    "name": "rifle",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.413,
+      0.62
+    ]
+  }
+]

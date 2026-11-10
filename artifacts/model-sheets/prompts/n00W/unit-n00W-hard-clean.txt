@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Naga Summoned Lobster (id n00W) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in the same neutral level pose on its six legs, and no prop is added. Nothing else changes.
+
+Keep the design exactly as attached: a squat abyssal-pitch carapace on six jointed legs, two oversized bronze pincers held forward, a block of verdigris-bronze plates on the back, a short tail and two eye-stalks with turquoise lamp tips. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the squat carapace low over the ground, the two bronze pincers held forward and wide, the two turquoise-tipped eye-stalks at the front, six legs showing under the carapace on both sides.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the carapace with the bronze back plates on top, the near pincer reaching forward, the eye-stalk at the front, three near legs planted in a row and the short tail at the rear.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bronze back plates over the carapace, the short tail in the middle, the two pincers at the sides and six legs on both sides.
+
+Panel 4, bottom left: top-down view from directly above: the oval carapace with the back plates, the two pincers pointing forward, the two eye-stalks at the front, the short tail at the rear and the six legs radiating out in three pairs.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat pitch underside of the carapace, the six leg undersides in three pairs, the two pincers pointing forward and the short tail at the rear.
+
+Neutral static pose, standing level on the six splayed legs with the body just above the ground, both pincers held forward at the same angle in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The carapace is a low flat-topped hexagonal block with a sloped front and rear, each leg is two angular prism segments meeting at a knee, each pincer is a chunky wedge claw with a square arm and a blunt two-prong jaw, the back plates are one stepped slab of flat blocks, the tail is a short wedge block and each eye-stalk is a square prism ending in a small faceted lamp block. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (carapace, two pincers, tail, six legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no separate props: its pincers, back plates and eye-stalks are body parts and stay on the body exactly as attached, and nothing is held, worn or carried. There is no separate props sheet for it.
+
+Colour is unchanged from the attached sheet: abyssal pitch black (#131210) on the large masses, verdigris bronze (#4E8C86) on the smaller masses, one warm accent (valve turquoise #1CC8B4) somewhere on the body, one flat tone per facet. Face: none at all — only two small turquoise dots on the tips of the two eye-stalks, no mouth.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

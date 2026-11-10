@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nature Treant (id e00D) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a stout walking stump of living bark with a short stump head, two thick root legs, two branch arms ending in root-claws, a mossy-green growth on each shoulder, one glowing clear-sap knot on the chest and two clear-sap eye dots. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the stout bark stump on two thick root legs side by side, both branch arms angled slightly down and out from the shoulders in an A-pose ending in empty root-claws, the moss growth on each shoulder, the sap knot on the chest and two eye dots.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the stump on two root legs one behind the other, the near branch arm angled slightly down and out and empty, the shoulder moss on top, the sap knot on the chest edge.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the plain bark back, two root legs side by side, both branch arms angled down and out and empty, the moss growth on each shoulder, no light on the back.
+
+Panel 4, bottom left: top-down view from directly above: the stump top as a flat polygon, the moss on each shoulder, both branch arms angled out to the sides with their root-claws and the root-leg feet just visible beneath.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the stump, the two root-leg soles side by side, the undersides of both branch arms and root-claws.
+
+Neutral static A-pose, standing level on two root legs with the feet flat and slightly apart, both branch arms held at the same slight angle down and out from the body in every view, empty-handed, no expression. Squared-on orthographic projection, no perspective, no foreshortening.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The stump becomes a tall block with a wider flat-sided base and a six-sided top, the head a small box set into the top, each root leg a thick four-sided prism ending in a flat wedge foot, each branch arm a thick angular prism with a blocky elbow bend ending in a root-claw of two or three chunky wedge blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (stump torso, stump head, two root legs, two branch arms) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no separate props: its props (branch arms, shoulder moss, sap knot) are body parts, so nothing is removed. The branch arms, the moss growths on the shoulders and the sap knot on the chest stay on the body exactly as attached, the hands are empty root-claws holding nothing, and there is no props sheet to move anything onto.
+
+Colour is unchanged from the attached sheet: living-bark brown (#4A3B2C) on the large masses, mossy green (#5C6B3E) on the smaller masses, one warm accent (clear sap green, #8ECC2D) somewhere on the body, one flat tone per facet. Face: none beyond two small clear-sap eye dots in the bark, no mouth, no nose, no cap.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

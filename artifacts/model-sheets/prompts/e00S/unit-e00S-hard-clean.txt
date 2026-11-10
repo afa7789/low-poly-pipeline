@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nature Forest Spirit (id e00S) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only one thing: every form becomes hard-edged and faceted. The unit has no hands, no legs and no separate props, so nothing is taken off and the neutral level hover stays as attached. Nothing else changes.
+
+Keep the design exactly as attached: a floating spirit hovering level with no legs, a round clear-sap glowing core inside a half-open living-bark husk like a seed pod, three moss-green tendrils trailing straight down below the husk with a hover gap above the ground line, no eyes. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the half-open faceted bark husk, the faceted sap core filling the opening, three moss tendrils hanging straight down below, a clear hover gap above the ground line, no eyes.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the upright faceted pod with its opening on the front edge, the sap core visible inside, the three tendrils trailing straight down, the same hover gap.
+
+Panel 3, top right: back view of the same figure, as if floating away from the camera: the closed bark back of the husk hiding the core, the three tendrils hanging below, the same hover gap.
+
+Panel 4, bottom left: top-down view from directly above: the faceted oval top of the husk with its half-open split along the front and the sap core showing in the split, the tendrils hidden below.
+
+Panel 5, bottom right: bottom-up view from directly below: the faceted underside of the husk with the three tendrils spread evenly at their roots and ending in blunt tips, the core hidden.
+
+Neutral static pose, hovering level above the ground with no legs, the husk half-open by the same amount in every view, the three tendrils hanging straight down at the same length in every view.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The husk becomes a pod of a few flat bark planes with a straight-edged opening, the round core becomes a faceted gem-like polyhedron, and each tendril becomes a square-section prism. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (bark husk, sap core, three tendrils) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no separate props: the bark husk and the tendrils are body parts and stay on the figure exactly as attached, and no props sheet exists for it.
+
+Colour is unchanged from the attached sheet: living-bark brown (#4A3B2C) on the large masses, mossy green (#5C6B3E) on the smaller masses, one warm accent (clear sap green #8ECC2D) somewhere on the body, one flat tone per facet. Face: none at all — no eyes, no mouth, only the glowing core in the husk opening.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

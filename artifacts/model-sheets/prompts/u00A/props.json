@@ -1,0 +1,25 @@
+[
+  {
+    "name": "tesla_rod",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.806,
+      1.209
+    ]
+  },
+  {
+    "name": "chest_canister",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.134,
+      0.201
+    ]
+  }
+]

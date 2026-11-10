@@ -1,0 +1,19 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough three-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — a Human Long Range Catapult (id n03V) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them.
+
+Panel 1, top left: front view facing the camera: the muzzle of the long rifle-steel barrel points at the viewer from the middle of the olive carriage, the two large spoked iron wheels stand either side, the insignia-blue plate sits on the front of the carriage, and the recoil spade is folded up out of sight behind.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the long level barrel points to the left over the olive carriage, one large spoked wheel is in view under the carriage, the insignia-blue plate is on the carriage side, and the recoil spade is folded up clear of the ground at the rear on the right.
+
+Panel 3, top right: back view of the same figure, as if rolling away from the camera: the breech end of the barrel above the olive carriage, both spoked wheels either side, and the recoil spade folded up at the centre of the rear.
+
+Panel 4, bottom left: top-down view from directly above: the long barrel running along the middle of the olive carriage, the two spoked wheels as wide blocks either side, the insignia-blue plate on top of the carriage and the folded recoil spade at the rear.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the carriage, the axle between the two wheels, the underside of the barrel and the folded recoil spade at the rear.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same props in the same places, same pixel height, same ground line. Neutral rolling stance, the carriage level on its two spoked wheels, the barrel level and pointing to the front, the recoil spade folded up clear of the ground, no crew, no expression. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks — carriage, barrel, two wheels, recoil spade — with hard edges and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Human Long Range Catapult: a dieselpunk field howitzer, a long barrel on a low blocky carriage rolling on two large spoked iron wheels, with a recoil spade at the rear; props kept to their largest, crudest shape: one long rifle-steel barrel, two large spoked iron wheels, one recoil spade, one insignia-blue plate on the carriage. Colour is a suggestion, not a rule — the figure reads roughly as staff olive, with rifle steel on the smaller masses and one warm accent (insignia blue) somewhere on the body; the same palette need not be forced across the race, and colour must never be carried by detail. Face: none at all — no eyes, no crew, no head.
+
+Rank in its chain: this is the base body of the Human siege family. The silhouette event that marks the upgrade — a second barrel or a longer heavier barrel with a larger carriage — belongs to the higher tier and does not appear here. Compared with the other Human siege pieces, this body is the simpler one: lower mass, fewer silhouette events, one barrel, two wheels, no extra props.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

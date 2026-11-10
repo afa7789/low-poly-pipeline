@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Human Feathered Friend (id perk_bird) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure hovers in an empty neutral pose with both wings spread level, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a small round pigeon body, a small head with a short beak and two black dot eyes, two broad wings spread level to the sides, a short tail block, two small tucked feet, staff-olive main mass and rifle-steel smaller masses. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the bare round body hovering level, the small head with short beak and two black dot eyes, both wings spread level to the left and right, the two small feet tucked, the chest bare.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the body level, the short beak on the bare head, the spread wings seen edge-on as one flat slab at body level, the tail block at the rear, the two small feet tucked, the chest bare.
+
+Panel 3, top right: back view of the same figure, as if flying away from the camera: the bare staff-olive back, the back of the head, both wings spread level to the left and right and the tail block below.
+
+Panel 4, bottom left: top-down view from directly above: the small round body, the head and short beak at the front, both wings spread wide and level to the sides and the tail block at the rear.
+
+Panel 5, bottom right: bottom-up view from directly below: the bare underside of the body and chest, the two small tucked feet, the undersides of both wings spread level and the tail block at the rear.
+
+Neutral hovering pose, body level, both wings spread out level to the sides at the same angle in every view, the two small feet tucked, nothing worn on the body.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The body becomes a faceted block with a flat top, flat sides and a flat belly, the head a small faceted block with a wedge beak, each wing a flat slab with a straight leading edge and a stepped trailing edge, the tail a flat wedge block. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (body block, head block, two wing slabs, tail wedge, two small foot blocks) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (one small insignia-blue satchel, one brass goggle strap) are deliberately absent: the chest and head are bare, so the body is unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: staff olive (#4D5D53) on the large masses, rifle steel (#454A50) on the smaller masses, one warm accent (insignia blue #2E52E8) somewhere on the body, one flat tone per facet. Face: two small black dot eyes and a short wedge beak, nothing else.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

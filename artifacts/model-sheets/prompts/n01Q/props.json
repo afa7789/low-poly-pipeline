@@ -1,0 +1,46 @@
+[
+  {
+    "name": "collar_center",
+    "where": "anchor neck2 base, on bone neck2.1",
+    "bones": [
+      "neck2.1"
+    ],
+    "extent": [
+      0.11,
+      0.164
+    ]
+  },
+  {
+    "name": "collar_left",
+    "where": "anchor neck1 base, on bone neck1.1",
+    "bones": [
+      "neck1.1"
+    ],
+    "extent": [
+      0.109,
+      0.163
+    ]
+  },
+  {
+    "name": "collar_right",
+    "where": "anchor neck3 base, on bone neck3.1",
+    "bones": [
+      "neck3.1"
+    ],
+    "extent": [
+      0.106,
+      0.16
+    ]
+  },
+  {
+    "name": "back_plates",
+    "where": "anchor back, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.3,
+      0.45
+    ]
+  }
+]

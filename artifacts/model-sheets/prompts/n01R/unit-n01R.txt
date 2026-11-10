@@ -1,0 +1,20 @@
+Clean 2D model-sheet blockout on one solid light-grey background (#CCCCCC), drawn as coarse flat design art — a rough three-colour blockout, not a photo, not a 3D render, not a polished illustration. Five orthographic drawings of the same unit — a Naga Lesser Hydra (id n01R) from a dieselpunk dark-fantasy low-poly game — one drawing per panel in a five-panel layout: a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them.
+
+Panel 1, top left: front view facing the camera: two short thick necks rise side by side from one shared verdigris-bronze valve collar, each ending in a small head with the mouth open and glowing turquoise, two turquoise eye dots on each head, the short coiled tail piled low beneath the collar.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the short coil of the tail lies on the ground in two stacked loops, the scaled body rises from it into the valve collar, and the two necks rise from the collar with both heads at the same height, one behind the other, mouths turquoise.
+
+Panel 3, top right: back view of the same figure, as if slithering away from the camera: the two necks side by side behind the collar, the back of both heads, the coil of the tail wide at the bottom, no glow visible except the edge of the mouths.
+
+Panel 4, bottom left: top-down view from directly above: the two heads side by side at the front, the two necks running back to the round valve collar, and the short tail wound in a flat spiral behind it.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the coiled tail as a round spiral, the underside of the valve collar, the two necks and the two jaws at the front.
+
+Every panel holds exactly one full-body figure, never cropped, never touching its neighbour. The five figures are the same unit: same proportions, same silhouette, same props in the same places, same pixel height, same ground line. Neutral static pose, the short tail coiled level on the ground, both necks upright and the same height, both heads facing forward, no expression. Squared-on orthographic projection, no perspective, no foreshortening. Drawn with a heavy coarse line over a few large flat blocks — head, torso, two arms, two legs — with hard edges and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, one flat tone per surface, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Naga Lesser Hydra: a small two-headed hatchling hydra with a smooth abyssal-pitch scaled body on a short coiled serpent tail, no legs and no arms, two thick necks, a small head on each; props kept to their largest, crudest shape: one shared valve collar around the base of both necks. Colour is a suggestion, not a rule — the figure reads roughly as abyssal pitch black, with verdigris bronze on the smaller masses and one warm accent (valve turquoise) somewhere on the body; the same palette need not be forced across the race, and colour must never be carried by detail. Face: two small turquoise eye dots on each head and a turquoise glow inside each open mouth, no other detail.
+
+Weapon match: this unit attacks at range by spitting slow poison from its two mouths; the heads and the valve collar are body parts, and there is no firearm, bow or launcher.
+Rank in its chain: this is the base body of the hydra family. The silhouette event that marks the upgrade — a third neck and head and a larger body — belongs to the higher tier and does not appear here. Compared with the full Hydra, this body is the simpler one: lower mass, fewer silhouette events, no extra limbs, heads or props.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

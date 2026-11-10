@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Undead Greater Skeleton Archer (id n01L) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a tall raw-bone skeleton on two long bone legs, a long mask-leather greatcoat down to the shins, a steel visored helmet, a bandolier across the chest, two ecto-green dots in the sockets. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the tall skeleton in the long greatcoat, visored helmet, bandolier across the chest, both arms angled down and out from the body with empty open mitts, two bone legs apart, two ecto-green dots in the sockets.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the long coat hanging straight, the visor at the front of the helmet, the arms angled slightly down, empty hands, the bare belt, two bone legs.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the back of the coat, the back of the helmet, the bandolier strap over the shoulder, both arms angled down and out with empty hands, two bone legs below the hem.
+
+Panel 4, bottom left: top-down view from directly above: the helmet, the wide coat shoulders, both arms angled out to the sides with empty hands, the two feet.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the coat hem, the two bone feet, the underside of the helmet, both arms angled out.
+
+A-pose: standing upright and level, both legs apart under the body, both arms angled down and out from the shoulders at the same angle in every view, hands empty and open, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The skull is a faceted box with a flat brow and jaw block, the helmet a six-sided faceted dome with a flat slab visor, the shoulders and coat angular slabs with a straight-cut hem, the legs square prisms with block feet. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (skull, helmet, coat torso, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (one scoped anti-tank rifle with a bipod, one small belt lantern) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: raw bone (#D8D0BC) on the large masses, mask leather (#6E4A34) on the smaller masses, one warm accent (ecto green #0B8055) somewhere on the body, one flat tone per facet. Face: a bare faceted skull under the visored helmet, only two ecto-green dots in the sockets.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

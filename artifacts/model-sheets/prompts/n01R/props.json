@@ -1,0 +1,13 @@
+[
+  {
+    "name": "valve_collar",
+    "where": "anchor neck base, on bone spine.3",
+    "bones": [
+      "spine.3"
+    ],
+    "extent": [
+      0.3,
+      0.45
+    ]
+  }
+]

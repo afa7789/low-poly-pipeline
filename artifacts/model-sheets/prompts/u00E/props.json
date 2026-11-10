@@ -1,0 +1,13 @@
+[
+  {
+    "name": "green glass canister",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.112,
+      0.168
+    ]
+  }
+]

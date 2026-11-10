@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rib cage",
+    "where": "anchor chest, on bone spine",
+    "bones": [
+      "spine"
+    ],
+    "extent": [
+      0.269,
+      0.403
+    ]
+  }
+]

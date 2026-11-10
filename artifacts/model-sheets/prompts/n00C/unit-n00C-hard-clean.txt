@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Undead Skeletal Hero (id n00C) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a big broad raw-bone skeleton with a heavy blocky skull and two ecto-green eye dots, wide shoulders, a bone torso, two thick bone legs in a wide stance, mask-leather brown on the feet blocks and the pelvis block. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the bare skull with two ecto-green eye dots, wide bone shoulders, both arms hanging slightly out from the body with empty hands, the pelvis block and two thick bone legs in a wide stance.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the blocky skull, the broad bone chest, the arm angled slightly out with an empty hand, the pelvis block and the two thick legs standing apart with feet flat.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bare skull back, the bone back and shoulders with nothing on them, both arms out slightly with empty hands, the pelvis block and the two legs in a wide stance.
+
+Panel 4, bottom left: top-down view from directly above: the skull top, the broad shoulders, both arms angled out slightly and empty, and the feet at the edges.
+
+Panel 5, bottom right: bottom-up view from directly below: the two feet, the underside of the pelvis block, the chest and the jaw above, both empty arms angled out.
+
+Neutral static A-pose standing on two thick legs in a wide stance, body upright and level, both arms angled slightly away from the body with open empty hands, the same in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The skull is a blocky box with a flat brow and a square jaw, the shoulders are flat slabs, the legs are square-section prisms, the feet are wedge blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (skull, chest, pelvis, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (one great trench axe, one greatcoat, one peaked officer's cap, one steel gorget) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: raw bone (#D8D0BC) on the large masses, mask leather (#6E4A34) on the smaller masses, one warm accent (#0B8055 ecto green, a cold glow) somewhere on the body, one flat tone per facet. Face: a plain blocky bare skull with two small ecto-green eye dots in the sockets, no cap, no other glow.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

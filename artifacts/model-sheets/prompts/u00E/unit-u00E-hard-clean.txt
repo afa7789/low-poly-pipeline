@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Undead Lich Ghoul (id u00E) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a gaunt hunched raw-bone ghoul on two bent legs with long arms, long white-rimed claws as part of the hands, a bone skull face with two ecto-green eye dots. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the gaunt hunched bone ghoul on two bent legs, the long arms angled slightly down and out from the body in an A-pose with open empty hands and rimed claws, the bare bone chest, two ecto-green eye dots.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the back bowed forward, the head thrust ahead of the shoulders, the two legs bent, the near arm angled down and slightly forward with its empty clawed hand, the back bare.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the bare hunched bone back and spine ridge, both arms angled down and out with empty clawed hands, the two bent legs.
+
+Panel 4, bottom left: top-down view from directly above: the bowed bare bone back, the head forward, both arms angled down and out with their empty claws, the two bent legs below.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat bare bone underside of the chest and belly, the underside of the head, both arms with their claw tips and the soles of the two bent legs.
+
+Neutral static A-pose, hunched and level on two bent legs, both arms angled slightly down and away from the body with empty hands, arms and legs at the same angle in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The skull is a faceted wedge block, the hunched back a few flat slabs, the arms and legs chunky prisms, the claws solid flat wedges. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (skull head, hunched torso, two long arms, two bent legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the round ecto-green chest canister and the tattered mask-leather officer's coat) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: raw bone (#D8D0BC) on the large masses, mask leather (#6E4A34) on the smaller masses, one warm accent (ecto green, #0B8055) somewhere on the body, one flat tone per facet. Face: a faceted bone skull with only two small ecto-green eye dots.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Chaos Mutation (id n01S) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a hunched soot-black tar mutant with a blank head, two long arms ending in blunt tar fists, two thick legs ending in puddled feet, a tartarean-iron rib cage welded over the chest, living-blood red seams in the cracks of the body and tar drips along it. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the hunched soot-black tar mutant on two thick legs with puddled feet, the iron rib cage over the chest with red seams at its edges, two long arms angled slightly out from the body ending in blunt empty tar fists, a blank tar head with one red seam and no eyes.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the back hunched forward, the head low in front of the shoulders, the rib cage bulging from the chest, the near arm angled slightly out and down ending in an empty blunt fist, thick legs with puddled feet, red seams on the back.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the hunched back with red seams in the cracks, the rim of the rib cage at both sides of the shoulders, both arms angled slightly out with empty blunt fists, two thick legs with puddled feet.
+
+Panel 4, bottom left: top-down view from directly above: the blank head between broad hunched shoulders, the rib cage curve across the chest, the two arms angled out either side, the red seams along the back, the feet at the front and rear.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the body, the rib cage underside at the chest, the two thick legs with flat puddled feet, the two arm undersides with empty blunt fists and the chin of the blank head.
+
+Neutral static A-pose, standing level on both thick legs with feet apart ready to walk, both arms angled slightly away from the body with empty blunt fists, the same angle in every view, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The hunched back is a few flat slabs, the head a faceted block, the drips short blunt wedges, the fists faceted blocks. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (head, hunched torso with the welded rib cage, two arms, two legs) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no separate props: its only prop, the iron rib cage, is a body part welded over the chest, so it stays on the body exactly as attached. The hands are empty and nothing is held, worn on the back or hung on a belt, so both arms and both legs are unbroken. There is no props sheet for this unit.
+
+Colour is unchanged from the attached sheet: soot black (#15110F) on the large masses, tartarean iron (#4A4444) on the smaller masses, one warm accent (living blood red, #D6001C) somewhere on the body, one flat tone per facet. Face: none at all — a blank tar head with one red seam and no eyes.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

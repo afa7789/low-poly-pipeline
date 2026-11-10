@@ -1,0 +1,13 @@
+[
+  {
+    "name": "iron drain grate",
+    "where": "anchor ground, on bone body",
+    "bones": [
+      "body"
+    ],
+    "extent": [
+      0.449,
+      0.673
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Human Long Range Catapult (id n03V) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only one thing: every form becomes hard-edged and faceted. The unit has no limbs, so it keeps its neutral rolling stance, and its barrel, wheels and spade are body parts of the vehicle, so nothing is left off. Nothing else changes.
+
+Keep the design exactly as attached: a long rifle-steel barrel on a low olive carriage, two large spoked iron wheels either side, one folded recoil spade at the rear, and one insignia-blue plate on the carriage. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the muzzle of the long rifle-steel barrel points at the viewer from the middle of the olive carriage, the two large spoked iron wheels stand either side, the insignia-blue plate sits on the front of the carriage, and the recoil spade is folded up out of sight behind.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the long level barrel points to the left over the olive carriage, one large spoked wheel is in view under the carriage, the insignia-blue plate is on the carriage side, and the recoil spade is folded up clear of the ground at the rear on the right.
+
+Panel 3, top right: back view of the same figure, as if rolling away from the camera: the breech end of the barrel above the olive carriage, both spoked wheels either side, and the recoil spade folded up at the centre of the rear.
+
+Panel 4, bottom left: top-down view from directly above: the long barrel running along the middle of the olive carriage, the two spoked wheels as wide blocks either side, the insignia-blue plate on top of the carriage and the folded recoil spade at the rear.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the carriage, the axle between the two wheels, the underside of the barrel and the folded recoil spade at the rear.
+
+Neutral rolling stance, the carriage level on its two spoked wheels, the barrel level and pointing to the front, the recoil spade folded up clear of the ground, no crew, the same in every view.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The barrel becomes a long six-sided prism with a flat square muzzle block, the carriage a low box with a sloped top, and each wheel a flat eight-sided slab with four thick square spokes. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (carriage block, barrel prism, two wheel slabs, spade plate) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no separate props: its barrel, wheels and recoil spade are body parts of the vehicle and stay drawn exactly as attached; there is no crew and no hands, and there is no separate props sheet.
+
+Colour is unchanged from the attached sheet: staff olive on the large masses, rifle steel on the smaller masses, one warm accent (insignia blue) somewhere on the body, one flat tone per facet. Face: none at all — no eyes, no crew, no head.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

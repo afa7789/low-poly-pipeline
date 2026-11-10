@@ -1,0 +1,25 @@
+[
+  {
+    "name": "goggles",
+    "where": "anchor head, on bone head",
+    "bones": [
+      "head"
+    ],
+    "extent": [
+      0.147,
+      0.221
+    ]
+  },
+  {
+    "name": "trench_knife",
+    "where": "anchor hand.R, on bone forearm.R",
+    "bones": [
+      "forearm.R",
+      "forearm.L"
+    ],
+    "extent": [
+      0.13,
+      0.195
+    ]
+  }
+]

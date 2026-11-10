@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Naga Lesser Hydra (id n01R) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in an empty-handed A-pose, and every prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a small two-headed hatchling hydra on a short coiled serpent tail with no legs and no arms, two thick abyssal-pitch necks, a small head on each with two turquoise eye dots and a turquoise glowing open mouth. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: two short thick necks rise side by side from the bare base of the body, each ending in a small head with a turquoise glowing open mouth and two turquoise eye dots, the short coiled tail piled low beneath.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the short coil of the tail in two stacked loops, the body rising from it, and the two necks side by side with both heads at the same height, mouths turquoise.
+
+Panel 3, top right: back view of the same figure, as if slithering away from the camera: the two necks side by side, the back of both heads, the coil of the tail wide at the bottom.
+
+Panel 4, bottom left: top-down view from directly above: the two heads side by side at the front, the two necks running back to the body, and the short tail wound in a flat spiral behind.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the coiled tail as a spiral, the two necks and the two jaws at the front.
+
+Neutral static pose with no limbs to place: the short tail coiled level on the ground, both necks upright and the same height, both heads facing forward, the same in every view.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The coil is a stack of two flat hexagonal slabs, each neck a four-sided prism, each head a wedge block with a flat angular jaw. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (the coiled tail slabs, the two neck prisms, the two wedge heads) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+The props of this unit (the valve collar) are deliberately absent: the hands are empty and the back and belt are bare, so the torso, both arms and both legs are unbroken. They are drawn on their own separate props sheet, never in these five panels.
+
+Colour is unchanged from the attached sheet: abyssal pitch black on the large masses, verdigris bronze on the smaller masses, one warm accent (valve turquoise) somewhere on the body, one flat tone per facet. Face: two small turquoise eye dots on each head and a turquoise glow inside each open mouth, no other detail.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.

@@ -1,0 +1,27 @@
+The attached image is the approved 5-view turnaround of ONE game unit: a Nature Forest Spider (id n00T) from a dieselpunk dark-fantasy low-poly game. Redraw that exact same unit — the same character, the same design — and change only three things: every form becomes hard-edged and faceted, the figure stands in a neutral legs-splayed pose, and every detachable prop is left off the body. Nothing else changes.
+
+Keep the design exactly as attached: a small living-bark spider with a small head carrying a cluster of eight sap green eye dots, a rounded abdomen with mossy-green stripes, eight jointed legs splayed evenly with the body level just above the ground, and two clear sap green spinnerets at the rear. Same five panels in the same 3+2 layout — a top row of three panels (front, left profile, back) and a bottom row of two panels (top-down, bottom-up), with wide empty margins between them. Same flat colours, same heavy outline, same pixel height, same ground line. Do not invent parts: no plate, pad, guard, strap, pouch or crest that is not already drawn on the attached figure.
+
+Panel 1, top left: front view facing the camera: the small head with its cluster of eight sap green eye dots, four jointed legs splayed out on each side, the body just above the ground.
+
+Panel 2, top middle: left profile view of the same figure, seen exactly from its left side: the head at the front, the striped abdomen behind it, the bent legs along the body, the two sap green spinnerets at the rear tip.
+
+Panel 3, top right: back view of the same figure, as if walking away from the camera: the striped abdomen in the middle, all eight legs on both sides, the two sap green spinnerets at the rear.
+
+Panel 4, bottom left: top-down view from directly above: the head, the striped abdomen, the two spinnerets at the rear and the eight legs radiating out in four pairs.
+
+Panel 5, bottom right: bottom-up view from directly below: the flat underside of the body, the eight leg undersides in four pairs, the eye cluster at the front and the two spinnerets at the rear.
+
+Neutral static pose, all eight legs splayed evenly around the body at the same angle in every view, body level and carried just above the ground, no expression.
+
+Every form is angular and faceted. Every mass of the attached design is rebuilt from flat planes that meet at hard straight edges, and no outline is a smooth round curve anywhere. The head is a small faceted block, the abdomen a faceted six-sided wedge-shaped block with flat stripe bands, each leg two chunky prism segments meeting at one angular joint. Convex volumes only: no rounded corners, no bevels, no fillets, no spheres, no smooth tubes. Where the attached design is round, draw the flat polygon that replaces it, so the silhouette breaks into straight segments and the faces of every block can be counted before the model exists.
+
+Drawn with a heavy coarse line over large flat blocks — the body's main masses (head block, abdomen block, eight two-segment leg prisms) — one flat tone per facet so neighbouring planes read apart, and no small hardware: no rivet rows, no chains, no hoses, no gear teeth, no panel lines, no texture, no grunge, no gradients, no gloss, no cast shadows. The whole unit must stay readable at 32x32 pixels.
+
+Nothing thinner than a tenth of the body width: every rod, strap, horn or spike is thickened into a solid block, a strap becomes a flat plate, a shaft becomes a square bar, a thin limb becomes a prism. Proportions run chunky and cartoony rather than slender, and no part of the body tapers away to a point.
+
+This unit has no detachable props: its only props, the two spinnerets, are body parts and stay on the rear of the abdomen as two short faceted wedge blocks. There is nothing held, worn or carried, so there is no separate props sheet and the body stays unbroken.
+
+Colour is unchanged from the attached sheet: living-bark brown on the large masses, moss green on the smaller masses, one warm accent (clear sap green) somewhere on the body, one flat tone per facet. Face: none at all — only a cluster of eight small clear sap green eye dots on the front of the head.
+
+The five drawings are the only content on the page; every panel is otherwise empty, with no text, no labels, no frame lines and no shadow on the background.
