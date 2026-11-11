@@ -1,0 +1,26 @@
+unit_id	refit	slots	note
+# A built model's clips date from its build; "all" re-keys them from today's unit_anim.tsv picks
+# (KayKit arms drawn in, walk arms swung, keyed motions fixed since). Each row was checked on renders.
+# Chaos
+n00L	-	all	dual blades; walk arms hung
+n00Z	-	all	polearm swings; walk arms hung
+n009	-	all	two-hand blade; walk arms hung
+n000	-	all	keyed overhead smash now reads; walk arms hung
+z000	-	all	quadruped skeleton (unit_anim.tsv said biped): head-snap quills
+n00A	-	all	javelin throw reads; walk arms hung
+e00E	-	all	twin daggers; walk arms hung
+n008	-	all	harpy whip and curse
+n001	drake	all	bones piled at one point: pieces flew apart
+# Corrupted
+n027	-	all	keyed overhead smash; walk arms hung
+n01I	-	all	dual branch whips; walk arms hung
+n01H	-	all	keyed scythe sweep; walk arms hung
+n01G	-	all	pounce and roar
+h04I	-	all	harpy caster; walk arms hung
+n01F	-	all	sled skeleton (unit_anim.tsv said biped): the attack no longer flips the cannon over
+n01E	-	all	sled skeleton (unit_anim.tsv said tracked): the attack no longer flips the cannon over
+n01D	drake	all	bones piled at one point: pieces flew apart
+n01B	drake	all	bones piled at one point: pieces flew apart
+n01A	-	all	void keeper pulse
+n019	-	all	void walker pulse
+builder_corrupted	-	all	wraith skeleton (unit_anim.tsv said biped): hoe chop

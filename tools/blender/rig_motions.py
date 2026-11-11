@@ -533,8 +533,16 @@ _RIDER = [                  # (name, mount clip, rider KayKit motion, kind, note
     ("mount_kick", "Attack_Kick", "idle", "attack", "the mount kicks"),
     ("death", "Death", "idle", "death", "the mount falls"),
 ]
+_GAITS = ("walk", "walk_b", "run")     # KayKit gaits: their arms are replaced by a hanging swing
+_STANCES = ("idle", "idle_b")          # KayKit idles: arms drawn in to the stance the gaits swing from
+
+
+def _biped_map(name):
+    return "kaykit_biped_walk" if name in _GAITS else "kaykit_biped_idle" if name in _STANCES else "kaykit_biped"
+
+
 REF_MOTIONS = {
-    "biped": {name: (kind, f"{note} (KayKit, CC0)", [kk(name, "kaykit_biped")], *hit)
+    "biped": {name: (kind, f"{note} (KayKit, CC0)", [kk(name, _biped_map(name))], *hit)
               for name, (_, _, kind, note, *hit) in _KK.items()},
     "quadruped": {
         **{name: (kind, f"{note} (Quaternius animal, CC0)", [(_MOUNT, A_ + clip, "quaternius_animal")])
@@ -663,7 +671,7 @@ REF_MOTIONS.update({
                    "wyvern_fly": _entry("loop", "fly, rider sits", _WYVERN["fly"], kk("idle", "kaykit_rider")),
                    "wyvern_sting": _entry("attack", "the mount stings", ("o009", "Sting", "wyvern"),
                                           kk("idle", "kaykit_rider"))},
-    "harpy": {name: _entry(_KK[name][2], _KK[name][3], kk(name, "kaykit_biped"),
+    "harpy": {name: _entry(_KK[name][2], _KK[name][3], kk(name, _biped_map(name)),
                            ("h009", _DR + "Flying", "dragon_wings"))
               for name in ("idle", "walk", "chop", "slice_diagonal", "slice_horizontal", "stab", "stab_2h", "chop_2h",
                            "slice_2h", "spin_2h", "dual_chop", "dual_slice", "dual_stab", "punch", "kick", "bow",

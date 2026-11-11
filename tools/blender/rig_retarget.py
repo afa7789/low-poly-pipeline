@@ -112,6 +112,14 @@ MAPS = {
     "kaykit_biped": {"anchor": "hips", "ours": "pelvis", "bones": {
         "pelvis": ("hips", "spine"), "spine": ("spine", "head"), "head": ("head", "head.tail"),
         **_sides(_KAYKIT_ARMS), **_sides(_KAYKIT_LEGS)}},
+    # a KayKit walk or run: legs and body from the clip, arms hanging as in Idle_A and swung by _swing
+    "kaykit_biped_walk": {"anchor": "hips", "ours": "pelvis", "swing": {"stance": ("kk_general", "Idle_A")},
+                          "bones": {"pelvis": ("hips", "spine"), "spine": ("spine", "head"),
+                                    "head": ("head", "head.tail"), **_sides(_KAYKIT_ARMS), **_sides(_KAYKIT_LEGS)}},
+    # a KayKit idle: the stance the walk swings from (_narrow), so idle and walk meet
+    "kaykit_biped_idle": {"anchor": "hips", "ours": "pelvis", "narrow": True,
+                          "bones": {"pelvis": ("hips", "spine"), "spine": ("spine", "head"),
+                                    "head": ("head", "head.tail"), **_sides(_KAYKIT_ARMS), **_sides(_KAYKIT_LEGS)}},
     # the KayKit upper body on a rider (mounted, mounted_flyer, bird_rider): the mount moves the body
     "kaykit_rider": {"anchor": "hips", "still_root": True, "bones": {
         "rider.spine": ("spine", "head"), "rider.head": ("head", "head.tail"), **_sides(_KAYKIT_ARMS, "rider.")}},
@@ -310,10 +318,53 @@ def _body(family, ref, spec, frames, scale=None):
     return roots, air
 
 
+def _absolute(spec, frames):
+    """Per-frame directions of a map read as absolute: the reference's world directions, taken
+    as they are, KayKit's arms drawn in (narrow) or swung from the stance (swing) where asked."""
+    out = [_directions(f, spec) for f in frames]
+    if spec.get("narrow"):
+        out = [_narrow(d) for d in out]
+    if "swing" in spec:
+        _swing(spec, out)
+    return out
+
+
+SWING_GAIN, SWING_MAX = 0.5, math.radians(30)
+NARROW = 0.5    # share kept of a KayKit stance's sideways arm reach and forward elbow bend
+
+
+def _narrow(dirs):
+    """KayKit's chibi stance holds the arms well out from a wide belly, elbows bent forward; our
+    figures are authored with the arms hanging, so that stance reads as arms held open. Arms keep
+    NARROW of their sideways reach and forearms NARROW of their forward bend."""
+    return {b: ([v[0] * NARROW, v[1] * (NARROW if b.startswith("forearm.") else 1.0), v[2]]
+                if b.startswith(("arm.", "forearm.")) else v) for b, v in dirs.items()}
+
+
+def _swing(spec, out):
+    """A walk's arms hang as in the (narrowed) stance clip and swing fore and aft with the
+    opposite thigh. KayKit's chibi walk holds its arms out near level, swinging them in the
+    horizontal plane; on our figures that reads as arms held out like a sleepwalker's."""
+    model, name = spec["swing"]["stance"]
+    stance = _narrow(_directions(load(model)["clips"][name][0], spec))
+    for dirs in out:
+        for side, other in (("L", "R"), ("R", "L")):
+            thigh = dirs["thigh." + other]
+            pitch = math.atan2(-thigh[1], -thigh[2])          # + : the thigh reaches forward (-y)
+            a = -max(-SWING_MAX, min(SWING_MAX, SWING_GAIN * pitch))
+            dirs["arm." + side] = _about_x(stance["arm." + side], a)
+            dirs["forearm." + side] = _about_x(stance["forearm." + side], a)
+
+
+def _about_x(v, a):
+    c, s = math.cos(a), math.sin(a)
+    return [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c]
+
+
 def _layer(family, ref, spec, frames):
     """Per-frame directions of one layer, plus its leg-aware root scale (or None)."""
     if "neutral" not in spec:
-        return [_directions(f, spec) for f in frames], None
+        return _absolute(spec, frames), None
     neutral = ref["clips"][spec["neutral"]][0]
     scale = _leg_scale(family, neutral, spec) if "legs" in spec else None
     return [_relative(family, f, neutral, spec) for f in frames], scale
@@ -343,4 +394,15 @@ def clip(family, layers, count=24):
         for i, f in enumerate(frames):
             dirs[i].update(_legs(family, poses[i], f, neutral, spec, scale))
             poses[i] = P.aim(family, dirs[i], roots[i])
+    _unwrap(poses)
     return {"poses": poses, "air": air}
+
+
+def _unwrap(poses):
+    """Each bone's angles take the turn nearest the previous frame's: an aim that lands on
+    +180 then -180 is one pose, but keys interpolated between them sweep the bone round."""
+    for prev, pose in zip(poses, poses[1:]):
+        for bone, v in pose.items():
+            if bone in prev:
+                pose[bone] = tuple(a - 360.0 * round((a - prev[bone][i]) / 360.0) if i < 3 else a
+                                   for i, a in enumerate(v))
