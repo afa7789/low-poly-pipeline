@@ -148,7 +148,7 @@ class Table(unittest.TestCase):
     def test_model_command_carries_the_cvt_recipe(self):
         cmd = RB.model_command({"id": "n01N", "race": "Nature", "name": "Giant Spider"}, "spider_high", "roster-pilot")
         for flag, value in (("--rig", "spider_high"), ("--eye", "on"), ("--eye-union-reduce", "cvt"), ("--eye-fuse", "12"),
-                            ("--eye-union", "bone"), ("--eye-paint", "box"), ("--outline", "hull"), ("--model", "session:opus"), ("--run", "roster-pilot")):
+                            ("--eye-union", "bone"), ("--eye-paint", "box"), ("--outline", "off"), ("--model", "session:opus"), ("--run", "roster-pilot")):
             with self.subTest(flag):
                 self.assertEqual(cmd[cmd.index(flag) + 1], value)
         self.assertIn("--deterministic", cmd)

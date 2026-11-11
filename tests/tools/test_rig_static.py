@@ -44,7 +44,7 @@ def tank():
     return doc, bin_
 
 
-TANK = {"front": "+z", "weights": "rigid", "row": "h099", "omit": ("track.L", "track.R", "arm.L", "arm.R"),
+TANK = {"front": "+z", "weights": "rigid", "row": "h06S", "omit": ("track.L", "track.R", "arm.L", "arm.R"),
         "bones": {"hull": ((0, 0.3, -0.8), (0, 0.35, 0.8)), "head": ((0, 0.85, 0.2), (0, 0.85, 1.0))},
         "regions": [("head", (-0.3, 0.3, 0.7, 1.0, 0.1, 1.1)), ("hull", R.EVERYWHERE)], "parts": {"^Hatch$": "hull"}}
 
@@ -87,7 +87,7 @@ class Static(unittest.TestCase):
     def test_the_map_names_a_joint_and_an_end_for_every_bone(self):
         mark = self.doc["extras"]["cf_rig"]
         self.assertEqual(sorted(mark["map"]), ["head", "hull", "root"])
-        self.assertEqual(mark["row"], "h099")
+        self.assertEqual(mark["row"], "h06S")
         for joint, end in mark["map"].values():
             self.assertIn(joint, self.doc["skins"][0]["joints"])
             self.assertIn(end, self.doc["nodes"][joint]["children"])
@@ -182,7 +182,7 @@ class Inject(unittest.TestCase):
                 doc, bin_ = tank()
                 I.write_glb(pathlib.Path(d) / "t.glb", doc, bin_)
                 R.rig("t", TANK)
-                self.assertEqual(I.plan("t")[0], "tracked")                    # the registry row of "h099"
+                self.assertEqual(I.plan("t")[0], "tracked")                    # the registry row of "h06S"
                 anims = {a[0]: a for a in I.build("t", pathlib.Path(d) / "t.glb", {"attack", "death"})}
                 gun = I.read_glb(pathlib.Path(d) / "t.glb")[0]["extras"]["cf_rig"]["map"]["head"][0]
             finally:

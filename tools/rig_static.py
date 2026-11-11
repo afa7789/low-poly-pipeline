@@ -80,7 +80,7 @@ _WING_TIPS = ("wing1.lower", "wing2.lower")          # a huge membrane folding a
 def _tank(pivot):
     """A rigged tank (its tracks animate) whose gun and turret are loose meshes: the gun turns on
     `pivot` as our head, the turret rides the hull (their Root joint)."""
-    return {"front": "-x", "weights": "rigid", "omit": _TANK_ONLY, "attach": {"hull": "Root"},
+    return {"front": "-x", "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY, "attach": {"hull": "Root"},
             "parts": {"^Tank_Gun$": "head", "^Tank_Turret$": "hull"},
             "bones": {"hull": _HULL, "head": (pivot, (pivot[0], pivot[1], 1.0))}}
 
@@ -94,10 +94,10 @@ _FUNNEL = {"base": ((0, 0, 0), (0, 0.45, 0)), "spine": ((0, 0.45, 0), (0, 1.0, 0
 
 RIGS = {
     # tracked: the gun (mantlet and barrel) is the head, so the recoil kicks it up; the rest is hull
-    "h099": {"front": "+z", "weights": "rigid", "omit": _TANK_ONLY,
+    "h099": {"front": "+z", "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY,
              "bones": {"hull": _HULL, "head": ((0, 0.76, 0.25), (0, 0.76, 1.0))},
              "regions": [("head", (-0.25, 0.25, 0.65, 0.9, 0.2, 1.05)), ("hull", EVERYWHERE)]},
-    "n01E": {"front": (0.81, 0.58), "weights": "rigid", "omit": _TANK_ONLY,            # built turned 36 degrees
+    "n01E": {"front": (0.81, 0.58), "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY,            # built turned 36 degrees
              "bones": {"hull": ((0.05, 0.30, -0.8), (0.05, 0.35, 0.8)), "head": ((0.08, 0.68, 0.1), (0.08, 0.7, 0.66))},
              "regions": [("head", (-0.1, 0.3, 0.6, 0.76, 0.0, 0.7)), ("hull", EVERYWHERE)]},
     "h06S": _tank((0, 0.86, -0.3)), "h06T": _tank((0, 0.52, -0.05)), "h06U": _tank((0, 0.78, 0.25)),
@@ -124,16 +124,13 @@ RIGS = {
     "o00H": {"front": "-z", "weights": "rigid", "omit": _WHEELS,                           # catapult arm
              "bones": {"head": ((0, 0.28, 0.1), (0, 1.0, -1.0))},
              "regions": [("head", (-0.25, 0.25, 0.25, 1.05, -1.05, 0.15)), ("hull", EVERYWHERE)]},
-    # crew: the mortar's barrel kicks on its trunnion, the carriage is the cradle
-    "hmtm": {"front": "-z", "weights": "rigid", "omit": ("thigh.L", "shin.L", "thigh.R", "shin.R"),
-             "bones": {"barrel": ((0, 0.78, -0.27), (0, 0.8, 1.0))}, "parts": {"^barrel": "barrel", ".": "cradle"}},
     # bipeds: joints laid on the body by eye (box coordinates read off a gridded front and side view)
     "n02T": {"front": "+z", "parts": {"^pSphere": "head"},                               # kobold
              "bones": _chains({"pelvis spine head": [(0, 0.44, -0.1), (0, 0.55, -0.1), (0, 0.77, 0), (0, 1.0, 0.2)],
                                "arm.L forearm.L": [(0.4, 0.73, -0.05), (0.65, 0.54, -0.15), (0.85, 0.37, -0.15)],
                                "thigh.L shin.L foot.L": [(0.25, 0.44, -0.1), (0.36, 0.24, 0), (0.48, 0.07, -0.1),
                                                          (0.5, 0.02, 0.45)]})},
-    "n01F": {"front": "+z",                                                               # mimic chest on legs
+    "n01F": {"front": "+z", "row": "n02T",                                                               # mimic chest on legs
              "bones": _chains({"pelvis spine head": [(0, 0.45, -0.3), (0, 0.6, -0.2), (0, 0.8, 0), (0, 1.0, 0.1)],
                                "arm.L forearm.L": [(0.45, 0.5, 0.1), (0.85, 0.45, 0.3), (0.6, 0.4, 0.8)],
                                "arm.R forearm.R": [(-0.45, 0.5, 0), (-0.8, 0.4, 0.1), (-0.55, 0.3, 0.3)],
@@ -184,7 +181,7 @@ RIGS = {
     "h01U": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS},
     "h01V": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS, "row": "h01U"},
     # quadruped: the boar
-    "n02U": {"front": "+z",
+    "n02U": {"front": "+z", "row": "n01G",
              "bones": _chains({"spine.1 spine.2": [(0, 0.75, -0.6), (0, 0.8, 0), (0, 0.75, 0.5)],
                                "head": [(0, 0.6, 0.55), (0, 0.35, 0.98)],
                                "tail.1 tail.2": [(0, 0.85, -0.92), (0, 0.6, -1.0), (0, 0.5, -1.0)],

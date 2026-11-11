@@ -196,6 +196,27 @@ BIPED = {
             10: REST,
         },
     },
+    "aim_rifle": {
+        "kind": "attack", "impact": 5,
+        "note": "long rifle carried on the left forearm (hrif): the left arm folds so the barrel levels "
+                "forward at chest height, the right hand steadies it, the shot rocks the torso back",
+        # left-arm angles searched on hrif's own armature against the rifle's rest line (muzzle up and
+        # left of the head): barrel 2 degrees off dead ahead, its middle in front of the chest. The
+        # KayKit two-hand shot, made for a rifle in the right hand, swung this one out to the side
+        "keys": {
+            1: REST,
+            3: {"spine": (4, 0, 0), "head": (-4, 0, 0),
+                "arm.L": (100, 10, -15), "forearm.L": (-180, -60, -10),
+                "arm.R": (-70, 25, 0), "forearm.R": (-50, 0, 0)},
+            5: {"spine": (-6, 0, 0), "head": (-8, 0, 0),
+                "arm.L": (100, 10, -15), "forearm.L": (-180, -60, -10),
+                "arm.R": (-70, 25, 0), "forearm.R": (-50, 0, 0)},
+            7: {"spine": (4, 0, 0), "head": (-4, 0, 0),
+                "arm.L": (100, 10, -15), "forearm.L": (-180, -60, -10),
+                "arm.R": (-70, 25, 0), "forearm.R": (-50, 0, 0)},
+            10: REST,
+        },
+    },
 }
 
 

@@ -13,7 +13,7 @@ Per row of data/anim_refresh.tsv (unit_id, refit, slots):
   replaced by the family's, stretched onto the mesh, and every vertex is skinned anew (rerig).
   "-" = neither.
 - slots = the actions re-keyed from data/unit_anim.tsv's picks ("all", or e.g. "idle,walk"); every
-  other action of the model is kept as it is.
+  other action of the model is kept as it is. A re-keyed death is laid on the ground (settle).
 A model changed here loses its .rig/.joints/.cook (they hold the old bind pose): rerun
 scripts/fetch_models.mjs to rewrite .rig/.joints, and `make cook`. A stamp <id>.glb.anim holds the
 hash of the row and of the motion code, so a rerun skips models already current.
@@ -124,9 +124,12 @@ def _segment_distance(p, a, b):
 
 def rerig(arm, family):
     """Replace a skeleton that does not fit its mesh (a four-legged body on biped bones) by the
-    family's own: its rest joints stretched per axis onto the mesh's extent (2nd to 98th percentile,
-    so a stray vertex does not stretch it), each vertex skinned to its two nearest bones by inverse
-    squared distance. Returns the new armature; the mesh is not moved."""
+    family's own, laid on the mesh: the rest joints are stretched per axis onto the mesh's extent
+    (2nd to 98th percentile, so a stray vertex does not stretch it); then the bones along the middle
+    (spine, neck, head, tail) sit at the median height of the mesh across their length, and each leg
+    runs from that height down to the ground (a raised tail would otherwise lift the spine above a
+    low body). Each vertex is skinned to its two nearest bones by inverse squared distance. Returns
+    the new armature; the mesh is not moved."""
     meshes = [o for o in bpy.data.objects if o.type == "MESH"
               and any(m.type == "ARMATURE" and m.object == arm for m in o.modifiers)]
     to_arm = arm.matrix_world.inverted()
@@ -138,10 +141,33 @@ def rerig(arm, family):
         flo = min(min(h[i], t[i]) for h, t in joints.values())
         fhi = max(max(h[i], t[i]) for h, t in joints.values())
         span.append((flo, fhi, lo, hi))
+    slab = 0.06 * (span[1][3] - span[1][2])
 
-    def place(v):
+    def stretch(v):
         return Vector([lo + (v[i] - flo) / max(fhi - flo, 1e-6) * (hi - lo)
                        for i, (flo, fhi, lo, hi) in enumerate(span)])
+
+    def midline(y):
+        zs = [p[2] for p in pts if abs(p[1] - y) < slab]
+        return _percentile(zs, 0.5) if len(zs) >= 5 else None
+
+    # one lift for the whole middle chain, measured at mid-body: the bones keep the family's
+    # directions (the frames its clips are keyed in), only their height follows the mesh
+    centre = min((v for n, (h, t) in joints.items() if n != "root" for v in (h, t) if abs(v[0]) < 0.05),
+                 key=lambda v: abs(v[1]))
+    body = midline(stretch(centre)[1])
+    lift = body - stretch(centre)[2] if body is not None else 0.0
+
+    def place(name, v):
+        p = stretch(v)
+        chain = name.split(".")[0]
+        if chain.startswith("leg"):             # the leg runs from the lifted body down to the ground
+            top, foot = joints[chain + ".upper"][0], joints[chain + ".lower"][1]
+            ground, hip = stretch(foot)[2], stretch(top)[2] + lift
+            p[2] = ground + (hip - ground) * (v[2] - foot[2]) / max(top[2] - foot[2], 1e-6)
+        elif name != "root":
+            p[2] += lift
+        return p
 
     data = bpy.data.armatures.new("rig")
     new = bpy.data.objects.new("rig", data)
@@ -152,7 +178,7 @@ def rerig(arm, family):
     table = P.rest(family)
     for name, (h, t) in joints.items():
         b = data.edit_bones.new(name)
-        b.head, b.tail = place(h), place(t)
+        b.head, b.tail = place(name, h), place(name, t)
     for name, (parent, *_) in table.items():
         if parent is not None:
             data.edit_bones[name].parent = data.edit_bones[parent]
@@ -178,10 +204,11 @@ def rerig(arm, family):
     return new
 
 
-
 def to_quaternion(arm, act):
     """make_actions keys rotation_euler with the bones in XYZ; the kept glTF actions key
-    rotation_quaternion. Re-key `act` as quaternions so one rotation mode serves both."""
+    rotation_quaternion. Re-key `act` as quaternions so one rotation mode serves both. Each
+    sample starts from rest: a bone the action leaves unkeyed would otherwise keep the pose the
+    previous action left on it (a death's roll-over baked into an idle)."""
     for pb in arm.pose.bones:
         pb.rotation_mode = "XYZ"
     arm.animation_data.action = act
@@ -189,6 +216,8 @@ def to_quaternion(arm, act):
     frames = sorted({int(round(k.co[0])) for f in curves for k in f.keyframe_points})
     samples = []
     for fr in frames:
+        for pb in arm.pose.bones:
+            pb.rotation_euler, pb.location = (0, 0, 0), (0, 0, 0)
         bpy.context.scene.frame_set(fr)
         samples.append((fr, {pb.name: (pb.rotation_euler.to_quaternion(), pb.location.copy()) for pb in arm.pose.bones}))
     for layer in act.layers:
@@ -211,6 +240,42 @@ def to_quaternion(arm, act):
     arm.animation_data.action = None
 
 
+def _lowest(meshes):
+    """World height of the lowest skinned vertex in the current pose."""
+    graph = bpy.context.evaluated_depsgraph_get()
+    low = float("inf")
+    for o in meshes:
+        ev = o.evaluated_get(graph)
+        mesh = ev.to_mesh()
+        low = min(low, min((ev.matrix_world @ v.co).z for v in mesh.vertices))
+        ev.to_mesh_clear()
+    return low
+
+
+def settle(arm, act):
+    """Lay a death on the ground: on every keyed frame the root is raised until the lowest skinned
+    vertex is back at the rest pose's floor (never lowered). rig_motions.plant measures joints and
+    skips the hovering families, so a body rolled over its root ends half under the ground."""
+    meshes = [o for o in bpy.data.objects if o.type == "MESH"
+              and any(m.type == "ARMATURE" and m.object == arm for m in o.modifiers)]
+    root = next(pb for pb in arm.pose.bones if pb.parent is None)
+    to_bone = (arm.matrix_world.to_3x3() @ root.bone.matrix_local.to_3x3()).inverted()
+    for pb in arm.pose.bones:
+        pb.rotation_quaternion, pb.location = (1, 0, 0, 0), (0, 0, 0)
+    arm.animation_data.action = None
+    bpy.context.view_layer.update()
+    floor = min(_lowest(meshes), 0.0)
+    arm.animation_data.action = act
+    curves = [f for layer in act.layers for s in layer.strips for cb in s.channelbags for f in cb.fcurves]
+    for fr in sorted({round(k.co[0]) for f in curves for k in f.keyframe_points}):
+        bpy.context.scene.frame_set(fr)
+        sunk = floor - _lowest(meshes)
+        if sunk > 1e-4:
+            root.location = root.location + to_bone @ Vector((0, 0, sunk))
+            root.keyframe_insert("location", frame=fr)
+    arm.animation_data.action = None
+
+
 def refresh(unit, family, slots):
     path = MODELS / f"{unit}.glb"
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -226,6 +291,9 @@ def refresh(unit, family, slots):
         arm = rerig(arm, family[len("rerig:"):])
     elif family:
         refit(arm, family)
+    if arm.animation_data:                  # the importer stacks every clip on NLA tracks: they would
+        for track in list(arm.animation_data.nla_tracks):    # blend into the samples; ACTIONS export
+            arm.animation_data.nla_tracks.remove(track)       # writes the actions without them
     old = {}
     for act in list(bpy.data.actions):
         name, act.name = act.name, "__old_" + act.name
@@ -243,6 +311,8 @@ def refresh(unit, family, slots):
                 bpy.data.actions.remove(old[name])
             if name in new:
                 to_quaternion(arm, new[name])
+                if name == "death":
+                    settle(arm, new[name])
         else:
             if name in new:
                 bpy.data.actions.remove(new[name])

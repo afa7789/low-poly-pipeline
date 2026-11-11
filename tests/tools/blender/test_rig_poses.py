@@ -272,7 +272,7 @@ class Library(unittest.TestCase):
         head, rows = rows[0], rows[1:]
         self.assertEqual(head[:7], ["unit_id", "rig", *M.SLOTS[:3], "spell", "death"])
         ideas = __import__("json").loads((ROOT / "data/unit_av_ideas.json").read_text())
-        self.assertEqual({r[0] for r in rows}, set(ideas))
+        self.assertLessEqual(set(ideas), {r[0] for r in rows})    # summons have rows but no brief
         for row in rows:
             rig, picks = row[1], dict(zip(head[2:7], row[2:7]))
             self.assertIn(rig, M.DEFAULTS, row[0])

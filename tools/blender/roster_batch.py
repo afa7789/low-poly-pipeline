@@ -12,7 +12,7 @@ Per unit, in order, each stage idempotent (skipped when its outputs exist, with 
   parts   segment_sheet.py (parts.json + identity) -> parts_gate.py freeze (sheet.json) -> prompts/<id>/props.json derived
           from the parts the segmenter marked `prop` (name, bone, extent from box3d) when the unit has any.
   model   spec_pipeline.py with the v18-cvt recipe spelled out by flag (--eye on, fuse 12, union bone @ cvt, paint box,
-          hull outline), --deterministic, --run <run-id>; race from the compendium, rig from RIG_OF / the card's words.
+          no outline), --deterministic, --run <run-id>; race from the compendium, rig from RIG_OF / the card's words.
 --extra-units <json>: a list of {id, name, race, rig, kind: "unit", card, parent?, figure?, facts?} pseudo-units merged before the lookup.
 With `parent` (a multi-figure sheet split into one model per figure: e00E-a, hmtm-c) the entry brings its own refs/<id>/sheet.jpg (a split
 of the parent's), so the prompt and sheets stages count as done; its rig is the entry's; its `figure` line and the parent's facts are the
