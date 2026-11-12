@@ -41,9 +41,9 @@ def pal():
         "amber": mat("naga_amber", 0xFFB444, emit=3.0),
         "coral": mat("naga_coral", 0xE0674F),
         "coral_pale": mat("naga_coral_pale", 0xF1C0A8),
-        "granite": mat("naga_granite", 0x939A9A),
-        "granite_dk": mat("naga_granite_dk", 0x646B6E),
-        "granite_lt": mat("naga_granite_lt", 0xC4CAC8),
+        "granite": mat("naga_granite", 0x7E8688),
+        "granite_dk": mat("naga_granite_dk", 0x4F565A),
+        "granite_lt": mat("naga_granite_lt", 0xAEB5B5),
         "tar": mat("naga_tar", 0x3A2F2A),
         "tar_lt": mat("naga_tar_lt", 0x5E4A3A),
         "brass": mat("naga_brass", 0xD2AC4C),
@@ -67,7 +67,7 @@ def pal():
         "hull": mat("naga_hull", 0x3D7075),
         "slick_a": mat("naga_slick_a", 0x1B2234),
         "slick_b": mat("naga_slick_b", 0x1F3A44),
-        "slick_c": mat("naga_slick_c", 0x2A2C46),
+        "slick_c": mat("naga_slick_c", 0x232638),
         "foam": mat("naga_foam", 0x8FAAA6),
         "glass": mat("naga_glass", 0xFFD27A, emit=2.5),
         "void": mat("naga_void", 0x0F1F22),
@@ -634,134 +634,211 @@ def window_slit(p, pos):
 
 
 def cannon(p, root, tip):
-    beam("cannon", p["iron"], root, tip, thick=0.13)
-    beam("cannon_muzzle", p["brass"], Vector(root).lerp(Vector(tip), 0.82), tip, thick=0.17)
+    beam("cannon", p["iron"], root, tip, thick=0.15)
+    beam("cannon_muzzle", p["brass"], Vector(root).lerp(Vector(tip), 0.82), tip, thick=0.2)
+
+
+def parapet_ring(p, w, thick, height, gap=1.05):
+    """Parapeito claro na borda externa das quatro cortinas (a da frente deixa o vao do portao)."""
+    off = thick * 0.3
+    z = height + 0.06
+    box("parapet", p["granite_lt"], (0, -w - off, z), (2 * w, 0.14, 0.2), bevel=0.02)
+    box("parapet", p["granite_lt"], (0, w + off, z), (2 * w, 0.14, 0.2), bevel=0.02)
+    box("parapet", p["granite_lt"], (-w - off, 0, z), (0.14, 2 * w, 0.2), bevel=0.02)
+    for lo, hi in ((-w, -gap), (gap, w)):
+        box("parapet", p["granite_lt"], (w + off, (lo + hi) / 2, z), (0.14, hi - lo, 0.2), bevel=0.02)
+
+
+def sea_battery(p, pos, radius):
+    """Bateria de costa redonda: tambor de granito, canhoneiras com tres canhoes e um canhao giratorio no deque."""
+    x, y = pos
+    cyl("battery_foot", p["granite_dk"], (x, y, 0), radius * 1.12, 0.2, sides=16, bevel=0.03)
+    cyl("battery", p["granite"], (x, y, 0.16), radius * 1.04, 1.3, sides=16, top_radius=radius * 0.9, bevel=0.03)
+    kit.ring("battery_band", p["brass"], (x, y, 0.5), radius * 0.97, 0.07, thick=0.03, sides=16)
+    cyl("battery_deck", p["granite_lt"], (x, y, 1.46), radius * 0.92, 0.08, sides=16, bevel=0.0)
+    for ang in (-150, -115, -80, -45, -10):
+        a = math.radians(ang)
+        box("embrasure", p["void"], (x + math.cos(a) * radius * 0.97, y + math.sin(a) * radius * 0.97, 0.7), (0.34, 0.1, 0.26), bevel=0.0, rot_z=a + PI / 2)
+    for ang in (-115, -80, -45):
+        a = math.radians(ang)
+        cannon(p, (x + math.cos(a) * radius * 0.7, y + math.sin(a) * radius * 0.7, 0.8), (x + math.cos(a) * (radius + 0.42), y + math.sin(a) * (radius + 0.42), 0.82))
+    cyl("turntable", p["iron"], (x - 0.1, y + 0.15, 1.52), 0.36, 0.1, sides=10, bevel=0.0)
+    cannon(p, (x - 0.1, y + 0.15, 1.74), (x + 0.45, y - 0.55, 1.8))
+    for i in range(3):
+        barrel(p, (x - 0.55 + i * 0.22, y + 0.55, 1.54), 0.1, 0.2)
+
+
+def arrow_bastion(p, pos, aim):
+    """Bastiao angular (ponta de flecha) com canhao."""
+    x, y = pos
+    ang = math.atan2(aim[1], aim[0])
+    cyl("arrow_foot", p["granite_dk"], (x, y, 0), 1.2, 0.2, sides=5, bevel=0.03, rot=("Z", ang))
+    cyl("arrow", p["granite"], (x, y, 0.16), 1.12, 1.4, sides=5, top_radius=0.9, bevel=0.04, rot=("Z", ang))
+    cyl("arrow_deck", p["granite_lt"], (x, y, 1.56), 0.94, 0.08, sides=5, bevel=0.0, rot=("Z", ang))
+    box("arrow_band", p["red"], (x, y, 0.62), (0.2, 0.2, 0.2), bevel=0.0, rot_z=ang)
+    cannon(p, (x, y, 1.74), (x + math.cos(ang) * 0.8, y + math.sin(ang) * 0.8, 1.78))
+
+
+def squat_tower(p, pos, radius):
+    x, y = pos
+    cyl("tower_foot", p["granite_dk"], (x, y, 0), radius * 1.15, 0.2, sides=10, bevel=0.03)
+    cyl("tower", p["granite"], (x, y, 0.16), radius * 1.05, 1.15, sides=10, top_radius=radius * 0.9, bevel=0.03)
+    cyl("tower_deck", p["granite_lt"], (x, y, 1.31), radius * 0.92, 0.08, sides=10, bevel=0.0)
+    dome("tower_lamp", p["brass"], (x, y, 1.39), radius * 0.45, squash=0.75, sides=8)
+
+
+def lookout_tower(p, pos):
+    """Torre quadrada de vigia com cabine de madeira alcatroada."""
+    x, y = pos
+    box("lookout", p["granite"], (x, y, 0.1), (1.45, 1.45, 1.55), bevel=0.04, taper=0.88, taper_y=0.88)
+    box("lookout_deck", p["granite_lt"], (x, y, 1.65), (1.3, 1.3, 0.07), bevel=0.0)
+    box("lookout_cabin", p["tar_lt"], (x, y, 1.72), (0.7, 0.7, 0.45), bevel=0.02)
+    prism("lookout_roof", p["tar"], (x, y, 2.17), (0.85, 0.85, 0.3), ridge=0.5)
+    box("lookout_glass", p["glass"], (x + 0.36, y, 1.85), (0.04, 0.4, 0.2), bevel=0.0)
 
 
 def keep_lighthouse(p, kx, ky, z):
-    """Torre-farol atarracada: fustes brancos com cintas vermelhas, galeria clara e sala da lampada."""
-    cyl("tower", p["white"], (kx, ky, z), 0.82, 1.3, sides=12, top_radius=0.66, bevel=0.0)
-    kit.ring("tower_band", p["red"], (kx, ky, z + 0.3), 0.74, 0.22, thick=0.04, sides=12)
-    kit.ring("tower_band", p["red"], (kx, ky, z + 0.82), 0.7, 0.2, thick=0.04, sides=12)
-    top = z + 1.3
-    cyl("gallery", p["granite_lt"], (kx, ky, top), 0.88, 0.09, sides=12, bevel=0.0)
-    for i in range(10):
-        a = i * math.tau / 10
-        beam("rail", p["brass"], (kx + math.cos(a) * 0.82, ky + math.sin(a) * 0.82, top + 0.09), (kx + math.cos(a) * 0.82, ky + math.sin(a) * 0.82, top + 0.28), thick=0.03)
-    cyl("lamp_glass", p["glass"], (kx, ky, top + 0.09), 0.4, 0.46, sides=8, bevel=0.0)
+    """Torre-farol larga e atarracada: fustes brancos com cintas de sinal, galeria com guarda-corpo e sala da lampada."""
+    cyl("tower", p["white"], (kx, ky, z), 0.98, 1.05, sides=12, top_radius=0.82, bevel=0.0)
+    kit.ring("tower_band", p["red"], (kx, ky, z + 0.25), 0.9, 0.18, thick=0.04, sides=12)
+    kit.ring("tower_band", p["iron"], (kx, ky, z + 0.62), 0.86, 0.14, thick=0.04, sides=12)
+    top = z + 1.05
+    cyl("gallery", p["granite_lt"], (kx, ky, top), 1.06, 0.09, sides=12, bevel=0.0)
+    for i in range(12):
+        a = i * math.tau / 12
+        c = (kx + math.cos(a) * 1.0, ky + math.sin(a) * 1.0)
+        beam("rail", p["brass"], (c[0], c[1], top + 0.09), (c[0], c[1], top + 0.32), thick=0.04)
+    cyl("lamp_glass", p["glass"], (kx, ky, top + 0.09), 0.5, 0.5, sides=8, bevel=0.0)
     for i in range(8):
         a = i * math.tau / 8 + PI / 8
-        beam("lamp_bar", p["brass"], (kx + math.cos(a) * 0.41, ky + math.sin(a) * 0.41, top + 0.09), (kx + math.cos(a) * 0.41, ky + math.sin(a) * 0.41, top + 0.55), thick=0.04)
-    dome("lamp_dome", p["brass"], (kx, ky, top + 0.55), 0.5, squash=0.7, sides=10)
-    kit.spike(p["brass"], (kx, ky, top + 0.9), height=0.3, radius=0.05)
-    return top + 0.9
+        c = (kx + math.cos(a) * 0.51, ky + math.sin(a) * 0.51)
+        beam("lamp_bar", p["brass"], (c[0], c[1], top + 0.09), (c[0], c[1], top + 0.6), thick=0.05)
+    dome("lamp_dome", p["brass"], (kx, ky, top + 0.6), 0.6, squash=0.7, sides=10)
+    kit.spike(p["brass"], (kx, ky, top + 1.0), height=0.3, radius=0.06)
 
 
 def crane(p, pos, height=1.45, reach=1.3):
     x, y = pos
-    box("crane_foot", p["granite_dk"], (x, y, 0.1), (0.6, 0.6, 0.14), bevel=0.03)
-    cyl("crane_post", p["tar"], (x, y, 0.2), 0.12, height, sides=8)
-    cyl("crane_cab", p["red"], (x, y, 0.2 + height * 0.55), 0.2, 0.34, sides=8, bevel=0.0)
+    box("crane_foot", p["granite_dk"], (x, y, 0.1), (0.7, 0.7, 0.14), bevel=0.03)
+    cyl("crane_post", p["tar"], (x, y, 0.2), 0.17, height, sides=8)
+    cyl("crane_cab", p["iron_lt"], (x, y, 0.2 + height * 0.55), 0.27, 0.36, sides=8, bevel=0.0)
     top = 0.2 + height
-    beam("jib", p["red"], (x, y - 0.5, top - 0.05), (x, y + reach, top - 0.2), thick=0.1)
-    beam("jib_stay", p["iron"], (x, y, top + 0.35), (x, y + reach, top - 0.2), thick=0.035)
-    beam("jib_stay", p["iron"], (x, y, top + 0.35), (x, y - 0.5, top - 0.05), thick=0.035)
-    beam("mast_top", p["tar"], (x, y, top), (x, y, top + 0.35), thick=0.07)
-    box("counterweight", p["iron"], (x, y - 0.55, top - 0.3), (0.3, 0.3, 0.26), bevel=0.02)
-    beam("cable", p["iron_lt"], (x, y + reach, top - 0.2), (x, y + reach, 0.78), thick=0.02)
-    crate(p, (x, y + reach, 0.34), (0.42, 0.42, 0.4), 0.3, tone="wood", band="red")
-    cyl("hook", p["brass"], (x, y + reach, 0.74), 0.05, 0.08, sides=6, bevel=0.0)
+    beam("jib", p["brass"], (x, y - 0.55, top - 0.05), (x, y + reach, top - 0.2), thick=0.2)
+    beam("jib_stay", p["iron"], (x, y, top + 0.4), (x, y + reach, top - 0.2), thick=0.06)
+    beam("jib_stay", p["iron"], (x, y, top + 0.4), (x, y - 0.55, top - 0.05), thick=0.06)
+    beam("mast_top", p["tar"], (x, y, top), (x, y, top + 0.4), thick=0.1)
+    box("counterweight", p["iron"], (x, y - 0.6, top - 0.35), (0.36, 0.36, 0.3), bevel=0.02)
+    beam("cable", p["iron_lt"], (x, y + reach, top - 0.2), (x, y + reach, 0.8), thick=0.03)
+    crate(p, (x, y + reach, 0.36), (0.45, 0.45, 0.42), 0.3, tone="wood", band="tar")
+    cyl("hook", p["brass"], (x, y + reach, 0.76), 0.06, 0.08, sides=6, bevel=0.0)
 
 
 def signal_mast(p, pos, z0, height=2.3):
-    """Mastro de sinais fora do centro: verga, adriças e bandeiras de sinalização."""
+    """Mastro de sinais fora do centro: verga, adricas e bandeiras de sinalizacao."""
     x, y = pos
     top = z0 + height
-    limb("mast", p["tar"], (x, y, z0), (x, y, top), 0.07, 0.04, sides=6)
-    beam("yard", p["wood"], (x, y - 0.55, top - 0.35), (x, y + 0.55, top - 0.35), thick=0.05)
-    beam("halyard", p["iron_lt"], (x, y, top), (x, y - 0.55, top - 0.35), thick=0.018)
-    beam("halyard", p["iron_lt"], (x, y, top), (x, y + 0.55, top - 0.35), thick=0.018)
-    box("mast_lamp", p["amber"], (x, y, top), (0.12, 0.12, 0.12), bevel=0.0)
-    for i, tone in enumerate(("red", "white", "brass", "hull", "red", "coral")):
-        fx = x + 0.04
-        box("flag", p[tone], (fx, y - 0.45 + i * 0.18, top - 0.62 - 0.02 * i), (0.03, 0.17, 0.2), bevel=0.0)
-        beam("flag_line", p["iron_lt"], (x, y - 0.46 + i * 0.18, top - 0.35), (x, y - 0.46 + i * 0.18, top - 0.45 - 0.02 * i), thick=0.012)
-    box("pennant", p["red"], (x + 0.04, y, top - 0.3), (0.03, 0.4, 0.1), bevel=0.0, taper=0.4, taper_y=0.4)
+    limb("mast", p["tar"], (x, y, z0), (x, y, top), 0.09, 0.05, sides=6)
+    beam("yard", p["wood"], (x, y - 0.7, top - 0.35), (x, y + 0.7, top - 0.35), thick=0.06)
+    beam("halyard", p["iron_lt"], (x, y, top), (x, y - 0.7, top - 0.35), thick=0.02)
+    beam("halyard", p["iron_lt"], (x, y, top), (x, y + 0.7, top - 0.35), thick=0.02)
+    box("mast_lamp", p["amber"], (x, y, top), (0.14, 0.14, 0.14), bevel=0.0)
+    for i, tone in enumerate(("red", "white", "brass", "hull", "white", "red")):
+        fy = y - 0.6 + i * 0.24
+        box("flag", p[tone], (x + 0.04, fy, top - 0.72 - 0.02 * i), (0.03, 0.22, 0.26), bevel=0.0)
+        beam("flag_line", p["iron_lt"], (x, fy, top - 0.35), (x, fy, top - 0.5 - 0.02 * i), thick=0.015)
+    box("pennant", p["red"], (x + 0.04, y, top - 0.3), (0.03, 0.5, 0.12), bevel=0.0, taper=0.4, taper_y=0.4)
 
 
-def boathouse(p, gx):
-    """Portaria: galpao de barcos de madeira alcatroada, teto vermelho de sinalizacao e rampa d'agua."""
-    box("bh_plinth", p["granite_dk"], (gx, 0, 0.1), (1.7, 2.1, 0.32), bevel=0.04)
-    box("bh_walls", p["tar_lt"], (gx, 0, 0.4), (1.5, 1.9, 0.8), bevel=0.03)
-    for y in (-0.7, -0.35, 0.35, 0.7):
-        box("bh_post", p["tar"], (gx + 0.76, y, 0.4), (0.06, 0.1, 0.8), bevel=0.0)
-    prism("bh_roof", p["red"], (gx, 0, 1.2), (2.3, 1.9, 0.75), ridge=0.5, rot_z=PI / 2)
-    box("bh_ridge", p["white"], (gx, 0, 1.92), (1.92, 0.12, 0.06), bevel=0.0)
-    box("bh_door", p["void"], (gx + 0.76, 0, 0.42), (0.1, 1.0, 0.7), bevel=0.0)
-    box("bh_lintel", p["granite_lt"], (gx + 0.78, 0, 1.12), (0.12, 1.2, 0.09), bevel=0.0)
-    for i, h in enumerate((0.2, 0.1)):
-        box("slip", p["granite_dk"], (gx + 1.0 + i * 0.28, 0, 0.0), (0.3, 1.0, h), bevel=0.02)
-    box("slip_water", p["hull"], (gx + 1.25, 0, 0.0), (0.4, 0.6, 0.03), bevel=0.0)
+def water_gate(p, gx):
+    """Portaria: galpao de barcos com portao d'agua em arco de granito e rampa de varadouro."""
+    box("bh_plinth", p["granite_dk"], (gx, 0, 0.1), (1.7, 2.3, 0.3), bevel=0.04)
+    box("bh_walls", p["tar"], (gx, 0, 0.38), (1.5, 2.1, 0.9), bevel=0.03)
+    for y in (-0.95, 0.95):
+        box("bh_pier", p["granite"], (gx + 0.55, y, 0.38), (0.5, 0.3, 0.9), bevel=0.03)
+    prism("bh_roof", p["tar_lt"], (gx, 0, 1.28), (2.4, 1.9, 0.6), ridge=0.5, rot_z=PI / 2)
+    box("bh_ridge", p["brass"], (gx, 0, 1.86), (1.92, 0.1, 0.05), bevel=0.0)
+    # arco do portao d'agua: moldura clara, vazio escuro e grade de ferro
+    cyl("arch_frame", p["granite_lt"], (gx + 0.72, 0, 0.5), 0.7, 0.1, sides=14, bevel=0.0, rot=("Y", PI / 2))
+    box("arch_frame_lo", p["granite_lt"], (gx + 0.72, 0, 0.1), (0.1, 1.4, 0.4), bevel=0.0)
+    cyl("arch_void", p["void"], (gx + 0.78, 0, 0.5), 0.56, 0.06, sides=14, bevel=0.0, rot=("Y", PI / 2))
+    box("arch_void_lo", p["void"], (gx + 0.78, 0, 0.14), (0.06, 1.12, 0.38), bevel=0.0)
+    for y in (-0.36, -0.12, 0.12, 0.36):
+        box("portcullis", p["iron"], (gx + 0.82, y, 0.5), (0.04, 0.05, 0.55), bevel=0.0)
+    box("portcullis_bar", p["iron"], (gx + 0.82, 0, 0.85), (0.04, 0.9, 0.05), bevel=0.0)
+    box("door_red", p["red"], (gx + 0.76, -1.0, 0.4), (0.04, 0.2, 0.5), bevel=0.0)
+    for i, h in enumerate((0.18, 0.1)):
+        box("slip", p["granite_dk"], (gx + 1.05 + i * 0.26, 0, 0.0), (0.3, 1.2, h), bevel=0.02)
+    box("slip_water", p["hull"], (gx + 1.25, 0, 0.0), (0.3, 0.7, 0.03), bevel=0.0)
     for s in (-1, 1):
-        box("bh_lamp", p["amber"], (gx + 0.82, s * 0.62, 1.16), (0.1, 0.1, 0.12), bevel=0.0)
-        bollard(p, (gx + 1.15, s * 0.85, 0.0), 0.22)
-    chain(p["iron_lt"], (gx + 1.15, -0.85, 0.2), (gx + 1.15, 0.85, 0.2), sag=0.08, links=8, thick=0.04)
+        box("bh_lamp", p["amber"], (gx + 0.8, s * 0.8, 1.0), (0.1, 0.1, 0.14), bevel=0.0)
+        bollard(p, (gx + 1.1, s * 0.95, 0.0), 0.22)
+
+
+def barracks(p, pos):
+    """Alojamento: bloco de madeira alcatroada com telhado de duas aguas e chamine de granito."""
+    x, y = pos
+    box("barracks_base", p["granite_dk"], (x, y, 0.13), (1.9, 0.9, 0.18), bevel=0.02)
+    box("barracks", p["tar"], (x, y, 0.3), (1.8, 0.8, 0.5), bevel=0.02)
+    prism("barracks_roof", p["tar_lt"], (x, y, 0.8), (0.95, 1.9, 0.42), ridge=0.5, rot_z=PI / 2)
+    box("barracks_ridge", p["brass"], (x, y, 1.21), (1.8, 0.06, 0.04), bevel=0.0)
+    box("barracks_stack", p["granite"], (x + 0.6, y, 0.9), (0.2, 0.2, 0.6), bevel=0.02)
+    for dx in (-0.55, 0.0, 0.55):
+        box("barracks_win", p["glass"], (x + dx, y - 0.41, 0.5), (0.18, 0.03, 0.18), bevel=0.0)
+    box("barracks_door", p["red"], (x - 0.9, y, 0.32), (0.04, 0.26, 0.4), bevel=0.0)
+
+
+def magazine(p, pos):
+    """Paiol de polvora: abobada baixa de granito com porta de ferro."""
+    x, y = pos
+    box("magazine", p["granite_dk"], (x, y, 0.13), (0.95, 0.85, 0.5), bevel=0.03, taper=0.92, taper_y=0.92)
+    cyl("magazine_vault", p["granite_lt"], (x - 0.47, y, 0.63), 0.34, 0.95, sides=8, bevel=0.0, rot=("Y", PI / 2))
+    box("magazine_door", p["iron"], (x, y - 0.4, 0.2), (0.3, 0.04, 0.34), bevel=0.0)
+    for s in (-1, 1):
+        box("magazine_vent", p["iron_lt"], (x + s * 0.3, y, 0.95), (0.1, 0.1, 0.1), bevel=0.0)
 
 
 def naga_harbour():
-    """Concordia da Mare, Forte do Porto: artilharia costeira de granito com farol, galpao e guindaste."""
+    """Concordia da Mare, Forte do Porto: forte costeiro fechado de granito, bastioes desiguais, galpao-portaria,
+    menagem-farol sobre base de duas fiadas, patio cheio e mastro de sinais."""
     p = pal()
-    half, w = 2.6, 2.15
+    half, w, th = 2.9, 2.35, 1.0
     box("plinth", p["granite_dk"], (0, 0, 0), (half * 2 + 0.4, half * 2 + 0.4, 0.15), bevel=0.05, taper=0.96, taper_y=0.96)
-    box("quay", p["granite"], (0, 0, 0.13), (half * 2 - 0.5, half * 2 - 0.5, 0.08), bevel=0.03)
+    box("quay", p["granite"], (0, 0, 0.13), (half * 2 - 0.4, half * 2 - 0.4, 0.08), bevel=0.03)
     gr = (p["granite"], p["granite_dk"], p["granite_lt"])
-    wall_run(*gr, -w, w - 1.0, -w, False, thick=0.95, height=1.2)  # fundo (o canto de terra e cortado)
-    wall_run(*gr, -w, w, -w, True, thick=0.95, height=1.2)  # lado do mar
-    wall_run(*gr, -w + 1.0, w, w, True, thick=0.95, height=1.2)  # lado de terra
-    box("wall_chamfer", p["granite"], (-w + 0.5, w - 0.5, 0.0), (1.6, 0.95, 1.2), bevel=0.03, taper_y=0.74, rot_z=PI / 4)
-    box("wall_chamfer_deck", p["granite_lt"], (-w + 0.5, w - 0.5, 1.2), (1.5, 0.72, 0.06), bevel=0.01, rot_z=PI / 4)
-    wall_run(*gr, -w, -0.95, w, False, thick=0.95, height=1.2)
-    wall_run(*gr, 0.95, w, w, False, thick=0.95, height=1.2)
-    # bastiao arredondado do lado do mar, com bateria de canhoes e canhoneiras
-    bx, by, br = w - 0.2, -w - 0.1, 1.3
-    cyl("sea_bastion_foot", p["granite_dk"], (bx, by, 0), br * 1.12, 0.2, sides=16, bevel=0.03)
-    cyl("sea_bastion", p["granite"], (bx, by, 0.16), br * 1.04, 1.3, sides=16, top_radius=br * 0.9, bevel=0.03)
-    cyl("sea_bastion_deck", p["granite_lt"], (bx, by, 1.46), br * 0.9, 0.07, sides=16, bevel=0.0)
-    kit.ring("sea_bastion_band", p["red"], (bx, by, 0.4), br * 0.95, 0.1, thick=0.04, sides=16)
-    for ang in (-160, -130, -100, -70, -40, -10):
-        a = math.radians(ang)
-        box("embrasure", p["void"], (bx + math.cos(a) * br * 0.96, by + math.sin(a) * br * 0.96, 0.78), (0.3, 0.1, 0.24), bevel=0.0, rot_z=a + PI / 2)
-    cyl("turntable", p["iron"], (bx - 0.1, by - 0.1, 1.52), 0.34, 0.1, sides=10, bevel=0.0)
-    cannon(p, (bx - 0.1, by - 0.1, 1.72), (bx + 0.35, by - 0.85, 1.76))
-    cannon(p, (bx - 0.45, by + 0.15, 1.62), (bx + 0.1, by - 0.45, 1.66))
-    # torre quadrada de sinais na quina de terra (frente), torrinha redonda atras no mar
-    box("land_bastion", p["granite"], (w + 0.1, w + 0.1, 0.1), (1.5, 1.5, 1.45), bevel=0.04, taper=0.88, taper_y=0.88)
-    box("land_bastion_deck", p["granite_lt"], (w + 0.1, w + 0.1, 1.55), (1.3, 1.3, 0.06), bevel=0.0)
-    box("land_bastion_band", p["red"], (w + 0.1, w + 0.1, 0.55), (1.46, 1.46, 0.09), bevel=0.0)
-    cannon(p, (w + 0.1, w + 0.2, 1.7), (w + 0.75, w + 0.65, 1.74))
-    cyl("rear_turret", p["granite"], (-w - 0.1, -w - 0.1, 0.1), 0.78, 1.3, sides=10, top_radius=0.66, bevel=0.03)
-    cyl("rear_turret_deck", p["granite_lt"], (-w - 0.1, -w - 0.1, 1.4), 0.7, 0.07, sides=10, bevel=0.0)
-    dome("rear_turret_lamp", p["brass"], (-w - 0.1, -w - 0.1, 1.47), 0.32, squash=0.7, sides=8)
-    kit.ring("rear_turret_ring", p["red"], (-w - 0.1, -w - 0.1, 1.4), 0.62, 0.1, thick=0.0, sides=10)
-    # galpao de barcos como portaria
-    boathouse(p, w + 0.2)
-    # torre-farol (menagem) e o convés claro do patio
-    kx = -0.55
-    box("keep_base", p["granite"], (kx, 0.1, 0.13), (2.3, 2.1, 0.85), bevel=0.05, taper=0.93, taper_y=0.93)
-    box("keep_deck", p["granite_lt"], (kx, 0.1, 0.98), (2.1, 1.9, 0.05), bevel=0.0)
+    wall_run(*gr, -w, w, -w, False, thick=th, height=1.2)  # fundo
+    wall_run(*gr, -w, w, -w, True, thick=th, height=1.2)  # lado do mar
+    wall_run(*gr, -w, w, w, True, thick=th, height=1.2)  # lado de terra
+    wall_run(*gr, -w, -1.05, w, False, thick=th, height=1.2)  # frente, de cada lado do portao
+    wall_run(*gr, 1.05, w, w, False, thick=th, height=1.2)
+    parapet_ring(p, w, th, 1.2)
+    # bastioes desiguais fora da linha da muralha
+    sea_battery(p, (w + 0.05, -w - 0.05), 1.3)
+    arrow_bastion(p, (w + 0.2, w + 0.2), (1, 1))
+    squat_tower(p, (-w - 0.1, w + 0.1), 0.9)
+    lookout_tower(p, (-w - 0.15, -w - 0.15))
+    water_gate(p, w + 0.4)
+    # menagem: duas fiadas de alvenaria e a torre-farol larga
+    kx, ky = -0.5, 0.1
+    box("keep_base", p["granite"], (kx, ky, 0.13), (2.7, 2.5, 0.7), bevel=0.05, taper=0.93, taper_y=0.93)
+    box("keep_deck1", p["granite_lt"], (kx, ky, 0.83), (2.4, 2.2, 0.05), bevel=0.0)
+    box("keep_mid", p["granite"], (kx, ky, 0.88), (2.0, 1.8, 0.6), bevel=0.05, taper=0.93, taper_y=0.93)
+    box("keep_deck2", p["granite_lt"], (kx, ky, 1.48), (1.8, 1.6, 0.05), bevel=0.0)
     for y in (-0.6, 0.0, 0.6):
-        kit.window(p["iron"], p["amber"], (kx + 1.08, 0.1 + y, 0.45), "x+", w=0.18, h=0.3)
-    keep_lighthouse(p, kx - 0.2, 0.3, 1.03)
-    # patio: guindaste, carga empilhada e canhao de salva
-    crane(p, (1.15, -0.85), height=1.9, reach=1.6)
+        kit.window(p["iron"], p["amber"], (kx + 1.28, ky + y, 0.4), "x+", w=0.2, h=0.3)
+    for x in (-0.9, -0.3, 0.3):
+        kit.window(p["iron"], p["amber"], (kx + x, ky - 1.2, 0.4), "y-", w=0.2, h=0.3)
+    keep_lighthouse(p, kx + 0.05, ky, 1.53)
+    # patio: alojamento, paiol, guindaste, carga empilhada, mastro de sinais
+    barracks(p, (-0.7, -1.5))
+    magazine(p, (1.45, 1.5))
+    crane(p, (1.4, -1.55), height=1.9, reach=1.6)
     for dx, dy, rz in ((0.0, 0.0, 0.1), (0.5, 0.05, -0.2), (0.15, 0.5, 0.3)):
-        crate(p, (1.15 + dx, 1.35 + dy, 0.13), (0.5, 0.5, 0.42), rz, tone="wood" if dx else "tar_lt", band="tar" if dx else "red")
-    crate(p, (1.25, 1.4, 0.55), (0.42, 0.42, 0.36), 0.5, tone="wood", band="red")
-    barrel(p, (-1.5, -1.55, 0.13), 0.22, 0.5)
-    barrel(p, (-1.1, -1.7, 0.13), 0.22, 0.5, "tar_lt")
-    box("tarp", p["hull"], (-1.6, 1.55, 0.13), (0.8, 0.5, 0.2), bevel=0.06, rot_z=0.3)
-    # coroa: mastro de sinais fora do centro (sobre o convés do forte)
-    signal_mast(p, (kx - 0.9, -0.75), 0.98, height=3.2)
+        crate(p, (1.35 + dx, 0.55 + dy, 0.13), (0.5, 0.5, 0.42), rz, tone="wood" if dx else "tar_lt", band="tar")
+    crate(p, (1.45, 0.62, 0.55), (0.42, 0.42, 0.36), 0.5, tone="wood", band="tar")
+    barrel(p, (-0.15, 1.7, 0.13), 0.22, 0.5)
+    barrel(p, (0.25, 1.62, 0.13), 0.22, 0.5, "tar_lt")
+    box("tarp", p["hull"], (-1.2, 1.65, 0.13), (0.8, 0.5, 0.2), bevel=0.06, rot_z=0.3)
+    signal_mast(p, (kx - 1.0, ky - 0.65), 1.48, height=3.0)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -1049,7 +1126,8 @@ def build(name, out_dir, render_dir, make, views, ground=0x8E9A8C, castle=False)
     kit.reset()
     make()
     if castle:
-        normalize(1.08, 1.08, 1.08)  # pegada do castelo no porte da Frente do Petroleo (~3,2 de meia-largura)
+        k = 1.22 if name == "naga_harbour" else 1.08
+        normalize(k, k, k)  # pegada do castelo no porte da Frente do Petroleo (~3,2 de meia-largura)
     kit.bake()
     tris, lo, hi = kit.stats()
     print(f"MODEL {name}: tris={tris} min=({lo.x:.2f},{lo.y:.2f},{lo.z:.2f}) max=({hi.x:.2f},{hi.y:.2f},{hi.z:.2f})")
