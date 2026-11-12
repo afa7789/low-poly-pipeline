@@ -216,13 +216,13 @@ def cupola_bastion(concrete, trim, steel, dark, pos, aim, radius=0.9, height=1.3
     beam("gun_muzzle", steel, (Vector(root).lerp(Vector(tip), 0.86)), tip, thick=0.15)
 
 
-def derrick(steel, dark, accent, pos, base=0.62, top=0.14, height=1.7):
-    """Torre de perfuração em treliça: 4 pernas, 3 anéis, contraventamento em X e coroa."""
+def derrick(steel, dark, accent, pos, base=0.62, top=0.14, height=1.7, lean=(0.0, 0.0)):
+    """Torre de perfuração em treliça: 4 pernas, 3 anéis, contraventamento em X e coroa. lean tomba o topo."""
     x, y, z = pos
     legs = []
     for sx, sy in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
         a = (x + sx * base / 2, y + sy * base / 2, z)
-        b = (x + sx * top / 2, y + sy * top / 2, z + height)
+        b = (x + lean[0] + sx * top / 2, y + lean[1] + sy * top / 2, z + height)
         legs.append((Vector(a), Vector(b)))
         beam("derrick_leg", steel, a, b, thick=0.07)
     levels = (0.0, 0.34, 0.66, 1.0)
@@ -234,8 +234,26 @@ def derrick(steel, dark, accent, pos, base=0.62, top=0.14, height=1.7):
             up = [a.lerp(b, levels[li + 1]) for a, b in legs]
             for i in range(4):
                 beam("derrick_x", dark, pts[i], up[(i + 1) % 4], thick=0.035)
-    box("derrick_crown", dark, (x, y, z + height), (top * 2.0, top * 2.0, 0.12), bevel=0.02)
-    box("derrick_lamp", accent, (x, y, z + height + 0.12), (0.09, 0.09, 0.09), bevel=0.0)
+    box("derrick_crown", dark, (x + lean[0], y + lean[1], z + height), (top * 2.0, top * 2.0, 0.12), bevel=0.02)
+    if accent is not None:
+        box("derrick_lamp", accent, (x + lean[0], y + lean[1], z + height + 0.12), (0.09, 0.09, 0.09), bevel=0.0)
+
+
+def horn(material, pos, out, length=1.0, radius=0.16):
+    """Chifre de osso em três gomos, curvando para cima a partir da direção `out` (x, y)."""
+    p = Vector(pos)
+    ox, oy = out
+    for i, pitch in enumerate((20.0, 48.0, 76.0)):
+        a = math.radians(pitch)
+        step = Vector((ox * math.cos(a), oy * math.cos(a), math.sin(a))) * (length / 3)
+        r0, r1 = radius * (1 - i / 3), radius * (1 - (i + 1) / 3)
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=r0, radius2=max(r1, 1e-4), depth=step.length * 1.08)
+        bmesh.ops.translate(bm, verts=bm.verts, vec=(0, 0, step.length / 2))
+        bmesh.ops.rotate(bm, verts=bm.verts, cent=(0, 0, 0), matrix=step.to_track_quat("Z", "Y").to_matrix())
+        bmesh.ops.translate(bm, verts=bm.verts, vec=p)
+        _finish(bm, "horn", material)
+        p = p + step
 
 
 def pipe_run(material, flange, points, radius=0.075):
@@ -262,6 +280,9 @@ def compact_refinery():
     roof = mat("roof", 0x3A4148)
     lamp = mat("lamp", 0xFFC658, emit=3.0)
     arc = mat("arc", 0x8FE0FF, emit=3.0)
+    deck = mat("concrete_light", 0xB3AC97)
+    hazard = mat("hazard", 0xE2B224)
+    void = mat("void", 0x141518)
 
     half = 2.6
     # Plataforma em dois degraus: a fortaleza senta num glacis, não direto no chão.
@@ -274,6 +295,13 @@ def compact_refinery():
     # Frente (lado da lane): duas meias cortinas ladeando a portaria.
     battered_wall(concrete, concrete_dk, -w + 0.55, -0.72, w, False, cap=steel, n_merlons=2)
     battered_wall(concrete, concrete_dk, 0.72, w - 0.55, w, False, cap=steel, n_merlons=2)
+    # Vista de cima, o que se lê é o plano: convés claro no topo das cortinas e canhoneiras escuras nos flancos.
+    for sgn in (-1, 1):
+        box("deck", deck, (0, sgn * w, 1.3), (2 * w - 1.6, 0.3, 0.05), bevel=0.0)
+        for t in (-1.1, 0.0, 1.1):
+            box("embrasure", void, (t, sgn * (w + 0.27), 0.62), (0.42, 0.06, 0.2), bevel=0.0)
+            box("embrasure_sill", concrete_dk, (t, sgn * (w + 0.29), 0.54), (0.54, 0.08, 0.07), bevel=0.0)
+    box("deck", deck, (-w, 0, 1.3), (0.3, 2 * w - 1.6, 0.05), bevel=0.0)
     for t in (-0.95, 0.95):
         buttress(concrete_dk, (t, w + 0.3, 0.0), (0, 1))
         buttress(concrete_dk, (t, -w - 0.3, 0.0), (0, -1))
@@ -296,6 +324,9 @@ def compact_refinery():
         box("gate_pilaster", concrete_dk, (gx + 0.44, s * 0.58, 0.1), (0.18, 0.22, 1.5), bevel=0.02, taper_y=0.8)
         box("gate_strap", steel, (gx + 0.5, s * 0.2, 0.2), (0.03, 0.06, 0.85), bevel=0.0)
     box("gate_lamp", arc, (gx + 0.5, 0, 1.56), (0.06, 0.16, 0.08), bevel=0.0)
+    box("gate_chevron", hazard, (gx + 0.51, 0, 0.5), (0.03, 0.8, 0.14), bevel=0.0)
+    box("gate_emblem", hazard, (gx + 0.5, 0, 1.24), (0.04, 0.3, 0.22), bevel=0.0)
+    box("gate_kerb", hazard, (gx + 0.62, 0, 0.1), (0.3, 1.1, 0.05), bevel=0.0)
 
     # Refinaria (torre de menagem) em três degraus, recuada para o fundo.
     kx = -0.55
@@ -319,18 +350,29 @@ def compact_refinery():
         box("sawtooth_glass", lamp, (kx + 1.05, y - 0.3, 1.8), (0.5, 0.03, 0.22), bevel=0.0)
 
     # Chaminés: três, de alturas diferentes, agrupadas no fundo.
-    chimney(brick, oxide, iron, (kx - 0.85, 0.52, 1.74), 2.05, radius=0.2)
-    chimney(brick, oxide, iron, (kx - 0.85, -0.05, 1.74), 2.4, radius=0.23)
-    chimney(brick, oxide, iron, (kx - 0.85, -0.6, 1.74), 1.75, radius=0.18)
+    chimney(brick, oxide, iron, (kx - 0.85, 0.5, 1.74), 1.55, radius=0.19)
+    chimney(brick, oxide, iron, (kx - 0.9, -0.15, 1.74), 2.65, radius=0.25)
+    chimney(brick, oxide, iron, (kx - 0.45, -0.68, 1.74), 1.2, radius=0.16)
 
     # Coroa: torre de perfuração sobre o degrau do meio.
-    derrick(steel, iron, arc, (kx + 0.2, 0.0, 2.66), base=0.7, top=0.16, height=1.75)
+    derrick(steel, iron, arc, (kx + 0.35, 0.38, 2.66), base=0.66, top=0.16, height=1.7)
+    box("doghouse", roof, (kx + 0.3, -0.42, 2.66), (0.5, 0.42, 0.32), bevel=0.02)
+    prism("doghouse_roof", iron, (kx + 0.3, -0.42, 2.98), (0.56, 0.48, 0.16), ridge=0.5)
 
     # Canos dos tanques até a refinaria, sobre a cortina de trás.
     for s in (-1, 1):
         pipe_run(oxide, iron, [(-w, s * (w - 0.9), 1.25), (-w, s * 0.8, 1.25), (kx - 1.2, s * 0.8, 1.25), (kx - 1.2, s * 0.8, 0.9)])
     pipe_run(oxide, iron, [(kx + 0.6, 1.2, 1.9), (kx + 0.6, 1.75, 1.9), (kx + 0.6, 1.75, 1.5)])
 
+    # Parque de tanques no pátio (lado direito de quem ataca): quebra a simetria e enche o plano.
+    cyl("yard_tank", steel, (1.25, -1.05, 0.2), 0.36, 0.72, sides=12)
+    ring("yard_tank_band", hazard, (1.25, -1.05, 0.55), 0.36, 0.1, sides=12)
+    cyl("yard_tank_roof", roof, (1.25, -1.05, 0.92), 0.36, 0.12, sides=12, top_radius=0.08, bevel=0.0)
+    cyl("yard_tank", steel, (1.3, -0.4, 0.2), 0.26, 0.5, sides=10)
+    cyl("yard_tank_roof", roof, (1.3, -0.4, 0.7), 0.26, 0.1, sides=10, top_radius=0.06, bevel=0.0)
+    for i, (dx, dy) in enumerate(((0.0, 0.0), (0.2, 0.05), (0.08, 0.2))):
+        cyl("drum", hazard if i == 1 else oxide, (1.15 + dx, 0.7 + dy, 0.2), 0.085, 0.2, sides=8, bevel=0.0)
+    ring("tank_hazard", hazard, (-w, -w, 1.3), 0.86, 0.1, sides=14)
     # Holofotes nos bastiões de trás e lâmpadas no pátio.
     for s in (-1, 1):
         box("searchlight", arc, (-w, s * w, 1.82), (0.1, 0.1, 0.1), bevel=0.0)
@@ -399,6 +441,7 @@ def torchbound_bastion():
     ember = mat("ember", 0xFF6A14, emit=3.0)
     fire = mat("fire", 0xFF8A1E, emit=3.5)
     core = mat("fire_core", 0xFFD860, emit=4.0)
+    bone = mat("bone", 0xCBBE9C)
 
     half = 2.6
     box("plinth", char, (0, 0, 0), (half * 2 + 0.4, half * 2 + 0.4, 0.16), bevel=0.06, taper=0.94, taper_y=0.94)
@@ -415,9 +458,29 @@ def torchbound_bastion():
         spike(iron, (t, -w - 0.42, 0.1), height=0.5, lean=(0.0, -0.3))
         spike(iron, (-w - 0.42, t, 0.1), height=0.5, lean=(-0.3, 0.0))
 
+    for sy in (1, -1):
+        arrow_bastion(basalt, char, iron, (w, sy * w, 0), (1, sy))
+        brazier(iron, ember, core, fire, (w, sy * w, 1.62), radius=0.3, fire=0.3)
+        horn(bone, (w + 0.55, sy * (w + 0.55), 1.2), (0.707, sy * 0.707), length=1.25, radius=0.2)
+    # Fundos desiguais: torre redonda com chapéu de ferro torto de um lado, guarita de madeira do outro.
+    cyl("round_foot", char, (-w, w, 0), 1.05, 0.2, sides=10)
+    cyl("round_tower", basalt, (-w, w, 0.16), 0.95, 1.9, sides=10, top_radius=0.8, bevel=0.03)
+    ring("round_band", ash, (-w, w, 1.5), 0.84, 0.12, thick=0.05, sides=10)
+    cyl("round_cap", iron, (-w + 0.05, w, 2.06), 0.95, 0.62, sides=10, top_radius=0.0, bevel=0.0)
+    for i in range(6):
+        a = i * math.tau / 6
+        spike(iron, (-w + math.cos(a) * 0.86, w + math.sin(a) * 0.86, 2.02), height=0.3, radius=0.06, lean=(math.cos(a) * 0.3, math.sin(a) * 0.3))
+    horn(bone, (-w - 0.6, w + 0.6, 1.0), (-0.707, 0.707), length=1.1, radius=0.18)
+    arrow_bastion(basalt, char, iron, (-w, -w, 0), (-1, -1), radius=0.9, height=1.1)
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-        arrow_bastion(basalt, char, iron, (sx * w, sy * w, 0), (sx, sy))
-        brazier(iron, ember, core, fire, (sx * w, sy * w, 1.62), radius=0.3, fire=0.3)
+        beam("watch_leg", wood, (-w + sx * 0.5, -w + sy * 0.5, 1.3), (-w + sx * 0.36, -w + sy * 0.36, 2.25), thick=0.08)
+    box("watch_floor", wood, (-w, -w, 2.25), (0.95, 0.95, 0.09), bevel=0.01)
+    box("watch_rail", wood, (-w, -w - 0.44, 2.34), (0.95, 0.06, 0.22), bevel=0.0)
+    box("watch_rail", wood, (-w - 0.44, -w, 2.34), (0.06, 0.95, 0.22), bevel=0.0)
+    prism("watch_roof", char, (-w, -w, 2.86), (1.15, 1.1, 0.26), ridge=0.5)
+    for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        beam("watch_post", wood, (-w + sx * 0.4, -w + sy * 0.4, 2.3), (-w + sx * 0.4, -w + sy * 0.4, 2.88), thick=0.06)
+    horn(bone, (-w - 0.5, -w - 0.5, 0.9), (-0.707, -0.707), length=0.95, radius=0.16)
 
     # Portaria: bocarra de pedra queimada com presas de ferro, grade e correntes.
     gx = w + 0.12
@@ -430,7 +493,7 @@ def torchbound_bastion():
         box("gate_cross", iron, (gx + 0.57, 0, z), (0.05, 0.86, 0.06), bevel=0.0)
     for s in (-1, 1):
         box("gate_tusk", ash, (gx + 0.5, s * 0.66, 0.1), (0.3, 0.3, 1.3), bevel=0.03, taper=0.5, taper_y=0.5)
-        spike(iron, (gx + 0.5, s * 0.66, 1.4), height=0.5, radius=0.1, lean=(0.16, 0.0))
+        horn(bone, (gx + 0.5, s * 0.66, 1.36), (1.0, 0.0), length=0.85, radius=0.15)
         spike(iron, (gx + 0.2, s * 0.6, 1.76), height=0.42, lean=(0.1, s * 0.12))
         banner(iron, cloth, (gx + 0.62, s * 1.02, 0.5), height=1.25, facing=0.0)
     brazier(iron, ember, core, fire, (gx - 0.05, 0, 1.76), radius=0.26, fire=0.24)
@@ -443,7 +506,7 @@ def torchbound_bastion():
     box("keep_mid_lip", char, (kx, 0, 2.28), (1.58, 1.58, 0.1), bevel=0.03)
     box("keep_top", basalt, (kx, 0, 2.36), (1.15, 1.15, 0.5), bevel=0.04, taper=0.86, taper_y=0.86)
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-        spike(iron, (kx + sx * 1.02, sy * 1.02, 1.5), height=0.6, radius=0.1, lean=(sx * 0.2, sy * 0.2))
+        horn(bone, (kx + sx * 1.0, sy * 1.0, 1.45), (sx * 0.707, sy * 0.707), length=0.8, radius=0.13)
         spike(iron, (kx + sx * 0.68, sy * 0.68, 2.36), height=0.5, radius=0.08, lean=(sx * 0.16, sy * 0.16))
     # Seteiras em brasa nas quatro faces do primeiro degrau.
     for t in (-0.6, 0.0, 0.6):
@@ -459,7 +522,11 @@ def torchbound_bastion():
     cyl("pyre_bowl", iron, (kx, 0, 2.84), 0.36, 0.34, sides=8, top_radius=0.74, bevel=0.0)
     ring("pyre_rim", rust, (kx, 0, 3.14), 0.72, 0.08, thick=0.06, sides=8)
     cyl("pyre_ember", ember, (kx, 0, 3.2), 0.66, 0.05, sides=8, bevel=0.0)
-    flame(core, fire, (kx, 0, 3.22), size=0.78)
+    flame(core, fire, (kx + 0.1, -0.1, 3.22), size=0.55)
+    flame(core, fire, (kx - 0.3, 0.25, 3.22), size=0.36)
+    # A coroa: a torre de perfuração tomada, fincada na pira e tombando para o fundo, com a ponta em brasa.
+    derrick(rust, iron, None, (kx - 0.05, 0.05, 3.1), base=0.62, top=0.2, height=1.75, lean=(-0.55, 0.42))
+    flame(core, fire, (kx - 0.6, 0.47, 4.95), size=0.22)
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
         beam("pyre_chain", iron, (kx + sx * 0.5, sy * 0.5, 3.1), (kx + sx * 0.52, sy * 0.52, 2.4), thick=0.04)
 
