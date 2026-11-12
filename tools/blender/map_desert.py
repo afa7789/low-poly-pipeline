@@ -946,10 +946,10 @@ def pump_house(p, pos, radius, height, tank=False):
         a = k * math.tau / 14
         box("ph_rivet", p["iron"], (x + math.cos(a) * (radius + 0.02), y + math.sin(a) * (radius + 0.02), height * 0.8), (0.05, 0.05, 0.05), bevel=0.0, rot_z=a)
     top = 0.14 + height
-    cyl("ph_lid", p["rust"], (x, y, top), radius * 1.03, 0.1, sides=14, bevel=0.01)
+    cyl("ph_lid", p["iron"], (x, y, top), radius * 1.03, 0.1, sides=14, bevel=0.01)
     cyl("ph_lid_dome", p["paint"], (x, y, top + 0.1), radius * 0.9, 0.14, sides=14, top_radius=radius * 0.5, bevel=0.0)
     cyl("ph_vent", p["iron"], (x + radius * 0.3, y, top + 0.2), 0.14, 0.3, sides=8, bevel=0.0)
-    cyl("ph_vent_cap", p["rust"], (x + radius * 0.3, y, top + 0.5), 0.2, 0.06, sides=8, bevel=0.0)
+    cyl("ph_vent_cap", p["iron"], (x + radius * 0.3, y, top + 0.5), 0.2, 0.06, sides=8, bevel=0.0)
     if tank:
         cyl("ph_water", p["water"], (x - radius * 0.2, y, top + 0.1), radius * 0.4, 0.04, sides=10, bevel=0.0)
 
