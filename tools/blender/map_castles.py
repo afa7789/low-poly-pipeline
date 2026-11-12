@@ -596,7 +596,7 @@ def stats():
     return tris, lo, hi
 
 
-def render(path, yaw_deg, tilt_deg=52.0, ground=0x6B5A45):
+def render(path, yaw_deg, tilt_deg=52.0, ground=0x6B5A45, span=6.4, top=2.6):
     """Prévia na inclinação da câmera do jogo (ortográfica), com chão de lama e sol baixo."""
     scene = bpy.context.scene
     extra = []
@@ -605,11 +605,11 @@ def render(path, yaw_deg, tilt_deg=52.0, ground=0x6B5A45):
     extra.append(_finish(bm, "ground", mat("ground", ground)))
     cam_data = bpy.data.cameras.new("cam")
     cam_data.type = "ORTHO"
-    cam_data.ortho_scale = 9.5
+    cam_data.ortho_scale = span * 1.5
     cam = bpy.data.objects.new("cam", cam_data)
     scene.collection.objects.link(cam)
     tilt, yaw = math.radians(tilt_deg), math.radians(yaw_deg)
-    target = Vector((0, 0, 1.3))
+    target = Vector((0, 0, top / 2))
     direction = Vector((math.cos(yaw) * math.cos(tilt), math.sin(yaw) * math.cos(tilt), math.sin(tilt)))
     cam.location = target + direction * 30
     cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
@@ -640,16 +640,17 @@ def render(path, yaw_deg, tilt_deg=52.0, ground=0x6B5A45):
         bpy.data.objects.remove(o)
 
 
-def build(name, out_dir, render_dir):
+def build(name, out_dir, render_dir, make=None, views=(("front", -35.0), ("back", 150.0), ("game", -90.0))):
     reset()
-    CASTLES[name]()
+    (make or CASTLES[name])()
     bake()
     tris, lo, hi = stats()
-    print(f"CASTLE {name}: tris={tris} min=({lo.x:.2f},{lo.y:.2f},{lo.z:.2f}) max=({hi.x:.2f},{hi.y:.2f},{hi.z:.2f})")
+    print(f"MODEL {name}: tris={tris} min=({lo.x:.2f},{lo.y:.2f},{lo.z:.2f}) max=({hi.x:.2f},{hi.y:.2f},{hi.z:.2f})")
     if render_dir:
         os.makedirs(render_dir, exist_ok=True)
-        for tag, yaw in (("front", -35.0), ("back", 150.0), ("game", -90.0)):
-            render(os.path.join(render_dir, f"{name}_{tag}.png"), yaw)
+        span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z, 0.5)
+        for tag, yaw in views:
+            render(os.path.join(render_dir, f"{name}_{tag}.png"), yaw, span=span, top=hi.z)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
         bpy.ops.object.select_all(action="SELECT")
