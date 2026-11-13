@@ -798,7 +798,7 @@ def make_actions(arm):
     for pb in arm.pose.bones:
         pb.rotation_mode = "XYZ"
     arm.animation_data_create()
-    anim = load_toolkit("blender-animation", "bx_anim")
+    anim = load_toolkit("bx_anim")
     clips = clip_set(FAMILY, ANIM)
     for name, poses, cyclic, contacts, lags in clips:
         act = bpy.data.actions.new(name)
@@ -2296,8 +2296,9 @@ def main():
           f"{len(body.data.materials)} materials -> {out}")
 
 
-def load_toolkit(skill, module):
-    sys.path.append(str(pathlib.Path.home() / ".config/opencode/skills" / skill / "scripts"))
+def load_toolkit(module):
+    """A helper module vendored in tools/blender/vendor (bx_anim, from the blender-animation skill)."""
+    sys.path.append(str(pathlib.Path(__file__).resolve().parent / "vendor"))
     return __import__(module)
 
 

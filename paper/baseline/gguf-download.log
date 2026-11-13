@@ -1,0 +1,8 @@
+A new version of huggingface_hub (2.4.0) is available! You are using version 1.8.0.
+To update, run: brew upgrade hf
+
+Fetching 32 files:   0%|          | 0/32 [00:00<?, ?it/s]Still waiting to acquire lock on gguf/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)
+Still waiting to acquire lock on gguf/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 32 files:   3%|▎         | 1/32 [00:01<00:58,  1.89s/it]Fetching 32 files:   9%|▉         | 3/32 [01:03<11:19, 23.43s/it]Fetching 32 files:  12%|█▎        | 4/32 [03:12<27:58, 59.95s/it]Fetching 32 files:  22%|██▏       | 7/32 [03:53<13:24, 32.19s/it]Fetching 32 files:  34%|███▍      | 11/32 [03:53<05:16, 15.09s/it]Fetching 32 files:  38%|███▊      | 12/32 [04:03<04:44, 14.25s/it]Fetching 32 files:  41%|████      | 13/32 [04:04<03:43, 11.78s/it]Fetching 32 files:  44%|████▍     | 14/32 [08:51<20:52, 69.58s/it]Fetching 32 files:  53%|█████▎    | 17/32 [16:25<27:03, 108.22s/it]/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/resource_tracker.py:396: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-tfucu7j2'}
+  warnings.warn(

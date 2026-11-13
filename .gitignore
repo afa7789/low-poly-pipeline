@@ -1,0 +1,41 @@
+# python
+__pycache__/
+.ruff_cache/
+.DS_Store
+
+# tool output: never in git (scripts/link_output.sh -> $CF_PIPELINE_OUT, default ./output)
+/output/
+artifacts/model-sheets/runs
+artifacts/model-sheets/refs
+artifacts/model-sheets/history
+artifacts/model-sheets/hand
+artifacts/model-sheets/eval
+artifacts/model-sheets/pipeline-final
+artifacts/model-sheets/leva6-texture
+artifacts/model-sheets/atlas-v2-hard
+artifacts/model-sheets/viewer/reviews.json
+artifacts/reference
+
+# game checkout links (scripts/link_game.sh; CF_GAME): the game's files, not ours
+/game
+/assets
+/reports/design
+/data/compendium.json
+/data/models.tsv
+/data/unit_anim.tsv
+/data/building_models.tsv
+/data/scenery_models.tsv
+/data/unit_av_ideas.json
+/tools/glb_import_check.cpp
+/tools/assign_model_clips.py
+
+# paper: reference PDFs and the TRELLIS baseline (30 GB) stay in ../IA_gen_paper (CF_PAPER)
+paper/papers/*
+!paper/papers/README.md
+paper/baseline/gguf
+paper/baseline/trellis.cpp
+paper/baseline/runs
+paper/baseline/input
+
+# paper build output (make -C paper pdf)
+paper/paper.pdf

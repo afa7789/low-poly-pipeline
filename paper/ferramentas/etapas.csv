@@ -1,0 +1,25 @@
+unit,order,stage,commit,glb,change
+n01X,1,v3/argon,5fb0902,artifacts/model-sheets/runs/draft/n01X/v3/n01X-argon.glb,LLM le o sheet e escreve spec de partes com coordenadas (gemini-4-argon)
+n01X,2,v3/5.5,5fb0902,artifacts/model-sheets/runs/draft/n01X/v3/n01X-5.5.glb,"idem, spec do Claude 5.5"
+n01X,3,argon(draft4),2718747,artifacts/model-sheets/runs/draft/n01X/argon/model.glb,"brief + gate de tris, argon"
+n01X,4,opus55(draft4),2718747,artifacts/model-sheets/runs/draft/n01X/opus55/model.glb,"brief + gate de tris, opus-5.5"
+n01X,5,v6/hand,8b45469,artifacts/model-sheets/runs/draft/n01X/v6/hand-n01X.glb,primitivas afuniladas (prism/dome) + regras de forma
+n01X,6,v8,121b76f,artifacts/model-sheets/runs/draft/n01X/v8/n01X.glb,chunkify + atlas de 3 tons
+n01X,7,v9,cb4e550,artifacts/model-sheets/runs/draft/n01X/v9/n01X-v9.glb,skeleton-first: posicao vem do osso
+n01X,8,v10,5186b8f,artifacts/model-sheets/runs/draft/n01X/v10/n01X.glb,uniao booleana (rejeitado)
+n01X,9,v11,069abea,artifacts/model-sheets/runs/draft/n01X/v11/n01X-v11.glb,DSL v2 + preflight 13 regras + gate de silhueta
+n01X,10,v12,c88eb93,artifacts/model-sheets/runs/draft/n01X/v12/model.glb,passes por vista + cameras calibradas
+n01X,11,v13,c88eb93,artifacts/model-sheets/runs/draft/n01X/v13/model.glb,"v12 + passes rts,left,back"
+n01X,12,v1(refs),dfff43f,artifacts/model-sheets/runs/draft/n01X/v1/model.glb,sheet + hard + hard-clean como referencias extras
+n01X,13,hard-v1,50511d0,artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb,hard como imagem 1 + landmarks do sheet + repair
+hfoo,1,opus55(draft4),2718747,artifacts/model-sheets/runs/draft/hfoo/opus55/model.glb,"brief + gate de tris, opus-5.5"
+hfoo,2,argon(draft4),2718747,artifacts/model-sheets/runs/draft/hfoo/argon/model.glb,"brief + gate de tris, argon"
+hfoo,3,v-ref(noref),dfff43f,artifacts/model-sheets/runs/draft/hfoo/v-ref/model.glb,pipeline atual sem referencias hard
+hfoo,4,v1(refs),dfff43f,artifacts/model-sheets/runs/draft/hfoo/v1/model.glb,sheet + hard + hard-clean + props
+hfoo,5,hardfirst,3390397,artifacts/model-sheets/runs/draft/hfoo/hardfirst/model.glb,hard como imagem 1
+hfoo,6,abS1,3390397,artifacts/model-sheets/runs/draft/hfoo/abS1/model.glb,"A/B: aprovado como imagem 1, sem repair"
+hfoo,7,abS2,3390397,artifacts/model-sheets/runs/draft/hfoo/abS2/model.glb,"A/B: aprovado como imagem 1, sem repair"
+hfoo,8,abH1,3390397,artifacts/model-sheets/runs/draft/hfoo/abH1/model.glb,"A/B: hard como imagem 1, sem repair"
+hfoo,9,abH2,3390397,artifacts/model-sheets/runs/draft/hfoo/abH2/model.glb,"A/B: hard como imagem 1, sem repair"
+hfoo,10,abR1,3390397,artifacts/model-sheets/runs/draft/hfoo/abR1/model.glb,hard + repair por padrao
+hfoo,11,hard-v1,50511d0,artifacts/model-sheets/runs/draft/hfoo/hard-v1/model.glb,hard + landmarks + repair (baseline)

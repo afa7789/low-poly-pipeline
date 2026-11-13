@@ -1,0 +1,298 @@
+unit_id	action	clip	grade	what_is_seen	fix_hint
+builder_chaos	attack	tool_pickaxe	OK	f3-5 rake raised behind the shoulder, f7-13 rake head planted on the ground in front at the red bar, f15-19 lifted back.	
+builder_chaos	attack2	tool_chop	OK	f3 rake swung low behind, f7-11 rake levelled forward at shoulder height with the head past the bar, f13-17 raised; high level swing differs from the low pick of attack.	
+builder_corrupted	attack	chop	OK	f3 crook raised overhead, f5-9 crook brought down forward with the hook end at the bar, f11 lifted level, f13+ back on the shoulder.	
+builder_desert	attack	tool_pickaxe	OK	f3-5 pickaxe wound back, f7-13 pick head down on the ground at the bar, f15-19 lifting.	
+builder_desert	attack2	tool_chop	OK	f3 pick swung low behind, f7-11 pick held level forward with the head past the bar, f13-15 raised back.	
+builder_elemental	attack	tool_pickaxe	OK	f5 stone slab raised behind, f7-13 golem leans in and brings pick and slab down in front at the bar, f15-19 slab stands straight up over the head on recovery.	
+builder_elf	attack	stab	OK	f3-5 surveyor staff drawn back level, f7-11 staff thrust horizontally head-first to the bar, f13-15 lifted.	
+builder_elf	attack2	chop	OK	f3 staff raised, f5-9 staff diagonal overhead with head forward over the bar, f11 staff down in front, f13+ upright.	
+builder_human	attack	chop_2h	OK	f3-5 shovel drawn back, f7-11 shovel blade down in front past the bar, f13 levelled forward, f15-17 raised.	
+builder_human	attack2	slice_2h	OK	f3 shovel low behind-left, f5 blade swept low across the bar, f7-9 follow-through high to the upper right, f11 upright.	
+builder_mech	attack	tool_hammer	OK	f5 mallet raised in front, f7-13 mallet head down in front touching the bar, f15+ back to the hip.	
+builder_naga	attack	chop_2h	OK	f3-5 boat hook raised over the shoulder, f7-11 hook down in front past the bar, f13 levelled, f15-17 lifting.	
+builder_naga	attack2	stab_2h	OK	f3-5 pole drawn back level, f7-11 pole thrust horizontally hook-first past the bar, f13-15 withdrawn.	
+builder_nature	attack	big_arm_slam	OK	f3 branch arm raised behind the cap, f5-11 arm slammed diagonally down in front to the bar, f13+ back at the side.	
+builder_nature	attack2	punch	OK	f3-5 arm cocked at the chest, f7-11 arm straight out level at the bar, f13 dropped.	
+builder_nightelf	attack	tool_hammer	OK	f5 crescent staff raised, f7-11 staff diagonal with the crescent forward over the bar, f13 crescent down at the bar, f17 upright.	
+builder_nightelf	attack2	tool_chop	WEAK	f3 staff swung back, f5 upright, f7-11 staff diagonal with crescent forward over the bar - the same pose and height as attack f7-11, a look-alike.	Give attack2 a different silhouette: a low horizontal sweep of the crescent across the bar or a two-hand point-first jab (stab_2h), not a second overhead.
+builder_northern	attack	tool_pickaxe	OK	f3-5 pick wound back, f7-13 pick head down on the ground at the bar, f15-19 lifted.	
+builder_northern	attack2	tool_chop	OK	f3 pick swung low behind, f7-11 pick levelled forward at shoulder height past the bar, f13-15 raised.	
+builder_orc	attack	tool_hammer	OK	f5 long tool raised overhead, f7-11 tool head down in front on the bar, f13-15 lifted.	
+builder_orc	attack2	tool_chop	OK	f3 tool swung low behind, f7-11 tool levelled forward high past the bar, f13-17 raised.	
+builder_pandaren	attack	tool_hammer	OK	f5 mallet arm lifted forward, f7-13 arm stretched down-forward with the mallet at the bar, f15+ back at the side.	
+builder_ultimate	attack	staff_point	OK	f3 lantern staff levelled, f5-9 staff thrust horizontally lantern-first past the bar, f11 raised, f13+ planted again.	
+builder_ultimate	attack2	cast_shoot	OK	Staff stays planted; f5-11 the free sleeve arm is thrust level toward the target at head height, f13+ lowered.	
+builder_undead	attack	tool_pickaxe	OK	f3 iron hook swung low behind, f5 raised over the head, f7-13 both arms forward with the hook down at the bar, f15-19 hook still low in front.	
+e000	attack	spit	OK	f1-3 wings spread, f5 body and head dart forward to the ring edge toward the bar with wings snapping upright, f7-17 pose held, f19 easing back.	
+e001	attack	bow	WEAK	f3 empty left arm punches toward the bar, f7-11 that empty arm stays stretched low at the bar while the bow sits pulled back beside the head, f13-15 lowered - bow is never held out at the target.	Model holds the bow in the RIGHT hand; use a mirrored bow clip so the bow arm extends to the target and the free hand draws back.
+e002	attack	keyed_fire	OK	f5-7 the whole cart pitches and rocks back (wing and nose shift), f9+ settled; rotor glaive itself does not change.	
+e003	attack	bow	OK	f3-5 bow raised, f5-11 bow arm held out toward the bar with the other arm drawn back, f13-15 bow kicks up on release, f17-19 back to idle with arms out sideways.	
+e004	attack	bow	OK	f3-5 longbow raised, f5-11 bow arm out toward the bar with draw arm back, f13-15 bow flips up on release, f17-19 idle arms out sideways.	
+e005	attack	keyed_recoil	OK	f5-7 ballista cart jolts and tilts back with the bow arms shifting, f9+ settled.	
+e006	attack	throw	OK	f3-5 spear lifted and cocked upright, f7-11 spear levelled and driven point-first past the bar, f13-15 swung up, f17-19 back at rest.	
+e007	attack	cast_shoot	OK	Staff stays on the shoulder; f3 right arm cocks, f5-9 arm thrust straight and level at the bar, f11 lowering.	
+e009	attack	cast_shoot	OK	Lantern staff stays planted; f3-11 the free arm is stretched level toward the target at head height, f13+ dropped.	
+e00A	attack	dual_slice	OK	f3-5 one crescent raised and the other swept forward to the bar, f7-11 blades cross and circle in front at the bar, f13+ back to idle.	
+e00A	attack2	dual_chop	OK	f3-5 both crescents raised back, f7-9 both blades down forward toward the bar, f13 one blade level forward, f15+ returning.	
+e00A	attack3	spin_2h	WEAK	f3-5 blades low in front, f7-11 the whole figure including its rock pedestal tilts and slides left off the ring while turning, f13-17 it faces the camera with both blades on the side away from the bar.	Keep the smoke/rock base upright on the ring and spin only the torso; end the turn with the blades cutting across the red-bar side, not parked behind.
+e00B	attack	dual_slice	OK	f3-5 lower crescent swept forward to the bar with the other raised, f7-11 blades circle in front at the bar, f13+ idle.	
+e00B	attack2	dual_chop	OK	f3-5 crescents raised back, f7-9 both blades chopped forward (one high one low) toward the bar, f13 one blade level, f15+ returning.	
+e00B	attack3	dual_stab	OK	f3-5 both blades curled in over the head, f7-11 both blades driven forward level at head height toward the bar with the body leaning, f13-15 one blade still forward.	
+e00C	attack	throw	OK	f3-5 big arm swung back low, f7-9 fist comes over forward toward the bar, f11-13 arm down at the bar, f15+ back.	
+e00D	attack	punch	OK	f3-5 arm cocked, f7-11 trunk leans forward and the clawed hand reaches low past the bar, f13 hand still at the bar, f15+ back.	
+e00D	attack2	fist_slam	OK	f3 arms lifted, f5-9 one arm raised behind the head while the other clawed hand is driven forward at the bar, f11 lowering.	
+e00E	attack	slice_horizontal	WEAK	f3 ledger plate lifted back over the head, f5 swung over, f7-11 plate stops close to the chest and never reaches the bar - same raise-then-front shape as attack3.	Make it a real side-to-side sweep at arm's length (plate edge travelling across the bar) so it differs from the overhead chop of attack3.
+e00E	attack2	kick	OK	f5-13 one leg stretched straight forward to the bar with the arms thrown back, f15+ back on both feet.	
+e00E	attack3	chop	OK	f3 ledger plate raised high behind, f5-9 plate brought down at arm's length in front past the bar, f11 lowered, f13+ idle.	
+e00F	attack	keyed_overhead	OK	f3-5 torso rears with both stone arms raised straight overhead, f7-13 fists down in front at the bar, f15+ idle.	
+e00F	attack2	keyed_sweep	OK	f3 torso wound to the left with an arm across, f5 fist swings to the bar, f7-11 follow-through turns the torso to the camera with arms wide, f13 arm back near the bar.	
+e00G	attack	flail_sling	OK	f3-5 chain weight pulled up to the chest, f7-9 weight flung forward to the bar at arm height, f11-13 weight drops in front at the bar, f15+ hangs at the side again.	
+e00J	attack	cast_shoot	OK	Crook staff stays planted; f3 free arm lifts, f5-9 arm stretched level toward the target at head height, f11 drops.	
+e00S	attack	punch	OK	f3-5 leaf tendril swung back, f7-11 pod lunges forward off the ring and the tendril stabs at the bar, f13+ back.	
+h00U	attack	throw	OK	f3-5 javelin raised and cocked over the head, f7-11 javelin levelled point-first out past the bar, f13 lifted, f15+ withdrawn.	
+h00W	attack	cast_shoot	WEAK	f3 arm cocked low, f5-9 fist held up bent beside the helmet (forearm vertical), only f11 the arm pushes out toward the bar, f13+ idle; the orrery device is never presented.	Extend the device hand straight and level at the target for 3+ frames (as on the druids) instead of a raised bent fist.
+h016	attack	mount_cast	OK	f1-3 wings up, f5 wings sweep down, f7 gryphon stretched forward with the beak at the bar, pose then held unchanged f9-19; rider fork not readable.	
+h01U	attack	chop	OK	f3 arm raised, f5-9 one arm thrown back and the other claw reaching forward to the bar with the body leaning, f11 lowering.	
+h01U	attack2	dual_slice	OK	f3-5 one claw raised high and the other forward at the bar, f7-9 both claws together in front past the bar at head height, f11 down.	
+h01V	attack	stab	OK	f3-5 dagger pulled back to the hip, f7-11 arm straight with the dagger point-first past the bar, f13-15 lowering.	
+h01V	attack2	chop	OK	f3 dagger lifted to the face, f5-9 arm chopped diagonally down-forward with the dagger at the bar, f11 lowering.	
+h02W	attack	punch	OK	f3-5 water fist drawn in to the body, f7-9 body lunges and the fist drives forward to the bar, f11 fist down at the bar, f13-15 retracting.	
+h02X	attack	punch	OK	f3-5 fist drawn in, f7-11 torso lunges and the fist is at the bar, f13+ back.	
+h02X	attack2	dual_chop	OK	f3-5 one arm raised straight up and back, f7-11 both fists brought forward (one high, one mid) near the bar, f13 lowering.	
+h02Y	attack	chop_2h	OK	f3-5 both splash fists gathered and raised at the centre, f7-11 fists dropped in front on the bar side and held, f13-15 lowering.	
+h02Y	attack2	spin_2h	OK	f3-5 fists gathered, f7-9 torso spins on the wave base with arms flung wide and a fist passing the bar side, f11-17 turn continues round to face the camera, f19 nearly back.	
+h02Z	attack	throw	OK	f3 flame arm back, f5 fist cocked at the chest, f7-11 fist pitched forward to the bar, f13 lowering.	
+h034	attack	chop_2h	OK	f3-5 both spiked fists raised to the chest, f7-13 golem crouches forward with the fists slammed on the ground past the bar, f15+ recovering.	
+h034	attack2	spin_2h	WEAK	f1-5 near idle, f7 arm flung level past the bar for one frame, f9-11 back turned, f13-15 arms stretched to the side away from the target, f17-19 crouched recovery.	Strike reads on f7 only and the arms end pointing away; replace with a wide arm sweep that stays on the bar side for 2-3 frames (keyed_sweep as on e00F) or stop the turn at the target.
+h03A	attack	stab	WEAK	f3-5 tower shield lifted, f7-11 knife arm reaches toward the bar but the blade hangs straight down from the fist, f13-15 blade diagonal; shield swings out of sight behind the shoulder.	Rotate the wrist so the trench knife leads point-first along the arm at the bar; keep the shield visible at the side.
+h03A	attack2	shield_bash	OK	f3 shield turned, f5-11 tower shield pushed out forward and high on a straight arm toward the bar, f13+ shield back at the side; knife stays down.	
+h03B	attack	chop	OK	f3 cleaver lifted over the head, f5-11 horse lunges with its head at the bar and the cleaver down on the front right, f13 cleaver level forward at the bar, f15+ back.	
+h03B	attack2	slice	WEAK	f3 horse rears, f5 cleaver comes down beside the flank, f7-11 horse yawed and pitched with the short cleaver hanging vertical on the camera-side flank, never reaching the bar.	Bring the slice forward so the cleaver crosses in front of the horse's head on the bar side at contact; reduce the horse yaw.
+h03C	attack	slice	OK	f3 horse rears, f5-7 big machete sweeps forward low past the horse's head toward the bar, f9-13 machete hangs down on the flank, f15+ idle.	
+h03C	attack2	chop	OK	f5-9 horse lunges and the machete is stretched forward along the horse's head with the tip past the bar, f11-13 machete drops down-right, f15+ idle.	
+h03N	attack	punch	OK	f3-5 arm cocked, f7-11 huge rock arm straight out level past the bar, f13 dropped.	
+h03N	attack2	keyed_overhead	OK	f3-5 both fists stacked straight up overhead, f7-13 fist slammed down low in front at the bar, f15+ idle.	
+h03P	attack	cast_shoot	OK	f3 bolt arm cocked, f5-9 arm thrust forward with the lightning-bolt hand across the bar, f11 lowering, f13+ idle.	
+h03R	attack	staff_point	OK	f3 arm pulled across the body, f5-9 arm thrust low forward with the bolt tip at the bar and the shoulder plate swung in front, f11 withdrawing.	
+h03V	attack	cast_shoot	OK	Staff stays planted; f5-11 the free arm with its block fist is held out forward at head height toward the target, f13+ dropped.	
+h03V	attack2	staff_point	OK	f3 staff levelled, f5-9 staff thrust horizontally head-first past the bar, f11 raised, f13 swung back down.	
+h04I	attack	cast_shoot	OK	f3 arm starts, f5-9 open hand pushed forward-down reaching the bar, f11 lowering, f13+ idle.	
+h05C	attack	shoot_2h	OK	Scoped rifle is levelled at the bar on frames 3-17 and frame 5 shows the barrel kicking up with the torso rocking back.	
+h05H	attack	dual_chop	OK	Both clawed arms fling back on frame 3, one goes overhead on frame 5 and both claws land forward at the bar on frames 7-11.	
+h06Q	attack	keyed_strafe	OK	Floatplane pulls back on frame 3 then banks and lunges nose-first toward the bar on frames 5-7 and holds forward.	
+h06R	attack	keyed_strafe	OK	Gyrocopter hull dips back on frame 3 and jolts forward across the ring on frames 5-7 with guns toward the bar; spinning rotor hides part of it.	
+h06S	attack	keyed_recoil	OK	Turret cannon kicks up on frames 5-7 while the chassis rocks back on its wheels, settling by frame 11.	
+h06T	attack	keyed_recoil	OK	Gold cannon jerks upward on frames 5-7 and the hull pitches back, settling by frame 9.	
+h06U	attack	keyed_spike_gore	WEAK	From frame 5 to 13 the goblin is bent double face-down with the whole body slid off the ring onto the bar, backpack on top, frames identical; wrench and mine never strike.	Keep the feet on the ring and make a distinct strike: wrench overhand chop or the two backpack claw arms slamming down in front; cut the body translation to a short lean and shorten the static hold.
+h074	attack	chop_2h	OK	Greatsword goes up over the head on frames 3-5 and comes down level in front pointing at the bar on frames 7-13.	
+h074	attack2	slice_2h	OK	Sword arm rises on frame 3, blade whips forward high on frame 5 and ends angled down on the far-front side on frames 7-13.	
+h074	attack3	spin_2h	OK	Knight raises the sword on frames 3-5 then turns a full spin with the blade sweeping around the body on frames 7-19.	
+h07B	attack	cast_shoot	OK	Free hand thrusts straight out at the bar on frames 5-11 while the crystal staff stays upright.	
+h07S	attack	keyed_strafe	OK	Airship lurches from the back of the ring to the front on frames 3-7 with the red sail tipping forward, then holds still.	
+h098	attack	keyed_recoil	OK	Rocket rack tips up on frames 5-7 and the chassis rocks back, settling by frame 9.	
+h099	attack	keyed_recoil	OK	Short fat cannon kicks up on frames 5-7 with the hull pitching back, settling by frame 11.	
+h0A2	attack	hipfire_sweep	OK	Machine gun comes level at the bar on frame 3 and the barrel rakes up and down on alternate frames 5-17.	
+hfoo	attack	stab_2h	OK	Rifle is drawn back level on frames 3-5 and the bayonet is thrust point-first at the bar on frames 7-11.	
+hfoo	attack2	slice_2h	OK	Rifle is lifted over the shoulder on frame 3 and the bayonet slashes diagonally down across the bar on frames 5-11, butt up.	
+hmtm	attack	keyed_recoil	OK	Mortar tube tips up and the carriage hops back on frames 5-7 then settles; the crewman stays still.	
+hrif	attack	shoot_2h	OK	Long rifle is levelled toward the bar at head height on frames 3-17 with a small muzzle tilt around frames 3-5.	
+n000	attack	keyed_overhead	OK	Both rock fists go straight up on frames 3-5 and slam down in front toward the bar on frames 7-13.	
+n001	attack	breath	OK	Dragon uncoils on frame 5 and the neck and head dart forward at the bar on frames 7-17 with wings swept back.	
+n002	attack	stab	OK	Trident is drawn back level on frames 3-5 and thrust tines-first at the bar on frames 7-11.	
+n002	attack2	chop	OK	Trident is lifted behind on frame 3 and comes down tines-first in front of the bar on frames 5-9, lifting on frame 11.	
+n004	attack	keyed_spit	OK	Lizard recoils on frame 3 and the whole body darts head-first to the bar on frames 7-9 before sliding back.	
+n005	attack	shoot_1h	OK	Revolver arm comes level at the bar on frame 3, barrel kicks up on frame 5 and stays aimed through frame 17.	
+n006	attack	chop	OK	Sabre is cocked behind on frame 3 and comes forward level at the bar on frames 5-9, dropping on frame 11.	
+n006	attack2	slice_horizontal	OK	Sabre trails low behind on frames 3-5 and sweeps up to a raised blade over the bar on frames 7-13.	
+n007	attack	keyed_spit	OK	Turtle head rears back on frame 3 and neck and body lunge at the bar on frames 7-9, back by frame 11.	
+n008	attack	punch	OK	Arm cocks back on frames 3-5, punches forward at head height on frames 7-9, book flips open on frame 11 and the wand points at the bar on frame 13.	
+n009	attack	slice_horizontal	OK	Sickle is wound low behind on frames 3-5 and sweeps up to a raised hooked blade at the bar on frames 7-13.	
+n009	attack2	chop	OK	Sickle is cocked at the shoulder on frame 3 and comes down level out front at the bar on frames 5-9.	
+n00A	attack	throw	OK	Javelin is raised on frames 3-5, levelled over the shoulder and driven point-first at the bar on frames 7-11.	
+n00B	attack	chop	OK	Hatchet is raised behind the head on frame 3 and comes down out front toward the bar on frames 5-9.	
+n00B	attack2	slice_horizontal	OK	Hatchet swings from low behind on frame 3 through low front on frame 5 up to head height at the bar on frames 7-11.	
+n00C	attack	chop_2h	WEAK	Great axe goes behind the head on frames 3-5 but on frames 7-11 the axe head stops beside the face with the long shaft sticking out backward; only frame 13 has the shaft levelled at the bar, then it lifts overhead.	Finish the chop low: bring the axe head down in front to ground height at the bar and hold it 2-3 frames; slide the grip toward the butt so the head leads instead of the shaft trailing behind.
+n00C	attack2	slice_2h	OK	Axe is raised back on frames 3-5 and the head lands low in front next to the bar on frames 7-9.	
+n00C	attack3	spin_2h	OK	Axe is raised on frames 3-5 and the skeleton turns a full spin with the axe sweeping around on frames 7-19.	
+n00D	attack	shoot_2h	OK	Rifle swings down level at the bar on frame 3, muzzle kicks up on frame 5 and stays aimed through frame 17.	
+n00E	attack	chop	OK	Hook arm goes straight up on frame 3 and swings over to hook forward at the bar at head height on frames 5-11.	
+n00E	attack2	cast_shoot	OK	Blocky gauntlet fist punches straight out at the bar on frames 5-9 and is pulled back by frame 13.	
+n00H	attack	keyed_spit	OK	Serpent banks back on frame 3 and darts head-first to the bar on frames 5-7 with wings flared, then holds.	
+n00I	attack	chop	OK	Stone mallet is cocked behind on frame 3 and smashes down in front toward the bar on frames 5-9, lifting on frame 11.	
+n00J	attack	jump_chop	OK	Murloc hops with the sledgehammer behind on frames 3-5 and brings it down on the ground in front on frames 7-11.	
+n00J	attack2	stab	OK	Sledgehammer is drawn low on frames 3-5 and rammed head-first level at the bar on frames 7-9, then lifted.	
+n00K	attack	chop	OK	Gaff pole is raised behind on frame 3 and the hook comes down in front reaching the bar on frames 5-11.	
+n00K	attack2	cast_shoot	OK	Big bandaged fist jabs straight out at head height toward the bar on frames 5-11.	
+n00L	attack	punch	OK	One gloved arm is cocked on frames 3-5 and punched straight out at the bar on frames 7-11.	
+n00L	attack2	dual_chop	OK	One arm goes straight up on frame 3 and both arms come down forward toward the bar on frames 7-13.	
+n00L	attack3	keyed_spike_gore	OK	Torso bows forward with arms thrown back and the helmet spike pointed at the bar on frames 3-13, feet on the ring.	
+n00S	attack	dual_stab	OK	Both clawed arms shoot forward at the bar on frames 7-15 and drop on frame 17.	
+n00T	attack	bite	OK	Spider recoils on frame 3 and darts to the bar on frames 5-7 with front legs raised, then holds.	
+n00U	attack	keyed_pounce	OK	Spider springs up on frames 3-5 with fangs showing and lands forward against the bar from frame 7.	
+n00V	attack	throw	OK	Cleaver is swung back on frames 3-5 and whipped over to stand upright in front of the face on frames 7-11, then dropped.	
+n00W	attack	keyed_pinch	OK	One pincer rears up on frame 3, both open forward on frame 5 and close together toward the bar from frame 7.	
+n00X	attack	slice_2h	OK	Glaive is wound low behind on frame 3, sweeps through low front on frame 5 and rises across the bar on frames 7-11.	
+n00X	attack2	chop_2h	OK	Glaive is cocked back over the shoulder on frames 3-5 and the blade comes down in front of the bar on frames 7-11.	
+n00X	attack3	stab_2h	OK	Glaive is drawn back level on frames 3-5 and thrust blade-first straight at the bar on frames 7-11.	
+n00Y	attack	stab	OK	Sword is levelled at the chest on frames 3-5 and the arm lunges fully out point-first past the bar on frames 7-11.	
+n00Y	attack2	slice_horizontal	OK	Sword trails low behind on frames 3-5 and sweeps up to a raised blade over the bar on frames 7-11.	
+n00Z	attack	chop_2h	OK	Halberd is held back across the body on frames 3-5 and the blade comes down in front on frames 7-11, levelling at the bar on frame 13.	
+n00Z	attack2	slice_2h	OK	Halberd blade starts low behind on frame 3, cuts through low front on frame 5 and rises upright at the bar on frames 7-11.	
+n00Z	attack3	spin_2h	OK	Halberd is wound back on frames 3-5 and the champion turns a full spin with the pole sweeping around on frames 7-19.	
+n010	attack	breath	OK	Drake uncoils on frame 5 and the head darts forward at the bar on frames 7-17 with wings raised.	
+n011	attack	throw	OK	Harpoon is drawn back on frames 3-5 and driven level with the ice tip at the bar on frames 7-11, tipping up on frame 13.	
+n012	attack	keyed_overhead	OK	Both long arms go up on frames 3-5 and come down forward toward the bar on frames 7-13.	
+n012	attack2	punch	OK	Arm is cocked low on frames 3-5 and punched straight out with claws on the bar on frames 7-11.	
+n013	attack	keyed_sweep	OK	Arms wind low on frame 3, one arm swipes out at the bar on frame 5 and carries around high to the far side on frames 7-13.	
+n013	attack2	keyed_overhead	OK	Both arms go straight up on frames 3-5 and slam down forward toward the bar on frames 7-13.	
+n014	attack	cast_shoot	OK	Free arm rises on frame 3 and points straight at the bar at head height on frames 5-11 while the lantern staff stays planted.	
+n015	attack	cast_shoot	OK	Arm with the ice lantern thrusts up and out toward the bar on frames 5-9 and lowers on frames 11-13; staff stays planted.	
+n016	attack	chop	OK	Axe-hammer is cocked over the back on frame 3 and driven down in front to the bar on frames 5-9, lifting on frame 11.	
+n016	attack2	slice_horizontal	OK	Axe-hammer swings from low behind on frame 3 through low front on frame 5 up to head height at the bar on frames 7-11.	
+n017	attack	bite	OK	Wolf crouches on frame 3 and darts head-first to the bar on frames 5-7, then holds there.	
+n018	attack	claw_punch	OK	f3 bear rears with dark front paw lifted, f5-f13 body drops forward off-centre with the paw planted at the red bar, then holds there to f19	
+n019	attack	keyed_pulse	OK	f3 pod lifts, f7-f11 whole pod darts ~40 px toward the bar until the green eye touches it, back on the ring by f13	
+n01A	attack	keyed_pulse	OK	f3-f11 bud tips back and the long hanging tendrils whip forward through the bar, settling f13	
+n01B	attack	breath	OK	f1-f3 wings up, f5 neck starts forward, f7-f17 neck fully stretched with jaws on the bar and wings folded, f19 recovers	
+n01C	attack	keyed_lash	OK	f3 stalk rears back, f5-f15 stalk arcs over and the hook tip lands on the bar	
+n01D	attack	breath	OK	f5-f17 neck stretched with jaws at the bar and wings folded, f19 wings rise again	
+n01E	attack	keyed_fire	OK	f5-f7 carriage pitches nose-up off its wheel in recoil, settled by f9	
+n01F	attack	keyed_fire	OK	f5-f7 carriage rocks hard backward with the barrel thrown up, down again by f9	
+n01G	attack	keyed_pounce	OK	f3 crouch, f5 hound airborne above the ring, f7-f19 landed forward with muzzle at the bar	
+n01H	attack	big_arm_swipe	OK	f7-f13 near claw arm reaches level at the bar while the other arm stays hooked over the head from f3 to f19	
+n01H	attack2	dual_chop	OK	f3 arm thrown straight up, f7-f13 both claw arms spread forward as a pincer around the bar	
+n01I	attack	big_arm_slam	OK	f3 black claw arm straight up above the head, f5-f9 it comes over forward with claws fanned toward the bar, f11 withdrawn	
+n01K	attack	chop_2h	OK	f3-f5 pitchfork cocked up behind, f7-f11 shaft levelled with tines at the bar, f13 tines pushed past it	
+n01K	attack2	slice_2h	OK	f3 fork back, f5 fork swung across at head height, f7-f9 tines brought down on the bar, gone by f11	
+n01L	attack	shoot_2h	OK	f3-f17 rifle levelled toward the target side at shoulder height, f5 rifle and torso jerk back in recoil, f19 muzzle lifts	
+n01M	attack	stab	OK	f3-f5 sword levelled low, f7-f11 blade thrust point-first through the bar with the cape flaring, f13-f15 pulled up	
+n01M	attack2	chop	OK	f3 sword cocked back over the shoulder, f5-f9 blade cut diagonally down across the bar, f11 lifted	
+n01N	attack	bite	OK	f5 front legs lift, f7-f17 whole spider lunges forward and the yellow fangs sit on the bar	
+n01N	attack2	keyed_scratch	OK	f3-f9 the two front legs stretch out long and rake at the bar while the body stays on the ring, f11 folded back	
+n01O	attack	throw	OK	f3 cleaver cocked up behind the head, f5 arm whips over, f7-f9 cleaver arm fully down-forward at the bar, f11-f13 tucked	
+n01P	attack	keyed_spit_volley	OK	f3 the three heads rear up, f5-f7 they dip, f9-f15 all necks stretched forward toward the bar, f17 back	
+n01Q	attack	keyed_bite_volley	OK	f3 top head rears high, f5-f13 heads drive forward and down in front of the coil toward the bar, f15 rise	
+n01R	attack	keyed_bite_volley	OK	f3 heads up, f5 one head forward, f7-f13 both heads low and forward at the bar, f15-f19 one lifts while the other stays out	
+n01S	attack	punch	OK	f7-f11 clawed fist driven level and long past the bar with the torso leaning in, f13 dropped	
+n01S	attack2	fist_slam	OK	f3 torso rises, f5-f9 fist hammered diagonally down in front at the bar, f11 arm hanging	
+n01T	attack	dual_chop	OK	f3 saw arms flung out sideways, f5 one saw overhead, f7-f11 one saw at head height and one low on the bar, f13-f15 lower saw cuts down	
+n01T	attack2	dual_slice	WEAK	f3-f5 one saw arm goes straight up overhead, then f7-f11 both saws are tucked against the chest and nothing reaches the bar	Bring both saw arms out in FRONT at mid height on f7-f11 and cross them horizontally through the bar; no tuck against the torso
+n01U	attack	keyed_shoot	OK	long orange-tipped barrel levelled at the bar throughout, f5-f9 barrel kicks up and the goblin rocks back, level again f11	
+n01V	attack	keyed_ram	OK	f5-f13 goblin pitches forward over the hugged barrel with the cape streaming flat behind and head at the bar, upright f15	
+n01W	attack	bite	OK	f5 front legs flare, f7-f17 whole spider lunges and the pale fangs reach the bar	
+n01W	attack2	keyed_scratch	WEAK	f7-f9 one front leg lifts a little and the body creeps ~15 px, legs never get near the bar and frames f9-f19 are near-identical	Extend both front legs long and forward to the bar on f5-f9 (as on n01N) and rake them down; keep body on the ring
+n01X	attack	keyed_sweep	OK	f3 fist crosses at the bar, f5-f13 arms held flung wide with the far arm stretched behind, f15 near arm sweeps down across the front	
+n01X	attack2	punch	OK	f7-f11 fist pushed out forward, f13 fist on the bar, f15 dropping	
+n01X	attack3	keyed_overhead	OK	f3-f5 arm straight up above the head, f7-f13 both fists brought down together in front on the bar	
+n01Y	attack	shoot	OK	f1 hover with wings spread, f3-f17 hawk stretches its neck to the bar with wings swept and the rider's rifle laid along it, f19 recovers	
+n01Z	attack	stab	OK	f3-f5 blade drawn back out of sight, f7-f11 blade thrust level and long past the bar with cape flaring, f13-f15 lowered	
+n01Z	attack2	slice_horizontal	OK	f3 blade back, f5 blade low at the bar, f7-f9 blade carried up high on the target side, f11-f13 cut back down through the bar	
+n020	attack	dual_stab	OK	f7-f17 both daggers thrust level, one at head height and one on the bar, cape flared	
+n020	attack2	dual_chop	WEAK	f5 one dagger raised overhead, then f7-f11 both arms forward one high one low exactly like the dual_stab contact pose	Make it a real double overhead: both daggers up on f3-f5, both come down together in front at waist height on f7-f9, torso bent over
+n022	attack	bow	WEAK	bow stays at shin height in front of the legs, f7-f9 it only cants diagonally, no arm draws back and nothing snaps on release	Raise the bow arm to chest height pointing at the bar, pull the string hand back behind the head f3-f7, snap it forward f9 with a small recoil
+n023	attack	bow_up	WEAK	f5-f11 bow held up beside the head pointing ~55 deg skyward and frozen, the other arm rests forward, f13 bow just drops	Level the bow at the bar at chest height, draw the string hand back to the cheek and release with a visible snap; skyward angle only as a 2-frame wind-up
+n024	attack	keyed_overhead	OK	f3-f5 arm straight up above the helmet, f7-f13 both fists slammed down in front toward the bar	
+n024	attack2	keyed_sweep	OK	f3 arm swings out, f5-f13 arms held wide with the big arm stretched behind, f15 fist sweeps down across the front	
+n026	attack	cast_shoot	OK	f3 arm cocked at the hip, f5-f9 clawed arm thrust level at the bar, f11 dips, back by f13	
+n027	attack	dual_chop	OK	f3 one claw arm up behind the crown, f7-f13 both claw arms shot forward out of the canopy at the bar, f15 retracting	
+n028	attack	cast_shoot	OK	f3 arm cocked at the hip, f5-f9 clawed arm thrust level onto the bar, f11 dips, back by f13	
+n029	attack	claw_punch	OK	f3 front paw lifted high, f5-f17 body forward with the paw held out on the bar	
+n029	attack2	maul	OK	f3 body coils, f5-f19 whole bear driven forward head-first with fangs at the bar, no paw	
+n02A	attack	breath	OK	f1-f3 wings up, f5 neck forward, f7-f17 neck stretched with the maw over the bar, f19 recovering	
+n02B	attack	paw_slam	OK	f3 rears with both paws up, f5 paws thrown forward, f7-f17 chest dropped with head low toward the bar and paws planted ahead	
+n02B	attack2	gore	OK	f3-f9 head and red antlers tossed up, f11-f19 head driven down and forward with antlers pointing at the bar	
+n02G	attack	throw	OK	f3 net hand cocked far back, f5 hand at the head, f7-f13 arm flung straight out at the bar and lowering	
+n02I	attack	throw	OK	f3 arm cocked behind, f5 swinging through, f7-f11 arm out forward with the mallet head on the bar, f13 dropped	
+n02J	attack	keyed_shoot	OK	upper barrel aimed high, f5-f7 hull pitches back with the barrel thrown near vertical, settles f9	
+n02J	attack2	keyed_fire	OK	f3 both barrels drop level at the bar, f5-f7 barrels shorten in a small kick, held level to f17, f19 rising	
+n02K	attack	chop	OK	f3 wheel hugged to the chest, f5-f9 arm lunges low and long with the wheel past the bar and the free arm thrown back, f11 retract	
+n02K	attack2	slice_horizontal	OK	f3 wheel low at the feet, f7-f13 wheel carried flat-on at mid height onto the bar and down, torso upright	
+n02L	attack	cast_shoot	OK	f3 book lifted flat overhead, f5 swinging over, f7-f11 book pushed out in front toward the bar, f13 lowered	
+n02L	attack2	(not in combo)	WEAK	f5-f11 a straight leg kicks out to the bar with arms thrown back, book hidden	Wrong motion for a ranged book caster: drop the kick or replace with a one-hand cast (free hand thrust at the bar, book held to chest)
+n02L	attack3	(not in combo)	WEAK	f3 book raised overhead, f5-f11 book pushed out in front at the bar, the same read as the attack row	Look-alike of attack: either remove or make it a low sideways book swipe across the bar so the arc differs
+n02M	attack	keyed_back_tube_fire	OK	f3-f17 goblin bowed forward so the back tube lies level with its muzzle on the bar, f5-f9 tube nudges forward slightly, f19 upright	
+n02S	attack	throw	WEAK	f7-f9 shovel shouldered like a rifle with the blade at the cheek and the bare handle pointing at the bar, f13 handle on the bar with blade trailing at the feet	Lead with the blade: overhead swing so the blade arcs down onto the bar f7-f11, or use the back crossbow for the ranged shot
+n02T	attack	throw	OK	f5 shovel blade cocked up, f7-f11 shovel driven level with the blade through the bar, f13 blade lifted	
+n02U	attack	chop	OK	f3 club cocked back, f5-f11 torso hunches and the club arm drives low and forward to the bar, f13 dropped	
+n02U	attack2	slice_horizontal	OK	f3-f5 club swung low behind, f7-f13 arm comes round at mid height with the club head on the bar, torso upright	
+n02V	attack	gore	OK	f3 boar sits back, f5-f9 body shoots forward with the snout on the bar, f11-f19 head tossed up	
+n02V	attack2	swipe	OK	f3-f5 head reared steeply up, f7 swings over, f9-f19 head slammed down forward with tusks low	
+n02W	attack	throw	OK	f3 wings open, f5-f13 one wing-arm flung straight out onto the bar with feathers fanned behind	
+n02X	attack	chop	OK	f3 wrench cocked over the shoulder, f5-f9 long wrench swung down diagonally past the bar, f11 lifting	
+n02X	attack2	stab	OK	f3-f5 wrench levelled and drawn back, f7-f11 wrench thrust level and long through the bar, f13-f15 tip rising	
+n02Y	attack	chop	OK	f3 hammer hauled up to the chest, f5-f9 hammer head brought down forward at the bar with torso bent, f11 retract	
+n02Y	attack2	slice_horizontal	OK	f3 hammer swung far back, f5 low under the body, f7-f9 hammer head up at head height on the target side, f11-f13 down on the bar	
+n02Z	attack	hawk	OK	f3 lizard rears steeply with the tail lamp thrown back, f5 drops, f7-f19 body lunged with the armoured head at the bar	
+n02Z	attack2	keyed_tail_shot	WEAK	f5-f13 the small tail box only slides a few px forward along the back while body and head stay still	Arch the tail high so the nozzle rises clear above the head silhouette on f3-f5 and snaps forward past the head f7-f9, with the body rocking back
+n030	attack	cast_shoot	OK	Arm cocked back across the chest on f3, then the big clawed arm is thrust horizontally at the bar f5-f11 and drops by f13.	
+n032	attack	dual_chop	OK	Gem-tipped staff goes vertical on f3, is levelled gem-first at the bar f7-f11 and flicks back up on f13.	
+n034	attack	cast_shoot	OK	Wing-arm tucks on f3, then the long talon arm reaches low-diagonal to the bar f5-f11, back by f13.	
+n035	attack	cast_shoot	OK	Chained arm cocked on f3 and thrust level at the bar f5-f11, lowering on f11 and home by f13.	
+n03E	attack	staff_point	OK	Staff swings down from upright on f3 and is held level with the disc head past the bar f5-f9, lifting on f11.	
+n03E	attack2	cast_shoot	OK	Free arm cocks on f3 and punches level at the bar f5-f11 while the staff stays upright, clearly different from the staff thrust.	
+n03G	attack	stab_2h	OK	Rifle drawn back level on f3-f5 and the bayonet driven point-first through the bar f7-f11, recovering f13-f15.	
+n03G	attack2	chop_2h	OK	Bayonet lifted up-left with the butt forward f3-f5, then slashed diagonally down through the bar f7-f11 and level on f13.	
+n03I	attack	cast_shoot	OK	Teapot hand cocks at the chest on f3 and is thrust at the bar f5-f11; fan stays raised behind the head.	
+n03J	attack	chop_2h	OK	Paddle head carried back-left f3-f5, swung down in front past the bar f7-f11 and levelled across on f13.	
+n03J	attack2	spin_2h	OK	Whole body turns a full circle f7-f17 with the pole sweeping through the target side on f9-f11; model stays intact.	
+n03M	attack	staff_point	OK	Glaive drops from upright on f3 and is held level with the jade blade past the bar f5-f9, back to the hip by f11.	
+n03M	attack2	cast_shoot	OK	Free arm rises on f3 and is thrust at head height toward the bar f5-f11 while the glaive stays planted.	
+n03O	attack	chop	OK	Jerrycan lifted over the head on f3, then arm and can driven forward onto the bar f5-f9, dropping f11.	
+n03O	attack2	slice_horizontal	OK	Can swung low to the rear on f3, carried up on the right f7-f9 and brought down across the bar f11-f13; arc is short.	
+n03T	attack	throw	OK	Ladle raised vertical on f3 and whipped forward level at head height toward the bar f7-f11, recovering f13-f15.	
+n03U	attack	keyed_spit	OK	Wings sweep back into a V on f5 and the body with the horned head darts out of the ring to the bar, held f7-f17, back on f19.	
+n03V	attack	keyed_recoil	OK	Barrel pitches up and the carriage kicks back off centre on f5-f7, settling f9-f11.	
+o001	attack	keyed_recoil	OK	Wagon body tilts and rocks back on f5-f7 and settles by f9; the throwing arm with the fire pot does not swing.	
+o002	attack	chop	OK	Axe disappears behind the back on f3, then arm and axe are driven down in front past the bar f5-f9, back by f13.	
+o002	attack2	slice_horizontal	OK	Axe drawn low to the rear on f3, passes low in front on f5 and is swept up to the bar at chest height f7-f11.	
+o003	attack	staff_point	OK	Staff drops level on f3 and the skull head is pushed onto the bar f5-f9, lifting on f11 and upright by f13.	
+o004	attack	jump_chop	OK	Whole orc leaps up and back with the axe behind him f3-f5 and lands driving the axe down past the bar f7-f11.	
+o004	attack2	slice_horizontal	OK	Axe drawn low-back on f3, low in front on f5, then swept up to the bar at head height f7-f9 and down f11.	
+o005	attack	chop	OK	Arm cocks on f3 and the axe head is driven forward to the bar f5-f9 with the haft trailing up-left, dropping on f11; shield static.	
+o006	attack	lance	OK	Mount steps to the ring edge f7-f11 with the spear angled down-right, then the spear is levelled point-first at the bar f13-f17.	
+o006	attack2	slice	OK	Spear swings from down-left on f3 through down-right on f5 to level along the mount f7-f15 while the mount shifts forward slightly.	
+o007	attack	gore	OK	Body pulls back on f3 and the horned head lunges to the ring edge toward the bar f5-f9, easing back f11-f15.	
+o007	attack2	paw_slam	OK	Front leg reared high f3-f5, then both forepaws are slammed forward at the bar and held f7-f17.	
+o008	attack	chop	OK	Mount shifts about a fifth of the ring forward so the horn reaches the bar f5-f13; the rider's axe arm is too small to read.	
+o008	attack2	slice	WEAK	Mount rears on f3 then only yaws about 30 degrees and holds f7-f15 with the head pointing down-right off the bar; rider's axe shows no arc.	Sweep the mount's head and horn sideways THROUGH the bar (start off one side, end past the other) with a forward step and return by f13; enlarge the rider's axe arc.
+o009	attack	shoot	WEAK	Wings fold and the bayonet rifle is levelled at the bar by f5, then f5-f15 are identical with no kick, wings rise again f17-f19.	Add a recoil beat around f7-f9: rifle and rider jolt back and the mount pitches nose-up for 2 frames, then recover; the aim pose alone reads as a hover.
+o00A	attack	cast_shoot	OK	Free arm rises on f3 and is thrust level at head height toward the bar f5-f11; crook staff stays planted.	
+o00B	attack	lance	OK	Mount lunges off the ring toward the bar f7-f15 with the rider's spear tip levelled at it.	
+o00B	attack2	slice	OK	Mount yaws and sweeps its horn diagonally f3-f11 while the rider's spear swings across, different from the straight lunge.	
+o00C	attack	keyed_pulse	OK	Body rears and leans at the bar f5-f11 and the gold blade shard swings from up-left to beside the bar, showing the dark underside.	
+o00D	attack	keyed_pulse	OK	Body lunges f5-f11 and the lower dark shard stabs point-first to the bar, touching it on f7-f9.	
+o00E	attack	keyed_pulse	OK	Shard tips back on f3, then the whole sword-like shard tilts about 45 degrees toward the bar f7-f11 and rights itself.	
+o00F	attack	cast_shoot	OK	Big brown arm cocks on f3 and is thrust low and level at the bar f5-f11.	
+o00G	attack	cast_shoot	OK	Green arm raised on f3 and levelled at the bar at head height f5-f11; lantern staff stays still.	
+o00H	attack	keyed_recoil	OK	Mortar barrel pitches up and the carriage jolts back off the ring centre on f5-f7, settling f9-f11.	
+perk_bird	attack	bite	OK	Wings fold on f5 and the body darts beak-first to the bar, held f7-f17 before returning.	
+u000	attack	breath	OK	Wings sweep back on f5 and the neck stretches out of the ring with the black-crested head at the bar f7-f19, with no recovery inside the 19 frames.	
+u001	attack	keyed_pulse	OK	Body leans back on f3, then torso and both gloved hands lunge diagonally at the bar f7-f11.	
+u002	attack	chop	OK	Club goes behind the head on f3 and comes down in front onto the bar f5-f9.	
+u002	attack2	slice_horizontal	OK	Club drawn low-back on f3, held high on the right f7-f11, then swept down across the bar f13-f15.	
+u003	attack	staff_point	OK	Forked staff levelled and thrust past the bar f5-f7, recovering f9-f11.	
+u004	attack	claw_rake	OK	Raised arm rakes forward with the claws reaching the bar f3-f7.	
+u004	attack2	dual_slice	OK	One arm goes vertical f3-f5, then both clawed hands come down onto the bar f7-f9.	
+u005	attack	staff_point	OK	Arm extends at the bar f5-f9 with the cane pointing ferrule-first diagonally down past it; the lantern end stays at the hand.	
+u007	attack	chop	OK	Block weight raised to the head on f3, then arm and block are thrust to the bar f5-f9 and drop f11-f13.	
+u007	attack2	slice_horizontal	OK	Block swings through the chest on f5, up on the right f7-f9 and down across the bar f11-f13; arc is small.	
+u008	attack	claw_rake	OK	Gauntlet cocks at the chest on f3 and is thrust onto the bar f5-f9, dropping f11-f13.	
+u008	attack2	dual_chop	OK	Arms flung wide on f3, one vertical on f5, then both gauntlets come down at the bar f7-f11.	
+u009	attack	cast_shoot	OK	Green-fire hand pushed out at head height toward the bar f5-f11 with a short reach; staff stays planted.	
+u009	attack2	staff_point	OK	Staff swings level on f3 and the green flame head is thrust past the bar f5-f9, lifting on f11.	
+u00A	attack	staff_point	OK	Staff levelled with the green lantern pushed past the bar f5-f9.	
+u00A	attack2	cast_shoot	OK	Free arm levelled at head height at the bar f5-f11 while the staff stays upright.	
+u00B	attack	chop_2h	OK	Sledgehammer carried back-left f3-f5, head swung forward past the bar f7-f11 and dropped on f13.	
+u00B	attack2	slice_2h	OK	Hammer low-back on f3, crosses the bar on f5 and follows through high on the right f7-f11, hidden behind the body f15-f19.	
+u00D	attack	staff_point	OK	Cane crosses the chest on f3 and is thrust low and level past the bar f5-f9.	
+u00D	attack2	cast_shoot	OK	Free arm levelled at head height toward the bar f5-f11, distinct from the low cane thrust.	
+u00E	attack	claw_rake	OK	Arm cocks behind the head on f3 and one talon arm reaches the bar f5-f11, lowering by f13.	
+u00E	attack2	dual_slice	OK	One arm goes straight up f3-f5, then both talon arms come down onto the bar f7-f11.	
+u00E	attack3	dual_stab	OK	Body stretches forward f7-f13 with the arms in a V, one high and level and one low at the bar, the torso leaving part of the ring.	
+u00F	attack	punch	OK	Torso twists on f3-f5 and one rock fist with the body behind it is driven onto the bar f7-f11.	
+u00F	attack2	dual_chop	OK	One arm raised overhead f3-f5, then both fists are brought forward to the bar f7-f13.	
+z000	attack	keyed_quill_volley	OK	Rear pitches up from f7 and the back spines tip over the head toward the bar, held to f19.	
+z000	attack2	keyed_spit	WEAK	Beast only slides about a tenth of the ring forward on f7-f9 with an unchanged silhouette; no head, jaw or spine action.	Give the spit a head beat: rear the head and chest back on f3-f5, snap the head and neck forward and down at the bar f7-f9 with the jaw open, recover by f13; keep the spines still so it differs from the volley.
+z002	attack	hipfire_sweep	OK	Flamethrower nozzle levelled at the bar from f3 to f17 and swept up and down between frames.	
+z003	attack	hipfire_sweep	OK	Nozzle levelled at the bar f3-f17 with the same alternating up and down sweep.	

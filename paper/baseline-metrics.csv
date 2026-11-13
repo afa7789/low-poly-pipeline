@@ -1,0 +1,8 @@
+run,unit,commit,spec_author,kind,tris,materials,skins,anims,preflight,iou_front,iou_left,iou_back,silhouette_gate,drift_front,drift_left,drift_back,verdict
+hard-v1,hfoo,50511d0,google/gemini-4-argon,mass,528,6,1,4,FAIL,0.820,0.551,0.665,FAIL,0.936,0.937,0.933,CHECK
+hard-v1,n005,50511d0,google/gemini-4-argon,mass,600,6,1,4,FAIL,0.770,0.781,0.829,PASS,0.963,0.931,0.959,CHECK
+hard-v1,n00U,50511d0,google/gemini-4-argon,mass,512,5,1,4,PASS,0.535,0.640,0.530,FAIL,0.951,0.941,0.948,CHECK
+hard-v1,n01I,50511d0,google/gemini-4-argon,mass,464,5,1,4,FAIL,0.803,0.708,0.800,PASS,0.979,0.966,0.962,CHECK
+hard-v1,n01N,50511d0,google/gemini-4-argon,mass,508,4,1,4,PASS,0.360,0.437,0.364,FAIL,0.911,0.764,0.903,CHECK
+hard-v1,n01X,50511d0,google/gemini-4-argon,mass,620,4,1,4,PASS,0.871,0.773,0.869,PASS,0.978,0.978,0.973,PASS
+hard-v1,n02X,50511d0,google/gemini-4-argon,mass,540,7,1,4,FAIL,0.705,0.638,0.749,FAIL,0.969,0.972,0.975,CHECK

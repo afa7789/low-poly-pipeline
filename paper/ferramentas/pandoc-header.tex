@@ -1,0 +1,13 @@
+% cabeçalho do `make pdf`: tabelas largas em letra pequena, imagens no tamanho da coluna, código que quebra linha
+\usepackage{etoolbox}
+\usepackage{longtable,booktabs,array}
+\usepackage{graphicx}
+\setkeys{Gin}{width=\linewidth,height=0.9\textheight,keepaspectratio}
+\AtBeginEnvironment{longtable}{\scriptsize\setlength{\tabcolsep}{3pt}}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
+\setlength{\emergencystretch}{3em}
+\sloppy
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\fvset{breaklines=true,breakanywhere=true,fontsize=\small}

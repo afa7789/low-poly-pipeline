@@ -1,0 +1,25 @@
+unit,order,stage,commit,change,tris,materials,skins,anims,iou_front,iou_left,iou_back,iou_top,iou32_front,gate_pass
+hfoo,1,opus55(draft4),2718747,"brief + gate de tris, opus-5.5",540,3,1,4,0.463,0.4194,0.4851,0.7638,0.4394,False
+hfoo,2,argon(draft4),2718747,"brief + gate de tris, argon",664,3,1,4,0.5231,0.5054,0.5281,0.7723,0.5221,False
+hfoo,3,v-ref(noref),dfff43f,pipeline atual sem referencias hard,576,5,1,4,0.5558,0.6317,0.5759,0.5025,0.593,False
+hfoo,4,v1(refs),dfff43f,sheet + hard + hard-clean + props,556,5,1,4,0.7022,0.5401,0.6633,0.8044,0.7913,False
+hfoo,5,hardfirst,3390397,hard como imagem 1,568,6,1,4,0.5414,0.5379,0.5292,0.7601,0.5365,False
+hfoo,6,abS1,3390397,"A/B: aprovado como imagem 1, sem repair",592,6,1,4,0.5757,0.5318,0.5816,0.6868,0.5764,False
+hfoo,7,abS2,3390397,"A/B: aprovado como imagem 1, sem repair",556,6,1,4,0.5892,0.5477,0.5915,0.7292,0.6021,False
+hfoo,8,abH1,3390397,"A/B: hard como imagem 1, sem repair",484,6,1,4,0.5009,0.5687,0.4852,0.7364,0.4909,False
+hfoo,9,abH2,3390397,"A/B: hard como imagem 1, sem repair",540,6,1,4,0.6205,0.5583,0.6593,0.7821,0.6704,False
+hfoo,10,abR1,3390397,hard + repair por padrao,552,6,1,4,0.6311,0.5593,0.6228,0.7852,0.6201,False
+hfoo,11,hard-v1,50511d0,hard + landmarks + repair (baseline),528,6,1,4,0.8198,0.5512,0.6647,0.8028,0.8697,False
+n01X,1,v3/argon,5fb0902,LLM le o sheet e escreve spec de partes com coordenadas (gemini-4-argon),676,3,1,4,0.5651,0.6863,0.5653,0.8413,0.5486,False
+n01X,2,v3/5.5,5fb0902,"idem, spec do Claude 5.5",608,3,1,4,0.6012,0.6853,0.6034,0.8178,0.6494,False
+n01X,3,argon(draft4),2718747,"brief + gate de tris, argon",460,3,1,4,0.6038,0.7347,0.6043,0.7871,0.5897,False
+n01X,4,opus55(draft4),2718747,"brief + gate de tris, opus-5.5",616,3,1,4,0.774,0.7869,0.7764,0.8399,0.8394,True
+n01X,5,v6/hand,8b45469,primitivas afuniladas (prism/dome) + regras de forma,684,3,1,4,0.5379,0.6163,0.5383,0.7557,0.5736,False
+n01X,6,v8,121b76f,chunkify + atlas de 3 tons,640,3,1,4,0.5966,0.6485,0.5968,0.834,0.6034,False
+n01X,7,v9,cb4e550,skeleton-first: posicao vem do osso,660,3,1,4,0.5511,0.6271,0.5528,0.8494,0.5307,False
+n01X,8,v10,5186b8f,uniao booleana (rejeitado),884,3,1,4,0.5616,0.6317,0.5644,0.7909,0.5842,False
+n01X,9,v11,069abea,DSL v2 + preflight 13 regras + gate de silhueta,696,4,1,4,0.771,0.6938,0.7661,0.7919,0.7878,True
+n01X,10,v12,c88eb93,passes por vista + cameras calibradas,652,4,1,4,0.8288,0.8289,0.823,0.782,0.8333,True
+n01X,11,v13,c88eb93,"v12 + passes rts,left,back",652,4,1,4,0.8575,0.8319,0.8535,0.7852,0.8466,True
+n01X,12,v1(refs),dfff43f,sheet + hard + hard-clean como referencias extras,584,4,1,4,0.7926,0.8163,0.789,0.8065,0.7867,True
+n01X,13,hard-v1,50511d0,hard como imagem 1 + landmarks do sheet + repair,620,4,1,4,0.8706,0.7726,0.8692,0.8047,0.8559,True
