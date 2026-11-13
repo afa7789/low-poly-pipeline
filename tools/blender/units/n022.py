@@ -3,7 +3,9 @@
     blender -b --factory-startup -P tools/blender/units/n022.py -- <out.glb>
 
 Mascara de gas, bloco enorme de ombros/mochila, casaco longo. Bracos pendurados na direcao de repouso dos ossos; arco
-vertical ao lado do corpo no punho direito (forearm.R); o clipe de ataque o levanta.
+reto deitado (horizontal, como na prancha) atravessado no punho direito (forearm.R): com pecas rigidas por osso um arco
+de pe ao longo do antebraco so fica de pe com o antebraco pendurado; atravessado no punho ele fica de pe quando o
+ataque aponta o braco para o alvo.
 """
 import pathlib
 import sys
@@ -74,14 +76,15 @@ def arms():
 
 
 def bow():
-    """Arco vertical ao lado do corpo, no punho direito (forearm.R); o ataque levanta o antebraco."""
-    x, z = -0.82, 0.12
-    pts = [(x, 2.2, z - 0.12), (x, 1.7, z - 0.02), (x, 1.12, z), (x, 0.55, z - 0.02), (x, 0.0, z - 0.12)]
+    """Arco reto deitado ao longo de z, atravessado no punho direito (forearm.R) como em e003/e004: as pontas um pouco
+    mais altas que o cabo, a corda por cima (vira para o arqueiro quando o braco aponta para o alvo)."""
+    x, y, z = -0.76, 1.14, 0.1
+    pts = [(x, y + 0.1, z + 1.2), (x, y + 0.04, z + 0.6), (x, y, z), (x, y + 0.04, z - 0.6), (x, y + 0.1, z - 1.2)]
     H.chain("forearm.R", "bow", pts, [(0.05, 0.05), (0.06, 0.06), (0.075, 0.075), (0.06, 0.06), (0.05, 0.05)], sides=6)
-    for y, dz in ((2.22, -0.12), (0.0, -0.12)):
-        H.frustum("forearm.R", "brass", (x, y, z + dz), (x, y + (0.1 if y > 1 else -0.1), z + dz), (0.07, 0.07), (0.06, 0.06), sides=6)
-    H.frustum("forearm.R", "brass", (x, 1.04, z), (x, 1.24, z), (0.1, 0.1), (0.1, 0.1), sides=6)       # empunhadura
-    H.frustum("forearm.R", "string", (x, 2.2, z - 0.12), (x, 0.0, z - 0.12), (0.02, 0.02), (0.02, 0.02), sides=4)
+    for dz in (1.2, -1.2):
+        H.frustum("forearm.R", "brass", (x, y + 0.1, z + dz), (x, y + 0.1, z + dz + (0.1 if dz > 0 else -0.1)), (0.07, 0.07), (0.06, 0.06), sides=6)
+    H.frustum("forearm.R", "brass", (x, y, z - 0.1), (x, y, z + 0.1), (0.1, 0.1), (0.1, 0.1), sides=6)       # empunhadura
+    H.frustum("forearm.R", "string", (x, y + 0.2, z + 1.2), (x, y + 0.2, z - 1.2), (0.02, 0.02), (0.02, 0.02), sides=4)
 
 
 def make():

@@ -2,7 +2,9 @@
 
     blender -b --factory-startup -P tools/blender/units/n023.py -- <out.glb>
 
-Arco de 2,7 m na mao ESQUERDA, no osso forearm.L (mira longa ao lado do corpo), luneta dourada presa ao arco,
+Arco de 2,5 m na mao ESQUERDA (osso forearm.L), deitado ao longo de z e atravessado no punho, como e003/e004: com
+pecas rigidas por osso um arco de pe ao longo do antebraco so fica de pe com o antebraco pendurado, nunca com o braco
+estendido para o alvo; atravessado no punho ele fica de pe quando o braco aponta. Luneta dourada presa ao arco,
 tablet no antebraco direito, aljava inclinada e garrafa nas costas.
 """
 import pathlib
@@ -20,7 +22,7 @@ PALETTE = {     # cores lidas da prancha
 }
 
 SH_Y, EL_Y, WR_Y = 2.08, 1.70, 1.40
-GRIP_X, GRIP_Z = 0.76, 0.27      # a mao esquerda fecha no cabo do arco, a frente do corpo
+GRIP_X, GRIP_Y, GRIP_Z = 0.62, 1.26, 0.06      # a mao esquerda fecha no cabo do arco, debaixo do cotovelo
 
 
 def head():
@@ -83,26 +85,30 @@ def right_arm():
 
 
 def left_arm():
-    H.frustum("arm.L", "teal", (0.46, SH_Y + 0.06, 0), (0.58, EL_Y - 0.02, 0.03), (0.2, 0.22), (0.22, 0.24), sides=6)
-    H.frustum("forearm.L", "teal", (0.58, EL_Y + 0.02, 0.03), (0.62, 1.58, 0.1), (0.23, 0.25), (0.2, 0.2), sides=6)
-    H.frustum("forearm.L", "gold", (0.62, 1.62, 0.1), (0.7, 1.4, GRIP_Z), (0.16, 0.17), (0.145, 0.15), sides=6)
-    H.frustum("forearm.L", "skin", (0.7, 1.5, GRIP_Z), (GRIP_X - 0.02, 1.26, GRIP_Z), (0.12, 0.13), (0.15, 0.15), sides=6)
+    """Braco esquerdo pendurado (osso e malha), o punho fechado no cabo de um arco deitado a frente."""
+    H.frustum("arm.L", "teal", (0.46, SH_Y + 0.06, 0), (0.58, EL_Y - 0.02, 0.0), (0.2, 0.22), (0.22, 0.24), sides=6)
+    H.frustum("forearm.L", "teal", (0.58, EL_Y + 0.02, 0.0), (0.6, 1.58, 0.01), (0.23, 0.25), (0.2, 0.2), sides=6)
+    H.frustum("forearm.L", "gold", (0.6, 1.62, 0.01), (GRIP_X, WR_Y, GRIP_Z - 0.02), (0.16, 0.17), (0.145, 0.15), sides=6)
+    H.frustum("forearm.L", "skin", (GRIP_X, WR_Y + 0.04, GRIP_Z - 0.02), (GRIP_X, GRIP_Y - 0.1, GRIP_Z), (0.12, 0.13), (0.15, 0.15), sides=6)
 
 
 def bow():
-    z = GRIP_Z
-    pts = [(0.57, 2.76, z), (0.68, 2.25, z), (0.79, 1.8, z), (GRIP_X, 1.52, z), (GRIP_X, 1.3, z),
-           (0.7, 0.95, z), (0.62, 0.5, z), (0.53, 0.05, z)]
-    rad = [(0.025, 0.035), (0.04, 0.05), (0.065, 0.07), (0.07, 0.075), (0.07, 0.075), (0.065, 0.07), (0.05, 0.06), (0.03, 0.04)]
+    """Arco de 2,5 m deitado ao longo de z, atravessado no punho: as pontas mais altas que o cabo, a corda por cima
+    (vira para o arqueiro quando o braco aponta para o alvo); a luneta por fora, junto do cabo."""
+    x, y = GRIP_X, GRIP_Y
+    pts = [(x, y + 0.24, 1.3), (x, y + 0.1, 0.85), (x, y + 0.02, 0.4), (x, y, GRIP_Z + 0.14), (x, y, GRIP_Z - 0.14),
+           (x, y + 0.02, -0.3), (x, y + 0.1, -0.75), (x, y + 0.24, -1.2)]
+    rad = [(0.035, 0.025), (0.05, 0.04), (0.07, 0.065), (0.075, 0.07), (0.075, 0.07), (0.07, 0.065), (0.05, 0.04), (0.035, 0.025)]
     H.chain("forearm.L", "bow", pts, rad, sides=4)
-    H.frustum("forearm.L", "bow_dk", (GRIP_X, 1.58, z), (GRIP_X, 1.24, z), (0.065, 0.075), (0.065, 0.075), sides=6)     # cabo
-    H.frustum("forearm.L", "string", (0.57, 2.74, z), (0.53, 0.07, z), (0.012, 0.012), (0.012, 0.012), sides=4)
-    # luneta de tres tubos presa ao arco
-    H.chain("forearm.L", "gold", [(0.9, 1.0, z), (0.9, 1.3, z), (0.9, 1.6, z), (0.9, 1.88, z)],
+    H.frustum("forearm.L", "bow_dk", (x, y, GRIP_Z + 0.16), (x, y, GRIP_Z - 0.16), (0.075, 0.065), (0.075, 0.065), sides=6)     # cabo
+    H.frustum("forearm.L", "string", (x, y + 0.24, 1.28), (x, y + 0.24, -1.18), (0.012, 0.012), (0.012, 0.012), sides=4)
+    # luneta de tres tubos presa ao arco, por fora
+    sx, z0 = x + 0.14, GRIP_Z - 0.38
+    H.chain("forearm.L", "gold", [(sx, y, z0), (sx, y, z0 + 0.3), (sx, y, z0 + 0.6), (sx, y, z0 + 0.88)],
             [(0.07, 0.07), (0.05, 0.05), (0.07, 0.07), (0.05, 0.05)], sides=6)
-    for y in (1.28, 1.62):
-        H.frustum("forearm.L", "gold", (0.9, y - 0.05, z), (0.9, y + 0.05, z), (0.09, 0.09), (0.09, 0.09), sides=6)
-    H.frustum("forearm.L", "frame", (0.78, 1.45, z), (0.9, 1.45, z), (0.03, 0.03), (0.03, 0.03), sides=4)
+    for z in (z0 + 0.28, z0 + 0.62):
+        H.frustum("forearm.L", "gold", (sx, y, z - 0.05), (sx, y, z + 0.05), (0.09, 0.09), (0.09, 0.09), sides=6)
+    H.frustum("forearm.L", "frame", (x + 0.02, y, GRIP_Z + 0.2), (sx, y, GRIP_Z + 0.2), (0.03, 0.03), (0.03, 0.03), sides=4)
 
 
 def back_gear():
@@ -130,7 +136,7 @@ def joints():
     out = {}
     for s, side in ((1, "L"), (-1, "R")):
         out[f"arm.{side}"] = ((s * 0.5, SH_Y, 0), (s * 0.58, EL_Y, 0))
-        out[f"forearm.{side}"] = ((s * 0.58, EL_Y, 0), (s * 0.62, WR_Y, 0.06 if s > 0 else 0))
+        out[f"forearm.{side}"] = ((s * 0.58, EL_Y, 0), (s * 0.62, WR_Y, 0))
     return out
 
 

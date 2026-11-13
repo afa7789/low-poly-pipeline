@@ -94,10 +94,11 @@ _BOW_UP = ((0.02, 0.60, -0.42), (0.0, 1.0, 0.12))
 _BOW_LOB = [(-4, (0.05, 0.40, -0.62), (0.0, 0.90, -0.35)), (-3, *_BOW_UP), (-1, *_BOW_UP),
             (0, (0.02, 0.74, -0.30), (0.0, 0.95, 0.30)), (2, *_BOW_UP)]
 # the string hand: out to the bow, drawn back level to the chest with the elbow behind, and on the release it
-# springs open forward and out (the beat that shows the shot)
+# snaps on back past the cheek and opens out (the beat that shows the shot), one sample, then home: sprung forward it
+# hung low at the target, a second bow arm under the first
 _DRAWN = ((-0.12, 0.08, 0.06), (-0.30, 0.95, 0.05))
-_LOOSED = ((0.22, 0.42, -0.02), (0.45, 0.88, 0.10))
-_DRAW = [(-3, (-0.40, 0.72, 0.0), (-0.45, 0.89, 0.0)), (-2, *_DRAWN), (-1, *_DRAWN), (0, *_LOOSED), (2, *_LOOSED)]
+_LOOSED = ((0.12, -0.42, 0.10), (0.15, -0.25, 0.95))
+_DRAW = [(-3, (-0.40, 0.72, 0.0), (-0.45, 0.89, 0.0)), (-2, *_DRAWN), (-1, *_DRAWN), (0, *_LOOSED), (1, *_LOOSED)]
 _PALM = ((-0.10, 0.98, 0.0), (-0.10, 1.0, 0.0))
 _PUSH = [(-3, (0.20, -0.30, -0.10), (0.10, 0.90, 0.35)), (-2, (0.20, -0.35, -0.10), (0.10, 0.90, 0.35)),
          (0, *_PALM), (4, *_PALM)]

@@ -6,7 +6,6 @@ n030	R:-	owlbear arms, empty clawed hands
 n026	R:-	bare clawed hands
 n028	R:-	bare clawed hands
 builder_nature	R:-	branch arm swats, no tool
-n022	R:0,0,1.2	longbow upright beside the right forearm: the measure takes a stave along the arm for a sleeve
 e001	L:0.87,-0.56,-0.61	recurve bow carried across a forearm drawn bent 50 degrees ahead of its bone: the stave squared to that visible forearm, so the drawn arm (not the bone) points at the target
 z002	R:-0.2,0.95,0.05	flamethrower: the nozzle's own line (the measure runs to the pilot flame's tip and pitches the nozzle down)
 z003	R:-0.2,0.95,0.05	twin-nozzle flamethrower: as z002
