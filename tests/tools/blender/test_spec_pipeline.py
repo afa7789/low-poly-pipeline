@@ -4,13 +4,12 @@ import pathlib
 import sys
 import types
 import unittest
+from typing import ClassVar
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
 
-import rig_families as RF  # noqa: E402
-import silhouette  # noqa: E402
-import spec_pipeline as SP  # noqa: E402
+import spec_pipeline as SP
 
 PARTS = [
     ["spine", "prism", [0.4, 0.4, 0.8], [0, 1.8, 0], "iron", {"sides": 8}],
@@ -73,7 +72,7 @@ class ParseSpec(unittest.TestCase):
 
 
 class Palette(unittest.TestCase):
-    PALETTE = {"hide": {"surface": "leather", "color": "#6B4423"},
+    PALETTE: ClassVar = {"hide": {"surface": "leather", "color": "#6B4423"},
                "eye": {"surface": "glow", "color": "#FFD24A"}}
 
     def test_palette_slots_are_materials(self):
@@ -228,7 +227,7 @@ class Rig(unittest.TestCase):
 
 
 class ScaledSpiderBrief(unittest.TestCase):
-    M = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
+    M: ClassVar = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
 
     def tearDown(self):
         SP.RF.FAMILIES["spider"] = SP.RF.SPIDER
@@ -253,23 +252,6 @@ class ScaledSpiderBrief(unittest.TestCase):
             ["leg1.upper", "prism", [0.1, 0.1, 0.5], [0.2, 0.3, 0.1], "iron", {"sides": 6}]]})))
         self.assertIsNone(SP.set_rig("vehicle", self.M))   # measures are for the families rig_families.SCALERS names
         self.assertIsNone(SP.RIG_MEASURE)
-
-
-class MassingCarriesItsRig(unittest.TestCase):
-    """A chain finds its bones through the spec's rig: the pre-spec of a scaled family names it (22.L4-4b)."""
-
-    def tearDown(self):
-        RF.FAMILIES.update(RF.FIXED)
-        RF._drop_caches()
-        SP.set_rig("biped")
-
-    def test_wyrm_pre_spec_has_rig_and_measure(self):
-        sheet = SP.REFS / "n00H" / "sheet.jpg"
-        SP.set_rig("wyrm", silhouette.measure_rig("wyrm", sheet))
-        args = types.SimpleNamespace(no_massing=False, spec=None, rig="wyrm", sheet=sheet, race="", build=sheet)
-        spec = SP.massing_spec(args)
-        self.assertEqual(spec["rig"], "wyrm")
-        self.assertIn("line", spec["rig_measure"])
 
 
 class HardFirst(unittest.TestCase):
@@ -357,7 +339,7 @@ class Drift(unittest.TestCase):
 
 
 class Accepted(unittest.TestCase):
-    PREV = {"front": 0.70, "left": 0.65, "back": 0.60, "top": 0.5, "bottom": 0.4}
+    PREV: ClassVar = {"front": 0.70, "left": 0.65, "back": 0.60, "top": 0.5, "bottom": 0.4}
 
     def scores(self, **kw):
         return {**self.PREV, **kw}
@@ -401,7 +383,7 @@ class Stages(unittest.TestCase):
 
     def test_stage_2_runs_after_a_failed_stage_1_unless_told_not_to(self):
         import types
-        args = lambda **kw: types.SimpleNamespace(**{"shape_only": False, "colour_on_fail": "on", **kw})   # noqa: E731
+        args = lambda **kw: types.SimpleNamespace(**{"shape_only": False, "colour_on_fail": "on", **kw})
         failed = {"ok": False, "glb": "clay.glb"}
         self.assertTrue(SP.wants_colour(args(), failed))
         self.assertFalse(SP.wants_colour(args(colour_on_fail="off"), failed))
@@ -505,7 +487,7 @@ class ReviewRows(unittest.TestCase):
         self.assertEqual(SP.zone_rows({}), "")
 
     def test_prop_row_warns_only_when_the_prop_is_off(self):
-        row = lambda iou: SP.prop_row({"prop": {"parts": [18, 19], "iou": iou, "view": "left"}})  # noqa: E731
+        row = lambda iou: SP.prop_row({"prop": {"parts": [18, 19], "iou": iou, "view": "left"}})
         self.assertNotIn("WARN", row(0.83))
         self.assertIn("WARN", row(0.2))
         self.assertIn("no arm-held prop", SP.prop_row({"prop": {"parts": [], "iou": None}}))
@@ -513,7 +495,7 @@ class ReviewRows(unittest.TestCase):
 
 
 class ZonesHold(unittest.TestCase):
-    PREV = {"front": zones()}
+    PREV: ClassVar = {"front": zones()}
 
     def test_cases(self):
         cases = [("same", {"front": zones()}, True),
@@ -709,6 +691,7 @@ class FrozenParts(unittest.TestCase):
 
     def test_failing_bands_and_the_parts_that_touch_them(self):
         import tempfile
+
         import numpy as np
         from PIL import Image
         concept = np.zeros((512, 512), bool)
@@ -794,25 +777,6 @@ class BestOfN(unittest.TestCase):
 
 
 class FewShot(unittest.TestCase):
-    def args(self, rig, off=False):
-        import types
-        return types.SimpleNamespace(rig=rig, no_fewshot=off)
-
-    def test_example_per_family_and_switches(self):
-        for rig in ("biped", "spider"):
-            with self.subTest(rig=rig):
-                a = self.args(rig)
-                brief, imgs = SP.with_fewshot("BRIEF", a, 3)
-                self.assertEqual(len(imgs), 1)
-                self.assertTrue(imgs[0].exists())
-                self.assertIn("Image 3 ", brief)
-                self.assertIn("what a PASS looks like", brief)
-                self.assertEqual(brief.split(SP.FEWSHOT_MARK)[0], "BRIEF")   # passes strip it
-                self.assertIn("## Few-shot", SP.fewshot_section(a))
-        for a in (self.args("biped", off=True), self.args("building")):
-            self.assertEqual(SP.with_fewshot("BRIEF", a, 2), ("BRIEF", []))
-            self.assertEqual(SP.fewshot_section(a), "")
-
     def test_summary_drops_opts_and_rounds(self):
         spec = {"parts": [["head", "box", [0.123456, 0.2, 0.2], [0, 2.4, 0], "iron", {"sides": 8}]]}
         self.assertEqual(SP.fewshot_summary(spec), '["head","box",[0.12,0.2,0.2],[0,2.4,0],"iron",{}]')

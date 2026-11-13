@@ -77,8 +77,9 @@ class Motions(unittest.TestCase):
                 motion = M.motion(fam, name)
                 self.assertIn(motion["kind"], KINDS, (fam, name))
                 self.assertEqual(sorted(motion["poses"]), list(range(1, M.FRAMES + 1)), (fam, name))
+                known = names | set(motion.get("props", ()))        # a spec's prop bones the motion declares
                 for pose in motion["poses"].values():
-                    self.assertTrue(set(pose) <= names, (fam, name, set(pose) - names))
+                    self.assertTrue(set(pose) <= known, (fam, name, set(pose) - known))
 
     def test_new_motions_start_and_end_at_rest_and_hit_inside(self):
         for fam, motions in M.MOTIONS.items():
@@ -232,8 +233,9 @@ class Library(unittest.TestCase):
 
     def test_a_motion_runs_at_its_driving_clip_pace(self):
         chop = RT.duration("kk_melee", "Melee_1H_Attack_Chop")
-        self.assertEqual(M.motion("harpy", "chop")["frames"], chop)          # not the wings' 40
-        self.assertEqual(M.motion("mounted", "chop")["frames"], chop)        # not the mount's idle
+        for fam in ("harpy", "mounted"):                 # not the wings' 40, not the mount's idle
+            m = M.motion(fam, "chop")                   # a strike starts at its wind-up: fewer samples, same pace
+            self.assertEqual(m["frames"], round(chop * (len(m["clip"]) - 1) / 23), fam)
         self.assertEqual(M.motion("drake", "fly")["frames"], RT.duration("e006", "AnimalArmature|Idle"))
 
     def test_loops_do_not_key_the_seam_twice(self):
@@ -289,6 +291,142 @@ class Storyboard(unittest.TestCase):
         drawn = len(RF.bones(fam)) - 1                                 # the root is not drawn
         self.assertEqual(svg.count("<circle"), drawn * 2 * M.FRAMES)
         self.assertEqual(svg.count("IMPACTO"), 1)
+
+
+class Lunge(unittest.TestCase):
+    """Beasts' strikes keyed over the idle stance (rig_motions.LUNGES) and the hand-keyed reaches: read from
+    the game camera, which looks down, by travel along the ground and by a contact pose that is held."""
+
+    HELD = (M._LUNGE_HIT, M._LUNGE_HIT + 4, M._LUNGE_HIT + 8)       # the contact and a third of a second on
+
+    @staticmethod
+    def _front(family, pose, bones):
+        js = P.joints(family, pose)
+        return min(js[b][1][1] for b in bones)                        # forward is -y
+
+    def test_a_beast_reaches_half_a_body_over_hind_feet_that_stay_and_holds(self):
+        for name in ("bite", "maul", "gore", "hawk"):
+            with self.subTest(name=name):
+                m = M.motion("quadruped", name)
+                clip = m["clip"]
+                stance, wound = (P.joints("quadruped", clip[i]) for i in (0, 3))
+                chest = [self._front("quadruped", clip[i], ("spine.2",)) for i in self.HELD]
+                self.assertGreater(stance["spine.2"][1][1] - chest[0], 0.4 * RF.top("quadruped"))
+                self.assertGreater(wound["spine.2"][1][1], stance["spine.2"][1][1] + 0.1)        # pulled back first
+                self.assertLess(max(chest) - min(chest), 0.1)                                     # held, not a flick
+                self.assertAlmostEqual(clip[-1]["root"][3], clip[0]["root"][3], delta=0.01)       # and home again
+                self.assertEqual(m["frames"], M._LUNGE_FRAMES)                                    # a second: inside the cooldowns
+                for leg in ("leg3", "leg4"):
+                    drag = stance[f"{leg}.lower"][1][1] - P.joints("quadruped", clip[M._LUNGE_HIT])[f"{leg}.lower"][1][1]
+                    self.assertLess(drag, 0.45 * (stance["spine.2"][1][1] - chest[0]), leg)       # the body stretches
+
+    def test_a_bite_is_level_not_a_dip(self):
+        clip = M.motion("quadruped", "bite")["clip"]
+        stance, wound, struck = (P.joints("quadruped", clip[i]) for i in (0, 3, M._LUNGE_HIT))
+        reach = wound["head"][1][1] - struck["head"][1][1]
+        self.assertGreater(reach, 0.6 * RF.top("quadruped"))
+        self.assertLess(abs(struck["head"][1][2] - stance["head"][1][2]), 0.3 * reach)
+
+    def test_a_paw_hook_sweeps_across_the_front_along_the_ground(self):
+        clip = M.motion("quadruped", "claw_punch")["clip"]
+        stance, wound, struck = (P.joints("quadruped", clip[i])["leg1.lower"][1] for i in (0, 3, M._LUNGE_HIT))
+        self.assertGreater(wound[0] - struck[0], 0.8)                 # sideways: from its own side across the body
+        self.assertGreater(stance[1] - struck[1], 0.6)                # and forward, past the idle paw
+        self.assertLess(abs(wound[2] - struck[2]), 0.5 * (wound[0] - struck[0]))      # a hook, not a drop
+        other = [P.joints("quadruped", clip[i])["leg2.lower"][1][1] for i in (0, M._LUNGE_HIT)]
+        self.assertAlmostEqual(other[0], other[1], delta=0.15)        # the other forepaw stands
+
+    def test_forepaws_are_thrown_ahead_of_the_head(self):
+        clip = M.motion("quadruped", "paw_slam")["clip"]
+        stance, struck = (P.joints("quadruped", clip[i]) for i in (0, M._LUNGE_HIT))
+        self.assertGreater(stance["leg1.lower"][1][1] - struck["leg1.lower"][1][1], 0.9)
+        self.assertLess(struck["leg1.lower"][1][1], struck["head"][1][1] + 0.1)
+        self.assertAlmostEqual(struck["leg3.lower"][1][1], stance["leg3.lower"][1][1], delta=0.1)
+
+    def test_a_flyer_thrusts_its_head_clear_of_wings_swept_back(self):
+        for family, name in (("drake", "breath"), ("drake", "spit"), ("bird", "bite")):
+            with self.subTest(family=family, name=name):
+                clip = M.motion(family, name)["clip"]
+                stance, wound, struck, held = (P.joints(family, clip[i]) for i in (0, 3, M._LUNGE_HIT, M._LUNGE_HIT + 8))
+                self.assertGreater(wound["head"][1][1], struck["head"][1][1] + 0.6)     # reared, then thrown forward
+                self.assertGreater(stance["head"][1][1] - struck["head"][1][1], 0.5)    # past where the idle has it
+                self.assertAlmostEqual(held["head"][1][1], struck["head"][1][1], delta=0.1)
+                for wing in ("wing1.lower", "wing2.lower"):                              # tips back: the silhouette opens
+                    self.assertGreater(struck[wing][1][1] - struck[wing][0][1], 0.5, wing)
+                gap = min(struck[w][1][1] for w in ("wing1.lower", "wing2.lower")) - struck["head"][1][1]
+                self.assertGreater(gap, 1.0)                                             # the head leads the wings
+
+    def test_a_spider_lunges_with_its_front_pair_over_planted_legs(self):
+        for family in ("spider", "spider_high"):
+            with self.subTest(family=family):
+                clip = M.motion(family, "bite")["clip"]
+                stance, struck = P.joints(family, clip[0]), P.joints(family, clip[M._LUNGE_HIT])
+                self.assertGreater(stance["body"][1][1] - struck["body"][1][1], 0.35)
+                self.assertGreater(stance["leg2.lower"][1][1] - struck["leg2.lower"][1][1], 0.3)
+                advance = stance["body"][1][1] - struck["body"][1][1]
+                for leg in ("leg6", "leg7"):          # the rear legs trail, stretched: out of reach they drag
+                    drag = stance[f"{leg}.lower"][1][1] - struck[f"{leg}.lower"][1][1]
+                    self.assertLess(drag, 0.8 * advance, leg)
+
+    def test_a_spider_scratch_rakes_across_the_front_from_the_ring(self):
+        for family in ("spider", "spider_high"):
+            with self.subTest(family=family):
+                poses = M.motion(family, "keyed_scratch")["poses"]
+                stance, cocked, left, right = (P.joints(family, poses[f]) for f in (1, 3, 5, 6))
+                self.assertLess(stance["body"][1][1] - left["body"][1][1], 0.3)          # the bite is the lunge
+                self.assertGreater(cocked["leg2.lower"][1][0] - left["leg2.lower"][1][0], 0.8)     # the left claw crosses
+                self.assertLess(left["leg2.lower"][1][0], 0.0)                                      # past the middle
+                self.assertGreater(right["leg3.lower"][1][0], 0.0)                                  # then the right
+
+    def test_a_keyed_body_strike_carries_its_weapon_to_the_target(self):
+        cases = (("biped", "keyed_ram", "spine", 0.3),          # a barrel on the chest
+                 ("quadruped", "keyed_tail_shot", "tail.2", 0.5),       # a nozzle on a raised tail
+                 ("quadruped", "keyed_spit", "head", 0.4), ("quadruped", "keyed_quill_volley", "spine.2", 0.35),
+                 ("wyrm", "keyed_spit", "head", 0.4), ("ray", "keyed_spit", "body", 0.4),
+                 ("crawler", "keyed_pinch", "head", 0.4))
+        for family, name, bone, reach in cases:
+            with self.subTest(name=name):
+                m = M.motion(family, name)
+                stance, struck = (P.joints(family, m["poses"][f])[bone][1] for f in (1, m["impact"]))
+                self.assertGreater(stance[1] - struck[1], reach * RF.top(family))
+
+    def test_a_keyed_reach_is_held_three_drawings(self):
+        for family, name in (("quadruped", "keyed_quill_volley"), ("quadruped", "keyed_pounce"), ("spider", "keyed_pounce"),
+                             ("ray", "keyed_spit"), ("crawler", "keyed_pinch")):
+            with self.subTest(family=family, name=name):
+                m = M.motion(family, name)
+                lifts = [m["poses"][f]["root"][3] for f in range(m["impact"], m["impact"] + 4)]
+                self.assertGreater(min(lifts), 0.85 * max(lifts))
+                self.assertAlmostEqual(m["poses"][M.FRAMES]["root"][3], 0.0, delta=0.01)
+
+    def test_a_quadruped_spit_snaps_out_and_is_thrown_back(self):
+        m = M.motion("quadruped", "keyed_spit")
+        lifts = [m["poses"][f]["root"][3] for f in range(1, M.FRAMES + 1)]
+        hit = m["impact"] - 1
+        self.assertGreater(lifts[hit], 0.5)
+        self.assertGreater(lifts[hit + 1], 0.85 * lifts[hit])           # out for two drawings
+        self.assertLess(lifts[hit + 2], 0.0)                            # then the shot throws it back: not a held lunge
+        cocked = P.joints("quadruped", m["poses"][3])["head"][1][0]
+        self.assertGreater(abs(cocked), 0.15)                           # the head is cocked to one side before it snaps
+        self.assertAlmostEqual(lifts[-1], 0.0, delta=0.01)
+
+    def test_hydra_necks_strike_in_turn_and_each_is_held(self):
+        for name in ("keyed_bite_volley", "keyed_spit_volley"):
+            with self.subTest(name=name):
+                poses = M.motion("hydra", name)["poses"]
+                tips = {n: {f: P.joints("hydra", poses[f])[f"{n}.3"][1] for f in poses} for n in M._NECKS}
+                out = {n: [f for f in sorted(poses) if tips[n][1][1] - tips[n][f][1] > 0.4] for n in M._NECKS}
+                for neck in M._NECKS:
+                    self.assertGreaterEqual(len(out[neck]), 3, neck)              # along the ground, three drawings
+                self.assertLess(out["neck1"][0], out["neck2"][0])
+                self.assertLess(out["neck2"][0], out["neck3"][0])
+
+    def test_a_unit_with_a_long_body_travels_in_proportion(self):
+        plain = {slot: poses for slot, poses, *_ in M.clips("quadruped", {"attack": "bite"})}
+        long = {slot: poses for slot, poses, *_ in M.clips("quadruped", {"attack": "bite"}, fit=(1.8, 0.9))}
+        far = max(p["root"][3] for p in plain["attack"].values())
+        self.assertAlmostEqual(max(p["root"][3] for p in long["attack"].values()), 1.8 * far, delta=0.01)
+        self.assertEqual(long["walk"], plain["walk"])                          # only the strikes are fitted
 
 
 if __name__ == "__main__":

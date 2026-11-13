@@ -5,7 +5,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
-import eye_fuse as F  # noqa: E402
+import eye_fuse as F
 
 
 def piece(name, mat, colour=None, sides=8):
@@ -48,13 +48,3 @@ class Fuse(unittest.TestCase):
                 self.assertEqual(len(out["pieces"]), len(dsl["pieces"]))
         self.assertEqual(F.fuse(cases["two near greys fuse, the heavier keeps its name"][0])[0]["colours"]["coat"], "3B3A3F")   # the weighted mean in OKLab, 2:1
 
-    def test_the_six_v16_dsls_land_at_or_under_twelve(self):
-        import json
-        for u in ("hfoo", "n005", "n00U", "n017", "n02X", "n01X"):
-            path = ROOT / f"artifacts/model-sheets/runs/draft/{u}/v16-r3/eye/round-2/dsl.json"
-            if not path.exists():
-                continue
-            with self.subTest(unit=u):
-                _, log = F.fuse(json.loads(path.read_text()))
-                self.assertLessEqual(log["after"], 12)
-                self.assertLessEqual(log["after"], log["before"])

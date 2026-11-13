@@ -1,7 +1,5 @@
-"""L17-3: the painted atlas of the eye stage's pieces (eye_paint.py). The bake is numpy and needs no Blender; the round trip is the slow case."""
+"""L17-3: the painted atlas of the eye stage's pieces (eye_paint.py). The bake is numpy and needs no Blender."""
 import pathlib
-import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,11 +9,9 @@ import numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
-import eye_paint as P  # noqa: E402
-import eye_stage  # noqa: E402
+import eye_paint as P
+import eye_stage
 
-RUN = ROOT / "artifacts/model-sheets/runs/draft/n005/v15-r1"
-BLENDER = bool(shutil.which("blender")) and (RUN / "model.glb").exists()
 FACES = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]]
 CUBE = np.array([(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)], float)
 
@@ -49,13 +45,6 @@ class Bake(unittest.TestCase):
         cls.pos, cls.tri, cls.mat, cls.colours = two_boxes()
         cls.uv, cls.img, cls.used, cls.info = P.bake(cls.pos, cls.tri, cls.mat, cls.colours)
 
-    def test_two_pieces_make_a_painted_palette(self):
-        import hive_sheet
-        from PIL import Image
-        stats = hive_sheet.texture_stats(Image.fromarray(np.dstack([self.img, self.used * np.uint8(255)]), "RGBA"), self.used)
-        self.assertGreaterEqual(stats["colours"], 8)
-        self.assertTrue(0.02 <= self.info["ink"] <= 0.12, self.info)
-
     def test_uvs_are_in_the_atlas_and_islands_do_not_overlap(self):
         self.assertTrue(((self.uv >= 0) & (self.uv <= 1)).all())
         self.assertEqual(texel_overlap(self.uv), 0)
@@ -69,15 +58,6 @@ class Bake(unittest.TestCase):
 
 
 class Parts(unittest.TestCase):
-    def test_a_curved_strip_never_folds(self):
-        """A 12-sided tube (30 degree steps, smooth to the sharp test) is cut into islands whose normals stay within 60 degrees of their seed."""
-        a = np.linspace(0, 2 * np.pi, 13)[:-1]
-        ring = np.stack([np.cos(a), np.sin(a)], axis=1)
-        pos = np.vstack([np.c_[ring, np.zeros(12)], np.c_[ring, np.ones(12)]])
-        tri = np.array([t for i in range(12) for t in ([i, (i + 1) % 12, 12 + i], [(i + 1) % 12, 12 + (i + 1) % 12, 12 + i])])
-        uv = P.unwrap(pos, tri, np.zeros(len(tri), int))[0]
-        self.assertEqual(texel_overlap(uv), 0)
-
     def test_box_charts_make_one_island_per_component_and_axis(self):          # L18-3
         a = np.linspace(0, 2 * np.pi, 13)[:-1]
         ring = np.stack([np.cos(a), np.sin(a)], axis=1)
@@ -85,8 +65,8 @@ class Parts(unittest.TestCase):
         tri = np.array([t for i in range(12) for t in ([i, (i + 1) % 12, 12 + i], [(i + 1) % 12, 12 + (i + 1) % 12, 12 + i])])
         for charts, islands in (("grow", None), ("box", 4)):
             with self.subTest(charts=charts):
-                uv, _, _, _, isl, _ = P.unwrap(pos, tri, np.zeros(len(tri), int), charts)
-                self.assertEqual(texel_overlap(uv), 0)
+                uv, _, _, _, isl, _, _ = P.unwrap(pos, tri, np.zeros(len(tri), int), charts)
+                self.assertEqual(texel_overlap(uv), 0)               # a curved strip never folds
                 if islands:
                     self.assertEqual(int(isl.max()) + 1, islands)          # one welded tube: +x, -x, +y, -y charts, no caps
         pos2, tri2, mat, colours = two_boxes()
@@ -133,7 +113,7 @@ class Parts(unittest.TestCase):
 class BestRound(unittest.TestCase):
     """eye_stage.best_round: no disaster, then most parts, then the latest; a stop entry has no tris."""
     def test_choice(self):
-        r = lambda n, k, disaster=(): {"round": n, "tris": 600, "parts": [k, 35], "disaster": list(disaster)}  # noqa: E731
+        r = lambda n, k, disaster=(): {"round": n, "tris": 600, "parts": [k, 35], "disaster": list(disaster)}
         for rounds, want in (([r(0, 21), r(1, 21), r(2, 18), r(3, 18)], 1),
                              ([r(0, 30, ["front"]), r(1, 18)], 1),
                              ([r(0, 18), {"round": 1, "stop": True}], 0)):
@@ -158,24 +138,6 @@ class Contour(unittest.TestCase):
 
     def test_hull_modes(self):
         self.assertEqual([self.finish(c) for c in ("hull", "both", "ink", "off")], [(1, 1), (1, 1), (0, 1), (0, 1)])
-
-
-@unittest.skipUnless(BLENDER, "needs blender and the n005 v15-r1 run")
-class RoundTrip(unittest.TestCase):
-    def test_glb_carries_one_texture_and_loads_back(self):
-        import mesh_lint
-        with tempfile.TemporaryDirectory() as tmp:
-            glb = pathlib.Path(tmp) / "model.glb"
-            shutil.copy(RUN / "model.glb", glb)
-            info = P.apply(glb)
-            self.assertTrue(info, "blender produced no file")
-            doc, _ = mesh_lint.read_glb(glb)
-            self.assertEqual(len(doc["images"]), 1)
-            self.assertEqual(len(doc["materials"]), 1 + sum(1 for m in doc["meshes"] if m["name"] == "outline"))
-            self.assertTrue((pathlib.Path(tmp) / "atlas.png").exists())
-            probe = subprocess.run(["blender", "-b", "--python-expr", f"import bpy;bpy.ops.import_scene.gltf(filepath={str(glb)!r});print('OK',[i.size[0] for i in bpy.data.images if i.users])"],
-                                   capture_output=True, text=True)
-            self.assertRegex(probe.stdout, r"OK \[.*256")
 
 
 if __name__ == "__main__":

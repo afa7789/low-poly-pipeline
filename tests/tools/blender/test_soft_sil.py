@@ -1,5 +1,4 @@
 """python3.14 -m unittest discover -s tests/tools/blender"""
-import os
 import pathlib
 import sys
 import unittest
@@ -10,15 +9,13 @@ import torch
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import deform_to_sheet as D  # noqa: E402
-import optimize_verts as O  # noqa: E402
-import silhouette as S  # noqa: E402
-import soft_sil as SS  # noqa: E402
-from test_deform_to_sheet import POS, TRI, panel  # noqa: E402
+import deform_to_sheet as D
+import optimize_verts as O
+import silhouette as S
+import soft_sil as SS
+from test_deform_to_sheet import POS, TRI, panel
 
 FRONT = D.View("front", np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), 1, panel(1.15), True)
-RUN = ROOT / "artifacts/model-sheets/runs/draft/n005/v11-r1"
-SHEET = ROOT / "artifacts/model-sheets/refs/n005/sheet.jpg"
 
 
 def soft_value(pos, view=FRONT, **kw):
@@ -70,18 +67,6 @@ class TestSoftSil(unittest.TestCase):
         self.assertLess(SS.loss(step, tri, FRONT, tau=1.0, mode="asym").item(), before.item())
         with self.assertRaises(ValueError):
             SS.soft_iou(torch.zeros(2, 2), torch.ones(2, 2), mode="nope")
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and SHEET.exists(), "SLOW=1: a real clay, 6 views, ~10 s")
-class RealClay(unittest.TestCase):
-    def test_six_views_match_the_hard_raster(self):
-        pos, tri, views = SS.run_views(RUN, SHEET)
-        p, t = torch.tensor(pos, dtype=torch.float32), torch.as_tensor(tri)
-        self.assertEqual(len(views), 6)
-        for v in views:
-            with self.subTest(v.name):
-                hard = S.iou(v.concept, D.view_state(pos, tri, v)[1])
-                self.assertLess(abs(1 - SS.loss(p, t, v, tau=0.5).item() - hard), 0.01)
 
 
 if __name__ == "__main__":

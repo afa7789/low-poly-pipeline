@@ -44,7 +44,8 @@ def tank():
     return doc, bin_
 
 
-TANK = {"front": "+z", "weights": "rigid", "row": "h06S", "omit": ("track.L", "track.R", "arm.L", "arm.R"),
+# moves like h06S, whose registry row is a vehicle: hull and gun (head), no wheels of its own
+TANK = {"front": "+z", "weights": "rigid", "row": "h06S", "omit": ("wheel1", "wheel2", "wheel3", "wheel4"),
         "bones": {"hull": ((0, 0.3, -0.8), (0, 0.35, 0.8)), "head": ((0, 0.85, 0.2), (0, 0.85, 1.0))},
         "regions": [("head", (-0.3, 0.3, 0.7, 1.0, 0.1, 1.1)), ("hull", R.EVERYWHERE)], "parts": {"^Hatch$": "hull"}}
 
@@ -182,7 +183,7 @@ class Inject(unittest.TestCase):
                 doc, bin_ = tank()
                 I.write_glb(pathlib.Path(d) / "t.glb", doc, bin_)
                 R.rig("t", TANK)
-                self.assertEqual(I.plan("t")[0], "tracked")                    # the registry row of "h06S"
+                self.assertEqual(I.plan("t")[0], "vehicle")                    # the registry row of "h06S"
                 anims = {a[0]: a for a in I.build("t", pathlib.Path(d) / "t.glb", {"attack", "death"})}
                 gun = I.read_glb(pathlib.Path(d) / "t.glb")[0]["extras"]["cf_rig"]["map"]["head"][0]
             finally:

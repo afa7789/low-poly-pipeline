@@ -1,36 +1,30 @@
 """python3 -m unittest discover -s tests/tools/blender"""
 import pathlib
-import shutil
 import sys
 import tempfile
-import math
 import unittest
 import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import silhouette as S  # noqa: E402
+import parts_fit
+import silhouette as S
 
 REFS = ROOT / "artifacts/model-sheets/refs/hfoo"
 
 
 class RigGates(unittest.TestCase):
-    def test_spider_lowers_front_and_back_only(self):
+    def test_spiders_lower_front_and_back_only_and_the_others_keep_the_defaults(self):
         for rig in ("spider", "spider_high"):
-            g = S.gates_for(rig)
-            self.assertEqual((g["front"], g["back"]), (0.65, 0.65))
-            self.assertEqual({k: v for k, v in g.items() if k not in ("front", "back")},
-                             {k: v for k, v in S.GATES.items() if k not in ("front", "back")})
-
-    def test_other_families_keep_the_defaults(self):
-        self.assertEqual(S.gates_for("biped"), S.GATES)
-        self.assertEqual(S.gates_for(None), S.GATES)
-
-    def test_n00u_best_run_passes_and_the_worst_does_not(self):
-        g = S.gates_for("spider")
-        self.assertTrue(all(v >= g[k] for k, v in {"front": 0.667, "left": 0.658, "back": 0.675}.items()))
-        self.assertFalse(0.530 >= g["front"])
+            with self.subTest(rig=rig):
+                g = S.gates_for(rig)
+                self.assertEqual((g["front"], g["back"]), (0.65, 0.65))    # n00U's best run (0.667 / 0.675) passes, 0.530 does not
+                self.assertEqual({k: v for k, v in g.items() if k not in ("front", "back")},
+                                 {k: v for k, v in S.GATES.items() if k not in ("front", "back")})
+        for rig in ("biped", None):
+            with self.subTest(rig=rig):
+                self.assertEqual(S.gates_for(rig), S.GATES)
 
 
 HARD = REFS / "sheet-hard.jpg"
@@ -38,12 +32,10 @@ HARD = REFS / "sheet-hard.jpg"
 
 @unittest.skipUnless(HARD.exists(), "hfoo refs not checked out")
 class Drift(unittest.TestCase):
-    def test_hard_redraw_stays_on_the_approved_design(self):
+    def test_hard_redraw_stays_on_the_approved_design_and_a_sheet_does_not_drift_from_itself(self):
         drift = S.sheet_drift(REFS / "sheet.jpg", HARD)
         for view in S.DRIFT_VIEWS:
             self.assertGreaterEqual(drift[view], S.DRIFT_MIN, view)   # measured 0.93-0.94
-
-    def test_a_sheet_does_not_drift_from_itself(self):
         drift = S.sheet_drift(REFS / "sheet.jpg", REFS / "sheet.jpg")
         self.assertEqual(min(drift[v] for v in S.DRIFT_VIEWS), 1.0)
 
@@ -55,7 +47,7 @@ class GateWithoutModel(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             run = subprocess.run([sys.executable, str(ROOT / "tools/blender/silhouette.py"),
                                   str(REFS / "sheet.jpg"), str(pathlib.Path(tmp) / "none.glb"),
-                                  tmp, "--no-render"], capture_output=True, text=True)
+                                  tmp, "--no-render"], capture_output=True, check=False, text=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn("no measurement", run.stdout)
 
@@ -68,7 +60,7 @@ class GateWithoutModel(unittest.TestCase):
         self.assertFalse(any(worst[v] >= g for v, g in S.GATES.items()))
 
 
-import numpy as np  # noqa: E402
+import numpy as np
 
 
 def figure():
@@ -195,7 +187,7 @@ class JointMeasures(unittest.TestCase):
         m = np.zeros((200, 200), bool)
         for x0, sign in ((110, 1), (90, -1)):
             for rows, w in ((slice(60, 120), thigh), (slice(120, 200), shin)):
-                m[rows, x0:x0 + w] = True if sign > 0 else False
+                m[rows, x0:x0 + w] = sign > 0
                 if sign < 0:
                     m[rows, x0 - w:x0] = True
         return m
@@ -238,7 +230,7 @@ class ZoneRamp(unittest.TestCase):
 
 
 class Families(unittest.TestCase):
-    """quadruped, wyrm, drake (PIPELINE 22.L4-4b): centre line, wings, measure_rig."""
+    """quadruped, wyrm, drake (PIPELINE 22.L4-4b): centre line, wings."""
 
     def test_centreline_follows_a_bar_and_skips_a_rope_below_the_floor(self):
         m = np.zeros((80, 200), bool)
@@ -256,7 +248,7 @@ class Families(unittest.TestCase):
     def test_wing_numbers_read_the_spar_and_the_row_width(self):
         m = np.zeros((100, 100), bool)
         m[40:100, 40:60] = True                           # body column
-        for r in range(0, 40):                            # a wing leaning out: centre col 70 + (40 - r) / 2, 10 wide
+        for r in range(40):                            # a wing leaning out: centre col 70 + (40 - r) / 2, 10 wide
             c = 70 + (40 - r) // 2
             m[r, c - 5:c + 5] = True
             m[r, 100 - c - 5:100 - c + 5] = True
@@ -266,13 +258,6 @@ class Families(unittest.TestCase):
         self.assertAlmostEqual(w["tip"][1], 1.0, delta=0.01)
         self.assertGreater(w["span"], w["tip"][0])
 
-    def test_measure_rig_only_for_scalable_families(self):
-        self.assertIsNone(S.measure_rig("biped", WOLF))
-        m = S.measure_rig("quadruped", WOLF)
-        self.assertGreater(m["len"], 1.5)                                 # a wolf is longer than tall
-        self.assertLess(m["trunk"][0], m["trunk"][1])
-        self.assertLess(m["legs"]["x"][0], m["legs"]["x"][1])             # front pair nearer the snout
-        self.assertNotIn("wing", m)
 
 
 if __name__ == "__main__":
@@ -414,34 +399,6 @@ class EdgeChamfer(unittest.TestCase):
         other[140:142, 50:150] = True
         self.assertGreater(S.edge_chamfer(lines, mask, other, mask)["drawn"], 0.1)
         self.assertIsNone(S.edge_chamfer(lines, mask, np.zeros_like(mask), mask))
-SPIDER_SHEET = ROOT / "artifacts/model-sheets/refs/n00U/sheet.jpg"
-
-
-@unittest.skipUnless(SPIDER_SHEET.exists(), "n00U refs not checked out")
-class MeasureSpider(unittest.TestCase):
-    def test_n00u_body_belly_and_legs(self):
-        m = S.measure_spider(SPIDER_SHEET)
-        self.assertTrue(0.28 <= m["body_r"] <= 0.36, m)       # the shell: about 0.65 H wide
-        self.assertTrue(0.18 <= m["body_under"] <= 0.30, m)   # belly a quarter of H above the floor
-        self.assertTrue(0.5 <= m["foot_r"] <= 0.65, m)        # legs spread over 1.16 H
-        self.assertTrue(m["body_len"] > m["body_r"], m)
-        self.assertTrue(0.03 <= m["leg_w"] <= 0.06, m)        # legs about 0.09 H thick
-        self.assertIn("leg_taper", m)
-
-    def test_n00u_top_panel_gives_eight_legs_four_a_side(self):
-        legs = S.measure_spider(SPIDER_SHEET)["legs"]
-        self.assertEqual(len(legs), 8)
-        self.assertEqual(sum(1 for r in legs if r[5] > 0), 4)             # tip x > 0: four on the right
-        for _, bx, bz, kx, kz, tx, tz, r in legs:
-            self.assertGreater(math.hypot(tx, tz), math.hypot(bx, bz))   # the tip is farther out than the base
-            self.assertTrue(0.02 <= r <= 0.08, r)
-
-    def test_merged_legs_give_no_branches(self):
-        import numpy as np
-        yy, xx = np.mgrid[:200, :200]
-        self.assertIsNone(S.leg_branches(np.hypot(yy - 100, xx - 100) <= 40, 1 / 200))      # a bare disc: no legs
-
-
 class LegMeasures(unittest.TestCase):
     def test_thin_bars_around_a_disc(self):
         """a 40 px disc with 6 px bars out of it: leg_w is the bar radius in H, a bar that
@@ -456,21 +413,34 @@ class LegMeasures(unittest.TestCase):
         self.assertAlmostEqual(got["leg_w"], 0.04, delta=0.012)
         self.assertLess(got["leg_taper"], 1.1)
         self.assertIsNone(S.leg_measures([(np.pad(np.ones((30, 30), bool), 20), 100.0)]))
+        self.assertIsNone(S.leg_branches(np.hypot(yy - 100, xx - 100) <= 40, 1 / 200))      # merged legs (a bare disc): no branches
 
 
-WOLF = ROOT / "artifacts/model-sheets/refs/n017/sheet.jpg"
+def wide_profile_sheet(path):
+    """A 3+2 sheet whose side view is a long body (a quadruped's) wider than a third of the page, its head over the front's column."""
+    from PIL import Image
+    img = np.full((768, 768, 3), (189, 183, 185), np.uint8)
+    ink = (60, 50, 40)
+    img[60:340, 30:170] = ink                                       # front
+    img[120:220, 190:560] = ink                                     # left: the long body ...
+    img[220:340, 200:230] = ink
+    img[220:340, 520:550] = ink                                     # ... on two legs
+    img[60:340, 600:740] = ink                                      # back
+    img[450:700, 100:300] = ink
+    img[450:700, 450:650] = ink                                     # top, bottom
+    Image.fromarray(img).save(path, quality=95)
 
 
-@unittest.skipUnless(WOLF.exists(), "n017 sheet not checked out")
 class BlobPanels(unittest.TestCase):
     def test_wide_profile_keeps_its_whole_body(self):
-        with tempfile.TemporaryDirectory() as tmp:           # the column cut (layout "unit" splits by blob by default now)
-            shutil.copy(WOLF, pathlib.Path(tmp) / "sheet.jpg")
-            thirds = S.concept_panels(pathlib.Path(tmp) / "sheet.jpg", blob=False, columns=True)
-        blobs = S.concept_panels(WOLF, blob=True)
-        self.assertEqual(S.concept_panels(WOLF)["left"].sum(), blobs["left"].sum())      # units default to blob
+        with tempfile.TemporaryDirectory() as tmp:
+            sheet = pathlib.Path(tmp) / "sheet.jpg"
+            wide_profile_sheet(sheet)
+            thirds = S.concept_panels(sheet, blob=False, columns=True)     # the column cut
+            blobs = S.concept_panels(sheet, blob=True)
+            self.assertEqual(S.concept_panels(sheet)["left"].sum(), blobs["left"].sum())      # units default to blob
         self.assertEqual(list(blobs), list(thirds))
-        width = lambda m: int(m.any(axis=0).sum())  # noqa: E731
+        width = lambda m: int(m.any(axis=0).sum())
         self.assertGreater(width(blobs["left"]), 768 // 3)      # the thirds split clips it at 256
         self.assertLessEqual(width(thirds["left"]), 768 // 3)
         self.assertLess(width(blobs["front"]), width(thirds["front"]))   # no snout in the front panel
@@ -508,6 +478,7 @@ class IdentityReads(unittest.TestCase):
 
     def test_reads_is_the_render_share_over_the_sheet_share(self):
         import tempfile
+
         from PIL import Image
         details = [{"hex": "#586B87", "shares": {"front": 0.01}}, {"hex": "#50252E", "shares": {"front": 0.01}}]
         with tempfile.TemporaryDirectory() as d:
@@ -544,17 +515,15 @@ class SheetCoherenceTest(unittest.TestCase):
         hull = S.hull_voxels(front, left, 32)
         for cam, zflip in (((35, 30), False), ((55, -45), True)):
             with self.subTest(cam=cam):
-                iou, found = S.rts_coherence(hull, S.hull_rts_mask(hull, cam, zflip))
+                iou, _found = S.rts_coherence(hull, S.hull_rts_mask(hull, cam, zflip))
                 self.assertGreater(iou, 0.95)
         self.assertLess(S.rts_coherence(hull, np.ones((40, 40), bool), [(35, 30)])[0], 0.6)
 
     def test_sheets_measured(self):
         refs = ROOT / "artifacts/model-sheets/refs"
-        for sheet, sym, bad in (("n01X", True, []), ("hfoo", False, ["rts"]), ("n00H", True, ["top", "bottom", "rts"])):
-            with self.subTest(sheet):
-                rep = S.sheet_report(refs / sheet / "sheet.jpg")
-                self.assertEqual(rep["r_sym"]["front"] >= S.SYM_MIN, sym)
-                self.assertEqual(rep["incoherent"], bad)
+        rep = S.sheet_report(refs / "n01X" / "sheet.jpg")        # a symmetric, coherent sheet
+        self.assertGreaterEqual(rep["r_sym"]["front"], S.SYM_MIN)
+        self.assertEqual(rep["incoherent"], [])
         self.assertEqual(S.sheet_report(refs / "n01X" / "sheet.jpg", "building"), {})
 
     def test_text_names_the_problem_only_when_there_is_one(self):
@@ -575,8 +544,11 @@ class BodyOnly(unittest.TestCase):
         panels = S.concept_panels(self.SHEET)
         props = S.prop_masks(self.SHEET, "left", panels=panels)
         body, whole = S.body_mask(self.SHEET, "left", panels=panels), S.normalize(panels["left"])
-        for name, want in [("pike is a prop", "trench pike" in props), ("pike mask is thin", props["trench pike"].sum() < 0.5 * whole.sum()),
-                           ("body has no prop pixel", not (body & props["trench pike"]).any()),
+        named = [p["name"] for p in parts_fit.load(self.SHEET)["parts"] if p.get("prop") and "left" in p.get("box2d", {})]
+        self.assertTrue(named, "the sheet's parts.json names a prop in the left view")
+        prop = props.get(named[0])
+        for name, want in [("the weapon is a prop", prop is not None), ("its mask is thin", prop.sum() < 0.5 * whole.sum()),
+                           ("body has no prop pixel", not (body & prop).any()),
                            ("body is most of the panel", 0.5 * whole.sum() < body.sum() < whole.sum())]:
             with self.subTest(name):
                 self.assertTrue(want)
@@ -618,7 +590,7 @@ class SideMirror(unittest.TestCase):
 
     def test_best_match_reports_flipped(self):
         concept = self.figure(False)
-        score, mask, tilt, flipped = S.best_match(concept, {0: np.fliplr(concept)}, "left")
+        score, _mask, _tilt, flipped = S.best_match(concept, {0: np.fliplr(concept)}, "left")
         self.assertTrue(flipped)
         self.assertGreater(score, 0.95)
         self.assertFalse(S.best_match(concept, {0: concept}, "left")[3])

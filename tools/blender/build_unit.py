@@ -769,6 +769,9 @@ def merge_clips(base, extra):
 
 
 ANIM = None     # the spec's "anim": {"attack": "chop", ...} picks from rig_motions; "legacy" = old clips
+GRIP = None     # the unit's weapons {side: blade} for the strikes keyed on them (anim_refresh.grips)
+SOFT = 1.0      # share of a strike's arc keyed (anim_refresh backs off for a mesh that tears)
+FIT = None      # (reach, legs): the unit's skeleton over its family's, for strikes that travel (anim_refresh.fit)
 
 
 def clip_set(family, anim=None):
@@ -779,7 +782,7 @@ def clip_set(family, anim=None):
     fam = families()
     motions = sibling("rig_motions")
     if anim != "legacy" and family in motions.DEFAULTS:
-        return motions.clips(family, anim if isinstance(anim, dict) else None)
+        return motions.clips(family, anim if isinstance(anim, dict) else None, GRIP, SOFT, FIT)
     if family == "biped":
         return ACTIONS
     if fam.has_biped_limbs(family):

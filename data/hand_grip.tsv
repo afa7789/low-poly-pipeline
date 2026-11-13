@@ -1,0 +1,32 @@
+unit_id	hand	note
+# Hand-built models (tools/blender/hand_unit.py): the hand that strikes, in the words of anim_refresh.held
+# ("R", "L", "R:-" bare, "R:out,forward,up" = where the weapon points at rest, metres, armature axes), for units whose pieces anim_refresh.grips misreads.
+n012	R:-	ape arms, no weapon: the wide forearms measure as two blades
+n030	R:-	owlbear arms, empty clawed hands
+n026	R:-	bare clawed hands
+n028	R:-	bare clawed hands
+builder_nature	R:-	branch arm swats, no tool
+n022	R:0,0,1.2	longbow upright beside the right forearm: the measure takes a stave along the arm for a sleeve
+e001	L:0.87,-0.56,-0.61	recurve bow carried across a forearm drawn bent 50 degrees ahead of its bone: the stave squared to that visible forearm, so the drawn arm (not the bone) points at the target
+z002	R:-0.2,0.95,0.05	flamethrower: the nozzle's own line (the measure runs to the pilot flame's tip and pitches the nozzle down)
+z003	R:-0.2,0.95,0.05	twin-nozzle flamethrower: as z002
+h0A2	L:0,1.5,0.8	machine gun slung on the centreline, barrel 28 degrees up at rest; the left forearm carries it
+hrif	L:0,1.4,1.65	long rifle beside the left arm, muzzle 50 degrees up ahead at rest (the measure takes the butt)
+h05C	R:0,1.4,1.7	scoped rifle on the right forearm, muzzle 50 degrees up at rest (the measure took the butt)
+u00D	R:0,0.05,-0.9	cane gripped high: its long end hangs below the right hand along the forearm and is what points at the target (the measure finds no weapon); the book hand casts
+h01V	R:0,0.3,-0.56	dagger hanging point-down ahead of the right hand (the measure took the cross-guard)
+n009	R:0.36,0.9,0.15	sickle held level, pointing ahead and out: the handle's line, not the hooked blade's tip
+n00E	L:0,0.74,-0.58	hook hand on the left; the right gauntlet is a fist (it strikes as the free hand)
+n00K	R:0,-0.1,1.6	gaff carried upright in the right hand, hook at the top
+n00Y	R:0,0.14,-1.3	reverse grip: the blade runs down from the right fist
+n020	L:0.3,0.54,-0.5;R:0.3,0.54,-0.5	two daggers pointing down, ahead and out
+n02U	R:0,0.28,-0.71	club hanging head-down ahead of the right hand
+n02X	R:0,0.05,1.45	valve-wheel wrench carried upright, wheel at the top
+n01I	L:-0.08,0.63,-0.55	the big left arm's claws point down and ahead of its wrist
+n00S	L:-;R:-	siren: two bare clawed hands, thrust together
+n035	R:-	bare clawed arms (the wide forearms measure as two blades): the right hand casts
+h00W	L:-0.1,0.46,-0.09;R:-0.2,0.92,-0.18	both forearms are drawn folded level ahead of their hanging bones: the visible forearm's line is the blade; the right is given the longer one so the left, the free hand of a cast, thrusts the armillary it carries at the target
+n03I	L	the fan is the weapon (left); the right hand, measured as armed too, is the free one that casts
+h03A	L:still;R:0.26,0.57,-0.62	trench knife pointing ahead, down and out of the right fist (the measure took the cross-guard); the shield arm waits in the stance under the stab (swung as the free arm, the tower shield turns edge-on behind the shoulder)
+n02S	R:0.2,0.22,-0.5	shovel: the blade is the low end below the right hand (the measure took the handle's top); the left hand only steadies it
+h06U	R:0.16,0.26,0.56	wrench carried head-up ahead of the right hand (the measure finds no weapon); the left carries the mine

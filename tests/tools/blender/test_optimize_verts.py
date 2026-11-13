@@ -1,5 +1,4 @@
 """python3.14 -m unittest discover -s tests/tools/blender"""
-import os
 import pathlib
 import sys
 import tempfile
@@ -12,10 +11,10 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import deform_to_sheet as D  # noqa: E402
-import mesh_lint as ML  # noqa: E402
-import optimize_verts as O  # noqa: E402
-from test_deform_to_sheet import POS, TRI, panel, write_glb  # noqa: E402
+import deform_to_sheet as D
+import mesh_lint as ML
+import optimize_verts as O
+from test_deform_to_sheet import POS, TRI, panel, write_glb
 
 FILE = (np.arange(len(POS)), TRI)          # one file vertex per welded one
 FRONT = D.View("front", np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), 1, panel(1.15), True)
@@ -41,7 +40,7 @@ class TestOptimizeVerts(unittest.TestCase):
 
     def test_gradient_pushes_a_narrow_box_outward(self):
         prob = problem()
-        value, ctxs, _ = prob.evaluate(prob.pos0)
+        _value, ctxs, _ = prob.evaluate(prob.pos0)
         side = np.flatnonzero(np.isclose(prob.pos0[:, 0], 0.5 / 2.0) & (prob.pos0[:, 2] > 0.1))
         g = O.iou_gradient(ctxs[0], prob.pos0, TRI, side, prob.rings)
         self.assertTrue((g[:, 0] < 0).all())                 # d(1 - IoU)/dx < 0 on the right wall: moving right helps
@@ -198,21 +197,6 @@ class TestOptimizeVerts(unittest.TestCase):
     def test_apply_needs_both_switches(self):
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=True, union_body=False)))
         self.assertIsNone(O.apply("x.glb", SimpleNamespace(fit_verts=False, union_body=True)))
-
-
-REAL = ROOT / "artifacts/model-sheets/runs/draft/n005/v11-r1/clay.glb"
-SHEET = ROOT / "artifacts/model-sheets/refs/n005/sheet.jpg"
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and REAL.exists() and SHEET.exists(), "SLOW=1: n005, 30 s")
-class RealClay(unittest.TestCase):
-    def test_soft_30_s_keeps_faces_and_does_not_lose_iou(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            rep = O.run(REAL, SHEET, pathlib.Path(tmp, "o.glb"), seconds=30)
-        self.assertEqual(rep["turned"], 0)
-        self.assertLessEqual(rep["slivers_after"], rep["slivers_before"])
-        for v in ("front", "left", "back"):
-            self.assertGreaterEqual(rep["after"][v]["iou"], rep["before"][v]["iou"])
 
 
 def blit(cnt, tri, sign):

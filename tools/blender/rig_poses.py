@@ -229,3 +229,60 @@ def two_bone(hip, target, a, b, bend):
     knee = [hip[i] + a * (cos_hip * u[i] + sin_hip * w[i]) for i in range(3)]
     end = [hip[i] + dist * u[i] for i in range(3)]
     return knee, end
+
+
+def _triad(a1, a2, b1, b2):
+    """3x3 rotation taking a1 onto b1 and a2 as near b2 as that allows; a1 along a2: the
+    shortest turn a1 -> b1."""
+    def frame(p, q):
+        n = cross(p, q)
+        if math.sqrt(sum(c * c for c in n)) < 1e-6:
+            return None
+        t1, t2 = unit(p), unit(n)
+        return t1, t2, cross(t1, t2)
+    fa, fb = frame(a1, a2), frame(b1, b2)
+    if fa is None or fb is None:
+        cols = [turn(a1, b1, e) for e in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
+        return [[cols[j][i] for j in range(3)] for i in range(3)]
+    return [[sum(fb[k][i] * fa[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+def unit(v):
+    n = math.sqrt(sum(c * c for c in v)) or 1.0
+    return [c / n for c in v]
+
+
+def cross(a, b):
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+
+def _basis_to(offset, target):
+    """Euler XYZ of the basis that takes a bone standing in `offset` to `target`: a world
+    direction for the bone (twist-free), or ((local, world), (local, world)): the bone-local
+    vector of the first pair lands on its world direction, the second pair's as near as it can."""
+    inv = _affine_inverse(offset)
+
+    def local(v):
+        return [sum(inv[i][k] * v[k] for k in range(3)) for i in range(3)]
+    if len(target) == 3:
+        return _euler_xyz(_turn_y_to(unit(local(target))))
+    (a1, b1), (a2, b2) = target
+    return _euler_xyz(_triad(a1, a2, local(b1), local(b2)))
+
+
+def repose(family, pose, targets, extras=None):
+    """`pose` with the bones in `targets` turned anew, every other bone as posed: a target is a
+    world direction (as aim) or two (bone-local vector, world direction) pairs, which fix the
+    bone's twist too (a blade skinned to a forearm points where it must, see _basis_to)."""
+    table = rest(family, extras)
+    world, out = {}, {}
+    for name, (parent, local, _) in table.items():
+        offset = local
+        if parent is not None:
+            offset = _mul(world[parent], _mul(_affine_inverse(table[parent][1]), local))
+        value = pad(pose.get(name, ()))
+        if name in targets:
+            value = (*_basis_to(offset, targets[name]), value[3], value[4])
+        out[name] = value
+        world[name] = _mul(offset, _basis(*value))
+    return out

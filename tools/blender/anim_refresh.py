@@ -4,7 +4,13 @@ scripts/fetch_models.mjs and tools/inject_clips.py; meshes and textures are not 
 
     blender -b -P tools/blender/anim_refresh.py [-- unit_id ...]
 
-Per row of data/anim_refresh.tsv (unit_id, refit, slots):
+Per row of data/anim_refresh.tsv (unit_id, refit, slots, note, hand, skin):
+- hand = L or R (optional): the hand that holds the weapon, when the mesh alone would say the
+  shield arm (grips takes whatever reaches farthest from a forearm). "R:out,forward,up": and the
+  weapon points there at rest, that many metres (armature axes, out = away from the body on that
+  side), where the measure misreads the mesh (a blade along the arm's line, a pick whose head is
+  the low end); "R:-": that hand strikes bare; "R:still": that arm waits in the stance while the
+  other strikes (the mesh fuses it to the body: it tears when swung). Several: "L:...;R:still".
 - refit = a rig family (e.g. drake): each bone's pivot moves onto the joint its skinned mesh bends
   at (the centroid of the vertices blended between the bone and its parent; without such a band the
   midpoint of the two clouds' closest points; with no skinned parent, its own centroid), and takes
@@ -14,12 +20,19 @@ Per row of data/anim_refresh.tsv (unit_id, refit, slots):
   "-" = neither.
 - slots = the actions re-keyed from data/unit_anim.tsv's picks ("all", or e.g. "idle,walk"); every
   other action of the model is kept as it is. A re-keyed death is laid on the ground (settle).
+  Strikes are keyed on the weapons the mesh holds (grips, rig_strike): the hand that carries the
+  weapon strikes, and the blade points where the strike needs it.
+- skin (optional, joined by ";"): weights the build left wrong for a strike, put right before the
+  bones are touched. "limbs": a hand that hangs by the hip is blended into it, and a raised arm
+  pulls a sheet of hip along (unfuse). "caps": a plate that floats over a shoulder is skinned to
+  the upper arm and swings behind the back with it (caps).
 A model changed here loses its .rig/.joints/.cook (they hold the old bind pose): rerun
 scripts/fetch_models.mjs to rewrite .rig/.joints, and `make cook`. A stamp <id>.glb.anim holds the
 hash of the row and of the motion code, so a rerun skips models already current.
 """
 import collections
 import hashlib
+import math
 import pathlib
 import sys
 
@@ -29,22 +42,29 @@ from mathutils import Vector
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
+import attack_gate as AG  # noqa: E402
 import build_unit as BU  # noqa: E402
 import rig_poses as P  # noqa: E402
 
 MODELS = ROOT / "assets/models"
 TABLE = ROOT / "data/anim_refresh.tsv"
-CODE = [ROOT / "tools/blender" / f for f in ("rig_motions.py", "rig_retarget.py", "rig_poses.py",
-                                              "rig_families.py", "anim_refresh.py")] + [ROOT / "data/unit_anim.tsv"]
+CODE = [ROOT / "tools/blender" / f for f in ("rig_motions.py", "rig_retarget.py", "rig_poses.py", "rig_strike.py",
+                                              "rig_families.py", "anim_refresh.py", "attack_gate.py")] + [ROOT / "data/unit_anim.tsv"]
 BLEND = 0.15     # a vertex counts for a bone from this weight up
+WEAPON = 0.5     # metres from the forearm's bone beyond which a vertex is a weapon, not a sleeve (a refit bone's length varies)
+MID_GRIP = 0.45  # metres the other end of what a hand holds must be from the wrist for the thing's own axis to count
+FOREARM = 0.55   # metres from the elbow to the wrist on the families' arms
+UPRIGHT_MIN = 1.3    # metres: a shorter "blade" pointing back up the arm is a pauldron or a sleeve, not a carried polearm
 
 
 def rows():
     out = []
     for line in TABLE.read_text().splitlines()[1:]:
         if line.strip() and not line.startswith("#"):
-            unit, refit, slots, *_ = line.split("\t")
-            out.append((unit, None if refit == "-" else refit, None if slots == "all" else slots.split(",")))
+            unit, refit, slots, *more = line.split("\t")
+            hand = more[1] if len(more) > 1 and more[1][:1] in ("L", "R") else None
+            skin = more[2] if len(more) > 2 and more[2] else None
+            out.append((unit, None if refit == "-" else refit, None if slots == "all" else slots.split(","), hand, skin))
     return out
 
 
@@ -71,6 +91,64 @@ def clouds(arm):
                 if len(gs) > 1:
                     band[frozenset((gs[0][1], gs[1][1]))].append(p)
     return own, band
+
+
+def _tip(far, wrist):
+    """The striking end of what a hand holds, among the vertices `far` from the forearm: the one
+    farthest from the wrist, unless the thing stands well above the hand at rest: shafts (spear,
+    staff, rifle, polearm) are carried head up, so their tip is the end that is up, however long
+    the butt below the hand is."""
+    if not far:
+        return None
+    up = max(far, key=lambda p: p.z)
+    if up.z - wrist.z > 0.6 and (up - wrist).length > 0.8:
+        return up
+    return max(far, key=lambda p: (p - wrist).length)
+
+
+def grips(arm):
+    """{side: blade or None}: what each hand holds, for the strikes keyed on it (rig_strike). The
+    blade is the vector from the wrist to the vertex the forearm carries farthest from its own
+    bone, in the bone's rest frame; nothing farther than WEAPON metres: a bare hand, as is
+    a short reach back up the arm (a pauldron, a wide sleeve)."""
+    own, _ = clouds(arm)
+    out = {}
+    for bone in arm.data.bones:
+        if not bone.name.endswith(("forearm.L", "forearm.R")):
+            continue
+        head = bone.head_local
+        axis = (bone.tail_local - head).normalized()
+        tail = head + axis * min(bone.length, FOREARM)       # the wrist: a refit bone runs on down the weapon
+        far = [p for p in own.get(bone.name, ()) if _segment_distance(p, head, tail) > WEAPON]
+        tip = _tip(far, tail)
+        armed = tip is not None
+        other = max(far, key=lambda p: (p - tip).length) if armed else None
+        if armed and (other - tail).length > MID_GRIP:      # held in its middle (a bow, a staff): its own axis
+            tip = tail + (tip - other).normalized() * (tip - tail).length
+        if armed and (tip - tail).length < UPRIGHT_MIN and (tip - tail).normalized().dot(axis) < -0.5:
+            armed = ((tip - head) - axis * (tip - head).dot(axis)).length > WEAPON       # off the arm's line: no sleeve
+        armed = armed and (tip - tail).length > 1e-3        # a lone far vertex is no weapon
+        out[bone.name[-1]] = tuple(bone.matrix_local.to_3x3().inverted() @ (tip - tail)) if armed else None
+    return out
+
+
+def held(arm, grip, hand):
+    """The measured grips with the table's word on them (the `hand` column): only the hands it
+    names hold a weapon; "R:out,forward,up" gives the blade as it lies at rest, "R:-" a bare hand."""
+    out = dict.fromkeys(grip)
+    for word in hand.split(";"):
+        side, _, aim = word.partition(":")
+        out[side] = grip.get(side)
+        if aim == "-":
+            out[side] = ()          # bare, and the hand that strikes (rig_strike.hands)
+        elif aim == "still":
+            out[side] = BU.sibling("rig_strike").STILL
+        elif aim:
+            away, forward, up = (float(c) for c in aim.split(","))
+            bone = next(b for b in arm.data.bones if b.name.endswith("forearm." + side))
+            blade = Vector((away if side == "L" else -away, -forward, up))
+            out[side] = tuple(bone.matrix_local.to_3x3().inverted() @ blade)
+    return out
 
 
 def _centroid(ps):
@@ -204,6 +282,152 @@ def rerig(arm, family):
     return new
 
 
+_ARMS, _LOWER = ("arm.", "forearm."), ("pelvis", "thigh.", "shin.", "foot.")
+
+
+def _islands(mesh):
+    """The mesh's connected pieces as lists of vertices; vertices at one place are one (glTF
+    splits them along seams)."""
+    parent = list(range(len(mesh.vertices)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    seen = {}
+    for v in mesh.vertices:
+        parent[find(v.index)] = find(seen.setdefault(tuple(round(c, 4) for c in v.co), v.index))
+    for e in mesh.edges:
+        parent[find(e.vertices[0])] = find(e.vertices[1])
+    out = collections.defaultdict(list)
+    for v in mesh.vertices:
+        out[find(v.index)].append(v)
+    return list(out.values())
+
+
+def _weights(obj, verts):
+    """{bone: weight summed over the vertices}."""
+    names = {g.index: g.name for g in obj.vertex_groups}
+    total = collections.Counter()
+    for v in verts:
+        for g in v.groups:
+            total[names[g.group]] += g.weight
+    return total
+
+
+def _drop(arm, obj, verts, prefixes):
+    """Take the vertices off the bones named by `prefixes`; what each keeps is scaled back to 1,
+    and one that keeps nothing goes to the nearest of the piece's other bones."""
+    others = [arm.data.bones[name] for name in _weights(obj, verts) if not name.startswith(prefixes)]
+    to_arm = arm.matrix_world.inverted() @ obj.matrix_world
+    for v in verts:
+        held = [(obj.vertex_groups[g.group], g.weight) for g in v.groups]
+        kept = [(group, w) for group, w in held if not group.name.startswith(prefixes)]
+        if len(kept) == len(held):
+            continue
+        if sum(w for _, w in kept) < 1e-6:
+            near = min(others, key=lambda bone: _segment_distance(to_arm @ v.co, bone.head_local, bone.tail_local))
+            kept = [(obj.vertex_groups[near.name], 1.0)]
+        for group, _ in held:
+            group.remove([v.index])
+        total = sum(w for _, w in kept)
+        for group, w in kept:
+            group.add([v.index], w / total, "REPLACE")
+
+
+def unfuse(arm, obj):
+    """skin "limbs": an arm that hangs against the hip is skinned to it where the two touch (each
+    vertex takes the bone of the nearest part), and raised to strike it pulls a sheet from the
+    hip. A piece of the mesh the arms carry more of than the hips and legs is the arm's own:
+    it lets go of those; every other piece lets go of the forearms."""
+    for verts in _islands(obj.data):
+        total = _weights(obj, verts)
+        arms = sum(w for bone, w in total.items() if bone.startswith(_ARMS))
+        lower = sum(w for bone, w in total.items() if bone.startswith(_LOWER))
+        if arms and lower:
+            _drop(arm, obj, verts, _LOWER if arms > lower else ("forearm.",))
+
+
+def caps(arm, obj):
+    """skin "caps": a piece skinned wholly to an upper arm that lies wholly above its shoulder (a
+    plate, a lid floating over it) rides the bone the arm hangs from: on the arm it swings
+    behind the back as the arm goes up."""
+    to_arm = arm.matrix_world.inverted() @ obj.matrix_world
+    for verts in _islands(obj.data):
+        total = _weights(obj, verts)
+        name = max(total, key=total.get, default="")
+        bone = arm.data.bones.get(name)
+        if not name.startswith("arm.") or bone.parent is None or total[name] < 0.99 * sum(total.values()):
+            continue
+        axis = bone.tail_local - bone.head_local
+        if all((to_arm @ v.co - bone.head_local).dot(axis) < 0 for v in verts):
+            index = [v.index for v in verts]
+            obj.vertex_groups[name].remove(index)
+            (obj.vertex_groups.get(bone.parent.name) or obj.vertex_groups.new(name=bone.parent.name)).add(index, 1.0, "REPLACE")
+
+
+SKIN = {"limbs": unfuse, "caps": caps}
+
+
+def reskin(arm, words):
+    """The row's skin fixes ("limbs;caps"; None: nothing) on every mesh the armature carries."""
+    for obj in [o for o in bpy.data.objects if o.type == "MESH" and o.vertex_groups]:
+        for word in filter(None, (words or "").split(";")):
+            SKIN[word](arm, obj)
+
+
+SOFTER = (1.0, 0.9, 0.8, 0.7, 0.55)      # shares of a strike's arc tried in turn until the mesh holds
+
+
+def _tears(arm, state, acts):
+    """True when an attack action opens a gap or pulls a ribbon in the mesh (attack_gate.torn)."""
+    worst = {"gap": 0.0, "ribbon": 0.0}
+    for act in acts:
+        arm.animation_data.action = act
+        for frame in range(int(act.frame_range[0]), int(act.frame_range[1]) + 1):
+            bpy.context.scene.frame_set(frame)
+            gap, ribbon = AG.mesh_damage(state)
+            worst = {"gap": max(worst["gap"], gap), "ribbon": max(worst["ribbon"], ribbon)}
+    arm.animation_data.action = None
+    return bool(AG.torn(worst))
+
+
+def fit(arm, family):
+    """(reach, legs) of the unit for rig_motions.clips, or None for a family whose strikes do not travel:
+    its length along the body (the skinned meshes' boxes) over the length the family's strikes were
+    drawn for (rig_motions.FITTED), and its legs' length over the family's (their feet are held by IK
+    solved in the family's proportions)."""
+    drawn = BU.sibling("rig_motions").FITTED.get(family)
+    ys = [(o.matrix_world @ Vector(c)).y for o in bpy.data.objects if o.type == "MESH" and o.vertex_groups
+          for c in o.bound_box]
+    if drawn is None or not ys:
+        return None
+    joints = P.joints(family)
+    legs = sorted(b.length / math.dist(*joints[b.name]) for b in arm.data.bones
+                  if b.name.startswith("leg") and b.name in joints)
+    reach = min(max((max(ys) - min(ys)) / drawn, 0.6), 3.5)
+    return (round(reach, 2), round(min(max(legs[len(legs) // 2], 0.3), 1.5), 2) if legs else 1.0)
+
+
+def keyed(arm):
+    """build_unit.make_actions, the strikes' arcs backed off (SOFTER) for a mesh that tears on the
+    full ones: a smaller swing that still reads beats an arm pulled into a ribbon. Returns the
+    share kept."""
+    meshes = [o for o in bpy.data.objects if o.type == "MESH" and o.vertex_groups]
+    state = AG.mesh_rest(arm, meshes) if meshes else None
+    for soft in SOFTER:
+        BU.SOFT = soft
+        BU.make_actions(arm)
+        made = [a for a in bpy.data.actions if not a.name.startswith("__old_")]
+        if state is None or soft == SOFTER[-1] or not _tears(arm, state, [a for a in made if a.name.startswith("attack")]):
+            break
+        for act in made:
+            bpy.data.actions.remove(act)
+    BU.SOFT = 1.0
+    return soft
+
+
 def to_quaternion(arm, act):
     """make_actions keys rotation_euler with the bones in XYZ; the kept glTF actions key
     rotation_quaternion. Re-key `act` as quaternions so one rotation mode serves both. Each
@@ -276,7 +500,7 @@ def settle(arm, act):
     arm.animation_data.action = None
 
 
-def refresh(unit, family, slots):
+def refresh(unit, family, slots, hand=None, skin=None):
     path = MODELS / f"{unit}.glb"
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(path))
@@ -285,6 +509,7 @@ def refresh(unit, family, slots):
                 if r.split("\t")[0] == unit), None)
     if rig is None:
         raise SystemExit(f"{unit}: no row in data/unit_anim.tsv")
+    reskin(arm, skin)
     if family and family.startswith("rerig:"):
         if slots is not None:
             raise SystemExit(f"{unit}: a new skeleton needs every clip re-keyed (slots = all)")
@@ -299,14 +524,21 @@ def refresh(unit, family, slots):
         name, act.name = act.name, "__old_" + act.name
         act.use_fake_user = True
         old[name] = act
-    BU.FAMILY, BU.ANIM = rig, BU.sibling("rig_motions").unit_picks(unit, rig)
-    BU.make_actions(arm)
+    BU.FAMILY, BU.ANIM, BU.GRIP = rig, BU.sibling("rig_motions").unit_picks(unit, rig), grips(arm)
+    if hand:                # the table names the weapon hand: what the other one carries is a shield
+        BU.GRIP = held(arm, BU.GRIP, hand)
+    BU.FIT = fit(arm, rig)
+    print(f"anim_refresh: {unit}: fit (reach, legs) {BU.FIT}", flush=True)
+    soft = keyed(arm)
+    BU.FIT = None
+    if soft < 1.0:
+        print(f"anim_refresh: {unit}: strikes at {soft:.2f} of their arc (the mesh tears on more)", flush=True)
     new = {a.name: a for a in bpy.data.actions if not a.name.startswith("__old_")}
     missing = sorted(set(slots or ()) - set(new))
     if missing:
         raise SystemExit(f"{unit}: make_actions made no {missing}")
     for name in set(old) | set(new):
-        if slots is None or name in slots:
+        if slots is None or name.rstrip("0123456789") in slots:     # "attack" names a combo's attack2, attack3 too
             if name in old:
                 bpy.data.actions.remove(old[name])
             if name in new:

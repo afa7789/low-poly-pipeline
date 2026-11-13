@@ -1,23 +1,17 @@
-"""python3.14 -m unittest tests.tools.blender.test_body_sdf   (SLOW=1 runs Blender: n005 built with body=sdf closes mesh_lint's gates)"""
-import json
-import os
+"""python3.14 -m unittest tests.tools.blender.test_body_sdf"""
 import pathlib
-import shutil
-import subprocess
 import sys
-import tempfile
 import unittest
+from typing import ClassVar
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import colour_stage as CS  # noqa: E402
-import mesh_lint as ML  # noqa: E402
-import sdf_body as S  # noqa: E402
-import spec_pipeline as SP  # noqa: E402
+import colour_stage as CS
+import sdf_body as S
+import spec_pipeline as SP
 
-RUN = ROOT / "artifacts/model-sheets/runs/draft/n005/v12-r1"
 BPY = mock.MagicMock()
 
 
@@ -61,7 +55,7 @@ class Flags(unittest.TestCase):
 
 class ThinParts(unittest.TestCase):
     """Policy for a part under 2 voxels (PIPELINE 28.L10-7), on a body of one thick box and one plate."""
-    ROWS = [row("box", (0.5, 0.8, 0.3), (0, 1.0, 0)), row("box", (0.6, 0.6, 0.004), (0, 1.0, 0.31))]
+    ROWS: ClassVar = [row("box", (0.5, 0.8, 0.3), (0, 1.0, 0)), row("box", (0.6, 0.6, 0.004), (0, 1.0, 0.31))]
 
     def field(self, thin):
         return S.field(self.ROWS, None, ("biped", ()), 1.0, 48, False, thin=thin)
@@ -81,31 +75,13 @@ class ThinParts(unittest.TestCase):
         self.assertTrue(all("inflate" not in p for p in off.parts))                   # off leaves the parts as they were
 
     def test_inflated_plate_has_inside_voxels(self):
-        inside = lambda f: int((f.grid < 0).sum())  # noqa: E731
+        inside = lambda f: int((f.grid < 0).sum())
         self.assertGreater(inside(self.field("inflate")), inside(self.field("off")))
 
 
 def np_point(*xyz):
     import numpy as np
     return np.array([xyz], float)
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and shutil.which("blender") and RUN.exists(), "SLOW=1: Blender, n005, ~10 s")
-class Blender(unittest.TestCase):
-    def test_sdf_build_closes_the_gates(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = pathlib.Path(tmp)
-            shutil.copy(RUN / "spec.json", out / "spec.json")
-            subprocess.run(["blender", "-b", "-P", str(ROOT / "tools/blender/build_unit.py"), "--", str(out / "spec.json"),
-                            str(out / "clay.glb"), "700", "nofuse", "700", "clay", "body=sdf", f"cuts={RUN / 'fit/cuts.json'}"],
-                           check=True, capture_output=True)
-            m, doc = ML.lint(out / "clay.glb"), json.loads((out / "attach.json").read_text())["union"]
-            self.assertTrue((out / "clay.sdf.json").exists())
-        self.assertEqual((m["skins"], m["components_body"], m["boundary_edges"], m["nonmanifold_edges"], m["flipped"]), (1, 1, 0, 0, 0))
-        self.assertLess(m["sliver_pct"], 5)
-        self.assertLessEqual(m["tris"], 700)
-        self.assertEqual((doc["method"], doc["grid"], doc["components_body"]), ("sdf", 96, 1))
-        self.assertTrue(doc["retopo"]["target_met"])
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-"""python3.14 -m unittest discover -s tests/tools/blender   (SLOW=1 adds the n005 fit)"""
+"""python3.14 -m unittest discover -s tests/tools/blender"""
 import json
-import os
 import pathlib
 import subprocess
 import sys
 import unittest
+from typing import ClassVar
 
 import numpy as np
 import torch
@@ -12,13 +12,11 @@ import torch
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import fit_grad as G  # noqa: E402
-import fit_spec as F  # noqa: E402
-import lathe_limb  # noqa: E402
-import silhouette  # noqa: E402
+import fit_grad as G
+import fit_spec as F
+import lathe_limb
 
-RUNS = ROOT / "artifacts/model-sheets/runs/draft"
-REFS = ROOT / "artifacts/model-sheets/refs"
+FINAL = ROOT / "artifacts/model-sheets/pipeline-final"     # each unit's last pipeline result
 
 
 def part(bone, kind, dims, at, **opts):
@@ -44,8 +42,8 @@ SYNTH = [part("arm.L", "box", (.3, .6, .2), (.5, 1.5, .1), rot=[10, 20, 30]),
               rot=[0, 10, 20])]
 
 
-def real_parts(unit, version="v11-r1"):
-    doc = json.loads((RUNS / unit / version / "spec.json").read_text())
+def real_parts(unit):
+    doc = json.loads((FINAL / unit / "spec.json").read_text())
     F.RF.scale_rig(doc.get("rig", "biped"), doc.get("rig_measure"))
     lathe_limb.set_rig(doc.get("rig", "biped"), doc.get("bones"))
     return doc["parts"]
@@ -89,7 +87,7 @@ class Registered(unittest.TestCase):
         for tool in ("fit_spec.py", "spec_pipeline.py"):
             with self.subTest(tool=tool):
                 help_text = subprocess.run([sys.executable, str(ROOT / "tools/blender" / tool), "--help"],
-                                           capture_output=True, text=True).stdout
+                                           capture_output=True, check=False, text=True).stdout
                 self.assertIn("--fit-grad", help_text)
 
 
@@ -103,7 +101,7 @@ def scene_of(parts, truth, views=("front", "left", "back")):
 
 
 class Descent(unittest.TestCase):
-    parts = [part("spine", "box", (.8, 1.2, .5), (0, 1.2, 0)),
+    parts: ClassVar = [part("spine", "box", (.8, 1.2, .5), (0, 1.2, 0)),
              part("arm.L", "box", (.25, .8, .25), (.6, 1.2, 0), rot=[0, 0, 10]),
              part("arm.R", "box", (.25, .8, .25), (-.6, 1.2, 0), rot=[0, 0, -10])]
 
@@ -111,7 +109,7 @@ class Descent(unittest.TestCase):
         truth = [part("spine", "box", (.8, 1.2, .5), (0, 1.2, 0)),
                  part("arm.L", "box", (.3, .9, .25), (.65, 1.2, 0), rot=[0, 0, 10]),
                  part("arm.R", "box", (.3, .9, .25), (-.65, 1.2, 0), rot=[0, 0, -10])]
-        scene, bounds = scene_of(self.parts, truth)
+        scene, _bounds = scene_of(self.parts, truth)
         x = torch.zeros(scene.size, requires_grad=True)
         before = scene.loss(x, 2.0)
         before.backward()
@@ -121,21 +119,6 @@ class Descent(unittest.TestCase):
         pts = scene.points(torch.rand(scene.size) * 2 - 1)
         left, right = (np.sort(pts[i].numpy() * [sx, 1, 1], axis=0) for i, sx in ((1, 1), (2, -1)))
         np.testing.assert_allclose(left, right, atol=1e-5)       # arm.R is arm.L seen in a mirror, whatever x is
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and (REFS / "n005/sheet.jpg").exists(), "SLOW=1")
-class SlowFit(unittest.TestCase):
-    def test_n005_grad_fit_raises_the_gated_proxy_iou(self):
-        doc = json.loads((RUNS / "n005/v11-r1/spec.json").read_text())
-        tilt = json.loads((RUNS / "n005/v11-r1/silhouette.json").read_text())["tilt"]
-        tilts = {v: tuple(c) if isinstance(c, list) else c for v, c in tilt.items()}
-        out, report = F.fit(doc, REFS / "n005/sheet.jpg", margin=0.1, tilts=tilts, seconds=90, grad=True)   # v11-r1 passes every gate: margin 0.1 makes the views fail
-        self.assertGreater(report["grad_steps"], 0)
-        self.assertTrue(report["changed"])
-        gated = [v for v in silhouette.gates_for(doc.get("rig")) if v in report["after"]]
-        mean = lambda ious: sum(ious[v] for v in gated) / len(gated)  # noqa: E731
-        self.assertGreater(mean(report["after"]), mean(report["before"]))
-        self.assertEqual(len(out["parts"]), len(doc["parts"]))
 
 
 if __name__ == "__main__":

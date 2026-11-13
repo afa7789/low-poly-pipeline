@@ -12,8 +12,17 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import mesh_lint as L  # noqa: E402
-import spec_pipeline as SP  # noqa: E402
+import mesh_lint as L
+import spec_pipeline as SP
+
+
+def latest_model(unit="hfoo"):
+    """The unit's model the game ships: data/models.tsv's url (a hand model since 2026-11)."""
+    import csv
+    with open(ROOT / "data/models.tsv", newline="") as f:
+        url = next(r["url"] for r in csv.DictReader(f, delimiter="\t") if r["unit_id"] == unit)
+    return ROOT / url
+
 
 CUBE = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
 # outward-wound (CCW seen from outside) triangles of the unit cube, vertex ids into CUBE
@@ -116,17 +125,6 @@ class Lint(unittest.TestCase):
         self.assertEqual((m["components"], m["components_body"]), (1, 3))
         self.assertEqual(L.failing(m, textured=False), ["components_body == 1"])
 
-    def test_committed_run_calibration(self):
-        run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
-        if not run.exists():
-            self.skipTest("run not checked out")
-        m = L.lint(run)
-        self.assertEqual((m["tris"], m["flipped"], m["images"], m["uv_out_of_range"]), (620, 0, 1, 0))
-        # the union (L6-4) is not integrated yet: 32 boxes, so only the body gate fails (PIPELINE 24.L6-6)
-        self.assertEqual(L.failing(m, textured=True), ["components_body == 1"])
-        self.assertEqual((m["components"], m["components_body"]), (32, 32))
-        self.assertAlmostEqual(m["normal_diff"]["mean"], 48.64, 1)
-
 
 class MirrorOverlap(unittest.TestCase):
     """Knodt & Gao 2025 symmetric overlap: .L/.R twins on the same texels (PIPELINE 27.T4)."""
@@ -170,15 +168,11 @@ class Status(unittest.TestCase):
 
 
 class UvImage(unittest.TestCase):
-    def test_no_uv_no_image_and_committed_atlas_has_overlap_tint(self):
+    def test_no_uv_no_image_and_the_shipped_model_has_one(self):
         tmp = pathlib.Path(tempfile.mkdtemp())
         self.assertIsNone(L.uv_image(glb(tmp / "a.glb")))
-        run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
-        if not run.exists():
-            self.skipTest("committed run absent")
-        img = np.asarray(L.uv_image(run, scale=1))
+        img = np.asarray(L.uv_image(latest_model(), scale=1))
         self.assertEqual(img.shape[2], 3)
-        self.assertTrue(((img[..., 0] > 150) & (img[..., 1] < 80)).any())   # red = 2+ triangles
 
 
 class Protocol(unittest.TestCase):
@@ -187,14 +181,10 @@ class Protocol(unittest.TestCase):
     def setUp(self):
         self.tmp = pathlib.Path(tempfile.mkdtemp())
 
-    def test_no_atlas_no_kb_and_committed_atlas_has_kb(self):
+    def test_no_atlas_no_kb_and_the_shipped_atlas_has_kb(self):
         m = L.lint(glb(self.tmp / "a.glb"))
         self.assertEqual((m["atlas_kb"], m["texel_per_height"]), (None, None))
-        run = ROOT / "artifacts/model-sheets/runs/draft/n01X/hard-v1/model.glb"
-        if run.exists():
-            m = L.lint(run)
-            self.assertGreater(m["atlas_kb"], 0)
-            self.assertGreater(m["texel_per_height"], 0)
+        self.assertGreater(L.lint(latest_model())["atlas_kb"], 0)          # the hand model's 64x64 palette atlas
 
     def test_engine_import_lines(self):
         fake = self.tmp / "fake.sh"

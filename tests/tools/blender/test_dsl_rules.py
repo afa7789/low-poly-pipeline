@@ -1,24 +1,19 @@
 """python3 -m unittest tests.tools.blender.test_dsl_rules
 
-L12-6: the DSL's prose rules (hood, prop axis, spider legs) are preflight rules with a repair in code. Fixtures are a few parts; the
-real v13-r1 specs of n005 and n00U must be rejected by the new rules and pass them after the repair. No Blender, no model."""
+L12-6: the DSL's prose rules (hood, prop axis, spider legs) are preflight rules with a repair in code. Fixtures are a few parts.
+No Blender, no model."""
 import copy
-import json
 import pathlib
 import sys
 import unittest
+from typing import ClassVar
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import dsl_rules as D  # noqa: E402
-import numpy as np  # noqa: E402
-import preflight as PF  # noqa: E402
-import rig_families as RF  # noqa: E402
-
-DRAFT = ROOT / "artifacts/model-sheets/runs/draft"
-REFS = ROOT / "artifacts/model-sheets/refs"
+import dsl_rules as D
+import preflight as PF
 
 
 def rules(parts, doc, sheet=None):
@@ -69,7 +64,7 @@ def spider(legs):
 
 
 class Legs(unittest.TestCase):
-    DOC = {"rig": "spider"}
+    DOC: ClassVar = {"rig": "spider"}
 
     def test_a_one_piece_leg_fails_and_the_repair_splits_it_in_two(self):
         parts = spider([([0.1, 0.4, 0], [0.5, 0.0, 0])])
@@ -116,7 +111,7 @@ class Props(unittest.TestCase):
 
     def test_a_lance_30_degrees_off_its_mask_fails_the_axis(self):
         (got, _), rows = self.run_rules(self.spec(0.9), self.mask_of())
-        self.assertFalse(dict((r, ok) for r, ok, _ in got)["prop_axis"])
+        self.assertFalse({r: ok for r, ok, _ in got}["prop_axis"])
         self.assertGreater(abs(rows[("lance", "front")]["d_angle"]), D.PROP_AXIS_MAX)
 
     def test_the_repair_turns_it_back(self):
@@ -131,55 +126,9 @@ class Props(unittest.TestCase):
         self.assertTrue(all(ok for _, ok, _ in got), got)
 
     def test_no_prop_is_not_applicable(self):
-        ok, na = rules(self.spec(0.0)[:2], {}, "s.jpg")
+        _ok, na = rules(self.spec(0.0)[:2], {}, "s.jpg")
         self.assertIn("no prop part", na["prop_axis"])
         self.assertIn("prop_coverage", na)
-
-
-def real(unit):
-    spec = DRAFT / unit / "v13-r1/spec.json"
-    sheet = REFS / unit / "sheet.jpg"
-    if not (spec.exists() and sheet.exists()):
-        raise unittest.SkipTest(f"{unit}: no v13-r1 spec or sheet")
-    parts, doc = PF.load(spec)
-    return parts, doc, str(sheet)
-
-
-class RealSpecs(unittest.TestCase):
-    """The roadmap's acceptance: the v13 specs of n005 (hood) and n00U (spider tibia) are rejected, and the repair passes them."""
-
-    def setUp(self):
-        self.families = dict(RF.FAMILIES)    # preflight.load scales the rig of n00U: the other suites (rig_poses) want the fixed tables
-
-    def tearDown(self):
-        RF.FAMILIES.clear()
-        RF.FAMILIES.update(self.families)
-        RF._drop_caches()
-
-    def check(self, unit, rule):
-        parts, doc, sheet = real(unit)
-        self.assertFalse(rules(parts, doc, sheet)[0][rule], f"{unit}: {rule} should reject the v13 spec")
-        parts, log = D.repair(parts, doc, sheet, opt_in=True)
-        self.assertTrue(rules(parts, doc, sheet)[0][rule], f"{unit}: {rule} after the repair")
-        self.assertTrue([r for r, *_ in log if r == rule])
-
-    def test_n005_hood(self):
-        self.check("n005", "hood_recess")
-
-    def test_n017_is_not_rejected_by_the_leg_rule(self):
-        """A wolf's sheet draws straight leg columns; a bend added left spill .054 -> .09 (PIPELINE 30.L12-6): quadruped legs are n/a."""
-        parts, doc, sheet = real("n017")
-        ok, na = rules(parts, doc, sheet)
-        self.assertIn("quadruped", na["leg_joints"])
-        self.assertNotIn("leg_joints", ok)
-
-    def test_n00u_legs(self):
-        self.check("n00U", "leg_joints")
-
-    def test_the_repair_keeps_the_spec_json_able(self):
-        parts, doc, sheet = real("n00U")
-        json.dumps(D.repair(parts, doc, sheet)[0])
-        self.assertTrue(np.isfinite([PF.bbox(p)[1][1] for p in parts]).all())
 
 
 if __name__ == "__main__":

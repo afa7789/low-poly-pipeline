@@ -6,14 +6,15 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import ClassVar
 
 import numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import preflight as PF  # noqa: E402
-import rig_families as RF  # noqa: E402
+import preflight as PF
+import rig_families as RF
 
 
 def spider_spec():
@@ -34,7 +35,7 @@ def run(spec, kind="mass", sheet=None):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(spec, f)
     argv = [sys.executable, str(ROOT / "tools/blender/preflight.py"), f.name, kind]
-    return subprocess.run(argv + ([str(sheet)] if sheet else []), capture_output=True, text=True).stdout
+    return subprocess.run(argv + ([str(sheet)] if sheet else []), capture_output=True, check=False, text=True).stdout
 
 
 class Family(unittest.TestCase):
@@ -116,13 +117,6 @@ class Landmarks(unittest.TestCase):
         self.assertFalse(too_long[1])
         self.assertIn("want 0.18-0.32", too_long[2])
 
-    @unittest.skipUnless((ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg").exists(), "refs")
-    def test_a_too_wide_footman_fails_its_own_sheet(self):
-        sheet = ROOT / "artifacts/model-sheets/refs/hfoo/sheet.jpg"
-        wide = run({"parts": self.biped(1.0)}, sheet=sheet)
-        self.assertRegex(wide, r"shoulder_span\s+FAIL")
-        self.assertIn("sheet 0.46", wide)
-
 
 class Ground(unittest.TestCase):
     def test_dipping_parts_are_lifted_by_their_dip(self):
@@ -145,7 +139,7 @@ class SpanBoxes(unittest.TestCase):
 class Floating(unittest.TestCase):
     def test_detached_child_is_flagged(self):
         parts = spider_spec()["parts"]
-        loose = [p for p in parts if p[0] == "leg2.lower"][0]
+        loose = next(p for p in parts if p[0] == "leg2.lower")
         loose[5] = {}
         loose[3] = [3.0, 0.3, 3.0]          # far from leg2.upper
         self.assertEqual(PF.floating_parts(parts, RF.parents("spider")), ["leg2.lower"])
@@ -161,7 +155,7 @@ class Floating(unittest.TestCase):
 
 
 def rule(out, name):
-    return [line for line in out.splitlines() if line.strip().startswith(name)][0]
+    return next(line for line in out.splitlines() if line.strip().startswith(name))
 
 
 class Shape(unittest.TestCase):
@@ -177,16 +171,16 @@ class Shape(unittest.TestCase):
     def test_decal_place(self):
         for bone, want in (("head", "PASS"), ("body", "FAIL")):
             spec = spider_spec()
-            part = [p for p in spec["parts"] if p[0] == bone][0]
+            part = next(p for p in spec["parts"] if p[0] == bone)
             part[5]["decal"] = "eyes8"
             with self.subTest(bone=bone):
                 self.assertIn(want, rule(run(spec), "decal_place"))
 
 
 class Props(unittest.TestCase):
-    PROPS = [{"name": "tank", "bones": ["spine"], "extent": [0.25, 0.55]},
+    PROPS: ClassVar = [{"name": "tank", "bones": ["spine"], "extent": [0.25, 0.55]},
              {"name": "lantern", "bones": ["pelvis"], "extent": [0.04, 0.15]}]
-    TANK = ["spine", "box", [0.4, 0.8, 0.4], [0, 1, 0], "iron", {}]      # 0.8 of H = 2.0: 0.4 H
+    TANK: ClassVar = ["spine", "box", [0.4, 0.8, 0.4], [0, 1, 0], "iron", {}]      # 0.8 of H = 2.0: 0.4 H
 
     def missing(self, parts):
         return PF.props_missing(parts, {id(p): PF.bbox(p) for p in parts}, 2.0, self.PROPS)
@@ -206,9 +200,9 @@ class Props(unittest.TestCase):
 
 class PropParts(unittest.TestCase):
     """PIPELINE 23.L5-3: a part with opts prop + anchor is held at its anchor, not sunk in the body."""
-    FOREARM = ["forearm.R", "box", [0.2, 0.5, 0.2], [-0.8, 1.2, 0], "iron", {}]      # y 0.95-1.45: hand = y <= 1.15
-    TORSO = ["spine", "box", [1.0, 0.8, 0.6], [0, 1.9, 0], "iron", {}]
-    PARENTS = {"forearm.R": "arm.R", "spine": "pelvis"}
+    FOREARM: ClassVar = ["forearm.R", "box", [0.2, 0.5, 0.2], [-0.8, 1.2, 0], "iron", {}]      # y 0.95-1.45: hand = y <= 1.15
+    TORSO: ClassVar = ["spine", "box", [1.0, 0.8, 0.6], [0, 1.9, 0], "iron", {}]
+    PARENTS: ClassVar = {"forearm.R": "arm.R", "spine": "pelvis"}
 
     def prop(self, bone, anchor, at, dims=(0.1, 0.6, 0.1), name="club"):
         return [bone, "box", list(dims), list(at), "brass", {"prop": name, "anchor": anchor}]
@@ -316,7 +310,7 @@ class RotatedBox(unittest.TestCase):
         return ["arm.L", kind, [0.2, 1.0, 0.2], [0.6, 1.5, 0.0], "iron", opts]
 
     def test_roll_widens_x_and_keeps_z(self):
-        lo, hi = PF.bbox(self.part(rot=[0, 0, 30]))
+        _lo, hi = PF.bbox(self.part(rot=[0, 0, 30]))
         c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
         self.assertAlmostEqual(hi[0] - 0.6, 0.1 * c + 0.5 * s)
         self.assertAlmostEqual(hi[1] - 1.5, 0.5 * c + 0.1 * s)
@@ -427,7 +421,7 @@ class Normalise(unittest.TestCase):
 
 class OutsideHull(unittest.TestCase):
     """Front 0.4 m wide, left 0.2 m deep, both 1 m tall (pad 0: the masks are the hull)."""
-    masks = [(np.ones((100, 40), bool), 0), (np.ones((100, 20), bool), 0)]
+    masks: ClassVar = [(np.ones((100, 40), bool), 0), (np.ones((100, 20), bool), 0)]
 
     def box(self, bone, dims, at):
         return [bone, "box", dims, at, "iron", {}]
@@ -449,7 +443,7 @@ class OutsideHull(unittest.TestCase):
 
 
 class SpiderRules(unittest.TestCase):
-    MEASURE = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
+    MEASURE: ClassVar = {"body_r": 0.3, "body_len": 0.8, "body_under": 0.25, "knee_h": 0.45, "knee_r": 0.6, "foot_r": 0.45}
 
     def rules(self, measure):
         parts = spider_spec()["parts"]
@@ -475,7 +469,7 @@ class SpiderRules(unittest.TestCase):
 
     def test_leg_w_reports_thin_legs_without_blocking(self):
         parts = spider_spec()["parts"]
-        r = PF.leg_radius([p for p in parts if p[0].startswith("leg")][0])
+        r = PF.leg_radius(next(p for p in parts if p[0].startswith("leg")))
         height = max(PF.bbox(p)[1][1] for p in parts)
         for name, leg_w, ok in [("matches", r / height, True), ("sheet twice as thick", 2.5 * r / height, False)]:
             with self.subTest(name):
@@ -487,30 +481,13 @@ class SpiderRules(unittest.TestCase):
 
 class Identity(unittest.TestCase):
     """identity_items / identity_rows / identity_status (PIPELINE 23.L5-6), no sheet needed."""
-    PARTS = [["head", "frustum", [0.3, 0.3, 0.3], [0, 2, 0], "hood", {"decal": "sheet", "decal_color": "#8A2A35"}],
+    PARTS: ClassVar = [["head", "frustum", [0.3, 0.3, 0.3], [0, 2, 0], "hood", {"decal": "sheet", "decal_color": "#8A2A35"}],
              ["pelvis", "box", [0.1, 0.1, 0.1], [0.3, 1, 0], "lantern", {}],
              ["spine", "box", [0.5, 0.8, 0.5], [0, 1.5, 0], "tank", {}]]
-    DOC = {"palette": {"hood": {"color": "#2E2D30"}, "lantern": {"color": "#5A6AA8"}, "tank": {"color": "#64686E"}}}
+    DOC: ClassVar = {"palette": {"hood": {"color": "#2E2D30"}, "lantern": {"color": "#5A6AA8"}, "tank": {"color": "#64686E"}}}
 
-    def test_checklist_sources(self):
-        fixture = ROOT / "tests/tools/blender/fixtures/parts-n005.json"
-        kinds = [i["kind"] for i in PF.identity_items("n005", parts_path=fixture)]
-        self.assertEqual(kinds, ["eyes", "text", "prop", "prop", "prop"])   # tank, lantern, vaporiser -> their props.json entries
-        self.assertEqual([i["kind"] for i in PF.identity_items("n005", parts_path="/nowhere")],
-                         ["prop", "prop", "prop"])                           # props.json, no eyes without a list (L18-0)
-        self.assertEqual([i["kind"] for i in PF.identity_items("n005", biped=False, parts_path="/nowhere")],
-                         ["prop"] * 3)
-
-    def test_face_kind_of_the_eight_sheets(self):
-        """L18-0: the identity list says what the face has; the eight real lists, no list, an empty one, and the items that follow."""
-        want = {"hfoo": "none", "n005": "lenses", "n00U": "eyes", "n00H": "eyes", "n02X": "lenses", "n017": "eyes", "n010": "none", "n01X": "none"}
-        for unit, kind in want.items():
-            with self.subTest(unit=unit):
-                texts = PF.identity_texts(unit)
-                self.assertIsNotNone(texts)
-                self.assertEqual(PF.face_kind(texts), kind)
-                eyes = [i for i in PF.identity_items(unit) if i["kind"] == "eyes"]
-                self.assertEqual(bool(eyes), kind != "none")
+    def test_face_kind_follows_the_identity_list(self):
+        """L18-0: the identity list says what the face has: no list, an empty one, and the items that follow."""
         for texts, kind in ((None, "none"), ([], "none"), (["dark brown globular body"], "none"), (["a brow"], "eyes"),
                             (["two eyes", "no face or glass"], "none"), (["blue-glass belt lantern"], "none"), (["single glowing cyan lens"], "lenses")):
             with self.subTest(texts=texts):

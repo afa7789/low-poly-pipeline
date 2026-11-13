@@ -1,9 +1,6 @@
-"""python3.14 -m unittest tests.tools.blender.test_retopo   (SLOW=1 adds n005: 96^3 field -> surface nets -> 600 triangles)"""
-import json
-import os
+"""python3.14 -m unittest tests.tools.blender.test_retopo"""
 import pathlib
 import sys
-import time
 import unittest
 
 import numpy as np
@@ -11,13 +8,9 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import mesh_lint as ML  # noqa: E402
-import retopo as R  # noqa: E402
-import retopo_mc as MC  # noqa: E402
-import rig_families as RF  # noqa: E402
-import sdf_body as S  # noqa: E402
-
-RUNS = ROOT / "artifacts/model-sheets/runs/draft"
+import mesh_lint as ML
+import retopo as R
+import retopo_mc as MC
 
 
 def cube(n=5):
@@ -53,7 +46,7 @@ def sphere(level=4):
     for _ in range(level):
         mid, verts, tris = {}, list(v), []
 
-        def m(a, b):
+        def m(a, b, mid=mid, verts=verts):
             k = (min(a, b), max(a, b))
             if k not in mid:
                 mid[k] = len(verts)
@@ -149,7 +142,7 @@ class Remesh(unittest.TestCase):
     def test_cube_corners_survive_as_feature_vertices(self):
         v, t = cube(8)
         max_dev = 0.02
-        out_v, out_t, rep = R.remesh(v, t, 120, features=35, max_dev=max_dev)
+        out_v, _out_t, rep = R.remesh(v, t, 120, features=35, max_dev=max_dev)
         self.assertEqual(rep["euler"], 0)
         for corner in np.ndindex(2, 2, 2):
             self.assertLessEqual(np.linalg.norm(out_v - np.array(corner), axis=1).min(), max_dev)
@@ -192,7 +185,7 @@ class Cvt(unittest.TestCase):
         adj = R.adjacency(keys, n)
         length = np.linalg.norm(v[adj[1]] - v[np.repeat(np.arange(n), np.diff(adj[0]))], axis=1)
         count = np.array([60])
-        seeds, label = R.lloyd(v, adj, length, weight, R.initial_seeds(np.zeros(n, int), weight, count, np.random.default_rng(0)), 20)
+        seeds, _label = R.lloyd(v, adj, length, weight, R.initial_seeds(np.zeros(n, int), weight, count, np.random.default_rng(0)), 20)
         near = np.minimum(v[seeds], 1 - v[seeds]) < band
         return float((near.sum(1) >= 2).mean()), kappa
 
@@ -215,7 +208,7 @@ class Cvt(unittest.TestCase):
 
     def test_retopo_dispatches_cvt(self):
         v, t = sphere(3)
-        out_v, out_t, rep = R.retopo(v, t, 100, sdf=sphere_sdf, method="cvt", floor=0.9)     # floor: the kw build_unit passes to every method
+        _out_v, out_t, rep = R.retopo(v, t, 100, sdf=sphere_sdf, method="cvt", floor=0.9)     # floor: the kw build_unit passes to every method
         self.assertEqual(rep["euler"], rep["euler_in"])
         self.assertLessEqual(len(out_t), 100)
 
@@ -224,37 +217,6 @@ class Cvt(unittest.TestCase):
         out_v, out_t, rep = R.cvt(np.vstack([v, v + 5]), np.vstack([t, t + len(v)]), 200)
         self.assertEqual(ML.topology(out_v, out_t)[2], 2)
         self.assertEqual(rep["defects"], (0, 0, 0))
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and RUNS.exists(), "SLOW=1: n005 96^3 -> 600 triangles, ~3 s")
-class Unit(unittest.TestCase):
-    def test_n005_600_triangles(self):
-        run = RUNS / "n005/v12-r1"
-        doc = json.loads((run / "spec.json").read_text())
-        saved = dict(RF.FAMILIES)
-        try:
-            RF.scale_rig(doc["rig"], doc.get("rig_measure"))
-            f = S.field([tuple(r) for r in doc["parts"]], json.loads((run / "fit/cuts.json").read_text()),
-                        (doc["rig"], doc.get("bones") or ()), grid=96)
-        finally:
-            RF.FAMILIES.clear()
-            RF.FAMILIES.update(saved)
-        v, t = MC.surface_nets(f.grid, f.origin, f.voxel)
-        self.assertGreater(len(t), 20000)
-        H = float(max(p["hi"][2] for p in f.parts) - min(p["lo"][2] for p in f.parts))
-        t0 = time.perf_counter()
-        out_v, out_t, rep = R.reduce(v, t, 600, sdf=R.grid_sdf(f.grid, f.origin, f.voxel), features_deg=None,
-                                     polish=f.d, grad_h=0.5 * f.voxel, max_dev=0.02 * H)
-        self.assertLessEqual(time.perf_counter() - t0, 3.0)
-        self.assertTrue(540 <= len(out_t) <= 600)
-        self.assertEqual(rep["euler"], rep["euler_in"])          # the naive nets have 4 non-manifold edges: no handle is made or lost
-        self.assertLess(float((ML.angles_min(out_v[out_t]) < ML.SLIVER_DEG).mean()), 0.05)
-        pts = np.vstack([out_v, out_v[out_t].mean(1)])
-        self.assertLessEqual(float(np.percentile(np.abs(f.d(pts)), 95)), H / 64)
-        self.assertLessEqual(float(np.abs(f.d(pts)).max()), H / 32)
-        boundary, nonmanifold, components = ML.topology(out_v, out_t)
-        self.assertEqual((boundary, components), (0, 1))
-        self.assertLessEqual(nonmanifold, ML.topology(v, t)[1])
 
 
 if __name__ == "__main__":

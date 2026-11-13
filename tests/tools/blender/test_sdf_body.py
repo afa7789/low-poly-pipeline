@@ -1,24 +1,21 @@
-"""python3.14 -m unittest tests.tools.blender.test_sdf_body   (SLOW=1 adds the 17 specs and the n00U timing)"""
-import glob
+"""python3.14 -m unittest tests.tools.blender.test_sdf_body"""
 import json
 import math
-import os
 import pathlib
 import sys
-import time
 import unittest
+from typing import ClassVar
 
 import numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import lathe_limb as LL  # noqa: E402
-import part_geom as PG  # noqa: E402
-import rig_families as RF  # noqa: E402
-import sdf_body as S  # noqa: E402
+import lathe_limb as LL
+import part_geom as PG
+import rig_families as RF
+import sdf_body as S
 
-RUNS = ROOT / "artifacts/model-sheets/runs/draft"
 D = math.radians
 WING = [[0.5912, 0.2961], [0.929, 0.0405], [0.2681, 0.2291], [0.2279, 0.5823], [0.0663, 0.697], [0.1868, 0.9601], [0.7425, 0.9601]]
 L_SHAPE = [[-0.5, 0], [0.5, 0], [0.5, 0.8], [0.0, 0.8], [0.0, 2.0], [-0.5, 2.0]]
@@ -53,7 +50,7 @@ NO_CENTROID = ("ring", "wheel")      # the centre of a ring is its hole
 
 def emitted(r, cuts):
     """(vertices on the surface, vertices that may be inside) the build emits for one spec row."""
-    bone, kind, dims, at, _, opts = r
+    _bone, kind, dims, _at, _, opts = r
     sheet = ((cuts or {}).get("0") or {}).get({"lathe": "profile", "chain": "radii", "plate": "profile"}.get(kind, ""))
     if opts.get("cut") == "sheet" and cuts:
         lo, hi = cuts["0"]["box"]
@@ -113,7 +110,7 @@ class Parity(unittest.TestCase):
 
 
 class Union(unittest.TestCase):
-    ROWS = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), row("spine", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0))]
+    ROWS: ClassVar = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), row("spine", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0))]
 
     P = np.array([[0.2, 0.0, 1.2]])        # on the crease of the two boxes
 
@@ -137,7 +134,7 @@ class Union(unittest.TestCase):
 
     def test_k_by_joint_class(self):
         """trunk-trunk x1, trunk-limb x0.5, limb-limb 0; hard = 0 whatever the pair (PIPELINE 29.L11-5)."""
-        r = lambda bone, thick: row(bone, "box", (thick, 0.4, 0.4), (0, 1, 0))      # noqa: E731
+        r = lambda bone, thick: row(bone, "box", (thick, 0.4, 0.4), (0, 1, 0))
         ks = {}
         for mode in ("base", "class", "hard"):
             f = S.field([r("pelvis", 0.4), r("spine", 0.4), r("arm.L", 0.4)] + [r("forearm.L", 0.4)], rig=("biped", ()), grid=32,
@@ -242,31 +239,6 @@ class Skin(unittest.TestCase):
         rows = [row("spine", "box", (0.4, 0.4, 0.4), (0, 1, 0)), ("head", "box", (0.4, 0.4, 0.4), (0.4, 1.4, 0), "brass", {})]
         f = S.field(rows, rig=self.RIG, grid=32, compute=False)
         self.assertEqual(S.materials(S.to_blender([(-0.1, 1.0, 0.0), (0.5, 1.5, 0.0)]), f, rows), ["iron", "brass"])
-
-
-@unittest.skipUnless(os.environ.get("SLOW") and RUNS.exists(), "SLOW=1: 17 specs, ~10 s")
-class RealSpecs(unittest.TestCase):
-    def test_parity_in_the_17_specs(self):
-        paths = sorted(glob.glob(str(RUNS / "*/v1[012]-r1/spec.json")))
-        self.assertEqual(len(paths), 17)
-        for path in paths:
-            with self.subTest("/".join(path.split("/")[-3:-1])):
-                self.assertLessEqual(spec_parity(path)[0], 1e-6)
-
-    def test_n00U_96_cubed_in_1_5_seconds(self):
-        doc = json.loads((RUNS / "n00U/v12-r1/spec.json").read_text())
-        saved = dict(RF.FAMILIES)
-        try:
-            RF.scale_rig(doc["rig"], doc.get("rig_measure"))
-            rows = [tuple(r) for r in doc["parts"]]
-            t0 = time.perf_counter()
-            f = S.field(rows, rig=(doc["rig"], doc.get("bones") or ()), grid=96)
-            self.assertLessEqual(time.perf_counter() - t0, 1.5)
-            self.assertEqual(len(f.parts), 35)
-            self.assertLess(float(f.grid.min()), 0)
-        finally:
-            RF.FAMILIES.clear()
-            RF.FAMILIES.update(saved)
 
 
 if __name__ == "__main__":

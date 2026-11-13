@@ -370,9 +370,17 @@ def _layer(family, ref, spec, frames):
     return [_relative(family, f, neutral, spec) for f in frames], scale
 
 
-def clip(family, layers, count=24):
+def _within(roots, reach):
+    """Root moves scaled so the body travels no farther than `reach` metres forward or back."""
+    far = max(abs(lift) for lift, _ in roots)
+    k = min(1.0, reach / far) if far > 1e-9 else 1.0
+    return [(lift * k, up) for lift, up in roots]
+
+
+def clip(family, layers, count=24, reach=None):
     """layers [(model, clip, map[, offset])] -> {"poses": [pose] * count, "air": {frame}}.
-    A layer's offset starts its clip that many frames late (three hydra necks out of step)."""
+    A layer's offset starts its clip that many frames late (three hydra necks out of step).
+    `reach` (metres) limits the body's travel; legs with foot IK keep their feet where they were."""
     roots, air, body = [(0.0, 0.0)] * count, set(), None
     dirs, legs = [{} for _ in range(count)], []
     for model, name, map_name, *offset in layers:
@@ -388,6 +396,8 @@ def clip(family, layers, count=24):
         if body is None and not spec.get("still_root"):
             body = map_name
             roots, air = _body(family, ref, spec, frames, scale)
+    if reach is not None:
+        roots = _within(roots, reach)
     poses = [P.aim(family, d, r) for d, r in zip(dirs, roots)]
     for ref, spec, frames, scale in legs:
         neutral = ref["clips"][spec["neutral"]][0]

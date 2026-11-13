@@ -10,8 +10,9 @@ import numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
-import eye_project as P  # noqa: E402
-import hive_sheet as H  # noqa: E402
+import eye_project as P
+import hive_sheet as H
+import review_pair
 
 QUAD = np.array([[0, 1, 2], [0, 2, 3]])
 
@@ -133,7 +134,7 @@ class Parts(unittest.TestCase):
     HELMET, SLEEVE, LENS = np.array([125.0, 131.0, 135.0]), np.array([132.0, 129.0, 96.0]), np.array([106.0, 30.0, 44.0])
 
     def test_nearest_piece_is_the_field_that_holds_the_point(self):
-        box = lambda c: {"n": [[1, 0, 0], [-1, 0, 0]], "d": [c + 1, 1 - c], "slot": 0}      # noqa: E731  x in [c-1, c+1]
+        box = lambda c: {"n": [[1, 0, 0], [-1, 0, 0]], "d": [c + 1, 1 - c], "slot": 0}
         pts = np.array([[0.2, 0, 0], [4.1, 0, 0], [2.0, 0, 0]])
         self.assertEqual(P.eye_paint.nearest_piece(pts, [box(0), box(4)]).tolist(), [0, 1, 0])
 
@@ -191,8 +192,10 @@ class Glb(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             glb = pathlib.Path(tmp) / "m.glb"
             glb.write_bytes(data)
+            before = review_pair.glb_fingerprint(glb)
             P.swap_atlas(glb, b"NEW-PNG-BYTES")
             j2, blob2 = H.read_glb(glb)
+            after = review_pair.glb_fingerprint(glb)
         view = j2["bufferViews"][0]
         with self.subTest("the image"):
             self.assertEqual(blob2[:view["byteLength"]], b"NEW-PNG-BYTES")
@@ -200,19 +203,8 @@ class Glb(unittest.TestCase):
             self.assertTrue(np.array_equal(H.accessor(j2, blob2, 0).ravel(), np.arange(6)))
         with self.subTest("alignment"):
             self.assertEqual(j2["bufferViews"][1]["byteOffset"] % 4, 0)
-
-
-    def test_the_judge_tells_two_atlases_apart(self):
-        import review_pair
-        src = P.DRAFT / "hfoo/v19-default/model-body.glb"
-        with tempfile.TemporaryDirectory() as tmp:
-            a, b = pathlib.Path(tmp) / "a.glb", pathlib.Path(tmp) / "b.glb"
-            a.write_bytes(src.read_bytes())
-            b.write_bytes(src.read_bytes())
-            same = review_pair.glb_fingerprint(a) == review_pair.glb_fingerprint(b)
-            P.swap_atlas(b, b"another image")
-            differ = review_pair.glb_fingerprint(a) != review_pair.glb_fingerprint(b)
-        self.assertTrue(same and differ)
+        with self.subTest("the judge tells the two atlases apart"):
+            self.assertNotEqual(before, after)
 
 
 if __name__ == "__main__":

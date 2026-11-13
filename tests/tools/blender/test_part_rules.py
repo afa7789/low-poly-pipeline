@@ -1,8 +1,7 @@
 """python3 -m unittest tests.tools.blender.test_part_rules
 
-L15-4 (PIPELINE 33.L15-4): prop_side, part_exists, arm_pose, incoherent_part. Fixtures are a few parts and a hand-made parts.json;
-the real v15 specs of n02X / n005 are the acceptance (skipped when the archive is not on this machine). No Blender, no model."""
-import copy
+L15-4 (PIPELINE 33.L15-4): prop_side, part_exists, arm_pose, incoherent_part. Fixtures are a few parts and a hand-made parts.json.
+No Blender, no model."""
 import json
 import pathlib
 import sys
@@ -15,11 +14,7 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 
-import dsl_rules as D  # noqa: E402
-import part_rules as R  # noqa: E402
-
-ARCHIVE = pathlib.Path("/Users/afa/Developer/arthur/castle_fight/.claude/worktrees/v2-hard/artifacts/model-sheets/runs/draft")
-REFS = ROOT / "artifacts/model-sheets/refs"
+import part_rules as R
 
 
 def box(x0, y0, x1, y1):
@@ -172,36 +167,6 @@ class Incoherent(unittest.TestCase):
             self.assertIsNotNone(R.save(sheet, [{"part": "x"}]))
             self.assertEqual(json.loads((pathlib.Path(d) / "sheet.json").read_text()), {"tilts": {"top": -20}, "part_coherence": [{"part": "x"}]})
             self.assertIsNone(R.save(sheet, [{"part": "x"}]))
-
-
-@unittest.skipUnless(ARCHIVE.exists() and (REFS / "n02X/sheet.jpg").exists(), "the v15 archive is not on this machine")
-class V15Specs(unittest.TestCase):
-    def load(self, unit):
-        doc = json.loads((ARCHIVE / unit / "v15-r1/spec.json").read_text())
-        return doc, REFS / unit / "sheet.jpg"
-
-    def test_n02x_is_caught_by_all_three_rules_and_the_repair_passes_them(self):
-        doc, sheet = self.load("n02X")
-        got = {r: ok for r, ok, _ in D.checks(doc["parts"], doc, sheet)[0]}
-        self.assertFalse(got["prop_side"])
-        self.assertFalse(got["arm_pose"])
-        self.assertTrue(R.missing_parts(doc["parts"], doc, D.parts_doc(sheet), sheet), "chest / belt plates, gauntlets, helmet")
-        parts, log = D.repair(copy.deepcopy(doc["parts"]), doc, sheet, opt_in=True)
-        after = {r: ok for r, ok, _ in D.checks(parts, doc, sheet)[0]}
-        self.assertTrue(after["prop_side"] and after["arm_pose"])
-        self.assertFalse(R.missing_parts(parts, doc, D.parts_doc(sheet), sheet))
-        self.assertEqual({r for r, *_ in log}, {"prop_side", "arm_pose", "part_exists"})
-
-    def test_the_default_repair_leaves_the_new_rules_alone(self):
-        doc, sheet = self.load("n02X")
-        self.assertEqual(D.repair(copy.deepcopy(doc["parts"]), doc, sheet)[1], [], "opt-in: the battery cost views > 2 sigma")
-
-    def test_n02x_fuse_cloth_is_the_incoherent_part(self):
-        self.assertEqual([r["part"] for r in R.incoherent_parts(REFS / "n02X/sheet.jpg")], ["well flame fuse cloth"])
-
-    def test_n005_arm_pose_fails(self):
-        doc, sheet = self.load("n005")
-        self.assertFalse({r: ok for r, ok, _ in D.checks(doc["parts"], doc, sheet)[0]}["arm_pose"])
 
 
 if __name__ == "__main__":

@@ -68,21 +68,12 @@ def _chains(chains, pairs=None):
     return out
 
 
-_TANK_ONLY = ("track.L", "track.R", "arm.L", "arm.R")
 _HULL = ((0, 0.35, -0.8), (0, 0.40, 0.8))
 _CRAFT_ONLY = ("gondola", "prop", "rudder")
 _WHEELS = ("wheel1", "wheel2", "wheel3", "wheel4")
 _NO_WINGS = ("wing1.upper", "wing1.lower", "wing2.upper", "wing2.lower")
 _ARMS = ("arm.L", "forearm.L", "arm.R", "forearm.R")
 _WING_TIPS = ("wing1.lower", "wing2.lower")          # a huge membrane folding at the wrist wraps the body
-
-
-def _tank(pivot):
-    """A rigged tank (its tracks animate) whose gun and turret are loose meshes: the gun turns on
-    `pivot` as our head, the turret rides the hull (their Root joint)."""
-    return {"front": "-x", "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY, "attach": {"hull": "Root"},
-            "parts": {"^Tank_Gun$": "head", "^Tank_Turret$": "hull"},
-            "bones": {"hull": _HULL, "head": (pivot, (pivot[0], pivot[1], 1.0))}}
 
 
 _VAMPIRE = _chains({"pelvis spine head": [(0, 0.25, 0), (0, 0.33, 0), (0, 0.45, 0.2), (0, 0.5, 0.6)],
@@ -93,15 +84,6 @@ _VAMPIRE = _chains({"pelvis spine head": [(0, 0.25, 0), (0, 0.33, 0), (0, 0.45, 
 _FUNNEL = {"base": ((0, 0, 0), (0, 0.45, 0)), "spine": ((0, 0.45, 0), (0, 1.0, 0))}
 
 RIGS = {
-    # tracked: the gun (mantlet and barrel) is the head, so the recoil kicks it up; the rest is hull
-    "h099": {"front": "+z", "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY,
-             "bones": {"hull": _HULL, "head": ((0, 0.76, 0.25), (0, 0.76, 1.0))},
-             "regions": [("head", (-0.25, 0.25, 0.65, 0.9, 0.2, 1.05)), ("hull", EVERYWHERE)]},
-    "n01E": {"front": (0.81, 0.58), "weights": "rigid", "row": "h06S", "omit": _TANK_ONLY,            # built turned 36 degrees
-             "bones": {"hull": ((0.05, 0.30, -0.8), (0.05, 0.35, 0.8)), "head": ((0.08, 0.68, 0.1), (0.08, 0.7, 0.66))},
-             "regions": [("head", (-0.1, 0.3, 0.6, 0.76, 0.0, 0.7)), ("hull", EVERYWHERE)]},
-    "h06S": _tank((0, 0.86, -0.3)), "h06T": _tank((0, 0.52, -0.05)), "h06U": _tank((0, 0.78, 0.25)),
-    "h098": _tank((0, 0.85, 0.16)),
     # aircraft: the whole craft is the hull (it dives, banks, rolls over)
     "h06R": {"front": "+z", "weights": "rigid", "omit": _CRAFT_ONLY, "bones": {"hull": _HULL}},
     "h07S": {"front": "+x", "weights": "rigid", "omit": _CRAFT_ONLY, "attach": {"hull": "_rootJoint"},
@@ -178,8 +160,9 @@ RIGS = {
                                "arm.L forearm.L": [(0.12, 0.74, 0.3), (0.5, 0.73, 0.3), (0.98, 0.66, 0.3)],
                                "thigh.L shin.L foot.L": [(0.1, 0.43, 0.3), (0.1, 0.21, 0.3), (0.14, 0.04, 0.3),
                                                          (0.14, 0.01, 0.9)]})},
-    "h01U": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS},
-    "h01V": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS, "row": "h01U"},
+    # the fetched vampire was winged (harpy); the unit's own model (data/unit_anim.tsv: biped) has no wings
+    "h01U": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS, "row": "n008"},
+    "h01V": {"front": "+z", "parts": {"Glassy": "head"}, "bones": _VAMPIRE, "omit": _WING_TIPS, "row": "n008"},
     # quadruped: the boar
     "n02U": {"front": "+z", "row": "n01G",
              "bones": _chains({"spine.1 spine.2": [(0, 0.75, -0.6), (0, 0.8, 0), (0, 0.75, 0.5)],
