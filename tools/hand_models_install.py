@@ -75,7 +75,8 @@ def plan(game, ids=(), **where):
             continue
         src = source(row, game, **where)
         if not src:
-            kept.append(row["unit_id"])
+            if not row["url"].startswith(UNITS + "/"):      # an installed output GLB is ours already
+                kept.append(row["unit_id"])
             continue
         new, files = installed_row(row, game, src)
         copies.update(files)
