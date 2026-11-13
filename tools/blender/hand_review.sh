@@ -52,5 +52,5 @@ SET="assets/models-sets/hand"
 [ -f "$SET/manifest.tsv" ] || { mkdir -p assets/models-sets; cp -c -R assets/models "$SET"; }
 cp "$OUT/model.glb" "$SET/$ID.glb"
 rm -f "$SET/$ID.cook"
-node scripts/fetch_models.mjs --rig-only "$SET/$ID.glb"
+node game/scripts/fetch_models.mjs --rig-only "$SET/$ID.glb"
 echo "review: $OUT/sheet.png $OUT/clips.png $OUT/overlay.png"
