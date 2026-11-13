@@ -17,6 +17,7 @@ import bmesh
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import game_paths  # noqa: E402
 import map_castles as kit
 from map_castles import beam, box, cyl, dome, mat, prism, ring
 from map_scenery import normalize
@@ -927,7 +928,7 @@ def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else ["all"]
     everything = {**CASTLES, **SCENERY}
     names = list(everything) if args[0] == "all" else [args[0]]
-    out = args[args.index("--out") + 1] if "--out" in args else ""
+    out = game_paths.out_arg(args, "--out")
     render_dir = args[args.index("--render") + 1] if "--render" in args else ""
     plain_render = kit.render
     kit.render = lambda path, yaw, **kw: plain_render(path, yaw, ground=SNOW_GROUND, **kw)

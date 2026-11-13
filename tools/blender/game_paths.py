@@ -24,6 +24,12 @@ def game():
                      "set CF_GAME=/path/to/castle_fight or pass --game")
 
 
+def out_arg(args, flag, *sub):
+    """The folder after `flag` in a script's args, else the game's own folder for what the script writes:
+    $CF_GAME/assets/<sub...> (buildings_*, map_*, fx_* write game assets; --out still points them elsewhere)."""
+    return args[args.index(flag) + 1] if flag in args else str(game().joinpath("assets", *sub))
+
+
 def output():
     """The output folder (not created here)."""
     return pathlib.Path(os.environ.get("CF_PIPELINE_OUT") or TOOL / "output").expanduser().resolve()

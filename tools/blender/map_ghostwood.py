@@ -19,6 +19,7 @@ import bmesh
 from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import game_paths  # noqa: E402
 import map_castles as kit
 from map_castles import beam, box, cyl, dome, mat, ring
 from map_scenery import normalize
@@ -1015,7 +1016,7 @@ SCENERY = {
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else ["all"]
-    out_dir = args[args.index("--out") + 1] if "--out" in args else ""
+    out_dir = game_paths.out_arg(args, "--out")
     render_dir = args[args.index("--render") + 1] if "--render" in args else ""
     # Prévia sobre chão de folhas violeta, não sobre a lama padrão do kit.
     kit.render = functools.partial(kit.render, ground=0x5C4A58)

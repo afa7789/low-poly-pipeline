@@ -23,6 +23,7 @@ import bmesh
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import game_paths  # noqa: E402
 import map_castles as kit
 from map_castles import beam, box, cyl, dome, mat, prism, ring
 from map_scenery import wire_coil
@@ -809,7 +810,7 @@ BUILDINGS = {
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else ["all"]
     names = list(BUILDINGS) if args[0] == "all" else [args[0]]
-    out_dir = args[args.index("--out") + 1] if "--out" in args else ""
+    out_dir = game_paths.out_arg(args, "--out", "buildings", "nightelf")
     render_dir = args[args.index("--render") + 1] if "--render" in args else ""
     for name in names:
         kit.build(name, out_dir, render_dir, make=BUILDINGS[name], views=(("front", -35.0), ("game", -90.0)))

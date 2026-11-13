@@ -1,8 +1,8 @@
 """Base comum dos efeitos 3D de skill (tools/blender/fx_*.py): malha única, um osso por peça, cor nos vértices.
 
 Cada fx_<nome>.py importa este módulo (`sys.path` já aponta para a pasta do script quando o Blender o roda) e
-grava assets/fx3d/<nome>.glb. Sem material nem textura: o motor (render/SkillFx3d) desenha com o material
-padrão do raylib e o shader de pixel art faz o resto. O raylib faz o skinning, então o clipe só usa escala e
+grava $CF_GAME/assets/fx3d/<nome>.glb (`-- --out DIR` grava em DIR). Sem material nem textura: o motor
+(render/SkillFx3d) desenha com o material padrão do raylib e o shader de pixel art faz o resto. O raylib faz o skinning, então o clipe só usa escala e
 giro dos ossos:
   - escala `h` = horizontal (X e Y do mundo), `v` = vertical (Z); o osso aponta para +Z, então no espaço do osso
     o eixo Y é a altura. Com a cabeça do osso no centro, escalar `h` empurra a peça para fora (anel que abre).
@@ -17,10 +17,11 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+import game_paths
+
 FPS = 30
 TINY = 0.001  # escala 0 deixa a matriz singular; isto já some sob o chão
 SUN = Vector((0.35, -0.3, 0.88)).normalized()  # luz falsa assada: de cima, um pouco de lado
-OUT_DIR = Path(__file__).resolve().parents[2] / "assets" / "fx3d"
 
 
 def rgb(r, g, b):
@@ -187,8 +188,9 @@ class Fx:
         bpy.ops.object.mode_set(mode="OBJECT")
         self.obj.parent = arm
         self.obj.modifiers.new("Armature", "ARMATURE").object = arm
-        path = OUT_DIR / f"{self.name}.glb"
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        out_dir = Path(game_paths.out_arg(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [], "--out", "fx3d"))
+        path = out_dir / f"{self.name}.glb"
+        out_dir.mkdir(parents=True, exist_ok=True)
         bpy.ops.object.select_all(action="SELECT")
         bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", export_yup=True,
                                   export_animations=True, export_animation_mode="ACTIONS",

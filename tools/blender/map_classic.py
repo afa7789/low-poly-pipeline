@@ -15,6 +15,7 @@ import sys
 from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import game_paths  # noqa: E402
 import map_castles as kit
 from map_castles import beam, box, cyl, mat, prism, ring
 from map_scenery import normalize, sandbag, wire_coil
@@ -787,8 +788,8 @@ MODELS = {
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else ["all"]
-    out_dir = args[args.index("--out") + 1] if "--out" in args else ""
-    castle_dir = args[args.index("--castles-out") + 1] if "--castles-out" in args else ""
+    out_dir = game_paths.out_arg(args, "--out", "scenery", "classic")
+    castle_dir = game_paths.out_arg(args, "--castles-out", "castles")
     render_dir = args[args.index("--render") + 1] if "--render" in args else ""
     pick = args[0]
     for name, make in CASTLES.items():

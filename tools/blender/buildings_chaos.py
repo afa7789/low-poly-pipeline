@@ -19,6 +19,7 @@ import sys
 import bmesh
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import game_paths  # noqa: E402
 import map_castles as kit
 from map_castles import beam, box, cyl, dome, mat, prism, ring
 
@@ -764,7 +765,7 @@ BUILDINGS = {
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else ["all"]
     names = list(BUILDINGS) if args[0] == "all" else [args[0]]
-    out_dir = args[args.index("--out") + 1] if "--out" in args else ""
+    out_dir = game_paths.out_arg(args, "--out", "buildings", "chaos")
     render_dir = args[args.index("--render") + 1] if "--render" in args else ""
     # Prévia mais folgada que a do kit: o recorte padrão corta o pé do prédio na vista de +x.
     shoot = kit.render
