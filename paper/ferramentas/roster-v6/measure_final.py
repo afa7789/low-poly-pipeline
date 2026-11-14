@@ -1,10 +1,10 @@
 """Measure the final model.glb of the 165 roster-v6 models with eye_stage.measure (same ruler as the eye rounds).
-usage: python3.14 measure_final.py [n_workers] [limit]   -> scratchpad/final-measure/<uid>.json (skips existing)"""
+usage: python3.14 measure_final.py [n_workers] [limit]   -> final-measure/<uid>.json (skips existing)"""
 import json, os, sys, pathlib, time, traceback
 from concurrent.futures import ProcessPoolExecutor
 
-sys.path.insert(0, '/Users/afa/Developer/arthur/castle_fight/tools/blender')
-CF = pathlib.Path('/Users/afa/Developer/arthur/castle_fight')
+CF = pathlib.Path(__file__).resolve().parents[3]  # pipeline repo (game files via make link)
+sys.path.insert(0, str(CF / 'tools/blender'))
 R = CF / 'artifacts/model-sheets'
 OUT = pathlib.Path(__file__).parent / 'final-measure'
 OUT.mkdir(exist_ok=True)

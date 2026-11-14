@@ -9,7 +9,7 @@ import sys
 
 import bpy
 
-sys.path.insert(0, "/Users/afa/Developer/arthur/castle_fight/tools/blender")
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "tools/blender"))
 from views import make_unlit  # noqa: E402
 
 argv = sys.argv[sys.argv.index("--") + 1:]

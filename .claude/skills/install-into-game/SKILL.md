@@ -5,7 +5,7 @@ description: Install one or more hand-built unit models (ids) from lowpoly-pipel
 
 # /install-into-game <id> [id ...]
 
-`G=${CF_GAME:-/Users/afa/Developer/arthur/castle_fight}`. Run from the pipeline checkout that has `make link` done (`game/`, `assets/`, `artifacts/model-sheets/hand` resolve).
+`G=$CF_GAME` (your castle_fight checkout). Run from the pipeline checkout that has `make link` done (`game/`, `assets/`, `artifacts/model-sheets/hand` resolve).
 
 ## 1. Model is fresh
 For each id: `artifacts/model-sheets/hand/<id>/model.glb` must be newer than `tools/blender/units/<id>.py`.

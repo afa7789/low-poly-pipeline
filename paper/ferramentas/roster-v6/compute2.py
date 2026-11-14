@@ -1,5 +1,6 @@
-import json, os, statistics as stt, collections, re
-R = '/Users/afa/Developer/arthur/castle_fight/artifacts/model-sheets'
+import json, os, statistics as stt, collections, re, pathlib
+REPO = str(pathlib.Path(__file__).resolve().parents[3])
+R = f'{REPO}/artifacts/model-sheets'
 fm = json.load(open(f'{R}/runs/roster/roster-v6/final-models.json'))
 VIEWS = ['front', 'left', 'back', 'rts']
 
@@ -51,7 +52,7 @@ artist_share, llm_s, total_s, resends, rounds_n = [], [], [], [], []
 gate_final = 0; gate_base = 0; n = 0
 best_is_0 = 0
 for uid, rel in fm.items():
-    run = f'/Users/afa/Developer/arthur/castle_fight/{os.path.dirname(rel)}'
+    run = f'{REPO}/{os.path.dirname(rel)}'
     s = load(f'{run}/eye/summary.json')
     v = s.get('views') or []
     if v:
@@ -79,7 +80,7 @@ print('resends:', collections.Counter(resends), ' rounds:', collections.Counter(
 print(f'gate front>=.75 & left>=.65 (eye measure, deinked): base {gate_base}/{n}  final round {gate_final}/{n}; final_round==0: {best_is_0}')
 
 # 3. how is the final round chosen / what is parts? grep eye_stage
-src = open('/Users/afa/Developer/arthur/castle_fight/tools/blender/eye_stage.py').read()
+src = open(f'{REPO}/tools/blender/eye_stage.py').read()
 for pat in ['final_round', 'def measure', 'def pick', 'best']:
     for m in re.finditer(pat, src):
         ln = src.count('\n', 0, m.start()) + 1

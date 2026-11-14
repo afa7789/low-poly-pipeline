@@ -39,3 +39,4 @@ paper/baseline/input
 
 # paper build output (make -C paper pdf)
 paper/paper.pdf
+paper/baseline/*.log

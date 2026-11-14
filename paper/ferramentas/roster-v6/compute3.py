@@ -1,7 +1,7 @@
 """Merge final-GLB measurements into results-roster-v6.csv, print stats, draw figure."""
 import json, os, csv, statistics as stt, collections, pathlib
-S = pathlib.Path('/private/tmp/claude-501/-Users-afa-Developer-arthur-castle-fight/62d500c7-b3c8-4fca-a5be-28ee7a695133/scratchpad')
-P = pathlib.Path('/Users/afa/Developer/arthur/IA_gen_paper')
+S = pathlib.Path(__file__).resolve().parent  # measure_final.py writes final-measure/ here
+P = pathlib.Path(__file__).resolve().parents[2]  # paper/
 CSV = P / 'results-roster-v6.csv'
 VIEWS = ['front', 'left', 'back', 'rts']
 rows = list(csv.DictReader(open(CSV)))

@@ -28,7 +28,7 @@ Não usa API nem rede. Custa só tempo: ~10 s por etapa nova (2 chamadas de Blen
    - `commit` = commit do pipeline que gerou o GLB.
 3. Rode:
    ```bash
-   cd /Users/afa/Developer/arthur/IA_gen_paper
+   cd paper   # dentro do repo lowpoly-pipeline
    python3 ferramentas/medir_etapas.py --only n01X     # ou sem --only para todas
    ```
 4. Saem:

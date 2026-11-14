@@ -18,8 +18,7 @@ import pathlib
 import sys
 import time
 
-NEURAL = pathlib.Path(os.environ.get("CF_NEURAL_DIR", "/private/tmp/claude-501/-Users-afa-Developer-arthur-castle-fight/"
-                                     "62d500c7-b3c8-4fca-a5be-28ee7a695133/scratchpad/neural"))
+NEURAL = pathlib.Path(os.environ.get("CF_NEURAL_DIR", pathlib.Path(__file__).resolve().parents[2] / "output/neural"))
 RES = 1024              # depth render size (square)
 MIN_OPACITY = 0.2
 

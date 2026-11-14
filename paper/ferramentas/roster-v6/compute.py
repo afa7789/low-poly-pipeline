@@ -1,7 +1,8 @@
 """Compute roster-v6 results from disk -> results-roster-v6.csv + summary printout."""
-import json, os, csv, statistics as stt, collections
-R = '/Users/afa/Developer/arthur/castle_fight/artifacts/model-sheets'
-OUT = '/Users/afa/Developer/arthur/IA_gen_paper/results-roster-v6.csv'
+import json, os, csv, statistics as stt, collections, pathlib
+REPO = str(pathlib.Path(__file__).resolve().parents[3])
+R = f'{REPO}/artifacts/model-sheets'
+OUT = f'{REPO}/paper/results-roster-v6.csv'
 fm = json.load(open(f'{R}/runs/roster/roster-v6/final-models.json'))
 st = json.load(open(f'{R}/runs/roster/roster-v6/status.json'))['units']
 VIEWS = ['front', 'left', 'back', 'rts']
@@ -50,7 +51,7 @@ def sil(run_dir):
 
 rows = []
 for uid, rel in sorted(fm.items()):
-    run_dir = f'/Users/afa/Developer/arthur/castle_fight/{os.path.dirname(rel)}'
+    run_dir = f'{REPO}/{os.path.dirname(rel)}'
     run = os.path.basename(run_dir)
     u = st.get(uid, {})
     m = (u.get('stages') or {}).get('model') or {}

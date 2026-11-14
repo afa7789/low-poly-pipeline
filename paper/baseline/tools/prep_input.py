@@ -4,7 +4,7 @@
 import pathlib
 import sys
 
-ROOT = pathlib.Path("/Users/afa/Developer/arthur/castle_fight")
+ROOT = pathlib.Path(__file__).resolve().parents[3]  # pipeline repo (game files via make link)
 sys.path.insert(0, str(ROOT / "tools/blender"))
 import split_sheet  # noqa: E402
 

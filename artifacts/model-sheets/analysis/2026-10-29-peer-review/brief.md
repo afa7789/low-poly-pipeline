@@ -1,6 +1,6 @@
 # Artefacto em revisão: resultados v13/v14 do pipeline de modelos 3D (Castle Fight) + duas perguntas
 
-Repo (worktree, só leitura para ti): `/Users/afa/Developer/arthur/castle_fight/.claude/worktrees/v2-hard`
+Repo (worktree, só leitura para ti): `<castle_fight>/.claude/worktrees/v2-hard`
 Docs: `artifacts/model-sheets/PIPELINE.md` (§23.L5-4 e §23.L5-4b = profundidade já tentada; §26.L8-8 = luma/shading;
 §28 = leva 10 corpo SDF; §29 = leva 11 laço VLM), `artifacts/model-sheets/ROADMAP-papers.md`, `tools/blender/*.py`.
 Imagens (PODES e DEVES ler com a ferramenta Read): `artifacts/model-sheets/history/2026-10-29-v14/<id>-full.png`

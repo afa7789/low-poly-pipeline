@@ -22,7 +22,7 @@ import time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import review_pair as RP  # noqa: E402
 
-DRAFTS = pathlib.Path("/Users/afa/Developer/arthur/castle_fight/.claude/worktrees/v2-hard/artifacts/model-sheets/runs/draft")
+DRAFTS = pathlib.Path(__file__).resolve().parents[2] / "artifacts/model-sheets/runs/draft"
 JOBS = {
     "trio": [("n005", a, b) for a, b in (("v16-r3", "v16-r6"), ("v16-r6", "v16-r9"), ("v16-r3", "v16-r9"))],
     "hfoo": [("hfoo", "v16-r3", "v16-r6")],

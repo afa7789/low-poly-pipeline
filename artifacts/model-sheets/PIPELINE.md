@@ -2760,7 +2760,7 @@ o juiz prefere o v10 em 22 de 28 eixos decididos. Falta: rts (aranha, lobo, wyrm
   collapse", não uma reescrita do spec com menos peças. Decimate é por razão, sem tolerância em espaço de tela (a `toldec` só existe
   no caminho `union` de `build_unit`, ainda não usado no clay); quando L6-4 ligar a união, trocar o collapse por `toldec`.
   Silhueta insensível acima de 400 não prova que o olho não veja facetas: o juiz pareado decide.
-- Provas: `/private/tmp/claude-501/-Users-afa-Developer-arthur-castle-fight/9830c746-7a9c-4c31-80db-2e0ef88f25b7/scratchpad/leva6-budgets/<id>/` (400-1000), `low-<id>/` (150-400), `n005/cmp.png`.
+- Provas: `<scratchpad>/leva6-budgets/<id>/` (temporário, não versionado) (400-1000), `low-<id>/` (150-400), `n005/cmp.png`.
 
 ### 24.L6-9 Sano: simetria e coerência entre painéis do sheet (2026-10-27)
 
