@@ -86,4 +86,5 @@ def joints():
     return out
 
 
-H.build("e00F", "biped", PALETTE, make, joints())
+if __name__ == "__main__":
+    H.build("e00F", "biped", PALETTE, make, joints())

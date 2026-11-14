@@ -2,8 +2,9 @@
 
     blender -b --factory-startup -P tools/blender/units/h04I.py -- <out.glb>
 
-Demonio roxo de mascara e chifres, capa nas costas. As "asas" da prancha sao laminas em crescente que pendem dos
-ombros e varrem para a frente: braco de asa em frusta nos ossos upper/lower, ponta em gancho no lower.
+Demonio roxo de mascara e chifres, capa nas costas. As laminas em crescente da prancha (que pendem ao lado do
+corpo e varrem para a frente) sao as armas: uma em cada mao, presa ao antebraco (cabo no punho, gancho para a
+frente), para o golpe do clipe dual_slice/dual_chop sair da lamina e nao de uma asa solta nos ombros.
 """
 import pathlib
 import sys
@@ -23,8 +24,6 @@ WAIST, NECK, TOP = 1.4, 2.16, 2.72
 SH = (0.5, 2.05, 0.0)
 EL = (0.8, 1.76, 0.04)
 HAND = (1.04, 1.48, 0.06)
-# braco de asa: ombro (costas) -> cotovelo, depois o gancho que varre para a frente
-W_SH, W_EL, W_TIP = (0.86, 1.66, -0.12), (0.7, 1.15, 0.06), (1.22, 0.86, 0.6)
 
 
 def mx(p, s):
@@ -78,16 +77,14 @@ def arms(s, side):
     H.frustum(f"forearm.{side}", "skin_lt", mx((1.1, 1.42, 0.07), s), mx((1.2, 1.34, 0.12), s), (0.14, 0.05), (0.06, 0.03), sides=4)
 
 
-def wing(s, n):
-    up, low = f"wing{n}.upper", f"wing{n}.lower"
-    sh, el, tip = mx(W_SH, s), mx(W_EL, s), mx(W_TIP, s)
-    H.frustum(up, "wing_dk", (sh[0], sh[1] + 0.1, sh[2]), el, (0.13, 0.09), (0.12, 0.08), sides=6)     # ombro da asa
-    # laminas: crescente grosso, mais largo no cotovelo, afinando no gancho
-    pts = [el, mx((0.66, 1.0, 0.12), s), mx((0.74, 0.88, 0.3), s), mx((1.0, 0.82, 0.46), s), tip]
-    H.chain(low, "wing", pts, [(0.12, 0.08), (0.17, 0.1), (0.16, 0.11), (0.1, 0.08), (0.01, 0.01)], sides=6)
-    H.frustum(low, "wing_dk", mx((0.8, 0.86, 0.34), s), mx((0.6, 0.7, 0.5), s), (0.06, 0.06), (0.01, 0.01), sides=4)   # espora
-    H.frustum(up, "wing", (sh[0], sh[1] + 0.02, sh[2]), mx((1.0, 1.9, -0.2), s), (0.06, 0.06), (0.01, 0.01), sides=4)   # ponta de cima
-    H.frustum(up, "wing", mx((0.78, 1.4, -0.03), s), mx((0.98, 1.34, 0.15), s), (0.05, 0.05), (0.01, 0.01), sides=4)
+def blade(s, side):
+    """Crescente na mao: cabo no punho, desce, curva para a frente e sobe em gancho."""
+    bone, x = f"forearm.{side}", s * 1.12
+    pts = [(x, 1.56, 0.04), (x, 1.2, 0.1), (x, 0.96, 0.16), (x, 0.78, 0.34), (x, 0.78, 0.58), (x, 0.96, 0.8)]
+    widths = [0.05, 0.07, 0.11, 0.12, 0.09, 0.012]
+    H.chain(bone, "wing", pts, [(0.032, w) for w in widths], sides=4)
+    H.frustum(bone, "cord", (x, 1.5, 0.05), (x, 1.34, 0.08), (0.05, 0.05), (0.045, 0.045), sides=6)      # cabo
+    H.frustum(bone, "wing_dk", (x, 1.0, 0.2), (x, 0.8, 0.3), (0.04, 0.05), (0.02, 0.02), sides=4)         # espora
 
 
 def make():
@@ -96,8 +93,7 @@ def make():
     for s, side in ((1, "L"), (-1, "R")):
         legs(s, side)
         arms(s, side)
-    wing(1, 1)
-    wing(-1, 2)
+        blade(s, side)
 
 
 def joints():
@@ -108,9 +104,6 @@ def joints():
         out[f"thigh.{side}"] = ((s * LEG_X, HIP, 0), (s * LEG_X, KNEE, 0))
         out[f"shin.{side}"] = ((s * LEG_X, KNEE, 0), (s * LEG_X, ANKLE, 0))
         out[f"foot.{side}"] = ((s * LEG_X, ANKLE, 0), (s * LEG_X, 0.06, 0.5))
-    for s, n in ((1, 1), (-1, 2)):
-        out[f"wing{n}.upper"] = (mx(W_SH, s), mx(W_EL, s))
-        out[f"wing{n}.lower"] = (mx(W_EL, s), mx(W_TIP, s))
     return out
 
 
