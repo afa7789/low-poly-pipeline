@@ -249,6 +249,7 @@ class Library(unittest.TestCase):
         names = [c[0] for c in M.clips("biped", {"attack": "chop+stab+bow"})]
         self.assertEqual(names[2:5], ["attack", "attack2", "attack3"])
 
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "data/unit_anim.tsv").exists(), "needs game data or a local sheet (make link)")
     def test_unit_in_path_reads_only_spec_names_and_draft_folders(self):
         self.assertEqual(M.unit_in_path("artifacts/model-sheets/runs/draft/n00U/hard-v1/spec.json"), "n00U")
         self.assertEqual(M.unit_in_path("artifacts/model-sheets/draft11/spec-n01X-v11.json"), "n01X")

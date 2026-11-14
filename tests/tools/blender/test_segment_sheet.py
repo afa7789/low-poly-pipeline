@@ -120,6 +120,7 @@ class Reply(unittest.TestCase):
 
 
 class Segment(unittest.TestCase):
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/n005/sheet.jpg").exists(), "needs game data or a local sheet (make link)")
     def test_stub_vlm_end_to_end_on_n005(self):
         asked = []
         reply = {"joints": [joint("head_top", [0.5, 0.97], [0.5, 0.97]), joint("knee.L", [0.6, 0.22], [0.5, 0.22]),

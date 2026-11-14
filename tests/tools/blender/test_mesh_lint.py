@@ -168,6 +168,7 @@ class Status(unittest.TestCase):
 
 
 class UvImage(unittest.TestCase):
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "data/models.tsv").exists(), "needs game data or a local sheet (make link)")
     def test_no_uv_no_image_and_the_shipped_model_has_one(self):
         tmp = pathlib.Path(tempfile.mkdtemp())
         self.assertIsNone(L.uv_image(glb(tmp / "a.glb")))
@@ -181,6 +182,7 @@ class Protocol(unittest.TestCase):
     def setUp(self):
         self.tmp = pathlib.Path(tempfile.mkdtemp())
 
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "data/models.tsv").exists(), "needs game data or a local sheet (make link)")
     def test_no_atlas_no_kb_and_the_shipped_atlas_has_kb(self):
         m = L.lint(glb(self.tmp / "a.glb"))
         self.assertEqual((m["atlas_kb"], m["texel_per_height"]), (None, None))

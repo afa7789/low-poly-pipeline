@@ -41,6 +41,7 @@ class Drift(unittest.TestCase):
 
 
 class GateWithoutModel(unittest.TestCase):
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/hfoo/sheet.jpg").exists(), "needs game data or a local sheet (make link)")
     def test_missing_glb_fails_the_gate(self):
         import subprocess
         import tempfile
@@ -519,6 +520,7 @@ class SheetCoherenceTest(unittest.TestCase):
                 self.assertGreater(iou, 0.95)
         self.assertLess(S.rts_coherence(hull, np.ones((40, 40), bool), [(35, 30)])[0], 0.6)
 
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/n01X/sheet.jpg").exists(), "needs game data or a local sheet (make link)")
     def test_sheets_measured(self):
         refs = ROOT / "artifacts/model-sheets/refs"
         rep = S.sheet_report(refs / "n01X" / "sheet.jpg")        # a symmetric, coherent sheet

@@ -66,6 +66,7 @@ class Ramp(unittest.TestCase):
             with self.assertRaises(ValueError, msg=ramp):
                 CS.validate_colour(SPEC, edit(lambda s, r=ramp: s["palette"]["iron"].update(ramp=r)))
 
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/n01X/sheet.jpg").exists(), "needs game data or a local sheet (make link)")
     def test_with_ramps_gives_each_slot_its_nearest_sheet_zone_ramp(self):
         sheet = ROOT / "artifacts/model-sheets/refs/n01X/sheet.jpg"
         out = CS.with_ramps(SPEC, sheet)

@@ -34,6 +34,7 @@ class Hull(unittest.TestCase):
 
 
 class Face(unittest.TestCase):
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/refs/n02X/sheet.jpg").exists(), "needs game data or a local sheet (make link)")
     def test_cut_keeps_at_least_128_px(self):
         sheet = ROOT / "artifacts/model-sheets/refs/n02X/sheet.jpg"
         spec = {"parts": [["head", "box", [1, 1, 1], [0, 0, 0], "skin", {"decal": "sheet"}]]}

@@ -69,6 +69,7 @@ class Parity(unittest.TestCase):
             self.assertEqual(got.shape, want.shape)
             np.testing.assert_allclose(got, want, atol=1e-4, err_msg=f"{p[0]} {p[1]} mirror={mirror}")
 
+    @unittest.skipUnless((pathlib.Path(__file__).resolve().parents[3] / "artifacts/model-sheets/pipeline-final/n005/spec.json").exists(), "needs game data or a local sheet (make link)")
     def test_points_match_numpy(self):
         """the torch twin of moved + part_points equals the numpy one (error < 1e-4) at a random pose, for every kind"""
         rng = np.random.default_rng(3)
