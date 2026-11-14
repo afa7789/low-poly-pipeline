@@ -16,7 +16,8 @@ import os
 import sys
 
 import bmesh
-from mathutils import Vector
+import bpy
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import game_paths  # noqa: E402
@@ -311,29 +312,58 @@ def h04U_demonic_statue():
 
 
 def h04T_eye_of_corruption():
-    """Válvula da Veia: toco baixo sustenta um diafragma de resina dentro de um aro de galhos, calibre de pressão."""
+    """Olho da Corrupção: um olho enorme flutua sobre o pedestal de tronco morto, preso por uma coluna de luz verde;
+    íris verde saturada com pupila em fenda e garras de galho. Pedido do jogador: olho verde brilhante."""
     p = pal()
+    green = mat("eye_green", 0x4CFF2A, emit=3.0)
+    green_lt = mat("eye_green_light", 0x86F54A, emit=2.5)
+    green_dk = mat("eye_green_dark", 0x1E9A1A, emit=2.0)
+    sclera = mat("eye_sclera", 0xF2F4D8)
+    vein_c = mat("eye_vein", 0xA8483C)
     pad(p)
-    cyl("stump", p["heart"], (-0.5, 0, Z0), 1.1, 0.9, sides=10, top_radius=0.85, bevel=0.02)
-    cx, cz, rr = -0.05, Z0 + 2.4, 1.0
-    n = 12
-    ring_pts = [(cx, math.cos(i * math.tau / n) * rr, cz + math.sin(i * math.tau / n) * rr) for i in range(n + 1)]
-    curve("rib_ring", p["bark"], ring_pts, 0.15, 0.15, sides=6)
-    cyl("diaphragm_back", p["sap"], (cx - 0.05, 0, cz), 0.85, 0.1, sides=14, bevel=0.0, rot=("Y", math.radians(90)))
-    cyl("diaphragm_sap", p["sap_lt"], (cx + 0.02, 0, cz), 0.72, 0.06, sides=14, bevel=0.0, rot=("Y", math.radians(90)))
-    cyl("diaphragm", p["resin"], (cx + 0.05, 0, cz), 0.4, 0.07, sides=14, bevel=0.0, rot=("Y", math.radians(90)))
-    cyl("diaphragm_core", p["sap"], (cx + 0.11, 0, cz), 0.1, 0.04, sides=8, bevel=0.0, rot=("Y", math.radians(90)))
-    # Costelas que firmam o aro no toco; dentes de galho saindo para fora.
-    for s in (-1, 1):
-        limb("cradle", p["bark_dk"], (-0.5, s * 0.6, Z0 + 0.8), (cx, s * 0.95, cz - 0.4), 0.2, 0.13)
-    limb("cradle_back", p["bark_dk"], (-0.7, 0, Z0 + 0.8), (cx - 0.1, 0, cz - 0.95), 0.22, 0.14)
-    for i in range(6):
-        a = math.radians(30 + i * 60)
-        limb("rib_tooth", p["bark_dk"], (cx, math.cos(a) * rr, cz + math.sin(a) * rr), (cx, math.cos(a) * (rr + 0.4), cz + math.sin(a) * (rr + 0.4)), 0.08, 0.02, sides=5)
-    vein(p, 0.25, 0.3, Z0 + 0.4, 0.9, facing=math.radians(20))
-    crust(p, -0.9, 0.7, Z0 + 0.95, 0.17)
-    for a in (60, 120, 200, 260, 310):
-        root(p, -0.5 + math.cos(math.radians(a)) * 1.0, math.sin(math.radians(a)) * 1.0, math.radians(a), 0.45, 0.5, r=0.18)
+    # Pedestal: anel de cerne afogado em dois degraus, espinhos de casca na borda e runas verdes.
+    cyl("plinth_lo", p["heart_dk"], (0, 0, Z0), 1.5, 0.35, sides=12, top_radius=1.35, bevel=0.0)
+    cyl("plinth_hi", p["heart"], (0, 0, Z0 + 0.35), 1.15, 0.3, sides=12, top_radius=0.95, bevel=0.0)
+    cyl("plinth_glow", green_dk, (0, 0, Z0 + 0.65), 0.8, 0.05, sides=12, bevel=0.0)
+    cyl("plinth_core", green, (0, 0, Z0 + 0.7), 0.5, 0.04, sides=12, bevel=0.0)
+    for i in range(8):
+        a = i * math.tau / 8 + 0.2
+        c, s = math.cos(a), math.sin(a)
+        limb("plinth_thorn", p["bark_dk"], (c * 1.25, s * 1.25, Z0 + 0.3), (c * 1.5, s * 1.5, Z0 + 0.95 + 0.25 * (i % 2)), 0.16, 0.02, sides=5)
+        if i % 2 == 0:
+            box("rune", green, (c * 1.2, s * 1.2, Z0 + 0.12), (0.06, 0.2, 0.12), bevel=0.0, rot_z=a)
+    # Coluna de luz que prende o olho: haste verde, discos flutuantes e três estilhaços de casca em órbita.
+    cz = Z0 + 3.25
+    cyl("tether", green, (0, 0, Z0 + 0.7), 0.11, cz - 1.0 - Z0 - 0.7, sides=8, bevel=0.0)
+    for k, (zz, rr) in enumerate(((1.2, 0.5), (1.65, 0.38), (2.05, 0.3))):
+        cyl("tether_ring", green_lt if k % 2 else green_dk, (0, 0, Z0 + zz), rr, 0.05, sides=12, bevel=0.0)
+    for i in range(3):
+        a = i * math.tau / 3 + 0.5
+        blob("shard", p["bark_dk"], (math.cos(a) * 0.75, math.sin(a) * 0.75, Z0 + 1.35 + 0.35 * i), 0.14, 0.14, 0.2, sides=5, rings=3)
+    before = set(bpy.data.objects)
+    # O olho: esclera clara, íris verde brilhante virada para +x, pupila em fenda, veias.
+    blob("sclera", sclera, (0, 0, cz), 1.0, 1.0, 1.0, sides=14, rings=9)
+    blob("iris", green_dk, (0.88, 0, cz), 0.16, 0.72, 0.72, sides=14, rings=6)
+    blob("iris_mid", green, (0.93, 0, cz), 0.16, 0.55, 0.55, sides=14, rings=6)
+    blob("iris_hot", green_lt, (0.97, 0, cz), 0.14, 0.37, 0.37, sides=12, rings=5)
+    box("pupil", p["sap"], (1.04, 0, cz - 0.4), (0.1, 0.13, 0.8), bevel=0.0)
+    for az, el in ((60, 40), (-55, 30), (100, -35), (-100, -20), (130, 50)):
+        pts = []
+        for t in (0.0, 0.5, 1.0):
+            e = math.radians(el * (1 - t * 0.5))
+            a = math.radians(az) * (0.55 + 0.7 * t)
+            r = 1.02
+            pts.append((r * math.cos(e) * math.cos(a), r * math.cos(e) * math.sin(a), cz + r * math.sin(e)))
+        curve("eye_vein", vein_c, pts, 0.035, 0.015, sides=4)
+    # Garras de galho seguram o olho.
+    # O olho encara a câmera do jogo (para -y e um pouco para cima): a íris de frente é a leitura; o resto do prédio segue com a frente em +x.
+    tilt = Matrix.Translation((0, 0, cz)) @ Matrix.Rotation(math.radians(-72), 4, "Z") @ Matrix.Rotation(math.radians(-38), 4, "Y") @ Matrix.Translation((0, 0, -cz))
+    for ob in set(bpy.data.objects) - before:
+        ob.data.transform(tilt)
+    for ang in (0, 90, 180):
+        c, s = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+        curve("claw", p["bark_dk"], [(c * 1.4, s * 1.4, Z0 + 0.5), (c * 1.65, s * 1.65, Z0 + 1.8), (c * 1.35, s * 1.35, cz - 0.3), (c * 1.0, s * 1.0, cz + 0.45)], 0.17, 0.05)
+    crust(p, -1.0, 0.8, Z0 + 0.5, 0.15)
     tribute(p, [(1.2, 1.1), (1.35, 0.75)], (1.3, -1.2), h=1.0)
 
 
