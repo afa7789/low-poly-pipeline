@@ -8,11 +8,10 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
+if not (pathlib.Path(__file__).resolve().parents[2] / "data/unit_anim.tsv").exists():
+    raise unittest.SkipTest("rig_static rigs the game's own models: needs the game checkout (make link CF_GAME=...)")
 
-try:
-    import assign_model_clips as AMC  # noqa: E402  (the game's tool, via make link)
-except ImportError:
-    AMC = None
+import assign_model_clips as AMC  # noqa: E402
 import inject_clips as I  # noqa: E402
 import rig_families as RF  # noqa: E402
 import rig_static as R  # noqa: E402
@@ -213,7 +212,6 @@ class Inject(unittest.TestCase):
         self.assertEqual(got, {"leg1.upper": [0, 0, 1], "head": [0, 0, 1]})
 
 
-@unittest.skipIf(AMC is None, "needs the game checkout (make link)")
 class Registry(unittest.TestCase):
     def test_a_model_rigged_like_another_unit_takes_its_row(self):
         with tempfile.TemporaryDirectory() as d:
