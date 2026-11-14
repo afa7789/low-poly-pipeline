@@ -34,7 +34,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools/blender"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-import assign_model_clips as AMC  # noqa: E402
 import rig_motions as M  # noqa: E402
 import rig_poses as P  # noqa: E402
 
@@ -1044,6 +1043,7 @@ def ours(row):
 
 def targets(argv):
     """The units named, else every unit whose attack is ours to make (a rerun refreshes them)."""
+    import assign_model_clips as AMC  # the game's tool (make link): only the unit list needs it
     head, rows = AMC.rows(AMC.MODELS)
     by_id = {r["unit_id"]: r for r in rows}
     ids = [a for a in argv if not a.startswith("--")] or [r["unit_id"] for r in rows if ours(r)]

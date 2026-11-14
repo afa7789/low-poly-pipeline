@@ -48,9 +48,11 @@ done
 [ ${#OVERLAYS[@]} -eq 0 ] || magick "${OVERLAYS[@]}" +append "$OUT/overlay.png"
 grep -E "^(view|front|left|back|top|bottom|rts) |^parts " "$OUT/silhouette.txt" | cut -c1-58
 
-SET="assets/models-sets/hand"
-[ -f "$SET/manifest.tsv" ] || { mkdir -p assets/models-sets; cp -c -R assets/models "$SET"; }
-cp "$OUT/model.glb" "$SET/$ID.glb"
-rm -f "$SET/$ID.cook"
-node game/scripts/fetch_models.mjs --rig-only "$SET/$ID.glb"
+if [ -d game ]; then   # castle_fight linked (make link): install into its hand model set
+  SET="assets/models-sets/hand"
+  [ -f "$SET/manifest.tsv" ] || { mkdir -p assets/models-sets; cp -c -R assets/models "$SET"; }
+  cp "$OUT/model.glb" "$SET/$ID.glb"
+  rm -f "$SET/$ID.cook"
+  node game/scripts/fetch_models.mjs --rig-only "$SET/$ID.glb"
+fi
 echo "review: $OUT/sheet.png $OUT/clips.png $OUT/overlay.png"
