@@ -893,10 +893,12 @@ def o000_anti_air_tower():
     cyl("basket", p["scrap_dk"], (-0.02, 0.1, 3.95), 0.2, 0.22, sides=8, top_radius=0.35, bevel=0.0)
     fire(p, (-0.02, 0.1, 4.15), 0.4)
     # Arpões com pesos de válvula apontando para cima e para fora, e bexigas de piche penduradas.
+    kit.begin_part("anim_harpoons")
     for i, y in enumerate((-0.45, 0.0, 0.45)):
         beam("harpoon", p["timber_dk"], (0.5, y, 2.3), (1.2 + 0.1 * i, y * 1.8, 3.3 + 0.15 * i), thick=0.06)
         kit.spike(p["scrap"], (1.2 + 0.1 * i, y * 1.8, 3.3 + 0.15 * i), height=0.3, radius=0.07, lean=(0.1, 0.0))
         cyl("valve_weight", p["rust_dk"], (0.75 + 0.05 * i, y * 1.2, 2.55), 0.07, 0.1, sides=6, bevel=0.0)
+    kit.end_part()
     for y in (-0.8, 0.8):
         beam("bladder_cord", p["cord"], (0.1, y * 0.7, 2.25), (0.15, y, 1.95), thick=0.03)
         dome("tar_bladder", p["tar"], (0.15, y, 1.55), 0.24, squash=1.5, sides=8)

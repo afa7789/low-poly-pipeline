@@ -25,6 +25,24 @@ import game_paths  # noqa: E402
 # ---------------------------------------------------------------------------------------------------------
 
 _mats = {}
+_parts = []  # pilha de peças animáveis em curso (begin_part/end_part): o jogo as desenha à parte, com movimento próprio
+_part_count = {}
+
+
+def begin_part(name, unique=False):
+    """Daqui até end_part() as peças criadas viram o nó `name` (convenção `anim_*`), fora da junção do corpo.
+    unique numera a peça (anim_flame1, 2...) para helpers chamados várias vezes. Dentro de outra peça, vale a de fora."""
+    if _parts:
+        _parts.append(_parts[-1])
+        return
+    if unique:
+        _part_count[name] = _part_count.get(name, 0) + 1
+        name = f"{name}{_part_count[name]}"
+    _parts.append(name)
+
+
+def end_part():
+    _parts.pop()
 
 
 def mat(name, hex_rgb, emit=0.0):
@@ -50,6 +68,7 @@ def _finish(bm, name, material, bevel=0.0):
     bm.to_mesh(me)
     bm.free()
     ob = bpy.data.objects.new(name, me)
+    ob["part"] = _parts[-1] if _parts else ""
     bpy.context.collection.objects.link(ob)
     ob.data.materials.append(material)
     if bevel > 0.0:
@@ -396,10 +415,12 @@ def spike(material, pos, height=0.42, radius=0.07, lean=(0.0, 0.0)):
 
 def flame(core, outer, pos, size=0.3):
     """Chama low-poly: três cones tortos, o de fora laranja e o miolo amarelo."""
+    begin_part("anim_flame", unique=True)
     cyl("flame_outer", outer, pos, size * 0.62, size * 1.5, sides=6, top_radius=0.0, bevel=0.0)
     cyl("flame_side", outer, (pos[0] + size * 0.3, pos[1] - size * 0.2, pos[2]), size * 0.36, size * 0.95, sides=5, top_radius=0.0, bevel=0.0)
     cyl("flame_side", outer, (pos[0] - size * 0.28, pos[1] + size * 0.24, pos[2]), size * 0.32, size * 0.8, sides=5, top_radius=0.0, bevel=0.0)
     cyl("flame_core", core, (pos[0], pos[1], pos[2] + size * 0.05), size * 0.34, size * 0.95, sides=5, top_radius=0.0, bevel=0.0)
+    end_part()
 
 
 def brazier(iron, ember, core, outer, pos, radius=0.26, fire=0.26):
@@ -428,8 +449,10 @@ def arrow_bastion(stone, dark, iron, pos, out, radius=1.02, height=1.35):
 def banner(pole, cloth, pos, height=1.1, facing=0.0):
     box("banner_pole", pole, pos, (0.05, 0.05, height), bevel=0.0)
     c, s = math.cos(facing), math.sin(facing)
+    begin_part("anim_banner", unique=True)
     box("banner_cloth", cloth, (pos[0] + c * 0.17, pos[1] + s * 0.17, pos[2] + height - 0.52), (0.3, 0.03, 0.5), bevel=0.0, rot_z=facing)
     box("banner_tail", cloth, (pos[0] + c * 0.1, pos[1] + s * 0.1, pos[2] + height - 0.68), (0.13, 0.03, 0.18), bevel=0.0, rot_z=facing)
+    end_part()
 
 
 def torchbound_bastion():
@@ -562,6 +585,8 @@ CASTLES = {"oil_compact": compact_refinery, "oil_torchbound": torchbound_bastion
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _mats.clear()
+    _parts.clear()
+    _part_count.clear()
 
 
 def bake():
@@ -576,15 +601,16 @@ def bake():
     for o in obs:
         for p in o.data.polygons:
             p.use_smooth = False
-        by_mat.setdefault(o.data.materials[0].name, []).append(o)
-    for name, group in by_mat.items():
+        by_mat.setdefault((o.get("part", ""), o.data.materials[0].name), []).append(o)
+    for (part, mat_name), group in by_mat.items():
         bpy.ops.object.select_all(action="DESELECT")
         for o in group:
             o.select_set(True)
         bpy.context.view_layer.objects.active = group[0]
         if len(group) > 1:
             bpy.ops.object.join()
-        bpy.context.view_layer.objects.active.name = name
+        # peça animável: um nó por (peça, material), `anim_x__cor`; o corpo segue um mesh por cor
+        bpy.context.view_layer.objects.active.name = f"{part}__{mat_name}" if part else mat_name
 
 
 def stats():

@@ -147,7 +147,9 @@ def bell_tower(p, pos, height=2.6, side=0.74, body="steel", bell=True):
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
         box("tower_post", p["steel_dk"], (x + sx * side * 0.36, y + sy * side * 0.36, top), (0.08, 0.08, height * 0.2), bevel=0.0)
     if bell:
+        kit.begin_part("anim_bell")
         cyl("bell", p["brass"], (x, y, top + 0.04), 0.2, 0.26, sides=8, top_radius=0.09, bevel=0.0)
+        kit.end_part()
     box("tower_cap", p["steel_dk"], (x, y, top + height * 0.2), (side + 0.12, side + 0.12, 0.07), bevel=0.0)
     box("tower_roof", p["olive_dk"], (x, y, top + height * 0.2 + 0.07), (side + 0.06, side + 0.06, height * 0.2), bevel=0.0, taper=0.1, taper_y=0.1)
     beam_cross(p, (x, y, top + height * 0.4 + 0.02), height=0.42)
@@ -235,6 +237,7 @@ def h038_church():
     box("west_front", p["concrete"], (0.75, 0, 0.1), (0.5, 1.5, 2.0), bevel=0.03, taper_y=0.92)
     prism("west_gable", p["olive_dk"], (0.75, 0, 2.1), (1.5, 0.56, 0.5), ridge=0.5, rot_z=math.radians(90))
     # Rosácea: aro de latão dentado com a cruz em ecru.
+    kit.begin_part("anim_rose")
     cyl("rose_rim", p["brass"], (1.0, 0, 1.45), 0.36, 0.06, sides=12, bevel=0.0, rot=("Y", math.radians(90)))
     cyl("rose_glass", p["flame"], (1.03, 0, 1.45), 0.27, 0.04, sides=12, bevel=0.0, rot=("Y", math.radians(90)))
     for i in range(8):
@@ -242,6 +245,7 @@ def h038_church():
         box("rose_tooth", p["brass"], (1.02, math.cos(a) * 0.4, 1.4 + math.sin(a) * 0.4), (0.06, 0.1, 0.1), bevel=0.0)
     box("rose_cross_v", p["ecru"], (1.08, 0, 1.2), (0.03, 0.07, 0.5), bevel=0.0)
     box("rose_cross_h", p["ecru"], (1.08, 0, 1.44), (0.03, 0.42, 0.07), bevel=0.0)
+    kit.end_part()
     for s in (-1, 1):
         bell_tower(p, (0.75, s * 1.15, 0.1), height=3.3 if s > 0 else 2.9, side=0.72, bell=s > 0)
     # Portão de ferro com estandartes de estêncil e o tambor atrás do sino.
@@ -336,8 +340,10 @@ def h0A1_marksmen_encampment():
     box("awning_stripe", p["olive_dk"], (-0.02, 0, 1.6), (0.1, 2.5, 0.07), bevel=0.0)
     # Mastro alto com a flâmula de alça e a lousa de distâncias.
     box("mast", p["umber_dk"], (-1.55, 1.5, 0.1), (0.08, 0.08, 3.2), bevel=0.0)
+    kit.begin_part("anim_flag")
     box("pennant", p["ecru"], (-1.3, 1.5, 2.9), (0.5, 0.03, 0.26), bevel=0.0, taper=0.2)
     box("pennant_band", p["brass"], (-1.5, 1.5, 2.9), (0.08, 0.04, 0.26), bevel=0.0)
+    kit.end_part()
     slate(p, (-1.2, -0.6, 0.22), rot_z=math.radians(180), lines=4)
     crate(p, (-0.7, 0.6, 0.22), size=(0.5, 0.4, 0.26))
     drum(p, (-0.2, -0.9, 0.22), lying=True)
@@ -486,11 +492,13 @@ def h001_artillery():
         cyl("wheel", p["umber_dk"], (-0.1, s * 0.6, 0.72), 0.44, 0.12, sides=10, bevel=0.0, rot=("X", math.radians(90)))
         cyl("hub", p["steel"], (-0.1, s * 0.68, 0.72), 0.12, 0.06, sides=8, bevel=0.0, rot=("X", math.radians(90)))
         beam("trail", p["olive_dk"], (-0.5, s * 0.3, 0.5), (-1.5, s * 0.75, 0.32), thick=0.14)
+    kit.begin_part("anim_gun")
     beam("barrel", p["steel_dk"], (-0.45, 0, 0.75), (1.35, 0, 2.55), thick=0.3)
     beam("barrel_jacket", p["steel"], (-0.45, 0, 0.75), (0.35, 0, 1.55), thick=0.42)
     box("muzzle", p["soot"], (1.36, 0, 2.47), (0.3, 0.38, 0.3), bevel=0.02)
     box("shield", p["olive"], (0.15, 0, 0.9), (0.08, 1.1, 0.75), bevel=0.0, rot_z=0.0)
     box("breech", p["soot"], (-0.55, 0, 0.6), (0.4, 0.44, 0.4), bevel=0.03)
+    kit.end_part()
     for i, (x, y) in enumerate(((-1.2, -1.1), (-0.85, -1.3), (-1.05, -1.42))):
         cyl("shell", p["brass"], (x, y, 0.3), 0.09, 0.4, sides=7, top_radius=0.02 if i == 2 else 0.09, bevel=0.0)
     drum(p, (-1.1, 1.1, 0.3))
@@ -539,7 +547,9 @@ def h05G_heroic_shrine():
     box("obelisk_band", p["steel_dk"], (0, 0, 1.5), (0.74, 0.74, 0.08), bevel=0.0)
     box("obelisk_tip", p["steel_dk"], (0, 0, 3.48), (0.42, 0.42, 0.1), bevel=0.0)
     # Chama perpétua na lanterna do topo.
+    kit.begin_part("anim_flame")
     box("lamp_glass", p["flame"], (0, 0, 3.58), (0.26, 0.26, 0.3), bevel=0.0)
+    kit.end_part()
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
         box("lamp_bar", p["soot"], (sx * 0.14, sy * 0.14, 3.58), (0.04, 0.04, 0.3), bevel=0.0)
     box("lamp_cap", p["brass"], (0, 0, 3.88), (0.4, 0.4, 0.12), bevel=0.0, taper=0.3, taper_y=0.3)
@@ -612,7 +622,9 @@ def h081_tiny_watch_tower():
         beam("ladder_rail", p["umber_dk"], (-0.86, s * 0.2, 0.4), (-0.7, s * 0.2, 3.35), thick=0.05)
     beam("jib", p["steel_dk"], (0.7, 0.7, 4.2), (1.3, 1.0, 4.35), thick=0.06)
     lantern(p, (1.3, 1.0, 4.05))
+    kit.begin_part("anim_bell")
     cyl("alarm_bell", p["brass"], (0.5, -0.5, 3.75), 0.14, 0.2, sides=8, top_radius=0.06, bevel=0.0)
+    kit.end_part()
     drum(p, (0.8, -0.85, 0.1))
 
 
@@ -628,11 +640,13 @@ def h082_tiny_multishot_tower():
     for s in (-1, 1):
         bag_wall(p, (-0.5, s * 0.72), (0.6, s * 0.72), z=2.98, rows=1)
     # Berço e os três canos em leque, apontando para cima e para a lane.
+    kit.begin_part("anim_gun")
     box("cradle", p["steel_dk"], (0.05, 0, 2.98), (0.6, 0.8, 0.4), bevel=0.03)
     for dy in (-0.42, 0.0, 0.42):
         beam("barrel", p["soot"], (0.1, dy * 0.4, 3.3), (1.45, dy * 1.5, 4.08), thick=0.11)
         beam("jacket", p["steel"], (0.1, dy * 0.4, 3.3), (0.75, dy * 0.93, 3.68), thick=0.17)
     cyl("ammo_drum", p["brass"], (-0.3, 0, 3.38), 0.26, 0.16, sides=10, bevel=0.0, rot=("X", math.radians(90)))
+    kit.end_part()
     # Teto de lona enrolado atrás, tambor preso ao lado, sacos e o tambor de munição na base.
     cyl("furled_canvas", p["canvas"], (-0.65, -0.7, 3.2), 0.14, 1.4, sides=8, bevel=0.0, rot=("X", math.radians(-90)))
     for s in (-1, 1):
@@ -665,7 +679,9 @@ def h006_watch_tower():
         box("canopy_post", p["steel_dk"], (sx * 0.75, sy * 0.75, 3.2), (0.08, 0.08, 0.9), bevel=0.0)
     box("canopy", p["steel"], (0, 0, 4.1), (2.3, 2.3, 0.1), bevel=0.02)
     box("canopy_top", p["olive_dk"], (0, 0, 4.2), (2.0, 2.0, 0.22), bevel=0.0, taper=0.5, taper_y=0.5)
+    kit.begin_part("anim_gun")
     beam("gun", p["soot"], (0.3, 0, 3.55), (1.5, 0, 3.7), thick=0.12)
+    kit.end_part()
     # Lanterna de assalto com refletor, armário de munição de aço e o tambor na base.
     cyl("reflector", p["ecru"], (0.9, 0.7, 3.62), 0.2, 0.08, sides=8, top_radius=0.26, bevel=0.0, rot=("Y", math.radians(90)))
     lantern(p, (0.78, 0.7, 3.5))

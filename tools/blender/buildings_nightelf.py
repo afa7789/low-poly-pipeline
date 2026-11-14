@@ -107,6 +107,7 @@ def crescent(p, center, radius, thick=0.12, mid=270.0, span=210.0, az=90.0, tone
 
 def valve_wheel(p, center, radius, az=90.0, tone="silver_dk"):
     """Roda de válvula roubada, trincada: arco quase fechado, cubo e raios."""
+    kit.begin_part("anim_wheel", unique=True)
     arc("wheel", p[tone], center, radius, 20.0, 350.0, thick=0.07, az=az, n=12, taper=False)
     a = math.radians(az)
     ux, uy = math.sin(a), -math.cos(a)
@@ -115,6 +116,7 @@ def valve_wheel(p, center, radius, az=90.0, tone="silver_dk"):
         tip = (center[0] + ux * radius * math.cos(t), center[1] + uy * radius * math.cos(t), center[2] + radius * math.sin(t))
         beam("wheel_spoke", p[tone], center, tip, thick=0.04)
     box("wheel_hub", p[tone], (center[0] - 0.05, center[1] - 0.05, center[2] - 0.05), (0.1, 0.1, 0.1), bevel=0.0)
+    kit.end_part()
 
 
 def chain(p, a, b, links=None, tone="soot"):
@@ -416,9 +418,11 @@ def h073_elunes_lantern():
     # Lanterna morta grande, no braço, e o prato côncavo prateado inclinado para a lane.
     beam("lantern_arm", p["wood_dk"], (0.25, 0.0, 3.0), (0.55, 0.0, 3.0), thick=0.08)
     dead_lantern(p, (0.6, 0.0, 2.7), size=2.2)
+    kit.begin_part("anim_dish")
     cyl("swivel_pin", p["silver_dk"], (0.3, 0.0, 3.55), 0.07, 0.35, sides=6, bevel=0.0)
     cyl("dish", p["silver"], (0.3, 0.0, 3.85), 0.12, 0.45, sides=12, top_radius=0.7, bevel=0.0, rot=("Y", math.radians(38)))
     cyl("lens", p["glass"], (0.3 + 0.2, 0.0, 3.85 + 0.38), 0.05, 0.06, sides=8, top_radius=0.36, bevel=0.0, rot=("Y", math.radians(38)))
+    kit.end_part()
     # Rack de três cartuchos carregados presos no mastro e a caixa de cartuchos gastos no pé.
     box("rack_clip", p["rust_dk"], (0.4, 0.0, 1.25), (0.3, 0.6, 0.06), bevel=0.0)
     for y in (-0.2, 0.0, 0.2):
@@ -709,13 +713,17 @@ def h07L_guild_of_shadows():
     # Telhado e cata-vento em crescente de prata.
     prism("roof", p["blue_dk"], (0.1, -0.12, z), (1.75, 1.9, 0.55), ridge=0.5, bevel=0.02, rot_z=-0.1)
     beam("vane_pole", p["silver_dk"], (0.1, -0.12, z + 0.5), (0.1, -0.12, z + 1.1), thick=0.06)
+    kit.begin_part("anim_vane")
     crescent(p, (0.1, -0.12, z + 1.25), 0.36, thick=0.11, mid=0.0, span=210.0)
+    kit.end_part()
     smoke(p, (-0.55, -0.4, z + 0.2), n=3, step=0.22)
     # Porta baixa no térreo; o sino sem badalo sob o beiral do segundo andar.
     box("door", p["soot"], (1.02, 0.0, 0.1), (0.1, 0.55, 0.62), bevel=0.0)
     box("door_frame", p["wood_dk"], (1.0, 0.0, 0.72), (0.12, 0.7, 0.08), bevel=0.0)
     beam("bell_arm", p["wood_dk"], (0.95, 0.75, 1.7), (1.3, 0.75, 1.75), thick=0.05)
+    kit.begin_part("anim_bell")
     cyl("bell", p["silver"], (1.3, 0.75, 1.4), 0.14, 0.26, sides=7, top_radius=0.06, bevel=0.0)
+    kit.end_part()
     plaques(p, (1.4, -1.1), count=4, step=0.3)
     casings(p, (1.35, 1.2, 0.1))
     dead_lantern(p, (-1.3, 1.3, 0.1), post=0.9)

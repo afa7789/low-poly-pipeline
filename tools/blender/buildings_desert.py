@@ -616,6 +616,7 @@ def g_h07e_ballista_tower():
     def rz(x):
         return 3.2 + 0.78 * (x + 0.5)
 
+    kit.begin_part("anim_ballista")
     for s in (-1, 1):
         beam("rail", p["iron_dk"], (-0.6, s * 0.17, rz(-0.6)), (1.2, s * 0.17, rz(1.2)), thick=0.12)
         beam("rail_strut", p["palm_dk"], (0.5, s * 0.55, 2.82), (0.5, s * 0.15, rz(0.5) - 0.04), thick=0.07)
@@ -623,6 +624,7 @@ def g_h07e_ballista_tower():
         box("rail_tie", p["palm"], (x, 0, rz(x) - 0.03), (0.08, 0.4, 0.06), bevel=0.0)
     beam("harpoon", p["palm"], (-0.2, 0, rz(-0.2) + 0.1), (1.2, 0, rz(1.2) + 0.1), thick=0.12)
     beam("harpoon_head", p["iron"], (1.15, 0, rz(1.15) + 0.1), (1.55, 0, rz(1.55) + 0.1), thick=0.2)
+    kit.end_part()
     hose(p, [(-0.35, 0.45, 3.35), (-0.5, 0.25, 3.2), (-0.55, 0.05, 3.05)])
     flame_lamp(p, (-0.62, -0.62, 2.82), size=0.22, post=0.7)
     jar(p, (-0.2, -0.5, 2.82), r=0.12, h=0.25)

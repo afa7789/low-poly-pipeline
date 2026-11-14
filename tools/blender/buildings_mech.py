@@ -165,6 +165,7 @@ def gauge(p, pos, facing="x+", r=0.2):
 def gear(p, pos, facing="x+", r=0.4, thick=0.08, tone="brass_dk", teeth=10):
     """Engrenagem exposta: disco, dentes radiais e cubo."""
     d = _DIR[facing]
+    kit.begin_part("anim_gear", unique=True)
     disc("gear", p[tone], pos, r, thick, facing, 12)
     mid = _add(pos, tuple(c * thick / 2 for c in d))
     for i in range(teeth):
@@ -173,6 +174,7 @@ def gear(p, pos, facing="x+", r=0.4, thick=0.08, tone="brass_dk", teeth=10):
         outer = _add(mid, _plane(facing, math.cos(a) * r * 1.2, math.sin(a) * r * 1.2))
         beam("gear_tooth", p[tone], inner, outer, thick=r * 0.28)
     disc("gear_hub", p["soot"], _add(pos, tuple(c * 0.02 for c in d)), r * 0.28, thick + 0.04, facing, 8)
+    kit.end_part()
 
 
 def spur(p, x0, x1, y=0.0, gauge_w=0.6):
@@ -521,6 +523,7 @@ def h05U_lumber_mill():
     pad(p)
     plated(p, -1.2, 0.0, 1.1, 3.0, 1.1, wall="timber", roof="roof_dk")
     wx, wz = 0.1, 1.45
+    kit.begin_part("anim_saw")
     disc("saw_disc", p["verd"], (wx, 0.0, wz), 1.0, 0.12, "x+", 14)
     for i in range(16):
         a = i * math.tau / 16
@@ -530,6 +533,7 @@ def h05U_lumber_mill():
     for a in range(0, 360, 60):
         r = math.radians(a)
         beam("saw_spoke", p["iron_dk"], (wx + 0.13, 0.0, wz), (wx + 0.13, math.cos(r) * 0.9, wz + math.sin(r) * 0.9), thick=0.07)
+    kit.end_part()
     for s in (-1, 1):
         beam("saw_stand", p["iron_dk"], (wx - 0.15, s * 0.7, 0.1), (wx, s * 0.12, wz - 0.1), thick=0.12)
     # Esteira de toras em trilho entrando na serra, toras com óleo na fibra.
@@ -833,6 +837,7 @@ def h05L_energy_tower():
         cyl("insulator", p["glass"], (0, 0, z + 0.26), rad * 0.5, 0.24, sides=8, bevel=0.0)
         ring("insulator_rim", p["verd"], (0, 0, z + 0.34), rad * 0.5, 0.05, thick=0.05, sides=8)
     cyl("cap_plate", p["brass_dk"], (0, 0, 3.7), 0.4, 0.08, sides=10, bevel=0.0)
+    kit.begin_part("anim_bulbs")
     for a in (0.0, 2.1, 4.2):
         dome("bulb", p["glass"], (math.cos(a) * 0.25, math.sin(a) * 0.25, 3.78), 0.22, squash=1.2, sides=8)
     dome("bulb", p["glass"], (0, 0, 3.98), 0.24, squash=1.2, sides=8)
@@ -841,6 +846,7 @@ def h05L_energy_tower():
     for a, b in itertools.pairwise(pts):
         beam("rod", p["iron_lt"], a, b, thick=0.06)
     box("rod_tip", p["brass"], (0.9, 0, 4.36), (0.1, 0.1, 0.1), bevel=0.0)
+    kit.end_part()
     # Queimador dedicado ao pé, com a fresta acesa e o respiro fumegante.
     box("burner", p["iron"], (1.15, 0.0, 0.1), (0.55, 1.0, 0.8), bevel=0.04)
     box("burner_roof", p["roof"], (1.15, 0.0, 0.9), (0.65, 1.1, 0.08), bevel=0.0)

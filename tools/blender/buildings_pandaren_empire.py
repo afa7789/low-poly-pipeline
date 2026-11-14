@@ -545,8 +545,10 @@ def h07P_steam_tower():
         beam("rail", p["bamboo_dk"], (cx + math.cos(a) * 1.25, math.sin(a) * 1.25, 3.62), (cx + math.cos(b) * 1.25, math.sin(b) * 1.25, 3.62), thick=0.06)
     # Canhão curto com funil na boca, apontando para a lane e para cima.
     cyl("cannon_base", p["iron_dk"], (cx, 0, 3.24), 0.5, 0.3, sides=8, bevel=0.0)
+    kit.begin_part("anim_cannon")
     beam("cannon", p["soot"], (cx - 0.2, 0, 3.6), (cx + 1.0, 0, 4.15), thick=0.34)
     cyl("funnel", p["iron"], (cx + 1.0, 0, 4.15), 0.15, 0.4, sides=8, top_radius=0.32, bevel=0.0, rot=("Y", math.radians(65)))
+    kit.end_part()
     steam(p, (cx - 0.5, -0.4, 3.3), n=2, r=0.1)
     # Escada de bambu escorada na frente e rolo de corda.
     for s in (-1, 1):
@@ -583,11 +585,13 @@ def h07V_gas_chimney():
     cyl("stack_neck", p["iron_dk"], (0, 0, 3.28), 0.46, 0.3, sides=10, top_radius=0.32, bevel=0.0)
     # Globo de vidro de boiler com o gás aceso dentro: chama baixa, não mágica.
     cyl("orb_seat", p["iron_dk"], (0, 0, 3.55), 0.42, 0.14, sides=10, bevel=0.0)
+    kit.begin_part("anim_orb")
     dome("orb", p["flame"], (0, 0, 3.65), 0.5, squash=1.05, sides=10)
     for i in range(6):
         a = i * math.tau / 6
         beam("orb_cage", p["iron_dk"], (math.cos(a) * 0.46, math.sin(a) * 0.46, 3.65), (0, 0, 4.2), thick=0.045)
     cyl("orb_cap", p["soot"], (0, 0, 4.15), 0.14, 0.1, sides=8, bevel=0.0)
+    kit.end_part()
     steam(p, (0.0, 0.0, 4.3), n=2, r=0.09)
     # Caldeira de apoio e o tambor de alimentação com mangueira.
     cyl("aux_boiler", p["copper"], (0.2, -1.2, 0.38), 0.34, 0.9, sides=10, bevel=0.0, rot=("Y", math.radians(90)))
@@ -611,12 +615,14 @@ def h07R_cable_mast():
     beam("crossbar", p["oak_dk"], (cx, -0.8, 2.6), (cx, 0.8, 2.6), thick=0.1)
     for y in (-0.8, 0.8):
         cyl("insulator", p["porc"], (cx, y, 2.65), 0.08, 0.22, sides=6, bevel=0.0)
+    kit.begin_part("anim_kite")
     kite = cyl("kite", p["canvas"], (cx + 0.15, 0, 3.0), 0.6, 0.07, sides=4, bevel=0.0, rot=("Y", math.radians(90)))
     for v in kite.data.vertices:
         v.co.z *= 1.15
     cyl("kite_patch", p["glaze"], (cx + 0.2, 0.0, 3.0), 0.3, 0.05, sides=4, bevel=0.0, rot=("Y", math.radians(90)))
     beam("kite_spar_v", p["iron_dk"], (cx + 0.25, 0, 3.0 - 0.7), (cx + 0.25, 0, 3.0 + 0.7), thick=0.06)
     beam("kite_spar_h", p["iron_dk"], (cx + 0.25, -0.6, 3.0), (cx + 0.25, 0.6, 3.0), thick=0.06)
+    kit.end_part()
     cyl("tip_cap", p["copper"], (cx, 0, 3.5), 0.08, 0.5, sides=6, top_radius=0.02, bevel=0.0)
     # Haste de cobre descendo pela frente do mastro até o barril aterrado, com cabo no chão.
     beam("rod", p["copper"], (cx + 0.24, 0, 2.6), (cx + 0.24, 0, 0.55), thick=0.06)

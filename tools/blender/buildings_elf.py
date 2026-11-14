@@ -111,11 +111,13 @@ def arc(material, c, radius, u, v, a0, a1, n=8, thick=0.08):
 
 def armillary(p, c, radius, tone="brass"):
     """Esfera armilar ABERTA: três anéis inclinados, cada um em dois arcos com vãos (nunca um círculo fechado)."""
+    kit.begin_part("anim_armillary", unique=True)
     m = p[tone]
     for u, v in ((AY, AZ), (AX, AZ), (AX, AY)):
         arc(m, c, radius, u, v, 15, 165, n=5, thick=0.07)
         arc(m, c, radius, u, v, 195, 345, n=5, thick=0.07)
     box("armillary_core", p["glass"], (c[0] - 0.1, c[1] - 0.1, c[2] - 0.1), (0.2, 0.2, 0.2), bevel=0.0)
+    kit.end_part()
 
 
 def tripod(p, pos, h=0.8, spread=0.3, tone="brass_dk"):
@@ -158,7 +160,9 @@ def h014_arcane_tower():
     for z, r in ((1.55, 0.47), (2.05, 0.4)):
         ring("shaft_band", p["brass_dk"], (0, 0, z), r, 0.1, sides=10)
     cyl("collar", p["brass_dk"], (0, 0, 2.7), 0.5, 0.1, sides=10, bevel=0.0)
+    kit.begin_part("anim_orb")
     dome("orb", p["glass"], (0, 0, 2.8), 0.42, squash=0.85, sides=10)
+    kit.end_part()
     beam("ring_post", p["brass_dk"], (0, 0, 3.05), (0, 0, 3.25), thick=0.1)
     # O anel fechado: 16 vigas, quatro marcas turquesa nos pontos cardeais, tiques nos demais.
     c = (0, 0, 3.95)

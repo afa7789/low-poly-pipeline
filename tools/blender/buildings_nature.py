@@ -118,7 +118,9 @@ def cap(p, pos, r=0.24, stalk=0.3):
     """Cogumelo-lanterna: haste creme e chapéu emissivo. O único ponto de luz da raça."""
     x, y, z = pos
     cyl("cap_stalk", p["cream"], pos, r * 0.3, stalk, sides=6, top_radius=r * 0.22, bevel=0.0)
+    kit.begin_part("anim_glow", unique=True)
     dome("cap_head", p["lantern"], (x, y, z + stalk - 0.02), r, squash=0.7, sides=8)
+    kit.end_part()
     ring("cap_skirt", p["cream"], (x, y, z + stalk - 0.05), r * 0.8, 0.05, thick=0.0, sides=8)
 
 
@@ -126,7 +128,9 @@ def cap_hung(p, pos, r=0.2):
     """Cogumelo-lanterna pendurado: cordão da haste de cima e o bulbo aceso embaixo (pos = ponto de prender)."""
     x, y, z = pos
     cyl("cap_cord", p["bark_dk"], (x, y, z - 0.25), 0.025, 0.25, sides=4, bevel=0.0)
+    kit.begin_part("anim_glow", unique=True)
     cyl("cap_bulb", p["lantern"], (x, y, z - 0.25 - r * 1.3), r * 0.4, r * 1.3, sides=8, top_radius=r, bevel=0.0)
+    kit.end_part()
     cyl("cap_lid", p["cream"], (x, y, z - 0.27), r * 1.05, 0.05, sides=8, bevel=0.0)
 
 
@@ -655,10 +659,12 @@ def n02d_protector():
     root("arm", p["bark_dk"], (0.75, -0.85, zt - 0.45), (0.9, 0.6, zt + 0.55), 0.17, 0.12, sides=6, bevel=0.02)
     root("arm", p["bark_dk"], (0.75, 0.85, zt - 0.45), (0.9, -0.6, zt + 0.55), 0.17, 0.12, sides=6, bevel=0.02)
     # Braço de arremesso erguido por trás, segurando a pedra de enxofre.
+    kit.begin_part("anim_arm")
     root("throw_arm", p["bark_dk"], (-0.1, -0.85, zt - 0.55), (-0.55, -1.0, zt + 1.0), 0.2, 0.13, sides=6, bevel=0.02)
     cyl("sulfur", p["sulfur"], (-0.6, -1.0, zt + 0.98), 0.17, 0.3, sides=6, top_radius=0.12, bevel=0.01)
     for a in (0.5, 2.1, 3.7):
         root("claw", p["bark_dk"], (-0.55, -1.0, zt + 0.95), (-0.55 + math.cos(a) * 0.2, -1.0 + math.sin(a) * 0.2, zt + 1.35), 0.04, 0.02, sides=4)
+    kit.end_part()
     # Coroa vazada de espinhos de ferrugem.
     thorn_crown(p, (0, 0), 0.62, 9, 1.35, zt + 0.55, r=0.11)
     cyl("crown_band", p["moss_dk"], (0, 0, zt + 0.55), 0.82, 0.1, sides=8, top_radius=0.75, bevel=0.02)

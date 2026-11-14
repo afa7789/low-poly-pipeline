@@ -265,11 +265,13 @@ def n01J_protector():
     curve("spiral_rib", p["bark_dk"], spiral, 0.1, 0.07, sides=5)
     # Vagem de pressão: esfera redonda, cinta de seiva e a boca de onde sai o glóbulo.
     px, pz = 0.0, Z0 + 3.45
+    kit.begin_part("anim_pod")
     blob("pod", p["heart_lt"], (px, 0.55, pz), 0.68, 0.68, 0.64, sides=10, rings=6)
     cyl("pod_seam", p["sap"], (px, 0.5, pz), 0.71, 0.08, sides=10, bevel=0.0, rot=("X", math.radians(90)))
     cyl("pod_mouth", p["heart_dk"], (px + 0.55, 0.55, pz - 0.18), 0.24, 0.2, sides=8, bevel=0.0, rot=("Y", math.radians(90)), top_radius=0.18)
     cyl("pod_sap", p["sap"], (px + 0.72, 0.55, pz - 0.18), 0.17, 0.04, sides=8, bevel=0.0, rot=("Y", math.radians(90)))
     blob("globe", p["resin"], (px + 0.72, 0.55, pz - 0.18), 0.1, 0.12, 0.12, sides=6, rings=4)
+    kit.end_part()
     vein(p, px + 0.55, 0.2, pz + 0.2, 0.4, facing=math.radians(10))
     crust(p, px - 0.2, 0.3, pz + 0.55, 0.14)
     # Raízes em gancho, torcidas para um lado só.
@@ -341,6 +343,7 @@ def h04T_eye_of_corruption():
         a = i * math.tau / 3 + 0.5
         blob("shard", p["bark_dk"], (math.cos(a) * 0.75, math.sin(a) * 0.75, Z0 + 1.35 + 0.35 * i), 0.14, 0.14, 0.2, sides=5, rings=3)
     before = set(bpy.data.objects)
+    kit.begin_part("anim_eye")
     # O olho: esclera clara, íris verde brilhante virada para +x, pupila em fenda, veias.
     blob("sclera", sclera, (0, 0, cz), 1.0, 1.0, 1.0, sides=14, rings=9)
     blob("iris", green_dk, (0.88, 0, cz), 0.16, 0.72, 0.72, sides=14, rings=6)
@@ -360,6 +363,7 @@ def h04T_eye_of_corruption():
     tilt = Matrix.Translation((0, 0, cz)) @ Matrix.Rotation(math.radians(-72), 4, "Z") @ Matrix.Rotation(math.radians(-38), 4, "Y") @ Matrix.Translation((0, 0, -cz))
     for ob in set(bpy.data.objects) - before:
         ob.data.transform(tilt)
+    kit.end_part()
     for ang in (0, 90, 180):
         c, s = math.cos(math.radians(ang)), math.sin(math.radians(ang))
         curve("claw", p["bark_dk"], [(c * 1.4, s * 1.4, Z0 + 0.5), (c * 1.65, s * 1.65, Z0 + 1.8), (c * 1.35, s * 1.35, cz - 0.3), (c * 1.0, s * 1.0, cz + 0.45)], 0.17, 0.05)

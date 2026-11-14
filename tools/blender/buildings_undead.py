@@ -869,11 +869,13 @@ def h01O_turret_of_souls():
     cyl("hearth_rim", p["iron_dk"], (0, 0, 2.9), 0.84, 0.18, sides=8, top_radius=0.86, bevel=0.0)
     cyl("hearth_glow", p["ecto"], (0, 0, 3.05), 0.6, 0.04, sides=8, bevel=0.0)
     # A boca de arremesso: garganta grossa e horizontal, nunca uma agulha.
+    kit.begin_part("anim_throat")
     cyl("throat", p["iron_dk"], (0.4, 0, 2.2), 0.4, 1.2, sides=8, bevel=0.0, rot=("Y", HALF_PI))
     cyl("throat_lip", p["iron"], (1.52, 0, 2.2), 0.5, 0.14, sides=8, bevel=0.0, rot=("Y", HALF_PI))
     cyl("throat_glow", p["ecto"], (1.62, 0, 2.2), 0.3, 0.04, sides=8, bevel=0.0, rot=("Y", HALF_PI))
     for s in (-1, 1):
         beam("throat_strut", p["iron_dk"], (0.5, s * 0.3, 1.2), (1.3, s * 0.4, 2.0), thick=0.08)
+    kit.end_part()
     # Respiro curto e gordo atrás.
     cyl("vent", p["brick_dk"], (-0.45, 0, 3.0), 0.26, 0.55, sides=8, top_radius=0.2, bevel=0.0)
     vapor(p, (-0.45, 0, 3.55), r=0.18, h=0.5)

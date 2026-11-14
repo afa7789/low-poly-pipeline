@@ -600,12 +600,14 @@ def h03Q_icy_tower():
     rivets(p, -0.7, 0.7, 2.65, -0.87)
     prism("roof_snow", p["snow"], (0, 0, 3.1), (1.6, 1.5, 0.35), ridge=0.15, bevel=0.02)
     # Coroa: cone de broca com a ponta para baixo, num mastro curto.
+    kit.begin_part("anim_drill")
     cyl("crown_mast", p["iron_dk"], (0, 0, 3.4), 0.1, 0.4, sides=6, bevel=0.0)
     cyl("drill_cone", p["rust"], (0, 0, 3.55), 0.05, 0.9, sides=8, top_radius=0.62, bevel=0.0)
     for z in (3.8, 4.05, 4.3):
         r = 0.05 + (z - 3.55) / 0.9 * 0.57
         cyl("drill_flute", p["iron_dk"], (0, 0, z), r + 0.02, 0.06, sides=8, bevel=0.0)
     lamp(p, (0.0, 0.0, 4.45))
+    kit.end_part()
     # Primeiro andar: compressor de querosene e o carretel de mangueira.
     box("compressor", p["rust"], (1.1, 0.1, 0.1), (0.55, 0.7, 0.5), bevel=0.03)
     cyl("air_tank", p["snow_dk"], (1.15, -0.55, 0.32), 0.2, 0.85, sides=8, bevel=0.0, rot=("X", math.radians(90)))

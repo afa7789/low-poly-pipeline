@@ -412,12 +412,14 @@ def h076_discharge_tower():
     tip = base + axis * 3.5
     beam("rod_low", p["basalt"], base, fork, thick=0.42)
     beam("rod_up", p["basalt"], fork, tip, thick=0.28)
+    kit.begin_part("anim_crystal")
     kit.spike(p["glass"], tuple(tip), height=0.45, radius=0.12)
     for s in (-1, 1):
         end = fork + Vector((0.55 * s, 0.35, 1.05))
         beam("tine", p["basalt"], fork, end, thick=0.2)
         kit.spike(p["glass"], tuple(end), height=0.35, radius=0.09)
     gem(p, "glass", tuple(fork + Vector((0.0, 0.2, 0.45))), 0.3, 0.7)
+    kit.end_part()
     seam(p, (-0.1, -0.6, 1.0), (0.1, 0.1, 0.8))
     # Corrente de aterramento descendo da haste ao dínamo queimado.
     chain(p, tuple(base + Vector((0.3, 0.1, 0.5))), (0.75, 0.0, 0.55), links=6)
@@ -434,6 +436,7 @@ def h061_guard_tower():
     seam(p, (1.18, 0.3, 1.05), (0.06, 0.9, 0.06))
     seam(p, (1.28, -0.4, 1.95), (0.06, 0.7, 0.06))
     # Berço de quatro garras de vidro segurando o pedregulho; a calha de fratura aponta para o campo (+x).
+    kit.begin_part("anim_rock")
     for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
         beam("cradle_claw", p["smoke"], (-0.1 + sx * 0.5, sy * 0.5, 2.6), (-0.1 + sx * 0.75, sy * 0.75, 3.35), thick=0.14)
     rock(p, "basalt", (-0.1, 0, 2.7), 0.7, 0.95, sides=7, top=0.75)
@@ -441,6 +444,7 @@ def h061_guard_tower():
     chute = (0.85, 0, 2.35)
     tbox("chute", p["char_dk"], chute, (1.3, 0.6, 0.2), (0.0, 0.4, 0.0), bevel=0.02)
     tbox("chute_lip", p["steel"], at(chute, (0.0, 0.4, 0.0), (0.9, 0.0, 0.2)), (0.2, 0.7, 0.2), (0.0, 0.4, 0.0), bevel=0.0)
+    kit.end_part()
     gas_valve(p, (1.0, -1.1, 0.1))
     sleeper(p, (1.25, 0.9, 0.1), rot_z=0.5, length=1.0)
 
@@ -559,7 +563,9 @@ def h042_globe_pillar():
     for s in (-1, 1):
         beam("y_arm", p["char"], (0, 0, top - 0.1), (-0.1, s * 0.85, top + 1.3), thick=0.34)
         kit.spike(p["glass"], (-0.1, s * 0.85, top + 1.3), height=0.4, radius=0.1)
+    kit.begin_part("anim_gem")
     gem(p, "glass", (-0.05, 0, top + 0.55), 0.38, 0.85, sides=7)
+    kit.end_part()
     seam(p, (-0.05, 0, top - 0.12), (0.2, 0.2, 0.3))
     chain(p, (0.5, 0.2, top - 0.5), (1.15, 0.9, 0.3), links=5)
     post(p, (1.2, 0.95, 0.1))

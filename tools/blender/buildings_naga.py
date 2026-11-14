@@ -777,12 +777,14 @@ def n_h00n_tidal_guardian():
     cyl("elbow_flange", p["plate_dk"], (0, 0, 2.9), 0.74, 0.12, sides=10, bevel=0.0)
     dome("elbow_low", p["rust"], (0, 0, 3.02), 0.76, squash=1.0, sides=10)
     dome("elbow_cap", p["rust_dk"], (0, 0, 3.02), 0.7, squash=0.5, sides=10)
+    kit.begin_part("anim_neck")
     tube("neck", p["rust"], (0, 0, 3.55), (1.05, 0, 3.55), 0.52, 0.5, sides=10)
     band_tube = Vector((0.55, 0, 3.55))
     tube("neck_band", p["rust_dk"], band_tube, band_tube + Vector((0.12, 0, 0)), 0.56, sides=10)
     tube("neck_flare", p["verdi"], (1.05, 0, 3.55), (1.55, 0, 3.55), 0.5, 0.82, sides=10)
     cyl("mouth_inner", p["tar"], (1.57, 0, 3.55), 0.66, 0.04, sides=10, bevel=0.0, rot=("Y", math.pi / 2))
     lens(p, (1.6, 0, 3.55), 0.22, "x")
+    kit.end_part()
     # Mandíbula e sobrancelha da figura de proa, e a crista de coral na nuca.
     box("jaw", p["rust_dk"], (1.1, -0.45, 2.92), (0.65, 0.9, 0.16), bevel=0.02, taper=0.8, taper_y=0.5)
     for s in (-1, 1):
